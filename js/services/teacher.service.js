@@ -1,0 +1,74 @@
+// Teachers collection.
+// { teacherNumber, tscNumber, fullName, phone, email, subjectCodes:[],
+//   classAssignments:[{grade, stream}], userId (linked login, optional),
+//   status, createdAt }
+import {
+  collection,
+  doc,
+  addDoc,
+  updateDoc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "../firebase-config.js";
+import { logAction } from "./audit.service.js";
+
+export async function listTeachers() {
+  const snap = await getDocs(query(collection(db, "teachers"), orderBy("fullName")));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function getTeacher(id) {
+  const snap = await getDoc(doc(db, "teachers", id));
+  return snap.exists() ? { id, ...snap.data() } : null;
+}
+
+// Used by Marks Entry (and anywhere else) to find which teacher record a
+// logged-in subject/class teacher owns, so their subject/class pickers can
+// be limited to what they're actually assigned to teach.
+export async function getTeacherByUserId(userId) {
+  const snap = await getDocs(query(collection(db, "teachers"), where("userId", "==", userId)));
+  return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+export async function getTeacherByEmail(email) {
+  if (!email) return null;
+  const snap = await getDocs(query(collection(db, "teachers"), where("email", "==", email)));
+  return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+export async function createTeacher(userId, data) {
+  const ref_ = await addDoc(collection(db, "teachers"), {
+    ...data,
+    status: "active",
+    subjectCodes: data.subjectCodes || [],
+    classAssignments: data.classAssignments || [],
+    createdAt: serverTimestamp(),
+  });
+  await logAction(userId, "create_teacher", "teachers", ref_.id);
+  return ref_.id;
+}
+
+export async function updateTeacher(userId, id, data) {
+  await updateDoc(doc(db, "teachers", id), data);
+  await logAction(userId, "edit_teacher", "teachers", id);
+}
+
+export async function assignSubjects(userId, id, subjectCodes) {
+  await updateDoc(doc(db, "teachers", id), { subjectCodes });
+  await logAction(userId, "assign_subjects", "teachers", id);
+}
+
+export async function assignClasses(userId, id, classAssignments) {
+  await updateDoc(doc(db, "teachers", id), { classAssignments });
+  await logAction(userId, "assign_classes", "teachers", id);
+}
+
+export async function setTeacherStatus(userId, id, status) {
+  await updateDoc(doc(db, "teachers", id), { status });
+  await logAction(userId, `${status}_teacher`, "teachers", id);
+}

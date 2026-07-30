@@ -1,0 +1,172 @@
+/* ==========================================================================
+   Report Card
+   ========================================================================== */
+
+.report-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  max-width: 860px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.report-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 2px solid var(--color-maroon-700);
+  margin-bottom: var(--sp-4);
+}
+.report-card__logo { width: 56px; height: 56px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; }
+.report-card__school-name { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--color-maroon-900); margin: 0; }
+.report-card__motto { font-size: var(--fs-xs); color: var(--color-ink-soft); text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+.report-card__address { font-size: var(--fs-xs); color: var(--color-ink-soft); margin: 2px 0 0; margin-left: auto; text-align: right; }
+
+.report-card__banner {
+  background: var(--color-maroon-700);
+  color: var(--color-white);
+  text-align: center;
+  padding: var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--sp-4);
+}
+
+.report-card__student {
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr;
+  gap: var(--sp-4);
+  align-items: center;
+  margin-bottom: var(--sp-4);
+}
+.report-card__photo { width: 80px; height: 80px; border-radius: var(--radius-md); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); }
+.report-card__student-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--sp-4); font-size: var(--fs-sm); }
+.report-card__student-grid b { color: var(--color-maroon-900); }
+
+.report-card__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--sp-3);
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+.report-card__stat { text-align: center; }
+.report-card__stat-label { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-ink-soft); }
+.report-card__stat-value { font-family: var(--font-display); font-size: var(--fs-md); color: var(--color-maroon-900); }
+
+.report-card__pathways {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.report-card__pathway {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  text-align: center;
+}
+.report-card__pathway-name { font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink-soft); text-transform: uppercase; }
+.report-card__pathway-value { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--color-maroon-900); }
+
+.report-card__remarks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  margin: var(--sp-4) 0;
+}
+.report-card__remark-box {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+}
+.report-card__remark-box h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--color-maroon-900); }
+.report-card__remark-box textarea { width: 100%; min-height: 56px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: var(--sp-2); font-family: inherit; }
+.report-card__sign-line { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--color-ink-soft); }
+
+.report-card__fee-balance {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-maroon-900);
+  background: var(--color-gold-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  margin: var(--sp-4) 0;
+}
+
+.report-card__dates {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--sp-3);
+}
+
+.report-card__actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  margin-bottom: var(--sp-4);
+}
+
+/* --- Receipt (Fee Management) --- */
+.receipt {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  max-width: 420px;
+  margin: 0 auto;
+  box-shadow: var(--shadow-sm);
+}
+.receipt__header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-3);
+  border-bottom: 2px solid var(--color-maroon-700);
+  margin-bottom: var(--sp-3);
+}
+.receipt__logo { width: 44px; height: 44px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; }
+.receipt__school-name { font-family: var(--font-display); font-size: var(--fs-md); color: var(--color-maroon-900); margin: 0; }
+.receipt__address { font-size: var(--fs-xs); color: var(--color-ink-soft); margin: 2px 0 0; }
+.receipt__banner {
+  background: var(--color-maroon-700);
+  color: var(--color-white);
+  text-align: center;
+  padding: var(--sp-2);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--sp-3);
+}
+.receipt__row { display: flex; justify-content: space-between; font-size: var(--fs-sm); padding: 6px 0; border-bottom: 1px dashed var(--color-line); }
+.receipt__row b { color: var(--color-maroon-900); }
+.receipt__amount {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  color: var(--color-maroon-900);
+  background: var(--color-gold-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--sp-3);
+  margin: var(--sp-3) 0;
+}
+.receipt__footer { text-align: center; font-size: var(--fs-xs); color: var(--color-ink-soft); margin-top: var(--sp-3); }
+
+/* --- Print: show only the report card or receipt, one clean page --- */
+@media print {
+  body * { visibility: hidden; }
+  .report-card, .report-card *, .receipt, .receipt * { visibility: visible; }
+  .report-card, .receipt { position: absolute; inset: 0; margin: 0 auto; max-width: 420px; box-shadow: none; border: none; }
+  .report-card { max-width: none; }
+  .no-print { display: none !important; }
+}

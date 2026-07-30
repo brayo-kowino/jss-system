@@ -1,0 +1,60 @@
+/* ==========================================================================
+   Design Tokens — JSS Management System
+   Palette lifted from the school's own report card (oxblood/maroon + cream)
+   ========================================================================== */
+:root {
+  /* Color */
+  --color-maroon-900: #4A0E17;
+  --color-maroon-700: #7A1F2B;
+  --color-maroon-600: #96313D;
+  --color-maroon-100: #F4E3E6;
+  --color-cream: #FAF6F0;
+  --color-cream-dim: #F1EAE0;
+  --color-ink: #2B211E;
+  --color-ink-soft: #6B5D58;
+  --color-gold: #C9A227;
+  --color-gold-soft: #E9D9A0;
+  --color-green: #2E7D46;
+  --color-red: #B3261E;
+  --color-line: #E4D8CE;
+  --color-white: #FFFFFF;
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-base: 1rem;
+  --fs-md: 1.125rem;
+  --fs-lg: 1.375rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.25rem;
+
+  /* Spacing (4px scale) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-seal: 50%;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(74, 14, 23, 0.06);
+  --shadow-md: 0 4px 16px rgba(74, 14, 23, 0.10);
+  --shadow-lg: 0 12px 32px rgba(74, 14, 23, 0.16);
+
+  /* Layout */
+  --sidebar-w: 248px;
+  --topbar-h: 64px;
+  --transition: 160ms ease;
+}

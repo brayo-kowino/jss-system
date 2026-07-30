@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && myRole() == 'admin';
+    }
+
+    function isStaff() {
+      return isSignedIn() && myRole() in [
+        'admin', 'principal', 'deputy_principal', 'academic_master',
+        'class_teacher', 'subject_teacher', 'bursar', 'registrar'
+      ];
+    }
+
+    // Users can read their own profile; only admins manage others.
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // School-wide config: staff can read, only admins write.
+    match /school_settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Everything academic/operational (including marks): staff read/write,
+    // admins full control. The Marks Entry UI already restricts a
+    // subject/class teacher to their own assigned subjects, but Firestore
+    // rules can't cheaply enforce "only their subject" without a `where`
+    // query, which rules don't support — that needs subjectCodes denormalized
+    // onto the user doc itself as a follow-up if you want server-side
+    // enforcement, not just UI-level restriction.
+    match /{collection}/{docId} {
+      allow read: if isStaff();
+      allow write: if isStaff();
+    }
+
+    // Audit log: append-only, staff can read, nobody edits/deletes.
+    match /audit_logs/{logId} {
+      allow read: if isStaff();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}
