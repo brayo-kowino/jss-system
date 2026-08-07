@@ -1,5 +1,5 @@
 import { completeForcedPasswordChange, logout } from "../js/services/auth.service.js";
-import { navigate } from "../js/router.js";
+import { navigate, renderRoute } from "../js/router.js";
 import { el, icon, toast, busyButton } from "../js/utils.js";
 
 // ===========================================================================
@@ -121,7 +121,17 @@ export function init() {
     try {
       await Promise.race([completeForcedPasswordChange(pw1), timeout]);
       toast("Password set - welcome in.", "success");
-      navigate("/dashboard");
+      // The hash is already "/dashboard" while mustChangePassword gated us
+      // here, so navigate("/dashboard") would set location.hash to its own
+      // current value - browsers don't fire hashchange for that, so the
+      // router would never re-run and this screen would stay stuck even
+      // though the profile is now cleared. Re-render directly instead of
+      // going through navigate()/hashchange.
+      if (location.hash.replace(/^#/, "") === "/dashboard") {
+        await renderRoute();
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       console.error("Forced password change failed:", err);
       errorEl.textContent = friendlyError(err);
