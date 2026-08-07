@@ -37,7 +37,16 @@ let teacherSelection = { teacherId: "" };
 let teacherSlots = {};
 
 export async function render({ profile }) {
-  await seedDefaultPeriodsIfEmpty();
+  // Seeding writes new `periods` docs, which firestore.rules restrict to
+  // canManageAcademicStructure() (admin/academic_master) - CAN_MANAGE here
+  // matches that exactly. Any other role opening this page for a school
+  // that hasn't been seeded yet used to hit a permission-denied write
+  // before the page ever got past its first line, regardless of the
+  // listTeachers() fix below. Everyone else just reads whatever periods
+  // already exist (possibly none yet) instead of trying to create them.
+  if (CAN_MANAGE.includes(profile.role)) {
+    await seedDefaultPeriodsIfEmpty();
+  }
   [classes, subjects, teachers, periods] = await Promise.all([
     listClasses(), listSubjects(), CAN_SEE_ALL_TEACHERS.includes(profile.role) ? listTeachers() : Promise.resolve([]), listPeriods(),
   ]);
@@ -373,4 +382,5 @@ function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pi
   tableWrap.append(table);
   container.append(tableWrap);
 }
+
 export function init() {}
