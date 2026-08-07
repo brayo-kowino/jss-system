@@ -40,10 +40,7 @@
   justify-content: flex-end;
   padding: var(--sp-7) var(--sp-7) var(--sp-8);
   overflow: hidden;
-  background:
-    linear-gradient(165deg, rgba(11, 37, 69, 0.92) 0%, rgba(11, 37, 69, 0.80) 55%, rgba(20, 83, 138, 0.72) 100%),
-    radial-gradient(circle at 80% 15%, var(--color-primary-600) 0%, transparent 55%),
-    var(--color-primary-900);
+  background: var(--color-primary-900);
   color: var(--color-cream);
 }
 .auth-brand::before {
@@ -55,9 +52,97 @@
   background-size: 26px 26px;
   opacity: 0.5;
   pointer-events: none;
+  z-index: 2;
+}
+
+/* Semi-transparent scrim over the hero/laptop art so headline text always
+   stays legible regardless of what the screenshot looks like underneath. */
+.auth-brand__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(11, 37, 69, 0.82) 0%, rgba(11, 37, 69, 0.35) 32%, rgba(11, 37, 69, 0.32) 56%, rgba(11, 37, 69, 0.93) 82%, rgba(11, 37, 69, 0.97) 100%),
+    radial-gradient(circle at 80% 10%, rgba(30, 111, 181, 0.30) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Laptop mockup housing the hero product screenshot - floats in the free
+   space between the top brand row and the headline block. */
+.auth-brand__device {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  padding: var(--sp-5) 0;
+}
+.laptop-frame {
+  width: min(86%, 460px);
+  transform: rotate(-2.5deg);
+  filter: drop-shadow(0 35px 55px rgba(0, 0, 0, 0.45));
+}
+.laptop-frame__screen {
+  position: relative;
+  background: #101d2e;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 11px 11px 3px 3px;
+  padding: 9px 9px 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+.laptop-frame__cam {
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #2a4260;
+}
+.laptop-frame__viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 3px 3px 0 0;
+  aspect-ratio: 16 / 10;
+  background: var(--color-cream);
+}
+.laptop-frame__viewport img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+.laptop-frame__sheen {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, transparent 28%);
+  pointer-events: none;
+}
+.laptop-frame__base {
+  height: 14px;
+  margin: 0 -8px 0;
+  background: linear-gradient(180deg, #223650, #0c1826);
+  border-radius: 0 0 8px 8px;
+  position: relative;
+}
+.laptop-frame__base::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 64px;
+  height: 5px;
+  background: #101d2e;
+  border-radius: 0 0 6px 6px;
 }
 .auth-brand__top {
   position: relative;
+  z-index: 3;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -75,7 +160,7 @@
   letter-spacing: 0.14em;
   color: var(--color-gold-soft);
 }
-.auth-brand__content { position: relative; margin-top: auto; max-width: 480px; }
+.auth-brand__content { position: relative; z-index: 3; margin-top: auto; max-width: 480px; }
 .auth-brand__headline {
   font-family: var(--font-display);
   font-weight: 700;

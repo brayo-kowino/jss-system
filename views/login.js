@@ -91,6 +91,19 @@ export async function render() {
 
   // Left: brand panel
   const brand = el("div", { class: "auth-brand" }, [
+    el("div", { class: "auth-brand__device" }, [
+      el("div", { class: "laptop-frame" }, [
+        el("div", { class: "laptop-frame__screen" }, [
+          el("div", { class: "laptop-frame__cam" }),
+          el("div", { class: "laptop-frame__viewport" }, [
+            el("img", { src: "assets/jss-manager-hero-image.png", alt: "JSS Manager dashboard preview" }),
+            el("div", { class: "laptop-frame__sheen" }),
+          ]),
+        ]),
+        el("div", { class: "laptop-frame__base" }),
+      ]),
+    ]),
+    el("div", { class: "auth-brand__scrim" }),
     el("div", { class: "auth-brand__top" }, [
       el("div", { class: "seal" }, [el("img", { class: "seal__img", src: logoSrc, alt: `${brandName} logo` })]),
       el("div", {}, [
