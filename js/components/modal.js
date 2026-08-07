@@ -1,4 +1,4 @@
-import { el } from "../utils.js";
+import { el, icon } from "../utils.js";
 
 /**
  * Opens a modal with arbitrary content. Returns a close() function.
@@ -10,7 +10,7 @@ export function openModal(title, bodyNode) {
   const modal = el("div", { class: "modal" });
   const header = el("div", { class: "modal__header" }, [
     el("h3", { style: "margin:0;" }, title),
-    el("button", { class: "modal__close", "aria-label": "Close", onClick: close }, "×"),
+    el("button", { class: "modal__close", "aria-label": "Close", onClick: close }, [icon("close")]),
   ]);
   modal.append(header, bodyNode);
   backdrop.append(modal);

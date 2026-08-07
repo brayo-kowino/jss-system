@@ -10,7 +10,7 @@ import {
   listAttendanceForClassPeriod,
   summarizeForRoster,
 } from "../js/services/attendance.service.js";
-import { el, toast, formatDate } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
 
 const CAN_MARK_ANY_CLASS = ["admin", "principal"];
 
@@ -34,7 +34,6 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Attendance"), el("p", {}, "Mark today's roll call, or revisit an earlier date.")]),
     ])
   );
 
@@ -93,7 +92,10 @@ async function maybeLoad(profile, bodyMount, summaryMount) {
     return;
   }
   const [grade, stream] = selection.classKey.split("|");
-  bodyMount.innerHTML = `<div class="empty-state">Loading roster…</div>`;
+  bodyMount.innerHTML = "";
+  bodyMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
+  ]));
   summaryMount.innerHTML = "";
 
   const [students, existing] = await Promise.all([
@@ -119,8 +121,8 @@ function renderRoster(container, profile) {
       el("p", { class: "text-muted", style: "margin:0;" }, `${formatDate(selection.date)} · ${roster.length} student(s)`),
     ]),
     el("div", { style: "display:flex; gap:8px;" }, [
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => markAll(container, "present") }, "Mark all present"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => handleSave(profile, container) }, "Save Attendance"),
+      el("button", { class: "btn btn--ghost btn--sm", onClick: () => markAll(container, "present") }, [icon("done_all"), "Mark all present"]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: (ev) => handleSave(profile, container, ev.currentTarget) }, [icon("save"), "Save Attendance"]),
     ])
   );
   container.append(infoCard);
@@ -140,9 +142,9 @@ function renderRoster(container, profile) {
   const tbody = el("tbody", {});
   for (const student of roster) {
     tbody.append(el("tr", { "data-row-for": student.id }, [
-      el("td", {}, student.admissionNumber || "—"),
+      el("td", {}, student.admissionNumber || "N/A"),
       el("td", {}, student.fullName),
-      el("td", {}, buildSegmented(student.id)),
+      el("td", { class: "status-cell" }, buildStatusRadios(student.id)),
     ]));
   }
   table.append(tbody);
@@ -150,43 +152,42 @@ function renderRoster(container, profile) {
   container.append(tableWrap);
 }
 
-function buildSegmented(studentId) {
-  const wrap = el("div", { class: "segmented", "data-segmented-for": studentId });
+function buildStatusRadios(studentId) {
+  const wrap = el("div", { class: "status-options", role: "radiogroup", "data-status-for": studentId });
   for (const s of STATUSES) {
-    const isActive = currentStatuses[studentId] === s.value;
-    const btn = el(
-      "button",
-      { type: "button", class: `segmented__opt${isActive ? ` active--${s.value}` : ""}` },
-      s.label
-    );
-    btn.addEventListener("click", () => {
-      currentStatuses[studentId] = s.value;
-      for (const sib of wrap.children) sib.className = "segmented__opt";
-      btn.className = `segmented__opt active--${s.value}`;
+    const input = el("input", {
+      type: "radio",
+      name: `status-${studentId}`,
+      value: s.value,
+      ...(currentStatuses[studentId] === s.value ? { checked: "true" } : {}),
     });
-    wrap.append(btn);
+    input.addEventListener("change", () => {
+      currentStatuses[studentId] = s.value;
+    });
+    const label = el("label", { class: `status-option status-option--${s.value}` }, [input, s.label]);
+    wrap.append(label);
   }
   return wrap;
 }
 
 function markAll(container, status) {
   for (const student of roster) currentStatuses[student.id] = status;
-  const rows = container.querySelectorAll("[data-segmented-for]");
+  const rows = container.querySelectorAll("[data-status-for]");
   for (const wrap of rows) {
-    const sid = wrap.getAttribute("data-segmented-for");
-    for (const btn of wrap.children) {
-      btn.className = `segmented__opt${btn.textContent.toLowerCase() === status ? ` active--${status}` : ""}`;
+    for (const input of wrap.querySelectorAll("input[type=radio]")) {
+      input.checked = input.value === status;
     }
   }
   toast(`Marked all ${roster.length} student(s) present. Click Save to store it.`, "info");
 }
 
-async function handleSave(profile, container) {
+async function handleSave(profile, container, button) {
   const [grade, stream] = selection.classKey.split("|");
   const missing = roster.filter((s) => !currentStatuses[s.id]);
   if (missing.length) {
     return toast(`${missing.length} student(s) still have no status selected.`, "error");
   }
+  const restore = busyButton(button, "Saving…");
   try {
     await saveAttendance(profile.uid, {
       grade,
@@ -199,6 +200,8 @@ async function handleSave(profile, container) {
     toast("Attendance saved.", "success");
   } catch (err) {
     toast(err.message || "Could not save attendance.", "error");
+  } finally {
+    restore();
   }
 }
 
@@ -216,7 +219,7 @@ async function renderSummary(container, grade, stream) {
   card.append(
     el("h3", { style: "margin:0 0 4px;" }, `${term} ${academicYear} Attendance Summary`),
     el("p", { class: "text-muted", style: "margin:0 0 16px;" },
-      `${daysMarked} day(s) marked so far · class average ${classAveragePercentage ?? "—"}%`)
+      `${daysMarked} day(s) marked so far · class average ${classAveragePercentage ?? "N/A"}%`)
   );
 
   const tableWrap = el("div", { class: "table-wrap" });
@@ -234,7 +237,7 @@ async function renderSummary(container, grade, stream) {
       el("td", {}, String(s.late ?? 0)),
       el("td", {}, String(s.absent ?? 0)),
       el("td", {}, String(s.excused ?? 0)),
-      el("td", {}, s.percentage === null || s.percentage === undefined ? "—" : `${s.percentage}%`),
+      el("td", {}, s.percentage === null || s.percentage === undefined ? "N/A" : `${s.percentage}%`),
     ]));
   }
   table.append(tbody);

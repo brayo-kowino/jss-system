@@ -10,6 +10,9 @@
   max-width: 860px;
   margin: 0 auto;
   box-shadow: var(--shadow-sm);
+  /* Standard, widely-available system font for the whole document - no
+     decorative/display serif in the report itself. */
+  font-family: var(--font-body);
 }
 
 .report-card__header {
@@ -17,49 +20,82 @@
   align-items: center;
   gap: var(--sp-4);
   padding-bottom: var(--sp-4);
-  border-bottom: 2px solid var(--color-maroon-700);
+  border-bottom: 2px solid var(--color-primary-100);
   margin-bottom: var(--sp-4);
 }
-.report-card__logo { width: 56px; height: 56px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; }
-.report-card__school-name { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--color-maroon-900); margin: 0; }
+.report-card__logo { width: 56px; height: 56px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; background: var(--color-white); }
+.report-card__school-name { font-family: var(--font-body); font-size: var(--fs-lg); font-weight: 700; color: var(--color-primary-900); margin: 0; }
 .report-card__motto { font-size: var(--fs-xs); color: var(--color-ink-soft); text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
 .report-card__address { font-size: var(--fs-xs); color: var(--color-ink-soft); margin: 2px 0 0; margin-left: auto; text-align: right; }
 
+/* Softer than a solid navy fill - a light tint of the theme color with
+   dark text keeps the brand color without the heavy block of ink. */
 .report-card__banner {
-  background: var(--color-maroon-700);
-  color: var(--color-white);
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
   text-align: center;
   padding: var(--sp-2);
   border-radius: var(--radius-sm);
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   margin-bottom: var(--sp-4);
 }
 
 .report-card__student {
-  display: grid;
-  grid-template-columns: 80px 1fr 1fr;
+  display: flex;
+  align-items: flex-start;
   gap: var(--sp-4);
-  align-items: center;
   margin-bottom: var(--sp-4);
 }
-.report-card__photo { width: 80px; height: 80px; border-radius: var(--radius-md); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); }
-.report-card__student-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px var(--sp-4); font-size: var(--fs-sm); }
-.report-card__student-grid b { color: var(--color-maroon-900); }
+.report-card__photo { width: 90px; height: 90px; border-radius: var(--radius-md); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); flex-shrink: 0; }
 
-.report-card__summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--sp-3);
-  background: var(--color-cream-dim);
+/* Student identity table: even label/value columns across the full width.
+   No fill on the label cells - a bold weight is enough to set them apart
+   from the value cells, so the table stays plain black-and-white ruling. */
+.report-card__info-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.report-card__info-table th,
+.report-card__info-table td {
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  padding: var(--sp-4);
-  margin-bottom: var(--sp-4);
+  padding: 7px 10px;
+  text-align: left;
 }
-.report-card__stat { text-align: center; }
-.report-card__stat-label { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-ink-soft); }
-.report-card__stat-value { font-family: var(--font-display); font-size: var(--fs-md); color: var(--color-maroon-900); }
+.report-card__info-table th {
+  width: 17%;
+  color: var(--color-primary-900);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.report-card__info-table td { width: 33%; }
+
+.report-card__section-title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-primary-900);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+/* Performance summary: labels as a header row, values as a data row,
+   ruled like every other table in the report - no shaded cells. */
+.report-card__summary-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); margin-bottom: var(--sp-4); }
+.report-card__summary-table th,
+.report-card__summary-table td {
+  border: 1px solid var(--color-line);
+  padding: 8px 10px;
+  text-align: center;
+}
+.report-card__summary-table th {
+  color: var(--color-primary-900);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.03em;
+}
+.report-card__summary-table td { font-size: var(--fs-sm); font-weight: 600; color: var(--color-ink); }
 
 .report-card__pathways {
   display: grid;
@@ -74,7 +110,7 @@
   text-align: center;
 }
 .report-card__pathway-name { font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink-soft); text-transform: uppercase; }
-.report-card__pathway-value { font-family: var(--font-display); font-size: var(--fs-lg); color: var(--color-maroon-900); }
+.report-card__pathway-value { font-family: var(--font-body); font-weight: 700; font-size: var(--fs-md); color: var(--color-primary-900); }
 
 .report-card__remarks {
   display: grid;
@@ -87,15 +123,33 @@
   border-radius: var(--radius-sm);
   padding: var(--sp-3);
 }
-.report-card__remark-box h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--color-maroon-900); }
+.report-card__remark-box h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--color-primary-900); }
 .report-card__remark-box textarea { width: 100%; min-height: 56px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: var(--sp-2); font-family: inherit; }
 .report-card__sign-line { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--color-ink-soft); }
+.report-card__signer { margin-top: 2px; font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink); }
+
+.report-card__signatures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-5);
+  margin: var(--sp-4) 0;
+  padding-top: var(--sp-2);
+}
+.report-card__signature { text-align: center; }
+.report-card__signature-line {
+  border-bottom: 1px solid var(--color-ink-soft);
+  height: 28px;
+  margin: 0 var(--sp-4) var(--sp-1);
+}
+.report-card__signature-name { font-size: var(--fs-sm); font-weight: 700; color: var(--color-primary-900); }
+.report-card__signature-title { font-size: var(--fs-xs); color: var(--color-ink-soft); }
 
 .report-card__fee-balance {
   text-align: center;
   font-weight: 700;
-  color: var(--color-maroon-900);
-  background: var(--color-gold-soft);
+  color: var(--color-primary-900);
+  background: var(--color-primary-100);
+  border: 1px solid var(--color-primary-100);
   border-radius: var(--radius-sm);
   padding: var(--sp-3);
   margin: var(--sp-4) 0;
@@ -117,6 +171,64 @@
   margin-bottom: var(--sp-4);
 }
 
+/* Table cells inside the report card stay plain - badges elsewhere in the
+   app use a filled background, but inside the printed record that reads
+   as a stray splash of color, so cell content here is just text. */
+.report-card .badge {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-weight: 700;
+}
+
+/* Turn off the app-wide zebra striping and row-hover fill for tables
+   inside the report card - a printed record reads cleaner as plain
+   ruled rows with no color in the cells. */
+.report-card tbody tr:nth-child(even),
+.report-card tbody tr:hover {
+  background: none;
+}
+
+/* Every table in the report (Subject Performance, Performance History,
+   etc.) gets full grid ruling - a border on every cell, not just a line
+   under each row - so it reads as rows AND columns like the summary and
+   info tables above, not a borderless list. The card's own border
+   already frames the table, so drop the wrapper's box to avoid a
+   double border. */
+.report-card .table-wrap {
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}
+.report-card table thead th,
+.report-card table tbody td {
+  border: 1px solid var(--color-line);
+}
+.report-card table thead th {
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+/* Subject Performance table - let the browser size every column to fit
+   its own content (header label or widest data cell, whichever is
+   bigger). No column gets a hardcoded width or percentage, so it stays
+   balanced automatically as data changes - a long subject name, a wide
+   remark, a narrower one - rather than fighting a fixed split. Nothing
+   wraps, so a column only ever grows to fit what's actually in it;
+   Remarks isn't forced to fill leftover space, it just takes what its
+   own text needs. */
+.report-card__subject-table { table-layout: auto; width: 100%; }
+.report-card__subject-table th,
+.report-card__subject-table td {
+  white-space: nowrap;
+}
+/* Safety net: if a row's total content is ever wider than the card (a
+   very long subject name or remark), scroll horizontally instead of
+   silently overflowing the page. */
+.report-card .table-wrap.report-card__subject-table-wrap {
+  overflow-x: auto;
+}
+
 /* --- Receipt (Fee Management) --- */
 .receipt {
   background: var(--color-white);
@@ -132,14 +244,14 @@
   align-items: center;
   gap: var(--sp-3);
   padding-bottom: var(--sp-3);
-  border-bottom: 2px solid var(--color-maroon-700);
+  border-bottom: 2px solid var(--color-primary-700);
   margin-bottom: var(--sp-3);
 }
-.receipt__logo { width: 44px; height: 44px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; }
-.receipt__school-name { font-family: var(--font-display); font-size: var(--fs-md); color: var(--color-maroon-900); margin: 0; }
+.receipt__logo { width: 44px; height: 44px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; background: var(--color-white); }
+.receipt__school-name { font-family: var(--font-display); font-size: var(--fs-md); color: var(--color-primary-900); margin: 0; }
 .receipt__address { font-size: var(--fs-xs); color: var(--color-ink-soft); margin: 2px 0 0; }
 .receipt__banner {
-  background: var(--color-maroon-700);
+  background: var(--color-primary-700);
   color: var(--color-white);
   text-align: center;
   padding: var(--sp-2);
@@ -149,12 +261,12 @@
   margin-bottom: var(--sp-3);
 }
 .receipt__row { display: flex; justify-content: space-between; font-size: var(--fs-sm); padding: 6px 0; border-bottom: 1px dashed var(--color-line); }
-.receipt__row b { color: var(--color-maroon-900); }
+.receipt__row b { color: var(--color-primary-900); }
 .receipt__amount {
   text-align: center;
   font-family: var(--font-display);
   font-size: var(--fs-xl);
-  color: var(--color-maroon-900);
+  color: var(--color-primary-900);
   background: var(--color-gold-soft);
   border-radius: var(--radius-sm);
   padding: var(--sp-3);

@@ -1,7 +1,7 @@
 import { listParents, createParent, updateParent } from "../js/services/parent.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast } from "../js/utils.js";
 
 let parents = [];
 let students = [];
@@ -12,8 +12,8 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Parents"), el("p", {}, `${parents.length} registered`)]),
-      el("button", { class: "btn btn--primary", id: "new-parent-btn" }, "+ Add Parent"),
+      el("div", {}, [el("p", {}, `${parents.length} registered`)]),
+      el("button", { class: "btn btn--primary", id: "new-parent-btn" }, [icon("person_add"), "Add Parent"]),
     ])
   );
 
@@ -51,11 +51,11 @@ function renderTable(container, profile) {
       .filter(Boolean);
     tbody.append(el("tr", {}, [
       el("td", {}, p.fullName),
-      el("td", {}, p.phone || "—"),
-      el("td", {}, p.email || "—"),
-      el("td", {}, p.relationship || "—"),
+      el("td", {}, p.phone || "N/A"),
+      el("td", {}, p.email || "N/A"),
+      el("td", {}, p.relationship || "N/A"),
       el("td", {}, linkedNames.length ? linkedNames.join(", ") : el("span", { class: "text-muted" }, "None")),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, "Edit")),
+      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, [icon("edit"), "Edit"])),
     ]));
   }
   table.append(tbody);
@@ -78,10 +78,10 @@ function openParentForm(profile, existing = null) {
     field("p-email", "Email", existing?.email, "email"),
     field("p-occupation", "Occupation", existing?.occupation),
     field("p-relationship", "Relationship to student", existing?.relationship || "Parent"),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, isEdit ? "Save changes" : "Add parent"),
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add parent"]),
   );
 
-  const close = openModal(isEdit ? `Edit — ${existing.fullName}` : "Add Parent", body);
+  const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Parent", body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

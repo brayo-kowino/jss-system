@@ -1,9 +1,10 @@
 // Daily Attendance.
-// attendance/{grade_stream_date}: { grade, stream, date ("YYYY-MM-DD"),
-//   academicYear, term, records: { [studentId]: "present"|"absent"|"late"|"excused" },
+// attendance/{schoolId__grade_stream_date}: { schoolId, grade, stream,
+//   date ("YYYY-MM-DD"), academicYear, term,
+//   records: { [studentId]: "present"|"absent"|"late"|"excused" },
 //   markedBy, markedAt }
 //
-// One doc per class per day (not per student) — a class teacher marks the
+// One doc per class per day (not per student) - a class teacher marks the
 // whole roster in a single save, which is also what keeps this cheap to
 // read back for percentage roll-ups (one doc per school day, not one per
 // student per day).
@@ -20,6 +21,8 @@ import {
 import { db } from "../firebase-config.js";
 import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
+import { scopedId } from "../utils.js";
 
 export const STATUSES = [
   { value: "present", label: "Present" },
@@ -32,12 +35,12 @@ export function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function attendanceId(grade, stream, date) {
-  return `${slugify(grade)}_${slugify(stream)}_${date}`;
+function attendanceId(schoolId, grade, stream, date) {
+  return scopedId(schoolId, slugify(grade), slugify(stream), date);
 }
 
 export async function getAttendanceForClassDate(grade, stream, date) {
-  const snap = await getDoc(doc(db, "attendance", attendanceId(grade, stream, date)));
+  const snap = await getDoc(doc(db, "attendance", attendanceId(getCurrentSchoolId(), grade, stream, date)));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
@@ -46,10 +49,12 @@ export async function getAttendanceForClassDate(grade, stream, date) {
  * plain object of { studentId: status }.
  */
 export async function saveAttendance(userId, { grade, stream, date, academicYear, term, records }) {
-  const id = attendanceId(grade, stream, date);
+  const schoolId = getCurrentSchoolId();
+  const id = attendanceId(schoolId, grade, stream, date);
   await setDoc(
     doc(db, "attendance", id),
     {
+      schoolId,
       grade,
       stream,
       date,
@@ -71,6 +76,7 @@ export async function listAttendanceForClassPeriod(grade, stream, academicYear, 
   const snap = await getDocs(
     query(
       collection(db, "attendance"),
+      where("schoolId", "==", getCurrentSchoolId()),
       where("grade", "==", grade),
       where("stream", "==", stream),
       where("academicYear", "==", academicYear),
@@ -122,7 +128,9 @@ export function summarizeForRoster(dayDocs, studentIds) {
  */
 export async function getTodayAttendanceStat() {
   try {
-    const snap = await getDocs(query(collection(db, "attendance"), where("date", "==", todayStr())));
+    const snap = await getDocs(
+      query(collection(db, "attendance"), where("schoolId", "==", getCurrentSchoolId()), where("date", "==", todayStr()))
+    );
     let present = 0;
     let total = 0;
     for (const d of snap.docs) {
@@ -132,9 +140,9 @@ export async function getTodayAttendanceStat() {
         if (status === "present" || status === "late") present += 1;
       }
     }
-    if (!total) return "—";
+    if (!total) return "N/A";
     return `${Math.round((present / total) * 100)}%`;
   } catch {
-    return "—";
+    return "N/A";
   }
 }

@@ -3,24 +3,90 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>JSS Manager — School Management System</title>
+<title>JSS Manager - School Management System</title>
 
 <link rel="stylesheet" href="css/variables.css" />
 <link rel="stylesheet" href="css/base.css" />
 <link rel="stylesheet" href="css/layout.css" />
 <link rel="stylesheet" href="css/components.css" />
 <link rel="stylesheet" href="css/report-card.css" />
+<link rel="stylesheet" href="css/newsletter.css" />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 
 </head>
 <body>
 
 <div id="app">
-  <!-- Views are rendered here by js/router.js -->
-  <div class="empty-state">Loading JSS Manager…</div>
+  <div class="splash-screen">
+  <div class="splash-logo">
+    <div class="seal seal--splash"><img class="seal__img" src="assets/logo.png" alt="JSS Manager logo" /></div>
+  </div>
+  <h2 class="splash-title">JSS Manager</h2>
+  <div class="splash-subtitle">Loading...</div>
+  <div class="splash-loader">
+    <div class="splash-loader-bar"></div>
+  </div>
+</div>
 </div>
 
 <div id="toast-root"></div>
+
+<noscript>
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:32px;background:#FAF6F0;color:#21262B;">
+    <div>
+      <h2 style="color:#0B2545;margin-bottom:8px;">JSS Manager needs JavaScript</h2>
+      <p style="color:#5C6A73;">Please enable JavaScript in your browser to use this system. Your data is safe - nothing has been changed.</p>
+    </div>
+  </div>
+</noscript>
+
+<!-- ==========================================================================
+     Boot watchdog. Deliberately plain, inline, and independent of every
+     other file: if a script/stylesheet fails to load, or the app JS never
+     finishes starting up (blocked CDN, offline on first visit, a broken
+     deploy...), this still shows something readable instead of leaving the
+     splash screen spinning forever or a blank white tab. js/app.js pings
+     __jssBootPing() as soon as it starts running and __jssBootOk() once the
+     first route has rendered, both of which cancel this fallback.
+     ========================================================================== -->
+<script>
+(function () {
+  var settled = false;
+  function settle() { settled = true; }
+  window.__jssBootPing = settle;
+  window.__jssBootOk = settle;
+
+  var timer = setTimeout(function () {
+    if (settled) return;
+    showBootFallback("This is taking longer than expected to load.");
+  }, 15000);
+
+  window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (settled || !t || t === window) return;
+    if (t.tagName === "SCRIPT" || t.tagName === "LINK") {
+      clearTimeout(timer);
+      showBootFallback("A required file failed to load. This is usually a connection issue.");
+    }
+  }, true);
+
+  function showBootFallback(reason) {
+    if (settled) return;
+    var app = document.getElementById("app");
+    if (!app) return;
+    app.innerHTML =
+      '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;font-family:Arial,Helvetica,sans-serif;background:#FAF6F0;">' +
+        '<div style="max-width:420px;width:100%;background:#FFFFFF;border:1px solid #DCE3E8;border-radius:8px;box-shadow:0 12px 32px rgba(11,37,69,0.16);padding:40px 32px;text-align:center;">' +
+          '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#E4EDF7;display:flex;align-items:center;justify-content:center;font-size:30px;">&#9888;&#65039;</div>' +
+          '<h2 style="color:#0B2545;margin:0 0 8px;font-family:Georgia,serif;">JSS Manager couldn\'t start</h2>' +
+          '<p style="color:#5C6A73;margin:0 0 12px;line-height:1.5;">' + reason + ' Your data is safe - nothing has been lost or changed.</p>' +
+          '<button onclick="location.reload()" style="background:#14538A;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;">Reload page</button>' +
+          '<p style="color:#5C6A73;font-size:12px;margin-top:16px;">If this keeps happening, check your internet connection or contact your school administrator.</p>' +
+        '</div>' +
+      '</div>';
+  }
+})();
+</script>
 
 <!-- Firebase (modular SDK, v10) -->
 <script type="module" src="js/firebase-config.js"></script>

@@ -1,10 +1,12 @@
 // Marks Entry.
-// marks/{assessmentId_subjectCode_studentId}: { assessmentId, subjectCode,
-//   studentId, grade, stream, score, maxScore, enteredBy, enteredAt, updatedAt }
+// marks/{assessmentId_subjectCode_studentId}: { schoolId, assessmentId,
+//   subjectCode, studentId, grade, stream, score, maxScore, enteredBy,
+//   enteredAt, updatedAt }
 //
 // One doc per student per subject per assessment, with a deterministic ID so
 // re-saving the same cell is a plain upsert (autosave-friendly) instead of
-// creating duplicates.
+// creating duplicates. assessmentId/studentId are already Firestore auto-IDs
+// (globally unique), so this composite key doesn't need schoolId namespacing.
 import {
   collection,
   doc,
@@ -16,6 +18,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
 import { getAssessment } from "./assessment.service.js";
 
 export const DEFAULT_MAX_SCORE = 100;
@@ -26,8 +29,18 @@ function markId(assessmentId, subjectCode, studentId) {
 
 export async function listMarks(assessmentId, subjectCode) {
   const snap = await getDocs(
-    query(collection(db, "marks"), where("assessmentId", "==", assessmentId), where("subjectCode", "==", subjectCode))
+    query(
+      collection(db, "marks"),
+      where("schoolId", "==", getCurrentSchoolId()),
+      where("assessmentId", "==", assessmentId),
+      where("subjectCode", "==", subjectCode)
+    )
   );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function listAllMarks() {
+  const snap = await getDocs(query(collection(db, "marks"), where("schoolId", "==", getCurrentSchoolId())));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -47,6 +60,7 @@ export async function upsertMark(userId, { assessmentId, subjectCode, studentId,
   await setDoc(
     doc(db, "marks", markId(assessmentId, subjectCode, studentId)),
     {
+      schoolId: getCurrentSchoolId(),
       assessmentId,
       subjectCode,
       studentId,
@@ -66,6 +80,7 @@ export async function bulkUpsertMarks(userId, assessmentId, subjectCode, entries
   if (assessment?.status === "locked") {
     throw new Error("This assessment is locked. Ask an admin to reopen it before entering marks.");
   }
+  const schoolId = getCurrentSchoolId();
   const results = { saved: 0, failed: [] };
   for (const entry of entries) {
     try {
@@ -73,6 +88,7 @@ export async function bulkUpsertMarks(userId, assessmentId, subjectCode, entries
       await setDoc(
         doc(db, "marks", markId(assessmentId, subjectCode, entry.studentId)),
         {
+          schoolId,
           assessmentId,
           subjectCode,
           studentId: entry.studentId,

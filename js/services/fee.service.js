@@ -1,9 +1,9 @@
 // Fee Management.
 //
-// fees/{grade_academicYear_term}: { grade, academicYear, term, amount, updatedAt }
-//   — one fee structure per grade per term; deterministic ID doubles as an
-//   upsert key, and is exactly the ID `getFeeSummary` below already looks up.
-// fee_payments/{autoId}: { studentId, studentName, grade, stream,
+// fees/{schoolId__grade_academicYear_term}: { schoolId, grade, academicYear,
+//   term, amount, updatedAt } - one fee structure per grade per term;
+//   deterministic ID doubles as an upsert key.
+// fee_payments/{autoId}: { schoolId, studentId, studentName, grade, stream,
 //   academicYear, term, amount, method, reference, date, recordedBy, createdAt }
 import {
   collection,
@@ -20,17 +20,19 @@ import {
 import { db } from "../firebase-config.js";
 import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
+import { scopedId } from "../utils.js";
 
 export const PAYMENT_METHODS = ["Cash", "M-Pesa", "Bank Transfer", "Cheque"];
 
-function structureId(grade, academicYear, term) {
-  return `${slugify(grade)}_${slugify(academicYear)}_${slugify(term)}`;
+function structureId(schoolId, grade, academicYear, term) {
+  return scopedId(schoolId, slugify(grade), slugify(academicYear), slugify(term));
 }
 
 // ---------------------------------------------------------- Fee Structure --
 
 export async function listFeeStructures() {
-  const snap = await getDocs(collection(db, "fees"));
+  const snap = await getDocs(query(collection(db, "fees"), where("schoolId", "==", getCurrentSchoolId())));
   return snap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .sort((a, b) =>
@@ -43,10 +45,11 @@ export async function saveFeeStructure(userId, { grade, academicYear, term, amou
   if (!grade) throw new Error("Select a grade.");
   if (!academicYear || !term) throw new Error("Academic year and term are required.");
   if (Number.isNaN(n) || n < 0) throw new Error("Enter a valid amount.");
-  const id = structureId(grade, academicYear, term);
+  const schoolId = getCurrentSchoolId();
+  const id = structureId(schoolId, grade, academicYear, term);
   await setDoc(
     doc(db, "fees", id),
-    { grade, academicYear, term, amount: n, updatedAt: serverTimestamp() },
+    { schoolId, grade, academicYear, term, amount: n, updatedAt: serverTimestamp() },
     { merge: true }
   );
   await logAction(userId, "set_fee_structure", "fees", id);
@@ -64,6 +67,7 @@ export async function recordPayment(userId, { studentId, studentName, grade, str
   const n = Number(amount);
   if (Number.isNaN(n) || n <= 0) throw new Error("Enter a valid payment amount.");
   const ref_ = await addDoc(collection(db, "fee_payments"), {
+    schoolId: getCurrentSchoolId(),
     studentId,
     studentName: studentName || "",
     grade: grade || "",
@@ -82,7 +86,9 @@ export async function recordPayment(userId, { studentId, studentName, grade, str
 }
 
 export async function listPaymentsForStudent(studentId) {
-  const snap = await getDocs(query(collection(db, "fee_payments"), where("studentId", "==", studentId)));
+  const snap = await getDocs(
+    query(collection(db, "fee_payments"), where("schoolId", "==", getCurrentSchoolId()), where("studentId", "==", studentId))
+  );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
@@ -90,6 +96,7 @@ export async function listPaymentsForClassPeriod(grade, stream, academicYear, te
   const snap = await getDocs(
     query(
       collection(db, "fee_payments"),
+      where("schoolId", "==", getCurrentSchoolId()),
       where("grade", "==", grade),
       where("stream", "==", stream),
       where("academicYear", "==", academicYear),
@@ -108,7 +115,12 @@ export async function getPayment(id) {
 export async function getTermCollectionTotal(academicYear, term) {
   try {
     const snap = await getDocs(
-      query(collection(db, "fee_payments"), where("academicYear", "==", academicYear), where("term", "==", term))
+      query(
+        collection(db, "fee_payments"),
+        where("schoolId", "==", getCurrentSchoolId()),
+        where("academicYear", "==", academicYear),
+        where("term", "==", term)
+      )
     );
     return snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
   } catch {
@@ -117,13 +129,15 @@ export async function getTermCollectionTotal(academicYear, term) {
 }
 
 export async function getFeeSummary({ studentId, grade, academicYear, term }) {
-  const structDocId = structureId(grade, academicYear, term);
+  const schoolId = getCurrentSchoolId();
+  const structDocId = structureId(schoolId, grade, academicYear, term);
   const structureSnap = await getDoc(doc(db, "fees", structDocId));
   const expected = structureSnap.exists() ? Number(structureSnap.data().amount) || 0 : 0;
 
   const paymentsSnap = await getDocs(
     query(
       collection(db, "fee_payments"),
+      where("schoolId", "==", schoolId),
       where("studentId", "==", studentId),
       where("academicYear", "==", academicYear),
       where("term", "==", term)

@@ -6,50 +6,127 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Single source of truth for the caller's own user doc. Firestore
+    // caches get()/exists() calls to the same path for the life of one
+    // rule evaluation, so calling this several times below is still just
+    // one document read, not one per call.
+    function myProfile() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+
     function myRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return myProfile() != null ? myProfile().role : null;
+    }
+
+    // null for super_admin (platform-level, not tied to one school) and
+    // for anyone whose profile doesn't exist yet.
+    function mySchoolId() {
+      return myProfile() != null ? myProfile().schoolId : null;
     }
 
     function isAdmin() {
-      return isSignedIn() && myRole() == 'admin';
+      return myRole() == 'admin';
+    }
+
+    function isPrincipal() {
+      return myRole() == 'principal';
+    }
+
+    function isSuperAdmin() {
+      return myRole() == 'super_admin';
     }
 
     function isStaff() {
-      return isSignedIn() && myRole() in [
+      return myRole() in [
         'admin', 'principal', 'deputy_principal', 'academic_master',
         'class_teacher', 'subject_teacher', 'bursar', 'registrar'
       ];
     }
 
-    // Users can read their own profile; only admins manage others.
+    // A role alone doesn't prove *which* school's data someone may touch -
+    // every doc in the operational collections carries a schoolId field
+    // written by the app, and these two checks are what actually enforce
+    // the tenant boundary between schools.
+    function ownsExisting() {
+      return resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId());
+    }
+    function ownsIncoming() {
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+    }
+
+    // Users can always read their own profile. Admins/super_admin manage
+    // accounts, but only within their own school - an admin at School A
+    // can no longer read or edit School B's users by guessing a uid.
+    // Principals may additionally create a teacher login (the one thing
+    // the Teacher Module lets a principal do), but nothing else - they
+    // can't hand out admin/registrar/etc. accounts this way.
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        ((isAdmin() || isPrincipal()) && resource.data.schoolId == mySchoolId())
+      );
+      allow create: if isSuperAdmin()
+        || (isAdmin() && request.resource.data.schoolId == mySchoolId())
+        || (isPrincipal() && request.resource.data.schoolId == mySchoolId()
+            && request.resource.data.role in ['class_teacher', 'subject_teacher']);
+      allow update, delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
     }
 
-    // School-wide config: staff can read, only admins write.
-    match /school_settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+    // School registry + per-school settings/branding doc (schools/{id} -
+    // the doc's own ID *is* its schoolId, so it's compared directly
+    // rather than via a schoolId field). Staff read/write only their own
+    // school's doc; the platform super_admin manages every school's
+    // registry entry (create, suspend/reactivate, list).
+    match /schools/{schoolId} {
+      allow read: if isSuperAdmin() || (isStaff() && schoolId == mySchoolId());
+      allow write: if isSuperAdmin() || (isAdmin() && schoolId == mySchoolId());
     }
 
-    // Everything academic/operational (including marks): staff read/write,
-    // admins full control. The Marks Entry UI already restricts a
-    // subject/class teacher to their own assigned subjects, but Firestore
-    // rules can't cheaply enforce "only their subject" without a `where`
-    // query, which rules don't support — that needs subjectCodes denormalized
-    // onto the user doc itself as a follow-up if you want server-side
-    // enforcement, not just UI-level restriction.
+    // Narrow, deliberately public mirror of a school's cosmetic branding
+    // only (name/logo/colors/status), keyed by the school's human-friendly
+    // login code rather than its Firestore doc ID. This is what lets the
+    // sign-in screen show the right school's look *before* anyone has
+    // authenticated - readable by anyone, but only ever holds fields an
+    // anonymous visitor is already meant to see on a login page. Writes
+    // stay restricted to that school's own admin (or the super_admin), and
+    // are only ever made from settings.service.js/school.service.js.
+    match /school_public/{slug} {
+      allow read: if true;
+      allow create, update: if isSuperAdmin() || (isAdmin() && request.resource.data.schoolId == mySchoolId());
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
+    }
+
+    // Everything academic/operational (students, marks, fees, results,
+    // timetable, attendance, etc.): staff read/write, but only inside
+    // their own school. users/schools/audit_logs/school_public have their
+    // own match blocks above/below with different rules, so they're
+    // excluded here - Firestore ORs every matching block together, and
+    // without this exclusion this wildcard would silently widen their
+    // access back out (school_public docs also carry a schoolId field, so
+    // without the exclusion any staff role - not just admin - would gain
+    // write access to it via ownsIncoming()/ownsExisting()).
     match /{collection}/{docId} {
-      allow read: if isStaff();
-      allow write: if isStaff();
+      allow read: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsExisting();
+      allow create: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsIncoming();
+      allow update, delete: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsExisting();
     }
 
-    // Audit log: append-only, staff can read, nobody edits/deletes.
+    // Audit log: append-only. Staff read/create only their own school's
+    // entries; the super_admin's platform-level actions (create/suspend a
+    // school) are logged with schoolId == null, matching what
+    // audit.service.js actually writes for those actions.
     match /audit_logs/{logId} {
-      allow read: if isStaff();
-      allow create: if isSignedIn();
+      allow read: if (isStaff() && ownsExisting()) || (isSuperAdmin() && resource.data.schoolId == null);
+      allow create: if (isStaff() && ownsIncoming()) || (isSuperAdmin() && request.resource.data.schoolId == null);
       allow update, delete: if false;
     }
+
+    // school_settings was never actually used by the app (settings.service.js
+    // reads/writes the schools/{id} doc above instead) - dropped rather than
+    // left open as unused attack surface. Add it back with the same
+    // ownsExisting()/ownsIncoming() pattern above if it's ever wired up.
   }
 }

@@ -1,8 +1,8 @@
 // Students collection.
-// { admissionNumber, fullName, gender, dob, grade, stream, parentIds:[],
-//   address, phone, previousSchool, kcpeNumber, photoUrl, medicalInfo,
-//   status: "active"|"transferred"|"suspended"|"archived", admissionDate,
-//   createdAt }
+// { schoolId, admissionNumber, fullName, gender, dob, grade, stream,
+//   parentIds:[], address, phone, previousSchool, kcpeNumber, photoUrl,
+//   medicalInfo, status: "active"|"transferred"|"suspended"|"archived",
+//   admissionDate, createdAt }
 import {
   collection,
   doc,
@@ -11,17 +11,19 @@ import {
   getDocs,
   getDoc,
   query,
-  orderBy,
+  where,
   serverTimestamp,
+  arrayUnion,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
-import { db, storage } from "../firebase-config.js";
+import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
+import { uploadToCloudinary } from "./cloudinary.service.js";
 import { linkStudentToParent, unlinkStudentFromParent } from "./parent.service.js";
 
 export async function listStudents() {
-  const snap = await getDocs(query(collection(db, "students"), orderBy("fullName")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(query(collection(db, "students"), where("schoolId", "==", getCurrentSchoolId())));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 }
 
 export async function getStudent(id) {
@@ -33,6 +35,7 @@ export async function registerStudent(userId, data, photoFile) {
   let photoUrl = "";
   const payload = {
     ...data,
+    schoolId: getCurrentSchoolId(),
     status: "active",
     admissionDate: data.admissionDate || new Date().toISOString().slice(0, 10),
     createdAt: serverTimestamp(),
@@ -73,13 +76,24 @@ export async function promoteStudent(userId, id, newGrade, newStream) {
   await logAction(userId, "promote_student", "students", id);
 }
 
-export async function setStudentStatus(userId, id, status) {
-  await updateDoc(doc(db, "students", id), { status });
+// `reason` is required by the UI when suspending, optional otherwise (a
+// note on why a student was reinstated/archived/transferred). Every change
+// is appended to statusHistory so a student's profile can show a timeline
+// of exactly what happened and why, not just the current status.
+export async function setStudentStatus(userId, id, status, reason = "") {
+  await updateDoc(doc(db, "students", id), {
+    status,
+    ...(status === "suspended" ? { suspensionReason: reason || "" } : { suspensionReason: "" }),
+    statusHistory: arrayUnion({
+      status,
+      reason: reason || "",
+      by: userId,
+      at: new Date().toISOString(),
+    }),
+  });
   await logAction(userId, `${status}_student`, "students", id);
 }
 
 async function uploadStudentPhoto(studentId, file) {
-  const fileRef = ref(storage, `students/${studentId}-${Date.now()}-${file.name}`);
-  await uploadBytes(fileRef, file);
-  return getDownloadURL(fileRef);
+  return uploadToCloudinary(file, `schools/${getCurrentSchoolId()}/students/${studentId}`);
 }

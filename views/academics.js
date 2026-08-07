@@ -8,7 +8,7 @@ import {
   seedDefaultsIfEmpty,
 } from "../js/services/academic.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast, busyButton } from "../js/utils.js";
 
 let classes = [];
 
@@ -19,8 +19,7 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Classes & Streams"), el("p", {}, `${classes.length} grade(s) configured`)]),
-      el("button", { class: "btn btn--primary", id: "new-grade-btn" }, "+ Add Grade"),
+      el("button", { class: "btn btn--primary", id: "new-grade-btn" }, [icon("add"), "Add Grade"]),
     ])
   );
 
@@ -54,7 +53,7 @@ function renderGrid(container, profile) {
       el("div", { class: "grade-card__header" }, [
         el("h3", {}, c.grade),
         el("div", { class: "grade-card__actions" }, [
-          el("button", { class: "btn btn--ghost btn--sm", onClick: () => openDeleteConfirm(profile, c) }, "Delete"),
+          el("button", { class: "btn btn--ghost btn--sm", onClick: () => openDeleteConfirm(profile, c) }, [icon("delete"), "Delete"]),
         ]),
       ])
     );
@@ -74,17 +73,20 @@ function renderGrid(container, profile) {
 
     const addStreamRow = el("form", { style: "display:flex; gap:8px; margin-top:12px;" });
     const input = el("input", { placeholder: "New stream e.g. Yellow", style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:6px;" });
-    addStreamRow.append(input, el("button", { type: "submit", class: "btn btn--ghost btn--sm" }, "+ Stream"));
+    addStreamRow.append(input, el("button", { type: "submit", class: "btn btn--ghost btn--sm" }, [icon("add"), "Stream"]));
     addStreamRow.addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = input.value.trim();
       if (!name) return;
+      const restore = busyButton(e.submitter, "Adding…");
       try {
         await addStreamToClass(profile.uid, c.id, name);
         toast(`${name} added to ${c.grade}.`, "success");
         await refresh(profile);
       } catch (err) {
         toast(err.message || "Could not add stream.", "error");
+      } finally {
+        restore();
       }
     });
     card.append(addStreamRow);
@@ -134,10 +136,10 @@ function openGradeForm(profile) {
             document.getElementById("g-stream-input").value = "";
             redrawPreview();
           },
-        }, "Add"),
+        }, [icon("add"), "Add"]),
       ]),
     ]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Create grade")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("add"), "Create grade"])
   );
 
   const close = openModal("Add Grade", body);
@@ -146,6 +148,7 @@ function openGradeForm(profile) {
     e.preventDefault();
     const grade = document.getElementById("g-grade").value.trim();
     if (!grade) return toast("Grade name is required.", "error");
+    const restore = busyButton(e.submitter, "Creating…");
     try {
       await addClass(profile.uid, grade, pendingStreams);
       toast(`${grade} created.`, "success");
@@ -153,6 +156,7 @@ function openGradeForm(profile) {
       await refresh(profile);
     } catch (err) {
       toast(err.message || "Could not create grade.", "error");
+      restore();
     }
   });
 }
@@ -161,13 +165,14 @@ function openRenameStream(profile, cls, streamName) {
   const body = el("form", {});
   body.append(
     el("div", { class: "field" }, [el("label", {}, `Rename stream in ${cls.grade}`), el("input", { id: "rs-name", value: streamName })]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Save")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("save"), "Save"])
   );
-  const close = openModal(`${cls.grade} — ${streamName}`, body);
+  const close = openModal(`${cls.grade}: ${streamName}`, body);
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const newName = document.getElementById("rs-name").value.trim();
     if (!newName || newName === streamName) return close();
+    const restore = busyButton(e.submitter, "Saving…");
     try {
       await renameStream(profile.uid, cls.id, streamName, newName);
       toast("Stream renamed.", "success");
@@ -175,6 +180,7 @@ function openRenameStream(profile, cls, streamName) {
       await refresh(profile);
     } catch (err) {
       toast(err.message || "Could not rename stream.", "error");
+      restore();
     }
   });
 }
@@ -184,7 +190,8 @@ function confirmRemoveStream(profile, cls, streamName) {
   body.append(
     el("p", {}, `Remove "${streamName}" from ${cls.grade}? This can't be undone.`),
     el("div", { style: "display:flex; gap:8px; margin-top:16px;" }, [
-      el("button", { class: "btn btn--danger", onClick: async () => {
+      el("button", { class: "btn btn--danger", onClick: async (ev) => {
+        const restore = busyButton(ev.currentTarget, "Removing…");
         try {
           await removeStreamFromClass(profile.uid, cls.id, streamName);
           toast("Stream removed.", "success");
@@ -192,9 +199,10 @@ function confirmRemoveStream(profile, cls, streamName) {
           await refresh(profile);
         } catch (err) {
           toast(err.message || "Could not remove stream.", "error");
+          restore();
         }
-      } }, "Remove"),
-      el("button", { class: "btn btn--ghost", onClick: () => close() }, "Cancel"),
+      } }, [icon("delete"), "Remove"]),
+      el("button", { class: "btn btn--ghost", onClick: () => close() }, [icon("close"), "Cancel"]),
     ])
   );
   const close = openModal("Remove Stream", body);
@@ -205,7 +213,8 @@ function openDeleteConfirm(profile, cls) {
   body.append(
     el("p", {}, `Delete ${cls.grade} and all its streams? This can't be undone.`),
     el("div", { style: "display:flex; gap:8px; margin-top:16px;" }, [
-      el("button", { class: "btn btn--danger", onClick: async () => {
+      el("button", { class: "btn btn--danger", onClick: async (ev) => {
+        const restore = busyButton(ev.currentTarget, "Deleting…");
         try {
           await deleteClass(profile.uid, cls.id);
           toast(`${cls.grade} deleted.`, "success");
@@ -213,9 +222,10 @@ function openDeleteConfirm(profile, cls) {
           await refresh(profile);
         } catch (err) {
           toast(err.message || "Could not delete grade.", "error");
+          restore();
         }
-      } }, "Delete"),
-      el("button", { class: "btn btn--ghost", onClick: () => close() }, "Cancel"),
+      } }, [icon("delete_forever"), "Delete"]),
+      el("button", { class: "btn btn--ghost", onClick: () => close() }, [icon("close"), "Cancel"]),
     ])
   );
   const close = openModal("Delete Grade", body);

@@ -15,7 +15,16 @@ function loadLibs() {
 
 export async function downloadElementAsPdf(node, filename) {
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
-  const canvas = await html2canvas(node, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+  const canvas = await html2canvas(node, {
+    scale: 2,
+    backgroundColor: "#ffffff",
+    useCORS: true,
+    // .no-print elements (Save Remarks button, Back/Print/Download bar,
+    // etc.) are only hidden via a @media print rule, which html2canvas
+    // doesn't apply since it renders the live on-screen DOM - so they'd
+    // otherwise show up baked into the downloaded PDF. Skip them here too.
+    ignoreElements: (el) => el.classList?.contains("no-print"),
+  });
   const imgData = canvas.toDataURL("image/png");
   const pdf = new jsPDF({ unit: "px", format: [canvas.width, canvas.height] });
   pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);

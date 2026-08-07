@@ -1,5 +1,6 @@
 // Parents collection.
-// { fullName, phone, email, occupation, relationship, linkedStudentIds:[], createdAt }
+// { schoolId, fullName, phone, email, occupation, relationship,
+//   linkedStudentIds:[], createdAt }
 import {
   collection,
   doc,
@@ -8,17 +9,18 @@ import {
   getDoc,
   getDocs,
   query,
-  orderBy,
+  where,
   arrayUnion,
   arrayRemove,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
 
 export async function listParents() {
-  const snap = await getDocs(query(collection(db, "parents"), orderBy("fullName")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(query(collection(db, "parents"), where("schoolId", "==", getCurrentSchoolId())));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 }
 
 export async function getParent(id) {
@@ -29,6 +31,7 @@ export async function getParent(id) {
 export async function createParent(userId, data) {
   const ref_ = await addDoc(collection(db, "parents"), {
     ...data,
+    schoolId: getCurrentSchoolId(),
     linkedStudentIds: data.linkedStudentIds || [],
     createdAt: serverTimestamp(),
   });

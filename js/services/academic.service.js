@@ -1,6 +1,9 @@
 // Academic Structure: Classes (Grade + Streams) and Subjects.
-// classes/{slug}:  { grade, streams: string[], createdAt, updatedAt }
-// subjects/{code}: { code, name, department, pathway, createdAt, updatedAt }
+// classes/{schoolId__slug}:  { schoolId, grade, streams: string[], createdAt, updatedAt }
+// subjects/{schoolId__code}: { schoolId, code, name, department, pathway, createdAt, updatedAt }
+//
+// Doc IDs are namespaced by schoolId so two schools can both have a
+// "Grade 7" or a "MATH" subject without colliding on the same doc.
 //
 // Deletes are guarded: a grade/stream or subject already referenced by a
 // student or teacher record cannot be removed until it's unassigned first.
@@ -15,11 +18,12 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
+import { scopedId } from "../utils.js";
 
 export const PATHWAYS = ["STEM", "Social Sciences", "Arts & Sports Science"];
 
@@ -56,8 +60,8 @@ export function slugify(text) {
 // ---------------------------------------------------------------- Classes --
 
 export async function listClasses() {
-  const snap = await getDocs(query(collection(db, "classes"), orderBy("grade")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(query(collection(db, "classes"), where("schoolId", "==", getCurrentSchoolId())));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.grade || "").localeCompare(b.grade || ""));
 }
 
 export async function getClass(id) {
@@ -66,10 +70,12 @@ export async function getClass(id) {
 }
 
 export async function addClass(userId, grade, streams = []) {
-  const id = slugify(grade);
+  const schoolId = getCurrentSchoolId();
+  const id = scopedId(schoolId, slugify(grade));
   const existing = await getDoc(doc(db, "classes", id));
   if (existing.exists()) throw new Error(`"${grade}" already exists.`);
   await setDoc(doc(db, "classes", id), {
+    schoolId,
     grade: grade.trim(),
     streams: streams.map((s) => s.trim()).filter(Boolean),
     createdAt: serverTimestamp(),
@@ -133,27 +139,34 @@ export async function deleteClass(userId, classId) {
 }
 
 async function countStudentsInGrade(grade) {
-  const snap = await getDocs(query(collection(db, "students"), where("grade", "==", grade)));
+  const snap = await getDocs(
+    query(collection(db, "students"), where("schoolId", "==", getCurrentSchoolId()), where("grade", "==", grade))
+  );
   return snap.size;
 }
 
 async function countStudentsInStream(grade, stream) {
   const snap = await getDocs(
-    query(collection(db, "students"), where("grade", "==", grade), where("stream", "==", stream))
+    query(
+      collection(db, "students"),
+      where("schoolId", "==", getCurrentSchoolId()),
+      where("grade", "==", grade),
+      where("stream", "==", stream)
+    )
   );
   return snap.size;
 }
 
 async function countTeachersInGrade(grade) {
-  const snap = await getDocs(collection(db, "teachers"));
+  const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
   return snap.docs.filter((d) => (d.data().classAssignments || []).some((a) => a.grade === grade)).length;
 }
 
 // --------------------------------------------------------------- Subjects --
 
 export async function listSubjects() {
-  const snap = await getDocs(query(collection(db, "subjects"), orderBy("name")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(query(collection(db, "subjects"), where("schoolId", "==", getCurrentSchoolId())));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 }
 
 export async function getSubject(id) {
@@ -162,11 +175,14 @@ export async function getSubject(id) {
 }
 
 export async function addSubject(userId, { code, name, department, pathway }) {
-  const id = code.trim().toUpperCase();
+  const schoolId = getCurrentSchoolId();
+  const cleanCode = code.trim().toUpperCase();
+  const id = scopedId(schoolId, cleanCode);
   const existing = await getDoc(doc(db, "subjects", id));
-  if (existing.exists()) throw new Error(`Subject code "${id}" already exists.`);
+  if (existing.exists()) throw new Error(`Subject code "${cleanCode}" already exists.`);
   await setDoc(doc(db, "subjects", id), {
-    code: id,
+    schoolId,
+    code: cleanCode,
     name: name.trim(),
     department: department || "",
     pathway: pathway || "",
@@ -187,8 +203,13 @@ export async function updateSubject(userId, id, { name, department, pathway }) {
 }
 
 export async function deleteSubject(userId, id) {
+  const subject = await getSubject(id);
   const teacherSnap = await getDocs(
-    query(collection(db, "teachers"), where("subjectCodes", "array-contains", id))
+    query(
+      collection(db, "teachers"),
+      where("schoolId", "==", getCurrentSchoolId()),
+      where("subjectCodes", "array-contains", subject?.code || id)
+    )
   );
   if (teacherSnap.size > 0) {
     throw new Error(`Cannot delete: ${teacherSnap.size} teacher(s) are still assigned to teach this subject.`);
@@ -200,15 +221,16 @@ export async function deleteSubject(userId, id) {
 // ------------------------------------------------------------------ Seed --
 
 export async function seedDefaultsIfEmpty() {
+  const schoolId = getCurrentSchoolId();
   const [classes, subjects] = await Promise.all([listClasses(), listSubjects()]);
   if (classes.length === 0) {
     for (const c of DEFAULT_CLASSES) {
-      await setDoc(doc(db, "classes", slugify(c.grade)), c);
+      await setDoc(doc(db, "classes", scopedId(schoolId, slugify(c.grade))), { ...c, schoolId, createdAt: serverTimestamp() });
     }
   }
   if (subjects.length === 0) {
     for (const s of DEFAULT_SUBJECTS) {
-      await setDoc(doc(db, "subjects", s.code), s);
+      await setDoc(doc(db, "subjects", scopedId(schoolId, s.code)), { ...s, schoolId, createdAt: serverTimestamp() });
     }
   }
 }

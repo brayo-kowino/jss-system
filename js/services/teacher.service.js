@@ -1,7 +1,7 @@
 // Teachers collection.
-// { teacherNumber, tscNumber, fullName, phone, email, subjectCodes:[],
-//   classAssignments:[{grade, stream}], userId (linked login, optional),
-//   status, createdAt }
+// { schoolId, teacherNumber, tscNumber, fullName, phone, email,
+//   subjectCodes:[], classAssignments:[{grade, stream}],
+//   userId (linked login, optional), status, createdAt }
 import {
   collection,
   doc,
@@ -11,15 +11,15 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
 
 export async function listTeachers() {
-  const snap = await getDocs(query(collection(db, "teachers"), orderBy("fullName")));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 }
 
 export async function getTeacher(id) {
@@ -31,19 +31,24 @@ export async function getTeacher(id) {
 // logged-in subject/class teacher owns, so their subject/class pickers can
 // be limited to what they're actually assigned to teach.
 export async function getTeacherByUserId(userId) {
-  const snap = await getDocs(query(collection(db, "teachers"), where("userId", "==", userId)));
+  const snap = await getDocs(
+    query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId()), where("userId", "==", userId))
+  );
   return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
 export async function getTeacherByEmail(email) {
   if (!email) return null;
-  const snap = await getDocs(query(collection(db, "teachers"), where("email", "==", email)));
+  const snap = await getDocs(
+    query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId()), where("email", "==", email))
+  );
   return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 
 export async function createTeacher(userId, data) {
   const ref_ = await addDoc(collection(db, "teachers"), {
     ...data,
+    schoolId: getCurrentSchoolId(),
     status: "active",
     subjectCodes: data.subjectCodes || [],
     classAssignments: data.classAssignments || [],

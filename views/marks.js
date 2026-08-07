@@ -1,10 +1,10 @@
 import { listClasses, listSubjects, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
-import { listAssessments, setAssessmentStatus } from "../js/services/assessment.service.js";
+import { listAssessments, setAssessmentStatus, getAssessmentMaxScore } from "../js/services/assessment.service.js";
 import { getTeacherByUserId, getTeacherByEmail } from "../js/services/teacher.service.js";
 import { listStudents } from "../js/services/student.service.js";
-import { listMarks, upsertMark, bulkUpsertMarks, DEFAULT_MAX_SCORE } from "../js/services/marks.service.js";
+import { listMarks, upsertMark, bulkUpsertMarks } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -30,7 +30,6 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Marks Entry"), el("p", {}, "Choose a class, subject, and assessment to begin.")]),
     ])
   );
 
@@ -83,20 +82,28 @@ function renderPicker(container, profile, bodyMount) {
 
   function refreshAssessmentOptions() {
     const grade = classSelect.value.split("|")[0] || "";
+    const subjectCode = subjectSelect.value || "";
     assessmentSelect.innerHTML = "";
     assessmentSelect.append(el("option", { value: "" }, "Select assessment"));
-    const relevant = allAssessments.filter((a) => !grade || !a.grades?.length || a.grades.includes(grade));
+    const relevant = allAssessments.filter(
+      (a) =>
+        (!grade || !a.grades?.length || a.grades.includes(grade)) &&
+        (!subjectCode || !a.subjects?.length || a.subjects.includes(subjectCode))
+    );
+    if (selection.assessmentId && !relevant.some((a) => a.id === selection.assessmentId)) {
+      selection.assessmentId = "";
+    }
     for (const a of relevant) {
       assessmentSelect.append(
         el("option", { value: a.id, ...(a.id === selection.assessmentId ? { selected: "true" } : {}) },
-          `${a.name} (${a.term || "—"} ${a.academicYear || ""})${a.status === "locked" ? " — locked" : ""}`)
+          `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? ": locked" : ""}`)
       );
     }
   }
   refreshAssessmentOptions();
 
   classSelect.addEventListener("change", () => { selection.classKey = classSelect.value; refreshAssessmentOptions(); maybeLoad(profile, bodyMount); });
-  subjectSelect.addEventListener("change", () => { selection.subjectCode = subjectSelect.value; maybeLoad(profile, bodyMount); });
+  subjectSelect.addEventListener("change", () => { selection.subjectCode = subjectSelect.value; refreshAssessmentOptions(); maybeLoad(profile, bodyMount); });
   assessmentSelect.addEventListener("change", () => { selection.assessmentId = assessmentSelect.value; maybeLoad(profile, bodyMount); });
 }
 
@@ -107,7 +114,10 @@ async function maybeLoad(profile, bodyMount) {
     return;
   }
   const [grade, stream] = classKey.split("|");
-  bodyMount.innerHTML = `<div class="empty-state">Loading roster…</div>`;
+  bodyMount.innerHTML = "";
+  bodyMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
+  ]));
 
   const [students, marks] = await Promise.all([listStudents(), listMarks(assessmentId, subjectCode)]);
   roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
@@ -126,24 +136,29 @@ function renderRoster(container, profile) {
   const locked = assessment?.status === "locked";
   const canManage = CAN_MANAGE.includes(profile.role);
 
+  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
+  const isDirect = (assessment?.contributionMode || "weighted") === "direct";
   const infoCard = el("div", { class: "card", style: "margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" });
   infoCard.append(
     el("div", {}, [
-      el("h3", { style: "margin:0 0 4px;" }, `${assessment?.name || ""} — ${subject?.name || ""}`),
-      el("p", { class: "text-muted", style: "margin:0;" }, `Weight ${assessment?.weight ?? "—"}% · Out of ${DEFAULT_MAX_SCORE} · ${roster.length} student(s)`),
+      el("h3", { style: "margin:0 0 4px;" }, `${assessment?.name || ""}: ${subject?.name || ""}`),
+      el("p", { class: "text-muted", style: "margin:0;" },
+        isDirect
+          ? `Added directly · Marked out of ${maxScore} · ${roster.length} student(s)`
+          : `Weight ${assessment?.weight ?? "N/A"}% · Marked out of ${maxScore} · ${roster.length} student(s)`),
     ])
   );
   const actions = el("div", { style: "display:flex; gap:8px; align-items:center;" });
   actions.append(el("span", { class: `badge badge--${locked ? "danger" : "success"}` }, locked ? "Locked" : "Open"));
   if (canManage) {
     actions.append(
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleLock(profile, assessment, container) }, locked ? "Reopen" : "Lock"),
+      el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleLock(profile, assessment, container) }, [icon(locked ? "lock_open" : "lock"), locked ? "Reopen" : "Lock"]),
     );
   }
   if (!locked) {
     actions.append(
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => openBulkPaste(container) }, "Paste bulk scores"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => saveAllDirty(profile, container) }, "Save All"),
+      el("button", { class: "btn btn--ghost btn--sm", onClick: () => openBulkPaste(container) }, [icon("content_paste"), "Paste bulk scores"]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => saveAllDirty(profile, container, e.currentTarget) }, [icon("save"), "Save All"]),
     );
   }
   infoCard.append(actions);
@@ -151,6 +166,7 @@ function renderRoster(container, profile) {
 
   if (!roster.length) {
     container.append(el("div", { class: "empty-state" }, [
+      icon("groups", "empty-state__icon"),
       el("h3", {}, "No active students in this class"),
       el("p", {}, "Check the class roster under Students."),
     ]));
@@ -160,34 +176,39 @@ function renderRoster(container, profile) {
   const tableWrap = el("div", { class: "table-wrap" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Score"), el("th", {}, "Status"),
+      el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, `Score (out of ${maxScore})`), el("th", {}, isDirect ? "Added" : "%"), el("th", {}, "Status"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const student of roster) {
     const existing = marksByStudent[student.id];
     const input = el("input", {
-      type: "number", min: "0", max: String(DEFAULT_MAX_SCORE), step: "0.5",
+      type: "number", min: "0", max: String(maxScore), step: "0.5",
       "data-student-id": student.id,
       value: existing?.score ?? "",
-      style: "width:90px; padding:6px; border:1px solid var(--color-line); border-radius:6px;",
+      class: "input-native input-native--score",
       ...(locked ? { disabled: "true" } : {}),
     });
+    const formatHint = (score) => (isDirect ? `+${Number(score).toFixed(1)}` : `${((Number(score) / maxScore) * 100).toFixed(1)}%`);
+    const pctCell = el("span", { class: "text-muted", id: `pct-${student.id}` }, existing != null ? formatHint(existing.score) : "—");
     const statusCell = el("span", { class: `badge badge--${existing ? "success" : "muted"}`, id: `status-${student.id}` }, existing ? "Saved" : "Not entered");
 
     input.addEventListener("input", () => {
       dirty.add(student.id);
       statusCell.className = "badge badge--gold";
       statusCell.textContent = "Unsaved";
+      const n = Number(input.value);
+      pctCell.textContent = input.value !== "" && !Number.isNaN(n) ? formatHint(n) : "—";
     });
     input.addEventListener("change", async () => {
-      await saveOne(profile, student, input, statusCell);
+      await saveOne(profile, student, input, statusCell, maxScore);
     });
 
     tbody.append(el("tr", {}, [
-      el("td", {}, student.admissionNumber || "—"),
+      el("td", {}, student.admissionNumber || "N/A"),
       el("td", {}, student.fullName),
       el("td", {}, input),
+      el("td", {}, pctCell),
       el("td", {}, statusCell),
     ]));
   }
@@ -196,7 +217,7 @@ function renderRoster(container, profile) {
   container.append(tableWrap);
 }
 
-async function saveOne(profile, student, input, statusCell) {
+async function saveOne(profile, student, input, statusCell, maxScore) {
   const [grade, stream] = selection.classKey.split("|");
   try {
     await upsertMark(profile.uid, {
@@ -205,6 +226,7 @@ async function saveOne(profile, student, input, statusCell) {
       studentId: student.id,
       grade, stream,
       score: input.value,
+      maxScore,
     });
     dirty.delete(student.id);
     statusCell.className = "badge badge--success";
@@ -216,25 +238,38 @@ async function saveOne(profile, student, input, statusCell) {
   }
 }
 
-async function saveAllDirty(profile, container) {
-  if (!dirty.size) return toast("Nothing to save — every score is already saved.", "info");
+async function saveAllDirty(profile, container, button) {
+  if (!dirty.size) return toast("Nothing to save - every score is already saved.", "info");
+  const restore = button ? busyButton(button, "Saving…") : () => {};
   const [grade, stream] = selection.classKey.split("|");
+  const assessment = allAssessments.find((a) => a.id === selection.assessmentId);
+  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
   const entries = [];
   for (const studentId of dirty) {
     const input = container.querySelector(`input[data-student-id="${studentId}"]`);
-    if (input) entries.push({ studentId, grade, stream, score: input.value });
+    if (input) entries.push({ studentId, grade, stream, score: input.value, maxScore });
   }
-  const results = await bulkUpsertMarks(profile.uid, selection.assessmentId, selection.subjectCode, entries);
-  toast(`Saved ${results.saved} score(s).${results.failed.length ? ` ${results.failed.length} failed — check highlighted rows.` : ""}`, results.failed.length ? "error" : "success");
-  await maybeLoad(profile, container);
+  try {
+    const results = await bulkUpsertMarks(profile.uid, selection.assessmentId, selection.subjectCode, entries);
+    toast(`Saved ${results.saved} score(s).${results.failed.length ? ` ${results.failed.length} failed - check highlighted rows.` : ""}`, results.failed.length ? "error" : "success");
+    await maybeLoad(profile, container);
+  } finally {
+    restore();
+  }
 }
 
 function openBulkPaste(container) {
+  const assessment = allAssessments.find((a) => a.id === selection.assessmentId);
+  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
+  const isDirect = (assessment?.contributionMode || "weighted") === "direct";
   const body = el("form", {});
   body.append(
-    el("p", { class: "text-muted" }, "One student per line: admission number, then score (comma or space separated). Values fill the table below — review, then click Save All."),
+    el("p", { class: "text-muted" },
+      isDirect
+        ? `One student per line: admission number, then raw score out of ${maxScore} (comma or space separated). This assessment adds its score straight onto the subject total. Values fill the table below - review, then click Save All.`
+        : `One student per line: admission number, then raw score out of ${maxScore} (comma or space separated). Values fill the table below and convert to % automatically - review, then click Save All.`),
     el("textarea", { id: "bulk-text", rows: "10", style: "width:100%; padding:8px; border:1px solid var(--color-line); border-radius:6px; font-family:monospace;", placeholder: "ADM001, 87\nADM002, 92" }),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Fill table")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("table_chart"), "Fill table"])
   );
   const close = openModal("Paste Bulk Scores", body);
   body.addEventListener("submit", (e) => {

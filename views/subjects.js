@@ -8,7 +8,7 @@ import {
   DEPARTMENTS,
 } from "../js/services/academic.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast, busyButton } from "../js/utils.js";
 
 let subjects = [];
 
@@ -19,8 +19,8 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Subjects"), el("p", {}, `${subjects.length} subject(s) configured`)]),
-      el("button", { class: "btn btn--primary", id: "new-subject-btn" }, "+ Add Subject"),
+      el("div", {}, [el("p", {}, `${subjects.length} subject(s) configured`)]),
+      el("button", { class: "btn btn--primary", id: "new-subject-btn" }, [icon("add"), "Add Subject"]),
     ])
   );
 
@@ -58,11 +58,11 @@ function renderTable(container, profile) {
     tbody.append(el("tr", {}, [
       el("td", {}, el("span", { class: "badge badge--muted" }, s.code)),
       el("td", {}, s.name),
-      el("td", {}, s.department || el("span", { class: "text-muted" }, "—")),
-      el("td", {}, s.pathway || el("span", { class: "text-muted" }, "—")),
+      el("td", {}, s.department || el("span", { class: "text-muted" }, "N/A")),
+      el("td", {}, s.pathway || el("span", { class: "text-muted" }, "N/A")),
       el("td", {}, [
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openSubjectForm(profile, s) }, "Edit"),
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => confirmDelete(profile, s) }, "Delete"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openSubjectForm(profile, s) }, [icon("edit"), "Edit"]),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => confirmDelete(profile, s) }, [icon("delete"), "Delete"]),
       ]),
     ]));
   }
@@ -78,7 +78,7 @@ async function refresh(profile) {
 
 function selectField(id, label, options, selected) {
   const select = el("select", { id }, [
-    el("option", { value: "" }, "— Select —"),
+    el("option", { value: "" }, "Select"),
     ...options.map((o) => el("option", { value: o, ...(o === selected ? { selected: "true" } : {}) }, o)),
   ]);
   return el("div", { class: "field" }, [el("label", { for: id }, label), select]);
@@ -98,10 +98,10 @@ function openSubjectForm(profile, existing = null) {
     ]),
     selectField("sub-department", "Department", DEPARTMENTS, existing?.department),
     selectField("sub-pathway", "Pathway", PATHWAYS, existing?.pathway),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, isEdit ? "Save changes" : "Add subject")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "add"), isEdit ? "Save changes" : "Add subject"])
   );
 
-  const close = openModal(isEdit ? `Edit — ${existing.name}` : "Add Subject", body);
+  const close = openModal(isEdit ? `Edit: ${existing.name}` : "Add Subject", body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -112,6 +112,7 @@ function openSubjectForm(profile, existing = null) {
       pathway: document.getElementById("sub-pathway").value,
     };
     if (!data.code || !data.name) return toast("Code and name are required.", "error");
+    const restore = busyButton(e.submitter, isEdit ? "Saving…" : "Adding…");
     try {
       if (isEdit) {
         await updateSubject(profile.uid, existing.id, data);
@@ -124,6 +125,7 @@ function openSubjectForm(profile, existing = null) {
       await refresh(profile);
     } catch (err) {
       toast(err.message || "Could not save subject.", "error");
+      restore();
     }
   });
 }
@@ -133,7 +135,8 @@ function confirmDelete(profile, subject) {
   body.append(
     el("p", {}, `Delete "${subject.name}"? This can't be undone.`),
     el("div", { style: "display:flex; gap:8px; margin-top:16px;" }, [
-      el("button", { class: "btn btn--danger", onClick: async () => {
+      el("button", { class: "btn btn--danger", onClick: async (ev) => {
+        const restore = busyButton(ev.currentTarget, "Deleting…");
         try {
           await deleteSubject(profile.uid, subject.id);
           toast("Subject deleted.", "success");
@@ -141,9 +144,10 @@ function confirmDelete(profile, subject) {
           await refresh(profile);
         } catch (err) {
           toast(err.message || "Could not delete subject.", "error");
+          restore();
         }
       } }, "Delete"),
-      el("button", { class: "btn btn--ghost", onClick: () => close() }, "Cancel"),
+      el("button", { class: "btn btn--ghost", onClick: () => close() }, [icon("close"), "Cancel"]),
     ])
   );
   const close = openModal("Delete Subject", body);

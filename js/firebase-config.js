@@ -13,7 +13,8 @@ import {
   getFirestore,
   enableIndexedDbPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+// Media (logos, student photos) now uploads to Cloudinary instead of
+// Firebase Storage - see js/services/cloudinary.service.js.
 
 const firebaseConfig = {
   apiKey: "AIzaSyCURCEhuxdsfVNqBLdHTLfzZ8mYn_yQsVQ",
@@ -28,7 +29,6 @@ const firebaseConfig = {
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 export const db = getFirestore(firebaseApp);
-export const storage = getStorage(firebaseApp);
 
 // Keep users logged in across refreshes/tabs
 setPersistence(auth, browserLocalPersistence).catch((err) =>

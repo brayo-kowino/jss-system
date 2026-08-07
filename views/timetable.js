@@ -13,7 +13,7 @@ import {
   clearSlot,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -35,7 +35,6 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Timetable"), el("p", {}, "Manage periods, then build each class's weekly timetable.")]),
     ])
   );
 
@@ -67,7 +66,7 @@ function renderPeriods(container, profile) {
   container.append(
     el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" }, [
       el("h3", { style: "margin:0;" }, "Periods"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => openPeriodModal(profile, null, container) }, "Add Period"),
+      el("button", { class: "btn btn--primary btn--sm", onClick: () => openPeriodModal(profile, null, container) }, [icon("add"), "Add Period"]),
     ])
   );
 
@@ -85,9 +84,9 @@ function renderPeriods(container, profile) {
       el("td", {}, p.endTime),
       el("td", {}, el("span", { class: `badge badge--${p.isBreak ? "gold" : "muted"}` }, p.isBreak ? "Break" : "Lesson")),
       el("td", {}, [
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openPeriodModal(profile, p, container) }, "Edit"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openPeriodModal(profile, p, container) }, [icon("edit"), "Edit"]),
         " ",
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeletePeriod(profile, p, container) }, "Delete"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeletePeriod(profile, p, container) }, [icon("delete"), "Delete"]),
       ]),
     ]));
   }
@@ -109,14 +108,15 @@ function openPeriodModal(profile, existing, container) {
     el("div", { class: "field" }, [el("label", {}, "Start Time"), startInput]),
     el("div", { class: "field" }, [el("label", {}, "End Time"), endInput]),
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:8px;" }, [breakCheck, "This is a break / lunch (not a lesson)"]),
+      el("label", { class: "checklist-item" }, [breakCheck, "This is a break / lunch (not a lesson)"]),
     ]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, isEdit ? "Save Changes" : "Add Period")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "add"), isEdit ? "Save Changes" : "Add Period"])
   );
 
   const close = openModal(isEdit ? `Edit ${existing.name}` : "Add Period", body);
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
     try {
       const payload = { name: nameInput.value, startTime: startInput.value, endTime: endInput.value, isBreak: breakCheck.checked };
       if (isEdit) await updatePeriod(profile.uid, existing.id, payload);
@@ -127,6 +127,7 @@ function openPeriodModal(profile, existing, container) {
       close();
     } catch (err) {
       toast(err.message || "Could not save period.", "error");
+      restore();
     }
   });
 }
@@ -175,7 +176,10 @@ async function loadClassGrid(profile, gridMount) {
     gridMount.innerHTML = "";
     return;
   }
-  gridMount.innerHTML = `<div class="empty-state">Loading timetable…</div>`;
+  gridMount.innerHTML = "";
+  gridMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
+  ]));
   classSlots = await getClassTimetable(classSelection.grade, classSelection.stream);
   renderGrid(gridMount, {
     canManage: CAN_MANAGE.includes(profile.role),
@@ -213,7 +217,7 @@ function openAssignModal(profile, day, period, gridMount) {
     el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
     el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
     el("div", { class: "field" }, [el("label", {}, "Room (optional)"), roomInput]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, existing ? "Save Changes" : "Assign")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(existing ? "save" : "add_task"), existing ? "Save Changes" : "Assign"])
   );
 
   const close = openModal("Assign Timetable Slot", body);
@@ -221,7 +225,8 @@ function openAssignModal(profile, day, period, gridMount) {
   if (existing) {
     body.append(el("button", {
       type: "button", class: "btn btn--ghost btn--block", style: "margin-top:8px;",
-      onClick: async () => {
+      onClick: async (e) => {
+        const restore = busyButton(e.currentTarget, "Clearing…");
         try {
           await clearSlot(profile.uid, classSelection.grade, classSelection.stream, day, period.id);
           toast("Slot cleared.", "success");
@@ -229,16 +234,18 @@ function openAssignModal(profile, day, period, gridMount) {
           await loadClassGrid(profile, gridMount);
         } catch (err) {
           toast(err.message || "Could not clear slot.", "error");
+          restore();
         }
       },
-    }, "Clear this slot"));
+    }, [icon("backspace"), "Clear this slot"]));
   }
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
     const subject = subjects.find((s) => s.code === subjectSelect.value);
     const teacher = teachers.find((t) => t.id === teacherSelect.value);
-    if (!subject) return toast("Select a subject.", "error");
+    if (!subject) { restore(); return toast("Select a subject.", "error"); }
     try {
       await assignSlot(profile.uid, {
         grade: classSelection.grade,
@@ -255,7 +262,8 @@ function openAssignModal(profile, day, period, gridMount) {
       close();
       await loadClassGrid(profile, gridMount);
     } catch (err) {
-      toast(err.message || "Could not save slot — check for a conflict.", "error");
+      toast(err.message || "Could not save slot - check for a conflict.", "error");
+      restore();
     }
   });
 }
@@ -294,7 +302,10 @@ async function loadTeacherGrid(gridMount) {
     gridMount.innerHTML = "";
     return;
   }
-  gridMount.innerHTML = `<div class="empty-state">Loading timetable…</div>`;
+  gridMount.innerHTML = "";
+  gridMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
+  ]));
   teacherSlots = await getTeacherTimetable(teacherSelection.teacherId);
   renderGrid(gridMount, {
     canManage: false,
@@ -310,7 +321,7 @@ async function loadTeacherGrid(gridMount) {
 function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pillRenderer }) {
   container.innerHTML = "";
   if (!periods.length) {
-    container.append(el("div", { class: "empty-state" }, [el("p", {}, "No periods set up yet.")]));
+    container.append(el("div", { class: "empty-state" }, [icon("schedule", "empty-state__icon"), el("p", {}, "No periods set up yet.")]));
     return;
   }
 

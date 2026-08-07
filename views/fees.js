@@ -13,7 +13,7 @@ import {
 } from "../js/services/fee.service.js";
 import { downloadElementAsPdf } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast, formatDate } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
 
 let classes = [];
 let settings = null;
@@ -29,7 +29,6 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Fee Management"), el("p", {}, "Set fee structures per grade and term, record payments, and print receipts.")]),
     ])
   );
 
@@ -57,12 +56,12 @@ function renderStructures(container, profile) {
   container.append(
     el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" }, [
       el("h3", { style: "margin:0;" }, "Fee Structures"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => openStructureModal(profile, null, container) }, "Set Fee Structure"),
+      el("button", { class: "btn btn--primary btn--sm", onClick: () => openStructureModal(profile, null, container) }, [icon("price_change"), "Set Fee Structure"]),
     ])
   );
 
   if (!structures.length) {
-    container.append(el("p", { class: "text-muted" }, "No fee structures set yet — add one per grade per term."));
+    container.append(el("p", { class: "text-muted" }, "No fee structures set yet - add one per grade per term."));
     return;
   }
 
@@ -80,9 +79,9 @@ function renderStructures(container, profile) {
       el("td", {}, s.term),
       el("td", {}, formatKES(s.amount)),
       el("td", {}, [
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStructureModal(profile, s, container) }, "Edit"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStructureModal(profile, s, container) }, [icon("edit"), "Edit"]),
         " ",
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeleteStructure(profile, s, container) }, "Delete"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeleteStructure(profile, s, container) }, [icon("delete"), "Delete"]),
       ]),
     ]));
   }
@@ -114,12 +113,13 @@ function openStructureModal(profile, existing, structuresContainer) {
     el("div", { class: "field" }, [el("label", {}, "Academic Year"), yearInput]),
     el("div", { class: "field" }, [el("label", {}, "Term"), termSelect]),
     el("div", { class: "field" }, [el("label", {}, "Amount (KES)"), amountInput]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, isEdit ? "Save Changes" : "Set Fee Structure")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "price_change"), isEdit ? "Save Changes" : "Set Fee Structure"])
   );
 
-  const close = openModal(isEdit ? `Edit Fee Structure — ${existing.grade}` : "Set Fee Structure", body);
+  const close = openModal(isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure", body);
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
     try {
       await saveFeeStructure(profile.uid, {
         grade: isEdit ? existing.grade : gradeSelect.value,
@@ -133,6 +133,7 @@ function openStructureModal(profile, existing, structuresContainer) {
       close();
     } catch (err) {
       toast(err.message || "Could not save fee structure.", "error");
+      restore();
     }
   });
 }
@@ -195,7 +196,7 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
     el("button", {
       class: "btn btn--primary", style: "margin-top:16px;",
       onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
-    }, "Load Balances")
+    }, [icon("search"), "Load Balances"])
   );
 }
 
@@ -204,7 +205,10 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
   if (!grade || !stream || !academicYear || !term) {
     return toast("Pick grade, stream, academic year, and term first.", "error");
   }
-  balancesMount.innerHTML = `<div class="empty-state">Loading roster…</div>`;
+  balancesMount.innerHTML = "";
+  balancesMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "40%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "70%"),
+  ]));
   paymentsMount.innerHTML = "";
   receiptMount.innerHTML = "";
 
@@ -225,7 +229,7 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
   container.innerHTML = "";
   const { grade, stream, academicYear, term } = selection;
 
-  container.append(el("h3", { style: "margin:0 0 4px;" }, `${grade} ${stream} — ${term} ${academicYear}`));
+  container.append(el("h3", { style: "margin:0 0 4px;" }, `${grade} ${stream}: ${term} ${academicYear}`));
 
   if (!balanceRows.length) {
     container.append(el("div", { class: "empty-state" }, [
@@ -245,7 +249,7 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
   for (const row of balanceRows) {
     const { student, expected, paid, balance } = row;
     tbody.append(el("tr", {}, [
-      el("td", {}, student.admissionNumber || "—"),
+      el("td", {}, student.admissionNumber || "N/A"),
       el("td", {}, student.fullName),
       el("td", {}, formatKES(expected)),
       el("td", {}, formatKES(paid)),
@@ -255,7 +259,7 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
       el("td", {}, el("button", {
         class: "btn btn--primary btn--sm",
         onClick: () => openPaymentModal(profile, student, container, paymentsMount, receiptMount),
-      }, "Record Payment")),
+      }, [icon("payments"), "Record Payment"])),
     ]));
   }
   table.append(tbody);
@@ -277,12 +281,13 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
     el("div", { class: "field" }, [el("label", {}, "Method"), methodSelect]),
     el("div", { class: "field" }, [el("label", {}, "Reference"), referenceInput]),
     el("div", { class: "field" }, [el("label", {}, "Date"), dateInput]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Record Payment")
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("payments"), "Record Payment"])
   );
 
   const close = openModal("Record Payment", body);
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, "Recording…");
     try {
       const paymentId = await recordPayment(profile.uid, {
         studentId: student.id,
@@ -300,6 +305,7 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
       if (payment) renderReceipt(receiptMount, payment);
     } catch (err) {
       toast(err.message || "Could not record payment.", "error");
+      restore();
     }
   });
 }
@@ -324,11 +330,11 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
   for (const p of payments.slice(0, 25)) {
     tbody.append(el("tr", {}, [
       el("td", {}, formatDate(p.date)),
-      el("td", {}, p.studentName || "—"),
+      el("td", {}, p.studentName || "N/A"),
       el("td", {}, formatKES(p.amount)),
-      el("td", {}, p.method || "—"),
-      el("td", {}, p.reference || "—"),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => renderReceipt(receiptMount, p) }, "View Receipt")),
+      el("td", {}, p.method || "N/A"),
+      el("td", {}, p.reference || "N/A"),
+      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => renderReceipt(receiptMount, p) }, [icon("receipt_long"), "View Receipt"])),
     ]));
   }
   table.append(tbody);
@@ -344,7 +350,7 @@ function renderReceipt(container, payment) {
   const card = el("div", { class: "receipt" });
   card.append(
     el("div", { class: "receipt__header" }, [
-      ...(settings.logoUrl ? [el("img", { class: "receipt__logo", src: settings.logoUrl, alt: "logo" })] : []),
+      el("img", { class: "receipt__logo", src: settings.logoUrl || "assets/logo.png", alt: "logo" }),
       el("div", {}, [
         el("h3", { class: "receipt__school-name" }, settings.schoolName || "School Name"),
         el("p", { class: "receipt__address" }, settings.address || ""),
@@ -353,18 +359,18 @@ function renderReceipt(container, payment) {
     el("div", { class: "receipt__banner" }, "FEE PAYMENT RECEIPT"),
     el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", {}, payment.id.slice(0, 10).toUpperCase())]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Date"), el("b", {}, formatDate(payment.date))]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Student"), el("b", {}, payment.studentName || "—")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Student"), el("b", {}, payment.studentName || "N/A")]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Class"), el("b", {}, `${payment.grade} ${payment.stream}`)]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Term"), el("b", {}, `${payment.term} ${payment.academicYear}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Method"), el("b", {}, payment.method || "—")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Method"), el("b", {}, payment.method || "N/A")]),
     ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Reference"), el("b", {}, payment.reference)])] : []),
     el("div", { class: "receipt__amount" }, formatKES(payment.amount)),
     el("div", { class: "receipt__footer" }, "Thank you. Keep this receipt for your records.")
   );
 
   const actions = el("div", { class: "no-print", style: "display:flex; gap:8px; justify-content:center; margin-top:12px;" }, [
-    el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, "Print"),
-    el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, card, payment) }, "Download PDF"),
+    el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
+    el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, card, payment) }, [icon("download"), "Download PDF"]),
   ]);
 
   container.append(card, actions);

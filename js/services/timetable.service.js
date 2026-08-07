@@ -1,9 +1,10 @@
 // Timetable.
-// periods/{autoId}: { name, startTime, endTime, isBreak, createdAt }
-// timetable_slots/{grade_stream_day_periodId}: { grade, stream, day, periodId,
-//   subjectCode, subjectName, teacherId, teacherName, room, updatedBy, updatedAt }
+// periods/{autoId}: { schoolId, name, startTime, endTime, isBreak, createdAt }
+// timetable_slots/{schoolId__grade_stream_day_periodId}: { schoolId, grade,
+//   stream, day, periodId, subjectCode, subjectName, teacherId, teacherName,
+//   room, updatedBy, updatedAt }
 //
-// One deterministic doc per class per day per period — re-assigning the same
+// One deterministic doc per class per day per period - re-assigning the same
 // cell is a plain upsert. Teacher/room double-booking is checked at write
 // time against every other class's slot in that same day+period.
 import {
@@ -21,6 +22,8 @@ import {
 import { db } from "../firebase-config.js";
 import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
+import { getCurrentSchoolId } from "./auth.service.js";
+import { scopedId } from "../utils.js";
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -40,15 +43,16 @@ const DEFAULT_PERIODS = [
 // ------------------------------------------------------------------ Periods --
 
 export async function listPeriods() {
-  const snap = await getDocs(collection(db, "periods"));
+  const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
 }
 
 export async function seedDefaultPeriodsIfEmpty() {
   const existing = await listPeriods();
   if (existing.length) return;
+  const schoolId = getCurrentSchoolId();
   for (const p of DEFAULT_PERIODS) {
-    await addDoc(collection(db, "periods"), { ...p, createdAt: serverTimestamp() });
+    await addDoc(collection(db, "periods"), { ...p, schoolId, createdAt: serverTimestamp() });
   }
 }
 
@@ -56,6 +60,7 @@ export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
   if (!name?.trim()) throw new Error("Period name is required.");
   if (!startTime || !endTime) throw new Error("Start and end time are required.");
   const ref_ = await addDoc(collection(db, "periods"), {
+    schoolId: getCurrentSchoolId(),
     name: name.trim(),
     startTime,
     endTime,
@@ -78,7 +83,9 @@ export async function updatePeriod(userId, id, { name, startTime, endTime, isBre
 }
 
 export async function deletePeriod(userId, id) {
-  const snap = await getDocs(query(collection(db, "timetable_slots"), where("periodId", "==", id)));
+  const snap = await getDocs(
+    query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("periodId", "==", id))
+  );
   if (snap.size > 0) {
     throw new Error(`Cannot delete: ${snap.size} timetable slot(s) still use this period. Clear them first.`);
   }
@@ -88,14 +95,19 @@ export async function deletePeriod(userId, id) {
 
 // ------------------------------------------------------------------- Slots --
 
-function slotId(grade, stream, day, periodId) {
-  return `${slugify(grade)}_${slugify(stream)}_${slugify(day)}_${periodId}`;
+function slotId(schoolId, grade, stream, day, periodId) {
+  return scopedId(schoolId, slugify(grade), slugify(stream), slugify(day), periodId);
 }
 
 /** Returns a lookup map keyed by "day_periodId" for easy grid rendering. */
 export async function getClassTimetable(grade, stream) {
   const snap = await getDocs(
-    query(collection(db, "timetable_slots"), where("grade", "==", grade), where("stream", "==", stream))
+    query(
+      collection(db, "timetable_slots"),
+      where("schoolId", "==", getCurrentSchoolId()),
+      where("grade", "==", grade),
+      where("stream", "==", stream)
+    )
   );
   const byKey = {};
   for (const d of snap.docs) {
@@ -106,7 +118,9 @@ export async function getClassTimetable(grade, stream) {
 }
 
 export async function getTeacherTimetable(teacherId) {
-  const snap = await getDocs(query(collection(db, "timetable_slots"), where("teacherId", "==", teacherId)));
+  const snap = await getDocs(
+    query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("teacherId", "==", teacherId))
+  );
   const byKey = {};
   for (const d of snap.docs) {
     const data = d.data();
@@ -117,14 +131,20 @@ export async function getTeacherTimetable(teacherId) {
 
 /**
  * Assigns (or reassigns) a class/day/period slot, blocking the save if the
- * chosen teacher — or, if given, the room — is already booked elsewhere at
+ * chosen teacher - or, if given, the room - is already booked elsewhere at
  * that exact day+period.
  */
 export async function assignSlot(userId, { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room }) {
-  const id = slotId(grade, stream, day, periodId);
+  const schoolId = getCurrentSchoolId();
+  const id = slotId(schoolId, grade, stream, day, periodId);
 
   const sameSlotElsewhere = await getDocs(
-    query(collection(db, "timetable_slots"), where("day", "==", day), where("periodId", "==", periodId))
+    query(
+      collection(db, "timetable_slots"),
+      where("schoolId", "==", schoolId),
+      where("day", "==", day),
+      where("periodId", "==", periodId)
+    )
   );
   for (const d of sameSlotElsewhere.docs) {
     if (d.id === id) continue;
@@ -138,6 +158,7 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
   }
 
   await setDoc(doc(db, "timetable_slots", id), {
+    schoolId,
     grade,
     stream,
     day,
@@ -155,7 +176,7 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
 }
 
 export async function clearSlot(userId, grade, stream, day, periodId) {
-  const id = slotId(grade, stream, day, periodId);
+  const id = slotId(getCurrentSchoolId(), grade, stream, day, periodId);
   await deleteDoc(doc(db, "timetable_slots", id));
   await logAction(userId, "clear_timetable_slot", "timetable_slots", id);
 }

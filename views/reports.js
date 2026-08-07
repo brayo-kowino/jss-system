@@ -4,10 +4,11 @@ import {
   listResultsByPeriod,
   listResultsForStudent,
   updateResultRemarks,
+  reportModeLabel,
 } from "../js/services/grading.service.js";
 import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
 import { downloadElementAsPdf } from "../js/services/pdf.util.js";
-import { el, toast, formatDate } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -21,7 +22,7 @@ export async function render({ profile }) {
   if (NO_PORTAL_YET.includes(profile.role)) {
     return el("div", { class: "empty-state" }, [
       el("h2", {}, "Report cards"),
-      el("p", {}, "Self-service access is coming soon — please ask the school office for a printed or emailed copy in the meantime."),
+      el("p", {}, "Self-service access is coming soon please ask the school office for a printed or emailed copy in the meantime."),
     ]);
   }
 
@@ -33,8 +34,6 @@ export async function render({ profile }) {
   wrap.append(
     el("div", { class: "page-header" }, [
       el("div", {}, [
-        el("h1", {}, "Report Card Generator"),
-        el("p", {}, "Pull up a class's saved results and print, download, or annotate each student's report card."),
       ]),
     ])
   );
@@ -91,7 +90,7 @@ function renderPicker(container, bodyMount, profile) {
   );
   container.append(row);
   container.append(
-    el("button", { class: "btn btn--primary", onClick: () => loadList(bodyMount, profile) }, "Load Report Cards")
+    el("button", { class: "btn btn--primary", onClick: () => loadList(bodyMount, profile) }, [icon("description"), "Load Report Cards"])
   );
 }
 
@@ -99,11 +98,15 @@ async function loadList(bodyMount, profile) {
   if (!selection.grade || !selection.academicYear || !selection.term) {
     return toast("Choose grade, academic year, and term first.", "error");
   }
-  bodyMount.innerHTML = `<div class="empty-state">Loading saved results…</div>`;
+  bodyMount.innerHTML = "";
+  bodyMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
+  ]));
   const results = await listResultsByPeriod(selection);
   if (!results.length) {
     bodyMount.innerHTML = "";
     bodyMount.append(el("div", { class: "empty-state" }, [
+      icon("description", "empty-state__icon"),
       el("h3", {}, "No saved results for this period"),
       el("p", {}, "Compute and save results for this class under Grading & Positions first, then come back here."),
     ]));
@@ -115,7 +118,7 @@ async function loadList(bodyMount, profile) {
 function renderList(container, results, profile) {
   container.innerHTML = "";
   const header = el("div", { class: "card", style: "margin-bottom:16px;" }, [
-    el("h3", { style: "margin:0 0 4px;" }, `${selection.grade}${selection.stream ? " " + selection.stream : ""} — ${selection.term} ${selection.academicYear}`),
+    el("h3", { style: "margin:0 0 4px;" }, `${selection.grade}${selection.stream ? " " + selection.stream : ""}: ${selection.term} ${selection.academicYear}`),
     el("p", { class: "text-muted", style: "margin:0;" }, `${results.length} saved report card(s).`),
   ]);
   container.append(header);
@@ -129,12 +132,12 @@ function renderList(container, results, profile) {
   const tbody = el("tbody", {});
   for (const r of results) {
     tbody.append(el("tr", {}, [
-      el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "—"),
-      el("td", {}, r.admissionNumber || "—"),
+      el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
+      el("td", {}, r.admissionNumber || "N/A"),
       el("td", {}, r.fullName),
-      el("td", {}, `${r.meanMarks?.toFixed(2) ?? "—"}%`),
-      el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "—")),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(container, r, profile) }, "View Report Card")),
+      el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
+      el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
+      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(container, r, profile) }, [icon("description"), "View Report Card"])),
     ]));
   }
   table.append(tbody);
@@ -143,7 +146,8 @@ function renderList(container, results, profile) {
 }
 
 async function openCard(container, result, profile) {
-  container.innerHTML = `<div class="empty-state">Building report card…</div>`;
+  container.innerHTML = "";
+  container.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
   const [feeSummary, history] = await Promise.all([
     getFeeSummary({ studentId: result.studentId, grade: result.grade, academicYear: result.academicYear, term: result.term }),
     listResultsForStudent(result.studentId),
@@ -162,10 +166,10 @@ async function openCard(container, result, profile) {
 function buildActionBar(container, result, profile) {
   const bar = el("div", { class: "no-print", style: "display:flex; justify-content:space-between; margin-bottom:16px;" });
   bar.append(
-    el("button", { class: "btn btn--ghost btn--sm", onClick: () => { container.innerHTML = ""; loadList(container, profile); } }, "← Back to list"),
+    el("button", { class: "btn btn--ghost btn--sm", onClick: () => { container.innerHTML = ""; loadList(container, profile); } }, [icon("arrow_back"), "Back to list"]),
     el("div", { style: "display:flex; gap:8px;" }, [
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, "Print"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, result) }, "Download PDF"),
+      el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, result) }, [icon("download"), "Download PDF"]),
     ])
   );
   return bar;
@@ -180,7 +184,7 @@ async function handleDownload(button, result) {
   try {
     await downloadElementAsPdf(card, `${result.fullName.replace(/\s+/g, "_")}_${result.term}_${result.academicYear}.pdf`);
   } catch (err) {
-    toast("Could not generate PDF — check your connection and try again.", "error");
+    toast("Could not generate PDF - check your connection and try again.", "error");
   } finally {
     button.textContent = original;
     button.disabled = false;
@@ -195,7 +199,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("div", { class: "report-card__header" }, [
       settings.logoUrl
         ? el("img", { class: "report-card__logo", src: settings.logoUrl })
-        : el("div", { class: "seal seal--lg" }, "JS"),
+        : el("img", { class: "report-card__logo", src: "assets/logo.png", alt: "logo" }),
       el("div", {}, [
         el("h2", { class: "report-card__school-name" }, settings.schoolName || "School Name"),
         el("p", { class: "report-card__motto" }, settings.motto || ""),
@@ -203,36 +207,38 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       el("p", { class: "report-card__address" }, [settings.address, settings.phone].filter(Boolean).join(" · ")),
     ])
   );
-  card.append(el("div", { class: "report-card__banner" }, `${result.term} ${result.academicYear} — Progress Report`));
+  card.append(el("div", { class: "report-card__banner" }, `${result.term} ${result.academicYear}: ${reportModeLabel(result.reportMode)}`));
 
-  // Student identity row
+  // Student identity row - a real table so labels/values line up in even
+  // columns across the full width, the way a printed official record
+  // would, rather than a loose two-column list.
   card.append(
     el("div", { class: "report-card__student" }, [
       result.photoUrl
         ? el("img", { class: "report-card__photo", src: result.photoUrl })
         : el("div", { class: "report-card__photo" }),
-      el("div", { class: "report-card__student-grid" }, [
-        el("div", {}, [el("b", {}, "Name: "), result.fullName]),
-        el("div", {}, [el("b", {}, "Adm No: "), result.admissionNumber || "—"]),
-        el("div", {}, [el("b", {}, "Class: "), `${result.grade}${result.stream ? " " + result.stream : ""}`]),
-        el("div", {}, [el("b", {}, "Gender: "), result.gender || "—"]),
+      infoTable([
+        ["Name", result.fullName, "Adm No", result.admissionNumber || "N/A"],
+        ["Class", `${result.grade}${result.stream ? " " + result.stream : ""}`, "Gender", result.gender || "N/A"],
+        ["Exam", reportModeLabel(result.reportMode), "Assessment No", result.kcpeNumber || "N/A"],
       ]),
-      el("div", {}),
     ])
   );
 
-  // Summary stats
-  card.append(
-    el("div", { class: "report-card__summary" }, [
-      stat("Total Marks", `${result.totalMarks.toFixed(1)}/${result.totalOutOf}`),
-      stat("Mean Marks", `${result.meanMarks.toFixed(2)}%`),
-      stat("Mean Grade", result.meanGrade),
-      stat("Total Points", String(result.totalPoints)),
-      stat("Overall Position", `${result.overallPosition}/${result.classSize}`),
-    ])
-  );
+  // Summary stats - a real table (header row of labels, one row of
+  // values) so it reads as part of the same tabular record as the rest
+  // of the card, instead of a separate boxed stat grid.
+  card.append(el("h4", { class: "report-card__section-title" }, "Performance Summary"));
+  card.append(summaryTable([
+    ["Total Marks", `${result.totalMarks.toFixed(1)}/${result.totalOutOf}`],
+    ["Mean Marks", `${result.meanMarks.toFixed(2)}%`],
+    ["Mean Grade", result.meanGrade ?? "N/A"],
+    ["Total Points", String(result.totalPoints)],
+    ["Overall Position", `${result.overallPosition}/${result.classSize}`],
+  ]));
 
   // Pathway breakdown
+  card.append(el("h4", { class: "report-card__section-title" }, "Pathway Performance"));
   card.append(
     el("div", { class: "report-card__pathways" }, result.pathwayBreakdown.map((p) =>
       el("div", { class: "report-card__pathway" }, [
@@ -243,17 +249,28 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     ))
   );
 
-  // Subject table
+  card.append(el("h4", { class: "report-card__section-title" }, "Subject Performance"));
+  // Subject table - only show the Midt/End reference columns when the
+  // report is an average of both; a Midterm-only or Endterm-only report
+  // is a single exam's results, so a second reference column would just
+  // repeat (or worse, imply an exam that isn't part of this report at all).
+  const showBothColumns = (result.reportMode || "average") === "average";
   const tableWrap = el("div", { class: "table-wrap", style: "margin-bottom:16px;" });
-  const table = el("table", {}, [
+  const table = el("table", { class: "report-card__subject-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Subject"), el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Position"), el("th", {}, "Remarks"),
+      el("th", {}, "Subject"),
+      ...(showBothColumns ? [el("th", {}, "Midt"), el("th", {}, "End")] : []),
+      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Rank"), el("th", {}, "Remarks"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const s of [...result.subjects].sort((a, b) => a.name.localeCompare(b.name))) {
     tbody.append(el("tr", {}, [
-      el("td", {}, s.name),
+      el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:6px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "Partial") : ""]),
+      ...(showBothColumns ? [
+        el("td", {}, s.midtScore == null ? el("span", { class: "text-muted" }, "—") : s.midtScore.toFixed(1)),
+        el("td", {}, s.endScore == null ? el("span", { class: "text-muted" }, "—") : s.endScore.toFixed(1)),
+      ] : []),
       el("td", {}, s.average.toFixed(1)),
       el("td", {}, s.grade),
       el("td", {}, String(s.points)),
@@ -267,20 +284,20 @@ function buildCard(result, feeSummary, priorHistory, profile) {
 
   // Performance history
   if (priorHistory.length) {
-    card.append(el("h4", { style: "margin:0 0 8px;" }, "Performance History"));
+    card.append(el("h4", { class: "report-card__section-title" }, "Performance History"));
     const histWrap = el("div", { class: "table-wrap", style: "margin-bottom:16px;" });
     const histTable = el("table", {}, [
-      el("thead", {}, el("tr", {}, [el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean"), el("th", {}, "Points"), el("th", {}, "Grade"), el("th", {}, "Position")])),
+      el("thead", {}, el("tr", {}, [el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean"), el("th", {}, "Points"), el("th", {}, "Grade"), el("th", {}, "Rank")])),
     ]);
     const histBody = el("tbody", {});
     for (const h of priorHistory) {
       histBody.append(el("tr", {}, [
         el("td", {}, `${h.term} '${String(h.academicYear).slice(-2)}`),
         el("td", {}, `${h.grade}${h.stream ? " " + h.stream : ""}`),
-        el("td", {}, `${h.meanMarks?.toFixed(2) ?? "—"}%`),
-        el("td", {}, String(h.totalPoints ?? "—")),
-        el("td", {}, h.meanGrade || "—"),
-        el("td", {}, h.overallPosition ? `${h.overallPosition}/${h.classSize}` : "—"),
+        el("td", {}, `${h.meanMarks?.toFixed(2) ?? "N/A"}%`),
+        el("td", {}, String(h.totalPoints ?? "N/A")),
+        el("td", {}, h.meanGrade || "N/A"),
+        el("td", {}, h.overallPosition ? `${h.overallPosition}/${h.classSize}` : "N/A"),
       ]));
     }
     histTable.append(histBody);
@@ -292,7 +309,10 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
   const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
   const teacherBox = remarkBox("Class Teacher Remarks", result.teacherRemark, canEditTeacher);
-  const principalBox = remarkBox("Principal Remarks", result.principalRemark, canEditPrincipal);
+  const principalBox = remarkBox("Principal Remarks", result.principalRemark, canEditPrincipal, {
+    name: settings.principalName,
+    title: settings.principalTitle || "Principal",
+  });
   card.append(el("div", { class: "report-card__remarks" }, [teacherBox.node, principalBox.node]));
 
   if (canEditTeacher || canEditPrincipal) {
@@ -300,7 +320,8 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       el("div", { class: "no-print", style: "text-align:right; margin-bottom:16px;" }, [
         el("button", {
           class: "btn btn--ghost btn--sm",
-          onClick: async () => {
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Saving…");
             try {
               await updateResultRemarks(profile.uid, result.id, {
                 ...(canEditTeacher ? { teacherRemark: teacherBox.getValue() } : {}),
@@ -309,10 +330,32 @@ function buildCard(result, feeSummary, priorHistory, profile) {
               toast("Remarks saved.", "success");
             } catch (err) {
               toast(err.message || "Could not save remarks.", "error");
+            } finally {
+              restore();
             }
           },
-        }, "Save Remarks"),
+        }, [icon("save"), "Save Remarks"]),
       ])
+    );
+  }
+
+  // Approved-by signatures - only show a block for whichever of the
+  // principal/deputy principal actually has a name set in School Settings
+  // (Settings -> Leadership), so an unfilled field doesn't print a blank
+  // "Principal: " line on a card that goes home to a parent.
+  const signers = [
+    settings.principalName ? { name: settings.principalName, title: settings.principalTitle || "Principal" } : null,
+    settings.deputyPrincipalName ? { name: settings.deputyPrincipalName, title: settings.deputyPrincipalTitle || "Deputy Principal" } : null,
+  ].filter(Boolean);
+  if (signers.length) {
+    card.append(
+      el("div", { class: "report-card__signatures" }, signers.map((s) =>
+        el("div", { class: "report-card__signature" }, [
+          el("div", { class: "report-card__signature-line" }),
+          el("div", { class: "report-card__signature-name" }, s.name),
+          el("div", { class: "report-card__signature-title" }, s.title),
+        ])
+      ))
     );
   }
 
@@ -322,22 +365,42 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   // Term dates
   card.append(
     el("div", { class: "report-card__dates" }, [
-      el("span", {}, `School Closes On: ${settings.closingDate ? formatDate(settings.closingDate) : "—"}`),
-      el("span", {}, `Next Term Begins: ${settings.openingDate ? formatDate(settings.openingDate) : "—"}`),
+      el("span", {}, `School Closes On: ${settings.closingDate ? formatDate(settings.closingDate) : "N/A"}`),
+      el("span", {}, `Next Term Begins: ${settings.openingDate ? formatDate(settings.openingDate) : "N/A"}`),
     ])
   );
 
   return card;
 }
 
-function stat(label, value) {
-  return el("div", { class: "report-card__stat" }, [
-    el("div", { class: "report-card__stat-label" }, label),
-    el("div", { class: "report-card__stat-value" }, value ?? "—"),
+// Performance summary as a table: one header row of labels, one row of
+// values, so it lines up as columns rather than a grid of boxed stats.
+function summaryTable(pairs) {
+  const headRow = el("tr", {}, pairs.map(([label]) => el("th", {}, label)));
+  const valueRow = el("tr", {}, pairs.map(([, value]) => el("td", {}, value ?? "N/A")));
+  return el("div", { class: "table-wrap", style: "margin-bottom:16px;" }, [
+    el("table", { class: "report-card__summary-table" }, [
+      el("thead", {}, headRow),
+      el("tbody", {}, valueRow),
+    ]),
   ]);
 }
 
-function remarkBox(title, value, editable) {
+// Student identity as a real table: two label/value pairs per row, four
+// even columns across the full width, matching how the printed record is
+// laid out (rows = [label, value, label, value]).
+function infoTable(rows) {
+  const tbody = el("tbody", {});
+  for (const [l1, v1, l2, v2] of rows) {
+    tbody.append(el("tr", {}, [
+      el("th", {}, l1), el("td", {}, v1 || "N/A"),
+      el("th", {}, l2), el("td", {}, v2 || "N/A"),
+    ]));
+  }
+  return el("table", { class: "report-card__info-table" }, [tbody]);
+}
+
+function remarkBox(title, value, editable, signer) {
   const box = el("div", { class: "report-card__remark-box" });
   box.append(el("h4", {}, title));
   let control;
@@ -348,6 +411,12 @@ function remarkBox(title, value, editable) {
     control = el("p", { class: "text-sm" }, value || "No remarks yet.");
   }
   box.append(control, el("div", { class: "report-card__sign-line" }, "Sign: ……………………………………"));
+  // Printed name/title under the sign-line, when School Settings ->
+  // Leadership has one on file (e.g. the Principal for the Principal
+  // Remarks box), so it's clear whose signature the line is for.
+  if (signer?.name) {
+    box.append(el("div", { class: "report-card__signer" }, `${signer.name}, ${signer.title}`));
+  }
   return { node: box, getValue: () => (editable ? control.value.trim() : value || "") };
 }
 

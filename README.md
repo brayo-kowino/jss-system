@@ -1,4 +1,4 @@
-# JSS Manager — School Management System (MVP, Phase 1 & 2)
+# JSS Manager - School Management System (MVP, Phase 1 & 2)
 
 Vanilla JS SPA + Firebase, built in the order from the spec:
 **Auth & Roles → School Settings → Student/Parent/Teacher Management →
@@ -6,10 +6,22 @@ Classes/Streams/Subjects → Assessments → Marks → CBC Grading & Report Card
 Attendance → Fees → Timetable → (next: Reports/Dashboard →
 Notifications/Audit)**
 
+**Multi-school (multi-tenant):** the system now supports any number of
+schools from one deployment. A platform-level `super_admin` creates each
+school (and its first admin login) from a **Schools** screen; from then on
+every admin, teacher, student, class, subject, assessment, mark, fee,
+timetable slot, and report is scoped to that school and invisible to every
+other one - see "Multi-school architecture" below.
+
+**Media storage:** school logos and student photos upload to **Cloudinary**
+(unsigned upload preset) instead of Firebase Storage - see
+`js/services/cloudinary.service.js`. Firebase is now only used for Auth +
+Firestore.
+
 ## What's working right now
 
 - Hash-based SPA router with auth + per-role route guards
-- Firebase Auth (email/password) — login, forgot password, session persistence
+- Firebase Auth (email/password) - login, forgot password, session persistence
 - Role-based sidebar/topbar shell (10 roles from the spec)
 - Admin: create user accounts with a role (`auth.service.js:createUserAccount`)
 - School Settings: profile, logo upload, academic year/term, CBC grading scale
@@ -22,7 +34,7 @@ Notifications/Audit)**
   checklists, optionally create a login for them on the spot
   (`class_teacher` if they have class assignments, else `subject_teacher`)
 - **Classes & Streams**: add/delete grades, add/rename/remove streams within
-  a grade, all with usage guards — you can't delete a grade or stream while
+  a grade, all with usage guards - you can't delete a grade or stream while
   students are still enrolled in it, or delete a grade a teacher is still
   assigned to (`academic.service.js`, `views/academics.js`)
 - **Subject Management**: add/edit/delete subjects with code, name,
@@ -41,7 +53,7 @@ Notifications/Audit)**
   fill (`admission_no, score` per line) that populates the table for review
   before saving. Subject/class teachers only see the subjects on their own
   teacher record (matched via a new `getTeacherByUserId`/`getTeacherByEmail`
-  lookup — teacher records created with a login now store that login's `uid`
+  lookup - teacher records created with a login now store that login's `uid`
   so this match works); admins and the academic master see everything.
   Entry is blocked the moment an assessment is locked, and Lock/Reopen is
   available right from this screen for admins/academic master
@@ -50,7 +62,7 @@ Notifications/Audit)**
   and it weight-averages every subject's assessments (CAT/Midterm/Endterm/
   etc, using each assessment's weight %) into a score, grades it against the
   school's CBC grading scale (now with a Points column, e.g. EE1=8…BE2=1),
-  and ranks students — per subject and overall — with standard competition
+  and ranks students - per subject and overall - with standard competition
   ranking (ties share a rank). Each student's detail view also breaks down
   points/percentage by pathway (STEM/Social Sciences/Arts & Sports Science,
   using the pathway already assigned per subject) and, once a prior term has
@@ -59,14 +71,14 @@ Notifications/Audit)**
   doc per student to a new `results` collection so the Report Card Generator
   can read it back without recomputing (`grading.service.js`, `views/grading.js`).
 - **Report Card Generator**: pick a class + term with saved results, get a
-  ranked list, then open any student's report card — school letterhead
+  ranked list, then open any student's report card - school letterhead
   (logo/name/motto/address), student photo, performance summary (total,
   mean, mean grade, total points, overall position), the pathway breakdown,
   a full subject table (score/grade/points/position/remark), Performance
   History pulled from that student's other saved terms, editable Class
-  Teacher / Principal remarks (role-gated — class teacher & academic
+  Teacher / Principal remarks (role-gated - class teacher & academic
   master edit the former, principal & deputy the latter), a Fee Balance
-  line (now backed by real fee structures/payments — see below), and the
+  line (now backed by real fee structures/payments - see below), and the
   term's closing/opening dates (editable in School Settings). **Print** uses
   the browser's print dialog (a dedicated `@media print` rule hides
   everything but the card); **Download PDF** rasterizes the card with
@@ -82,12 +94,12 @@ Notifications/Audit)**
 - **Fee Management**: set a fee structure (amount) per grade/academic year/
   term, look up any class's expected/paid/balance per student, record
   payments (amount, method, reference, date), and print/download a
-  letterhead receipt for any payment — reusing the same `pdf.util.js`
+  letterhead receipt for any payment - reusing the same `pdf.util.js`
   downloader as the report card (`fee.service.js`, `views/fees.js`).
 - **Timetable**: admins/academic master manage the daily periods (with a
   sensible 8-period + break/lunch default seeded on first load), then build
   each class's weekly grid by assigning subject + teacher (+ optional room)
-  to a day/period cell — saving is blocked if that teacher or room is
+  to a day/period cell - saving is blocked if that teacher or room is
   already booked elsewhere at the same day/period. A separate Teacher
   Timetable view cross-references every class's slots for one teacher
   (auto-scoped to yourself if you're a subject/class teacher, freely
@@ -114,7 +126,7 @@ Paste that object into `js/firebase-config.js`, replacing the `REPLACE_ME` value
 
 `firestore.rules` in this folder enforces: admins manage users/settings, any
 staff role can read/write the operational collections (tighten this per
-collection as each module ships — e.g. teachers should only touch marks for
+collection as each module ships - e.g. teachers should only touch marks for
 their own subject/class once Marks Entry is built).
 
 ```bash
@@ -135,10 +147,10 @@ this once, manually:
    ```
    fullName: "Your Name"
    email: "you@school.ac.ke"
-   role: "admin"
+   role: "super_admin"
    status: "active"
    ```
-3. Log in with that email/password — you now have a working Super Admin who
+3. Log in with that email/password - you now have a working Super Admin who
    can create every other account from inside the app.
 
 ## 4. Run it locally
@@ -207,18 +219,12 @@ views/
 ```
 
 Each view module exports `render(ctx)` (returns a DOM node) and `init(ctx)`
-(wires up event listeners after the node is in the document) — follow that
+(wires up event listeners after the node is in the document) - follow that
 pattern for every new module.
 
 ## Next build step
 
-Classes, Streams, Subjects, Assessment Management, Marks Entry, the CBC
-Grading & Position Engine, the Report Card Generator, Attendance, Fee
-Management, and Timetable are all done. Per the recommended order, next up
-is **Reports & Dashboard** (Student List, Top Students, Subject/Class
+**Reports & Dashboard** (Student List, Top Students, Subject/Class
 Analysis, Fee Report, Attendance Report, Teacher Workload, Promotion List,
-Exam Report — most of the raw data these need already exists in Firestore
-from the modules above), then **Notifications & Audit Logs** (an in-app
-notification system; the audit trail already logs actions, it just needs a
-dedicated `views/audit.js` to read `audit_logs` back instead of the
-`coming-soon` stub).
+Exam Report - most of the raw data these need already exists in Firestore
+from the modules above).

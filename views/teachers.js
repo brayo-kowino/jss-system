@@ -2,7 +2,7 @@ import { listTeachers, createTeacher, updateTeacher, assignSubjects, assignClass
 import { listSubjects, listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { createUserAccount } from "../js/services/auth.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, toast } from "../js/utils.js";
+import { el, icon, toast, busyButton } from "../js/utils.js";
 
 let teachers = [];
 let subjects = [];
@@ -15,8 +15,8 @@ export async function render({ profile }) {
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, "Teachers"), el("p", {}, `${teachers.length} on staff`)]),
-      el("button", { class: "btn btn--primary", id: "new-teacher-btn" }, "+ Add Teacher"),
+      el("div", {}, [el("p", {}, `${teachers.length} on staff`)]),
+      el("button", { class: "btn btn--primary", id: "new-teacher-btn" }, [icon("person_add"), "Add Teacher"]),
     ])
   );
 
@@ -35,6 +35,7 @@ function renderTable(container, profile) {
   if (!teachers.length) {
     container.innerHTML = "";
     container.append(el("div", { class: "empty-state" }, [
+      icon("person", "empty-state__icon"),
       el("h3", {}, "No teachers yet"),
       el("p", {}, "Click '+ Add Teacher' to register your first staff member."),
     ]));
@@ -53,13 +54,13 @@ function renderTable(container, profile) {
     const classNames = (t.classAssignments || []).map((a) => `${a.grade} ${a.stream}`).join(", ");
     tbody.append(el("tr", {}, [
       el("td", {}, t.fullName),
-      el("td", { class: "numeric" }, t.tscNumber || "—"),
+      el("td", { class: "numeric" }, t.tscNumber || "N/A"),
       el("td", {}, subjNames || el("span", { class: "text-muted" }, "None")),
       el("td", {}, classNames || el("span", { class: "text-muted" }, "None")),
       el("td", {}, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active")),
       el("td", {}, [
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTeacherForm(profile, t) }, "Edit"),
-        el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleStatus(profile, t) }, t.status === "active" ? "Suspend" : "Reinstate"),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTeacherForm(profile, t) }, [icon("edit"), "Edit"]),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleStatus(profile, t) }, [icon(t.status === "active" ? "pause_circle" : "restart_alt"), t.status === "active" ? "Suspend" : "Reinstate"]),
       ]),
     ]));
   }
@@ -85,26 +86,20 @@ function openTeacherForm(profile, existing = null) {
   const isEdit = !!existing;
   const body = el("form", {});
 
-  const subjectChecklist = el("div", { style: "max-height:110px; overflow-y:auto; border:1px solid var(--color-line); border-radius:6px; padding:8px;" });
+  const subjectChecklist = el("div", { class: "checklist" });
   const selectedSubjects = new Set(existing?.subjectCodes || []);
   for (const s of subjects) {
-    const id = `subj-${s.code}`;
-    subjectChecklist.append(el("div", {}, [
-      el("input", { type: "checkbox", id, value: s.code, ...(selectedSubjects.has(s.code) ? { checked: "true" } : {}) }),
-      el("label", { for: id, style: "margin-left:6px;" }, s.name),
-    ]));
+    const checkbox = el("input", { type: "checkbox", value: s.code, ...(selectedSubjects.has(s.code) ? { checked: "true" } : {}) });
+    subjectChecklist.append(el("label", { class: "checklist-item" }, [checkbox, s.name]));
   }
 
-  const classChecklist = el("div", { style: "max-height:110px; overflow-y:auto; border:1px solid var(--color-line); border-radius:6px; padding:8px;" });
+  const classChecklist = el("div", { class: "checklist" });
   const selectedClasses = new Set((existing?.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
   for (const c of classes) {
     for (const stream of c.streams || []) {
       const key = `${c.grade}|${stream}`;
-      const id = `class-${key}`;
-      classChecklist.append(el("div", {}, [
-        el("input", { type: "checkbox", id, value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }),
-        el("label", { for: id, style: "margin-left:6px;" }, `${c.grade} ${stream}`),
-      ]));
+      const checkbox = el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) });
+      classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, `${c.grade} ${stream}`]));
     }
   }
 
@@ -127,12 +122,13 @@ function openTeacherForm(profile, existing = null) {
     );
   }
 
-  body.append(el("button", { type: "submit", class: "btn btn--primary btn--block" }, isEdit ? "Save changes" : "Add teacher"));
+  body.append(el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]));
 
-  const close = openModal(isEdit ? `Edit — ${existing.fullName}` : "Add Teacher", body);
+  const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, isEdit ? "Saving…" : "Adding…");
     const subjectCodes = Array.from(subjectChecklist.querySelectorAll("input:checked")).map((c) => c.value);
     const classAssignments = Array.from(classChecklist.querySelectorAll("input:checked")).map((c) => {
       const [grade, stream] = c.value.split("|");
@@ -167,6 +163,7 @@ function openTeacherForm(profile, existing = null) {
       await refresh(profile);
     } catch (err) {
       toast(err.message || "Could not save teacher.", "error");
+      restore();
     }
   });
 }
