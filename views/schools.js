@@ -24,7 +24,6 @@ export async function render({ profile }) {
       ]),
     ])
   );
-
   if (!schools.length) {
     wrap.append(el("div", { class: "card empty-state" }, [icon("corporate_fare", "empty-state__icon"), el("h3", {}, "No schools yet"), el("p", {}, "Create the first one to get started.")]));
     return wrap;
