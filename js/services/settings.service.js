@@ -13,6 +13,7 @@ import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { uploadToCloudinary } from "./cloudinary.service.js";
+import { cached, invalidate } from "./query-cache.js";
 
 export const DEFAULT_GRADING_SCALE = [
   { min: 90, max: 100, grade: "EE1", points: 8, remark: "Exceeding Expectations" },
@@ -66,16 +67,23 @@ function schoolDocRef(schoolId) {
 }
 
 export async function getSchoolSettings(schoolId) {
-  const snap = await getDoc(schoolDocRef(schoolId));
-  // Merge over the defaults so any field never actually saved to Firestore
-  // still comes back populated, instead of silently returning as undefined.
-  if (!snap.exists()) return { ...DEFAULT_SETTINGS };
-  return { ...DEFAULT_SETTINGS, ...snap.data() };
+  const id = schoolId || getCurrentSchoolId();
+  // Read on almost every view (theming, letterhead, grading scale) but
+  // changes only from the School Settings page - cache for a few minutes
+  // rather than re-fetching it on every navigation.
+  return cached(`school_settings:${id}`, 5 * 60_000, async () => {
+    const snap = await getDoc(schoolDocRef(id));
+    // Merge over the defaults so any field never actually saved to Firestore
+    // still comes back populated, instead of silently returning as undefined.
+    if (!snap.exists()) return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_SETTINGS, ...snap.data() };
+  });
 }
 
 export async function saveSchoolSettings(userId, data) {
   const schoolId = getCurrentSchoolId();
   await setDoc(schoolDocRef(schoolId), { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  invalidate(`school_settings:${schoolId}`);
   await logAction(userId, "update_settings", "schools", schoolId);
 }
 

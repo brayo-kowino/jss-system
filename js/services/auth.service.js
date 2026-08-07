@@ -37,6 +37,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db, firebaseApp } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+import { clearAll as clearReadCache } from "./query-cache.js";
 
 let currentProfile = null; // cached { uid, ...firestore user doc }
 
@@ -90,6 +91,9 @@ export async function login(email, password) {
 export async function logout() {
   if (currentProfile) await logAction(currentProfile.uid, "logout", "auth", null);
   await signOut(auth);
+  // So the next sign-in (possibly a different account/school in the same
+  // tab) never reads another account's cached data out of query-cache.js.
+  clearReadCache();
 }
 
 export function requestPasswordReset(email) {

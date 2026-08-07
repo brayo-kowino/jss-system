@@ -49,6 +49,7 @@ import {
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
+import { cached, invalidate } from "./query-cache.js";
 
 export const ASSESSMENT_TYPES = ["CAT", "Assignment", "Midterm", "Endterm", "Project", "Other"];
 export const DEFAULT_ASSESSMENT_MAX_SCORE = 100;
@@ -57,9 +58,18 @@ export const CONTRIBUTION_MODES = [
   { value: "direct", label: "Add directly (raw marks added straight onto the total)" },
 ];
 
+function assessmentsCacheKey() {
+  return `assessments:${getCurrentSchoolId()}`;
+}
+
 export async function listAssessments() {
-  const snap = await getDocs(query(collection(db, "assessments"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  // Read by Marks Entry, Grading, Report Cards and the Dashboard - a
+  // shorter TTL than classes/subjects since status (open/locked) is
+  // meant to be seen promptly once an admin flips it.
+  return cached(assessmentsCacheKey(), 2 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "assessments"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  });
 }
 
 export async function getAssessment(id) {
@@ -95,6 +105,7 @@ export async function addAssessment(userId, data) {
     status: "open",
     createdAt: serverTimestamp(),
   });
+  invalidate(assessmentsCacheKey());
   await logAction(userId, "create_assessment", "assessments", ref_.id);
   return ref_.id;
 }
@@ -118,11 +129,13 @@ export async function updateAssessment(userId, id, data) {
     subjectMaxScores: data.subjectMaxScores || {},
     updatedAt: serverTimestamp(),
   });
+  invalidate(assessmentsCacheKey());
   await logAction(userId, "update_assessment", "assessments", id);
 }
 
 export async function setAssessmentStatus(userId, id, status) {
   await updateDoc(doc(db, "assessments", id), { status, updatedAt: serverTimestamp() });
+  invalidate(assessmentsCacheKey());
   await logAction(userId, status === "locked" ? "lock_assessment" : "reopen_assessment", "assessments", id);
 }
 
@@ -134,5 +147,6 @@ export async function deleteAssessment(userId, id) {
     throw new Error(`Cannot delete: ${marksSnap.size} mark record(s) already exist for this assessment.`);
   }
   await deleteDoc(doc(db, "assessments", id));
+  invalidate(assessmentsCacheKey());
   await logAction(userId, "delete_assessment", "assessments", id);
 }

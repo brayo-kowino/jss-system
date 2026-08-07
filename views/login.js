@@ -169,7 +169,7 @@ export async function render() {
     codeForm,
     el("div", { class: "auth-copyright" }, [
       `© ${new Date().getFullYear()} `,
-      el("b", {}, "ISKY360 ERP Softwares"),
+      el("b", {}, "ISKIFY360 ERP Softwares"),
       ". All rights reserved.",
     ]),
   ]);

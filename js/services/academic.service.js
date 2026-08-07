@@ -24,6 +24,7 @@ import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
+import { cached, invalidate } from "./query-cache.js";
 
 export const PATHWAYS = ["STEM", "Social Sciences", "Arts & Sports Science"];
 
@@ -59,9 +60,17 @@ export function slugify(text) {
 
 // ---------------------------------------------------------------- Classes --
 
+function classesCacheKey() {
+  return `classes:${getCurrentSchoolId()}`;
+}
+
 export async function listClasses() {
-  const snap = await getDocs(query(collection(db, "classes"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.grade || "").localeCompare(b.grade || ""));
+  // Read in nearly every picker/dropdown across the app but changes only
+  // from Classes & Streams - cache rather than re-querying on every render.
+  return cached(classesCacheKey(), 5 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "classes"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.grade || "").localeCompare(b.grade || ""));
+  });
 }
 
 export async function getClass(id) {
@@ -80,6 +89,7 @@ export async function addClass(userId, grade, streams = []) {
     streams: streams.map((s) => s.trim()).filter(Boolean),
     createdAt: serverTimestamp(),
   });
+  invalidate(classesCacheKey());
   await logAction(userId, "create_class", "classes", id);
   return id;
 }
@@ -94,6 +104,7 @@ export async function addStreamToClass(userId, classId, streamName) {
   }
   const streams = [...(cls.streams || []), name];
   await updateDoc(doc(db, "classes", classId), { streams, updatedAt: serverTimestamp() });
+  invalidate(classesCacheKey());
   await logAction(userId, "add_stream", "classes", classId);
 }
 
@@ -108,6 +119,7 @@ export async function renameStream(userId, classId, oldName, newName) {
   }
   const streams = (cls.streams || []).map((s) => (s === oldName ? trimmed : s));
   await updateDoc(doc(db, "classes", classId), { streams, updatedAt: serverTimestamp() });
+  invalidate(classesCacheKey());
   await logAction(userId, "rename_stream", "classes", classId);
 }
 
@@ -120,6 +132,7 @@ export async function removeStreamFromClass(userId, classId, streamName) {
   }
   const streams = (cls.streams || []).filter((s) => s !== streamName);
   await updateDoc(doc(db, "classes", classId), { streams, updatedAt: serverTimestamp() });
+  invalidate(classesCacheKey());
   await logAction(userId, "remove_stream", "classes", classId);
 }
 
@@ -135,6 +148,7 @@ export async function deleteClass(userId, classId) {
     throw new Error(`Cannot delete ${cls.grade}: ${teacherCount} teacher(s) are still assigned to it.`);
   }
   await deleteDoc(doc(db, "classes", classId));
+  invalidate(classesCacheKey());
   await logAction(userId, "delete_class", "classes", classId);
 }
 
@@ -164,9 +178,17 @@ async function countTeachersInGrade(grade) {
 
 // --------------------------------------------------------------- Subjects --
 
+function subjectsCacheKey() {
+  return `subjects:${getCurrentSchoolId()}`;
+}
+
 export async function listSubjects() {
-  const snap = await getDocs(query(collection(db, "subjects"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  // Same reasoning as listClasses() above - read everywhere, written only
+  // from the Subjects page.
+  return cached(subjectsCacheKey(), 5 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "subjects"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  });
 }
 
 export async function getSubject(id) {
@@ -188,6 +210,7 @@ export async function addSubject(userId, { code, name, department, pathway }) {
     pathway: pathway || "",
     createdAt: serverTimestamp(),
   });
+  invalidate(subjectsCacheKey());
   await logAction(userId, "create_subject", "subjects", id);
   return id;
 }
@@ -199,6 +222,7 @@ export async function updateSubject(userId, id, { name, department, pathway }) {
     pathway: pathway || "",
     updatedAt: serverTimestamp(),
   });
+  invalidate(subjectsCacheKey());
   await logAction(userId, "update_subject", "subjects", id);
 }
 
@@ -215,6 +239,7 @@ export async function deleteSubject(userId, id) {
     throw new Error(`Cannot delete: ${teacherSnap.size} teacher(s) are still assigned to teach this subject.`);
   }
   await deleteDoc(doc(db, "subjects", id));
+  invalidate(subjectsCacheKey());
   await logAction(userId, "delete_subject", "subjects", id);
 }
 
@@ -227,10 +252,12 @@ export async function seedDefaultsIfEmpty() {
     for (const c of DEFAULT_CLASSES) {
       await setDoc(doc(db, "classes", scopedId(schoolId, slugify(c.grade))), { ...c, schoolId, createdAt: serverTimestamp() });
     }
+    invalidate(classesCacheKey());
   }
   if (subjects.length === 0) {
     for (const s of DEFAULT_SUBJECTS) {
       await setDoc(doc(db, "subjects", scopedId(schoolId, s.code)), { ...s, schoolId, createdAt: serverTimestamp() });
     }
+    invalidate(subjectsCacheKey());
   }
 }

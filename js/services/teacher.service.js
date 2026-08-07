@@ -16,10 +16,19 @@ import {
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
+import { cached, invalidate } from "./query-cache.js";
+
+function teachersCacheKey() {
+  return `teachers:${getCurrentSchoolId()}`;
+}
 
 export async function listTeachers() {
-  const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+  // Full roster - read by the Teachers page and Analytics, written to only
+  // by the handful of functions below.
+  return cached(teachersCacheKey(), 3 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+  });
 }
 
 export async function getTeacher(id) {
@@ -54,26 +63,31 @@ export async function createTeacher(userId, data) {
     classAssignments: data.classAssignments || [],
     createdAt: serverTimestamp(),
   });
+  invalidate(teachersCacheKey());
   await logAction(userId, "create_teacher", "teachers", ref_.id);
   return ref_.id;
 }
 
 export async function updateTeacher(userId, id, data) {
   await updateDoc(doc(db, "teachers", id), data);
+  invalidate(teachersCacheKey());
   await logAction(userId, "edit_teacher", "teachers", id);
 }
 
 export async function assignSubjects(userId, id, subjectCodes) {
   await updateDoc(doc(db, "teachers", id), { subjectCodes });
+  invalidate(teachersCacheKey());
   await logAction(userId, "assign_subjects", "teachers", id);
 }
 
 export async function assignClasses(userId, id, classAssignments) {
   await updateDoc(doc(db, "teachers", id), { classAssignments });
+  invalidate(teachersCacheKey());
   await logAction(userId, "assign_classes", "teachers", id);
 }
 
 export async function setTeacherStatus(userId, id, status) {
   await updateDoc(doc(db, "teachers", id), { status });
+  invalidate(teachersCacheKey());
   await logAction(userId, `${status}_teacher`, "teachers", id);
 }
