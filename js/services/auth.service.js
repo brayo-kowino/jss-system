@@ -154,12 +154,22 @@ export async function createUserAccount({ fullName, email, role, tempPassword, s
 }
 
 // Every user account belonging to the current school - used to resolve an
-// audit log's raw userId into a name/role for display (e.g. Audit Trail).
+// audit log's raw userId into a name/role for display (e.g. Audit Trail),
+// and by the Teachers page's "System Logins" tab to list staff accounts.
 export async function listSchoolUsers() {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return [];
   const snap = await getDocs(query(collection(db, "users"), where("schoolId", "==", schoolId)));
   return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+}
+
+// Suspends/reinstates a *login* (users/{uid}.status), which is the field
+// login() actually checks. This is distinct from teachers/{id}.status,
+// which is just a roster flag on the teaching-staff record and never
+// blocked anyone from signing in on its own.
+export async function setUserStatus(actingUserId, uid, status) {
+  await setDoc(doc(db, "users", uid), { status }, { merge: true });
+  await logAction(actingUserId, `${status}_user`, "users", uid);
 }
 
 export const ROLES = [
