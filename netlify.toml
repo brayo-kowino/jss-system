@@ -1,0 +1,91 @@
+[build]
+  publish = "."
+
+# ==========================================================================
+# Maintenance-mode edge function.
+# Its path ("/*") is declared inline in netlify/edge-functions/maintenance.ts
+# via `export const config`, which is enough to wire it up — no
+# [[edge_functions]] block needed here too. It runs on every request,
+# before the headers below are applied to whatever it lets through.
+# Controlled by the MAINTENANCE_MODE env var — see that file for details
+# and how to toggle it from the Netlify UI.
+# ==========================================================================
+
+# ==========================================================================
+# Security headers
+# Applies to every response. CSP is the main event; the rest are
+# defense-in-depth headers that cost nothing and close off whole classes
+# of attack (clickjacking, MIME sniffing, referrer leakage, etc).
+#
+# IMPORTANT: the script-src hashes below correspond to the 3 inline
+# <script> blocks currently in index.html (splash particles, boot
+# watchdog, splash-hide timing). If you ever edit the *content* of those
+# inline scripts, their hashes change and the page will start failing to
+# load with a CSP error in the console. Recompute with:
+#   python3 -c "import hashlib,base64; print(base64.b64encode(hashlib.sha256(open('script.txt','rb').read()).digest()).decode())"
+# (paste the exact script body, including the leading/trailing newline,
+# into script.txt first) — or just ask me to regenerate them.
+# ==========================================================================
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = '''
+      default-src 'self';
+      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net 'sha256-PDFdSI+b7dzVOuvJl94TFm6FUA/CqhP4Fpr7pHT/Qq8=' 'sha256-+gYpR/q1/2IzwvpOP/vHLW1fiv8O2dDfQBvf7sZK5g8=' 'sha256-1yV7Pq2x5YIc9UTQjajNNquPx3N78LXHLG9Re+Lwyho=';
+      style-src 'self' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob: https://res.cloudinary.com;
+      connect-src 'self' https://api.cloudinary.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com;
+      worker-src 'self' blob:;
+      manifest-src 'self';
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-src 'none';
+      frame-ancestors 'none';
+      upgrade-insecure-requests;
+    '''
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=(), clipboard-write=(self), fullscreen=(self)"
+    X-XSS-Protection = "0"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-origin"
+
+# HTML must always be revalidated so deploys (and the maintenance page)
+# show up immediately instead of being served stale from a browser/CDN cache.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Static assets aren't fingerprinted (no content hash in the filename), so
+# they can't be cached "forever, immutable" — a deploy could ship a new
+# file under the same name. A short max-age plus must-revalidate keeps
+# updates fresh without hammering origin on every load.
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/views/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400, must-revalidate"
