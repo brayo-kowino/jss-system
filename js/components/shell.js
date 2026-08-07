@@ -50,7 +50,7 @@ const NAV = [
     label: "People",
     links: [
       { path: "/students", icon: "school", text: "Students", roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"] },
-      { path: "/teachers", icon: "person", text: "Teachers", roles: ["admin", "principal", "deputy_principal"] },
+      { path: "/teachers", icon: "person", text: "Staff & Logins", roles: ["admin", "principal", "deputy_principal"] },
       { path: "/parents", icon: "groups", text: "Parents", roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"] },
     ],
   },
