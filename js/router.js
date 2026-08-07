@@ -49,10 +49,10 @@ export const routes = {
   "/parents": { view: parentsView, roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
   "/teachers": { view: teachersView, roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module" },
 
-  "/academics": { view: academicsView, roles: ["admin", "academic_master"], title: "Classes & Streams" },
-  "/subjects": { view: subjectsView, roles: ["admin", "academic_master"], title: "Subject Management" },
+  "/academics": { view: academicsView, roles: ["admin", "deputy_principal", "principal", "academic_master"], title: "Classes & Streams" },
+  "/subjects": { view: subjectsView, roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"], title: "Subject Management" },
 
-  "/assessments": { view: assessmentsView, roles: ["admin", "academic_master", "subject_teacher"], title: "Assessment Management" },
+  "/assessments": { view: assessmentsView, roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"], title: "Assessment Management" },
   "/marks": { view: marksView, roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry" },
 
   "/grading": { view: gradingView, roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
