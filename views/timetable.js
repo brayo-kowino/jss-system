@@ -305,7 +305,17 @@ async function renderTeacherPicker(container, profile, gridMount) {
     });
     container.append(el("div", { class: "field", style: "max-width:320px;" }, [el("label", {}, "Teacher"), select]));
   } else {
-    const own = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+    // Defensive: a permission-denied here (e.g. a teacher record whose
+    // email doesn't match the signed-in account's auth-token email, some
+    // other edge case the rule above doesn't cover) should degrade to the
+    // "not linked" message below, not blank the whole Timetable page the
+    // way an uncaught throw from render() used to.
+    let own = null;
+    try {
+      own = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+    } catch (err) {
+      console.error("Could not resolve own teacher record:", err);
+    }
     if (!own) {
       container.append(el("p", { class: "text-muted" }, "No teacher record is linked to your login."));
       return;
