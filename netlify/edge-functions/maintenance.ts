@@ -149,7 +149,7 @@ export default async (request: Request, context: Context) => {
     <div class="icon">&#128736;&#65039;</div>
     <h1>We'll be right back</h1>
     <p>JSS Manager is offline for scheduled maintenance.</p>
-    <p>Your data is safe — nothing has been lost or changed.</p>
+    <p>Your data is safe and nothing has been lost or changed.</p>
     <div class="fine">Please check back shortly. If this persists, contact your school administrator.</div>
   </div>
 </body>
