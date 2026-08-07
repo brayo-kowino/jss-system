@@ -26,7 +26,7 @@ const MAX_STORED_ERRORS = 20;
 function generateErrorCode() {
   const time = Date.now().toString(36).toUpperCase().slice(-5);
   const rand = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3).padEnd(3, "X");
-  return `JSS-${time}-${rand}`;
+  return `EKA-${time}-${rand}`;
 }
 
 // ---------------------------------------------------------------------------

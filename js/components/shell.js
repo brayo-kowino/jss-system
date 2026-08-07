@@ -170,7 +170,7 @@ export function renderShell(app, profile, activePath) {
 
   // Logo only in the sidebar, centered above the nav.
   const logoMount = el("div", { class: "sidebar__seal-mount", "data-tour": "sidebar-logo" }, [
-    el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: "assets/logo.png", alt: "JSS Manager logo" })])
+    el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: "assets/logo.png", alt: "Eeskia logo" })])
   ]);
 
   // The school name now lives in the topbar, above the page title.

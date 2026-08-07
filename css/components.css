@@ -703,7 +703,7 @@ tbody tr:hover { background: var(--color-primary-100); }
    Error handling UI (js/error-handler.js)
    Full-screen takeover, inline error card, and rich error toast, all built
    from the same tokens as the rest of the app so a crash still looks like
-   part of JSS Manager rather than a browser default error page.
+   part of Eeskia rather than a browser default error page.
    ========================================================================== */
 .error-screen {
   min-height: 100vh;

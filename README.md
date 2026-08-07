@@ -1,4 +1,4 @@
-# JSS Manager - School Management System (MVP, Phase 1 & 2)
+# Eeskia - School Management System (MVP, Phase 1 & 2)
 
 Vanilla JS SPA + Firebase, built in the order from the spec:
 **Auth & Roles → School Settings → Student/Parent/Teacher Management →

@@ -11,7 +11,7 @@
 export const TOUR_STEPS = [
   {
     target: '[data-tour="sidebar-logo"]',
-    title: "Welcome to JSS Manager",
+    title: "Welcome to Eeskia",
     body: "This quick tour points out where everything lives. You can replay it anytime from the help icon in the top bar.",
   },
   {

@@ -1,0 +1,17 @@
+{
+  "name": "Eeskia - School Management System",
+  "short_name": "Eeskia",
+  "description": "One dashboard for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance and timetables.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF6F0",
+  "theme_color": "#14538A",
+  "icons": [
+    {
+      "src": "assets/learning-journey.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -80,8 +80,8 @@ export async function render() {
   history.replaceState(null, "", loginUrl(school?.slug));
 
   const logoSrc = school?.logoUrl || "assets/logo.png";
-  const brandName = school?.schoolName || "JSS Manager";
-  const brandTag = school ? "Powered by JSS Manager" : "School Management System";
+  const brandName = school?.schoolName || "Eeskia";
+  const brandTag = school ? "Powered by Eeskia" : "School Management System";
   const headline = school ? `Welcome back to ${school.schoolName}` : "Run your junior secondary school with confidence";
   const sub = school
     ? "Sign in to manage students, grading, fees, attendance and more."
@@ -96,7 +96,7 @@ export async function render() {
         el("div", { class: "laptop-frame__screen" }, [
           el("div", { class: "laptop-frame__cam" }),
           el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "assets/jss-manager-hero-image.png", alt: "JSS Manager dashboard preview" }),
+            el("img", { src: "assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
             el("div", { class: "laptop-frame__sheen" }),
           ]),
         ]),
@@ -163,7 +163,7 @@ export async function render() {
         el("a", { href: "#", id: "switch-school-link" }, "Use a different one"),
       ])
     : el("div", { style: "margin-top:16px;text-align:center;" }, [
-        el("span", { class: "text-sm text-muted" }, "Already using JSS Manager at your school? "),
+        el("span", { class: "text-sm text-muted" }, "Already using Eeskia at your school? "),
         el("a", { href: "#", id: "enter-code-link" }, "Enter your school code"),
       ]);
 

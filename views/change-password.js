@@ -22,7 +22,7 @@ export async function render({ profile } = {}) {
         el("div", { class: "laptop-frame__screen" }, [
           el("div", { class: "laptop-frame__cam" }),
           el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "assets/jss-manager-hero-image.png", alt: "JSS Manager dashboard preview" }),
+            el("img", { src: "assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
             el("div", { class: "laptop-frame__sheen" }),
           ]),
         ]),

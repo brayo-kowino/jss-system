@@ -100,7 +100,7 @@ function buildProfileTab() {
 
 // ===========================================================================
 // Login link card - the school's own branded sign-in link/code, so staff
-// don't land on the generic "JSS Manager" login screen every time.
+// don't land on the generic "Eeskia" login screen every time.
 // ===========================================================================
 
 function buildLoginLinkCard() {

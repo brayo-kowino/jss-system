@@ -141,14 +141,14 @@ export default async (request: Request, context: Context) => {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>JSS Manager - Scheduled Maintenance</title>
+<title>Eeskia - Scheduled Maintenance</title>
 <style>${STYLE}</style>
 </head>
 <body>
   <div class="card">
     <div class="icon">&#128736;&#65039;</div>
     <h1>We'll be right back</h1>
-    <p>JSS Manager is offline for scheduled maintenance.</p>
+    <p>Eeskia is offline for scheduled maintenance.</p>
     <p>Your data is safe and nothing has been lost or changed.</p>
     <div class="fine">Please check back shortly. If this persists, contact your school administrator.</div>
   </div>

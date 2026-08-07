@@ -1,0 +1,9 @@
+# Eeskia is a hash-routed single-page app behind a login wall - every
+# in-app view (student records, grades, fees, etc.) is served from this
+# same index.html and gated by auth, so there's nothing further to crawl
+# or index beyond the public landing/login page itself.
+User-agent: *
+Allow: /$
+Disallow: /*?*
+
+Sitemap: https://eeskia.app/sitemap.xml
