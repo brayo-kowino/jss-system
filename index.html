@@ -16,8 +16,9 @@
 </head>
 <body>
 
-<div id="app">
-  <div class="splash-screen">
+<div id="app"></div>
+
+<div class="splash-screen" id="splash-screen">
     <canvas class="splash-canvas" id="splash-canvas" aria-hidden="true"></canvas>
     <div class="splash-glow splash-glow--a" aria-hidden="true"></div>
     <div class="splash-glow splash-glow--b" aria-hidden="true"></div>
@@ -33,7 +34,6 @@
         <div class="splash-loader-bar"></div>
       </div>
     </div>
-  </div>
 </div>
 
 <script>
@@ -158,6 +158,7 @@
 
   function showBootFallback(reason) {
     if (settled) return;
+    window.__jssHideSplash && window.__jssHideSplash();
     var app = document.getElementById("app");
     if (!app) return;
     app.innerHTML =
@@ -171,6 +172,42 @@
         '</div>' +
       '</div>';
   }
+})();
+</script>
+
+<!-- ==========================================================================
+     Splash minimum-display timer. The splash now lives outside #app (see
+     above) so the router repainting #app no longer yanks it away instantly.
+     This just holds it visible for a small minimum stretch after boot
+     succeeds, then fades it out - purely cosmetic, doesn't touch app/router
+     boot logic. Runs AFTER the boot watchdog script above, since that script
+     assigns window.__jssBootOk itself and would otherwise clobber this
+     wrapper. On an actual boot failure the watchdog hides the splash
+     immediately via __jssHideSplash instead of waiting out the minimum.
+     ========================================================================== -->
+<script>
+(function () {
+  var MIN_SPLASH_MS = 1400; // small bump over the old "instant" hide
+  var shownAt = Date.now();
+  var hidden = false;
+
+  function hideSplash() {
+    if (hidden) return;
+    hidden = true;
+    var el = document.getElementById("splash-screen");
+    if (!el) return;
+    el.classList.add("splash-screen--hide");
+    setTimeout(function () { el.remove(); }, 400); // matches CSS fade duration
+  }
+
+  window.__jssHideSplash = hideSplash; // boot watchdog calls this on failure
+
+  var origBootOk = window.__jssBootOk;
+  window.__jssBootOk = function () {
+    if (origBootOk) origBootOk();
+    var wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - shownAt));
+    setTimeout(hideSplash, wait);
+  };
 })();
 </script>
 
