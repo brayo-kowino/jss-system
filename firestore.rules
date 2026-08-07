@@ -45,6 +45,71 @@ service cloud.firestore {
       ];
     }
 
+    // Least-privilege groups, mirrored 1:1 from what the app itself lets
+    // each role actually do (nav.js route gates + each view's in-page
+    // CAN_MANAGE/CAN_SAVE/CAN_MARK_ANY_CLASS/CAN_EDIT_* constants). Kept
+    // here as named groups rather than inlined per match block so the
+    // mapping from "who can touch this collection" to "who can touch it
+    // in the UI" stays easy to audit and keep in sync.
+    function inRoles(roles) {
+      return myRole() in roles;
+    }
+
+    // Students, their guardians, and front-desk issue tickets are all
+    // edited from the same Students page - roles: admin, principal,
+    // deputy_principal, registrar, class_teacher.
+    function canManageStudents() {
+      return inRoles(['admin', 'principal', 'deputy_principal', 'registrar', 'class_teacher']);
+    }
+
+    // Teacher Module (accounts/subject+class assignments) - Teachers page:
+    // admin, principal only.
+    function canManageTeachers() {
+      return inRoles(['admin', 'principal']);
+    }
+
+    // Term structure (grades/streams, subjects, timetable periods+slots) -
+    // admin, academic_master only.
+    function canManageAcademicStructure() {
+      return inRoles(['admin', 'academic_master']);
+    }
+
+    // Creating/editing/locking assessments - admin, academic_master only
+    // (subject_teacher can *see* the Assessments page to check status/max
+    // score before entering marks, but the page's own canManage gate keeps
+    // add/edit/delete/lock to admin+academic_master).
+    function canManageAssessments() {
+      return inRoles(['admin', 'academic_master']);
+    }
+
+    // Entering marks - the actual teachers doing the marking, plus the
+    // roles that can enter on anyone's behalf.
+    function canEnterMarks() {
+      return inRoles(['admin', 'academic_master', 'subject_teacher', 'class_teacher']);
+    }
+
+    // Computing/publishing class results - admin, academic_master only.
+    function canComputeResults() {
+      return inRoles(['admin', 'academic_master']);
+    }
+
+    // Marking attendance - class_teacher for their own class, admin/
+    // principal for any class.
+    function canMarkAttendance() {
+      return inRoles(['admin', 'principal', 'class_teacher']);
+    }
+
+    // Fee structures + payments - admin, bursar only.
+    function canManageFees() {
+      return inRoles(['admin', 'bursar']);
+    }
+
+    // Notifications + Newsletters - everyone reads them, this narrower set
+    // can compose/send/delete.
+    function canManageComms() {
+      return inRoles(['admin', 'principal', 'deputy_principal', 'academic_master', 'class_teacher', 'bursar', 'registrar']);
+    }
+
     // A role alone doesn't prove *which* school's data someone may touch -
     // every doc in the operational collections carries a schoolId field
     // written by the app, and these two checks are what actually enforce
@@ -54,6 +119,15 @@ service cloud.firestore {
     }
     function ownsIncoming() {
       return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+    }
+
+    // True once an assessment has been locked - checked against the
+    // *incoming* mark write's own assessmentId, so this is enforced at the
+    // database layer and can't be bypassed by a direct SDK/API call that
+    // skips marks.service.js's own client-side lock check.
+    function assessmentIsLocked(assessmentId) {
+      return exists(/databases/$(database)/documents/assessments/$(assessmentId))
+        && get(/databases/$(database)/documents/assessments/$(assessmentId)).data.status == 'locked';
     }
 
     // Users can always read their own profile. Admins/super_admin manage
@@ -99,19 +173,164 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
     }
 
-    // Everything academic/operational (students, marks, fees, results,
-    // timetable, attendance, etc.): staff read/write, but only inside
-    // their own school. users/schools/audit_logs/school_public have their
-    // own match blocks above/below with different rules, so they're
-    // excluded here - Firestore ORs every matching block together, and
-    // without this exclusion this wildcard would silently widen their
-    // access back out (school_public docs also carry a schoolId field, so
-    // without the exclusion any staff role - not just admin - would gain
-    // write access to it via ownsIncoming()/ownsExisting()).
-    match /{collection}/{docId} {
-      allow read: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsExisting();
-      allow create: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsIncoming();
-      allow update, delete: if isStaff() && !(collection in ['users', 'schools', 'audit_logs', 'school_public']) && ownsExisting();
+    // ------------------------------------------------------------------
+    // Everything below replaces one old blanket "any staff role can
+    // read/write any operational collection in their own school" rule.
+    // That let a subject_teacher (or bursar, or registrar...) create,
+    // edit or delete records completely outside their job - e.g. edit
+    // fee structures, delete other teachers, rewrite student records,
+    // publish results, or wipe timetable slots - as long as the school
+    // ID matched, because Firestore rules were never actually checking
+    // *what* a signed-in staff member was allowed to touch, only which
+    // school. Each collection below now has its own read/write rule that
+    // mirrors what the app's own UI already treats as that role's job.
+    // ------------------------------------------------------------------
+
+    // Students - read: any staff (needed across attendance, marks,
+    // reports, fees...). Write: only the roles the Students page exposes
+    // edit controls to.
+    match /students/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow delete: if false; // app never deletes students, only archives/transfers via update
+    }
+
+    // Parents - same write group as students, since registering/editing a
+    // student also links/unlinks the child on the parent doc
+    // (linkStudentToParent/unlinkStudentFromParent) as part of that same
+    // save. Read stays staff-wide (report cards, contact lookups, etc).
+    match /parents/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow delete: if false; // app never deletes parents
+    }
+
+    // Front-desk issue tickets against a student record - raised/resolved
+    // only from the Students page, so same group as students.
+    match /student_issues/{docId} {
+      allow read: if canManageStudents() && ownsExisting();
+      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow delete: if false;
+    }
+
+    // Teacher accounts/assignments - PII (phone, TSC number, email) that
+    // no longer needs to be world-readable to every staff role. Read is
+    // admin/principal (Teachers page), academic_master (Analytics), or the
+    // teacher's own linked record (marks/attendance entry resolves "which
+    // subjects/classes am I assigned" via getTeacherByUserId). Write stays
+    // admin/principal only, matching the Teachers page.
+    match /teachers/{docId} {
+      allow read: if isStaff() && ownsExisting() && (
+        isAdmin() || isPrincipal() || myRole() == 'academic_master' ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create, update: if canManageTeachers() && ownsIncoming() && ownsExisting();
+      allow delete: if false; // app only deactivates teachers via status update
+    }
+
+    // Classes/streams + subjects - read broadly (used in dropdowns
+    // everywhere), write restricted to whoever manages term structure.
+    match /classes/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageAcademicStructure() && ownsExisting();
+    }
+    match /subjects/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageAcademicStructure() && ownsExisting();
+    }
+
+    // Timetable periods + slots - same group as above.
+    match /periods/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageAcademicStructure() && ownsExisting();
+    }
+    match /timetable_slots/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageAcademicStructure() && ownsExisting();
+    }
+
+    // Assessments - read broadly (marks entry, grading, report cards, the
+    // dashboard all need to see them), write restricted to admin/
+    // academic_master, including locking/reopening and deleting.
+    match /assessments/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageAssessments() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageAssessments() && ownsExisting();
+    }
+
+    // Marks - read broadly (grading/report cards). Write limited to the
+    // teacher roles that actually enter marks, and - unlike before -
+    // blocked outright once the parent assessment is locked, so that
+    // protection can no longer be skipped by calling the SDK directly
+    // instead of going through marks.service.js.
+    match /marks/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canEnterMarks() && ownsIncoming() && ownsExisting()
+        && !assessmentIsLocked(request.resource.data.assessmentId);
+      allow delete: if false; // app never deletes marks
+    }
+
+    // Results - read broadly (report cards, grading page). Full
+    // compute/publish is admin/academic_master only; class_teacher may
+    // only ever touch their own remark field, and principal/deputy
+    // principal only theirs - never the marks/positions/grades a result
+    // is actually built from.
+    match /results/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create: if canComputeResults() && ownsIncoming();
+      allow update: if ownsExisting() && ownsIncoming() && (
+        canComputeResults() ||
+        (myRole() == 'class_teacher' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teacherRemark', 'updatedAt'])) ||
+        (inRoles(['principal', 'deputy_principal']) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['principalRemark', 'updatedAt']))
+      );
+      allow delete: if false;
+    }
+
+    // Attendance - read broadly (dashboard, student profile). Write
+    // limited to class_teacher (their own class, enforced client-side by
+    // which roster they're shown) and admin/principal (any class).
+    match /attendance/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canMarkAttendance() && ownsIncoming() && ownsExisting();
+      allow delete: if false;
+    }
+
+    // Fee structures - read broadly (dashboard stat, report card balance
+    // for every role that can print one), write admin/bursar only.
+    match /fees/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageFees() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageFees() && ownsExisting();
+    }
+
+    // Fee payments - same read reasoning as fees. Writes are create-only
+    // (the app never edits or deletes a recorded payment - corrections go
+    // in as a new entry), admin/bursar only.
+    match /fee_payments/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create: if canManageFees() && ownsIncoming();
+      allow update, delete: if false;
+    }
+
+    // Notifications + newsletters - every role reads them (Notifications
+    // page is allRoles), composing/editing/deleting is the narrower
+    // CAN_MANAGE set from notifications.js (notably excludes
+    // subject_teacher).
+    match /notifications/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageComms() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageComms() && ownsExisting();
+    }
+    match /newsletters/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageComms() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageComms() && ownsExisting();
     }
 
     // Audit log: append-only. Staff read/create only their own school's
@@ -128,5 +347,10 @@ service cloud.firestore {
     // reads/writes the schools/{id} doc above instead) - dropped rather than
     // left open as unused attack surface. Add it back with the same
     // ownsExisting()/ownsIncoming() pattern above if it's ever wired up.
+
+    // No catch-all wildcard anymore: every operational collection above is
+    // named explicitly, and anything not matched here is denied by
+    // Firestore's default-deny, rather than silently falling through to a
+    // blanket "any staff role in the school" rule.
   }
 }
