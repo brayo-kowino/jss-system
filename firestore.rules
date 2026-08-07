@@ -146,7 +146,11 @@ service cloud.firestore {
         || (isAdmin() && request.resource.data.schoolId == mySchoolId())
         || (isPrincipal() && request.resource.data.schoolId == mySchoolId()
             && request.resource.data.role in ['class_teacher', 'subject_teacher']);
-      allow update, delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
+      allow update: if isSuperAdmin()
+        || (isAdmin() && resource.data.schoolId == mySchoolId())
+        || (request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt']));
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
     }
 
     // School registry + per-school settings/branding doc (schools/{id} -
