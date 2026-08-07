@@ -167,11 +167,10 @@ export async function render() {
     card,
     switchRow,
     codeForm,
-    el("div", {
-      style: "margin-top: 24px; text-align: center; font-size: 0.75rem; color: var(--color-ink-soft);",
-    }, [
-      "Powered by ",
-      el("b", { style: "color: var(--color-primary-700); letter-spacing: 0.05em;" }, "ISKY360 ERP Softwares"),
+    el("div", { class: "auth-copyright" }, [
+      `© ${new Date().getFullYear()} `,
+      el("b", {}, "ISKY360 ERP Softwares"),
+      ". All rights reserved.",
     ]),
   ]);
 
@@ -241,7 +240,6 @@ export function init() {
     e.preventDefault();
     clearStoredSlug();
     location.href = loginUrl(null);
-    location.reload();
   });
 
   // "Enter your school code" - reveals the inline code form.
@@ -273,10 +271,10 @@ export function init() {
         return;
       }
       storeSlug(school.slug);
-      // Same reasoning as "switch school": reload onto the now-branded URL
-      // rather than re-rendering everything in place.
+      // Same reasoning as "switch school": a full navigation to the new,
+      // now-branded URL - not a re-render in place - guarantees every bit
+      // of applied branding (CSS vars, page title, etc.) resets cleanly.
       location.href = loginUrl(school.slug);
-      location.reload();
     } catch (err) {
       codeErrorEl.textContent = "Couldn't check that code right now - try again.";
       restore();

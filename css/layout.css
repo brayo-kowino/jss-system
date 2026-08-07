@@ -142,6 +142,22 @@
 }
 .auth-card__header p { margin: 0; }
 
+.auth-copyright {
+  margin-top: var(--sp-6);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--color-line);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--color-ink-soft);
+}
+.auth-copyright b {
+  color: var(--color-primary-700);
+  letter-spacing: 0.04em;
+}
+
 .auth-row {
   display: flex;
   align-items: center;
@@ -336,10 +352,10 @@
   padding-top: var(--sp-4);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.7rem;
-  color: rgba(250, 246, 240, 0.4);
+  color: rgba(250, 246, 240, 0.55);
   letter-spacing: 0.02em;
 }
-.sidebar__footer b { color: rgba(250, 246, 240, 0.7); letter-spacing: 0.05em; }
+.sidebar__footer b { color: rgba(250, 246, 240, 0.85); letter-spacing: 0.05em; }
 
 .topbar {
   grid-area: topbar;

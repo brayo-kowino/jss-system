@@ -110,11 +110,20 @@ export function init() {
 
     const btn = form.querySelector("button[type=submit]");
     const restore = busyButton(btn, "Updating…");
+    // Belt-and-braces against ever leaving the button stuck spinning: if
+    // completeForcedPasswordChange doesn't settle within a reasonable time
+    // (flaky connection, a stale session hanging on a token refresh, etc.)
+    // this timeout wins the race and hands control back to the person
+    // instead of the screen looking frozen forever.
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("TIMEOUT")), 15000)
+    );
     try {
-      await completeForcedPasswordChange(pw1);
+      await Promise.race([completeForcedPasswordChange(pw1), timeout]);
       toast("Password set - welcome in.", "success");
       navigate("/dashboard");
     } catch (err) {
+      console.error("Forced password change failed:", err);
       errorEl.textContent = friendlyError(err);
       restore();
     }
@@ -129,11 +138,17 @@ export function init() {
 
 function friendlyError(err) {
   const code = err?.code || "";
-  if (code.includes("requires-recent-login")) {
-    return "For security, please sign out and sign back in, then try again.";
+  if (err?.message === "TIMEOUT") {
+    return "This is taking too long - check your connection, or sign out and back in and try again.";
+  }
+  if (code.includes("requires-recent-login") || code.includes("invalid-user-token") || code.includes("user-token-expired")) {
+    return "Your sign-in session isn't fresh enough for this. Please sign out and sign back in, then try again.";
   }
   if (code.includes("weak-password")) {
     return "Please choose a stronger password.";
   }
-  return err.message || "Couldn't update your password. Please try again.";
+  if (code.includes("network-request-failed")) {
+    return "Network problem - check your connection and try again.";
+  }
+  return err.message || "Couldn't update your password. Please sign out, sign back in, and try again.";
 }

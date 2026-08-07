@@ -287,8 +287,8 @@ export function renderShell(app, profile, activePath) {
 
   sidebar.append(
     el("div", { class: "sidebar__footer" }, [
-      "Powered by ",
-      el("b", {}, "ISKY360 ERP Softwares")
+      `© ${new Date().getFullYear()} `,
+      el("b", {}, "ISKY360 ERP Softwares"),
     ])
   );
 

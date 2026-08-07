@@ -107,6 +107,13 @@ export function changeOwnPassword(newPassword) {
 // so future logins go straight through.
 export async function completeForcedPasswordChange(newPassword) {
   if (!auth.currentUser || !currentProfile) throw new Error("Not signed in.");
+  // Force a fresh ID token before this sensitive call. Firebase requires a
+  // genuinely recent sign-in for password changes; on a single-page app the
+  // in-memory token can otherwise sit unrefreshed across a lot of in-app
+  // navigation (no full reload ever happens), which is what was causing
+  // 400s here until the page was manually refreshed. Refreshing it
+  // ourselves means people never have to figure that out.
+  await auth.currentUser.getIdToken(true);
   await updatePassword(auth.currentUser, newPassword);
   await setDoc(doc(db, "users", currentProfile.uid), { mustChangePassword: false }, { merge: true });
   currentProfile = { ...currentProfile, mustChangePassword: false };
