@@ -25,6 +25,13 @@
 #   python3 -c "import hashlib,base64; print(base64.b64encode(hashlib.sha256(open('script.txt','rb').read()).digest()).decode())"
 # (paste the exact script body, including the leading/trailing newline,
 # into script.txt first) — or just ask me to regenerate them.
+#
+# style-src includes 'unsafe-inline' because the app's el() DOM helper
+# (js/utils.js) renders dynamic styling as inline style="..." attributes
+# at ~150 call sites across the views. Hashing isn't practical here since
+# many of those strings are built at runtime (per-row colors, computed
+# widths, etc). This only relaxes CSS injection risk, not script
+# execution — script-src stays locked to hashes + explicit domains.
 # ==========================================================================
 [[headers]]
   for = "/*"
@@ -32,7 +39,7 @@
     Content-Security-Policy = '''
       default-src 'self';
       script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net 'sha256-PDFdSI+b7dzVOuvJl94TFm6FUA/CqhP4Fpr7pHT/Qq8=' 'sha256-+gYpR/q1/2IzwvpOP/vHLW1fiv8O2dDfQBvf7sZK5g8=' 'sha256-1yV7Pq2x5YIc9UTQjajNNquPx3N78LXHLG9Re+Lwyho=';
-      style-src 'self' https://fonts.googleapis.com;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https://res.cloudinary.com;
       connect-src 'self' https://api.cloudinary.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com;
