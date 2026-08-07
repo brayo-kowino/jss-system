@@ -16,6 +16,16 @@ import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
+// Only these roles ever need the *full* teacher roster (assign-slot modal's
+// teacher dropdown, or the "pick any teacher" selector below) - everyone
+// else only ever looks up their own linked teacher record. firestore.rules
+// only lets these roles list the whole `teachers` collection; a class_teacher/
+// subject_teacher/bursar/registrar calling listTeachers() gets the entire
+// query denied (Firestore can't verify every doc in a multi-doc query
+// satisfies an "own record" rule), which used to throw out of render()
+// itself and land everyone but these roles on the generic access-denied
+// error card just for opening the Timetable page.
+const CAN_SEE_ALL_TEACHERS = ["admin", "academic_master", "principal", "deputy_principal"];
 
 let classes = [];
 let subjects = [];
@@ -29,7 +39,7 @@ let teacherSlots = {};
 export async function render({ profile }) {
   await seedDefaultPeriodsIfEmpty();
   [classes, subjects, teachers, periods] = await Promise.all([
-    listClasses(), listSubjects(), listTeachers(), listPeriods(),
+    listClasses(), listSubjects(), CAN_SEE_ALL_TEACHERS.includes(profile.role) ? listTeachers() : Promise.resolve([]), listPeriods(),
   ]);
 
   const wrap = el("div", {});
@@ -274,7 +284,7 @@ async function renderTeacherPicker(container, profile, gridMount) {
   container.innerHTML = "";
   container.append(el("h3", { style: "margin:0 0 16px;" }, "Teacher Timetable"));
 
-  const canPickAny = ["admin", "academic_master", "principal", "deputy_principal"].includes(profile.role);
+  const canPickAny = CAN_SEE_ALL_TEACHERS.includes(profile.role);
   if (canPickAny) {
     const select = el("select", {}, [
       el("option", { value: "" }, "Select teacher"),
