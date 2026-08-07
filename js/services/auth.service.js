@@ -100,6 +100,20 @@ export function changeOwnPassword(newPassword) {
   return updatePassword(auth.currentUser, newPassword);
 }
 
+// Used by the forced "you must set a new password" screen every fresh
+// account (created by an admin, or by createSchool for a school's first
+// admin) lands on until this runs once. Rotates the temp/handed-out
+// password for a real secret only the user knows, then clears the flag
+// so future logins go straight through.
+export async function completeForcedPasswordChange(newPassword) {
+  if (!auth.currentUser || !currentProfile) throw new Error("Not signed in.");
+  await updatePassword(auth.currentUser, newPassword);
+  await setDoc(doc(db, "users", currentProfile.uid), { mustChangePassword: false }, { merge: true });
+  currentProfile = { ...currentProfile, mustChangePassword: false };
+  await logAction(currentProfile.uid, "forced_password_change", "auth", null);
+  return currentProfile;
+}
+
 /**
  * Admin action: create a login for a staff/parent/student without ending the
  * admin's own session. Firebase's client SDK signs in as whoever it creates,

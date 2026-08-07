@@ -20,6 +20,7 @@ import { renderInlineError, showFatalError } from "./error-handler.js";
 
 import * as analyticsView from "../views/analytics.js";
 import * as loginView from "../views/login.js";
+import * as changePasswordView from "../views/change-password.js";
 import * as dashboardView from "../views/dashboard.js";
 import * as settingsView from "../views/school-settings.js";
 import * as studentsView from "../views/students.js";
@@ -148,6 +149,19 @@ export async function renderRoute() {
     }
 
     if (!profile) return navigate("/login");
+
+    // Every account starts life with mustChangePassword: true (set by
+    // createUserAccount / createSchool alongside its temp password). Until
+    // that's cleared, this gate replaces the entire app - no route, shell,
+    // or nav is reachable, so a handed-out temp password can't linger as a
+    // standing credential once someone else has read it off a shared link,
+    // a chat message, or a sticky note.
+    if (profile.mustChangePassword) {
+      app.innerHTML = "";
+      app.appendChild(await changePasswordView.render({ profile }));
+      await changePasswordView.init?.({ profile });
+      return;
+    }
 
     // super_admin has no schoolId and isn't scoped to any single school's
     // data - the only thing it can see is the Schools registry.
