@@ -45,30 +45,27 @@ export const routes = {
   "/dashboard": { view: dashboardView, allRoles: true },
   "/settings": { view: settingsView, roles: ["admin"] },
 
-  "/students": { view: studentsView, roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"], title: "Student Management" },
-  "/parents": { view: parentsView, roles: ["admin", "registrar"], title: "Parent Module" },
-  "/teachers": { view: teachersView, roles: ["admin", "principal"], title: "Teacher Module" },
+  "/students": { view: studentsView, roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
+  "/parents": { view: parentsView, roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
+  "/teachers": { view: teachersView, roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module" },
 
   "/academics": { view: academicsView, roles: ["admin", "academic_master"], title: "Classes & Streams" },
   "/subjects": { view: subjectsView, roles: ["admin", "academic_master"], title: "Subject Management" },
 
-  // Still to build, in order.
   "/assessments": { view: assessmentsView, roles: ["admin", "academic_master", "subject_teacher"], title: "Assessment Management" },
-
-  // Still to build, in order.
   "/marks": { view: marksView, roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry" },
 
   "/grading": { view: gradingView, roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
 
-  "/attendance": { view: attendanceView, roles: ["class_teacher", "admin", "principal"], title: "Attendance" },
+  "/attendance": { view: attendanceView, roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
   "/reports": { view: reportsView, allRoles: true, title: "Report Cards & Reports" },
-  "/fees": { view: feesView, roles: ["admin", "bursar"], title: "Fee Management" },
+  "/fees": { view: feesView, roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
 
   "/timetable": { view: timetableView, allRoles: true, title: "Timetable" },
   "/schools": { view: schoolsView, roles: ["super_admin"], title: "Schools" },
   "/notifications": { view: notificationsView, allRoles: true, title: "Notifications" },
   "/audit": { view: auditView, roles: ["admin"], title: "Audit Trail" },
-  "/analytics": { view: analyticsView, roles: ["admin", "principal", "academic_master"], title: "Analytics & Reports" },
+  "/analytics": { view: analyticsView, roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
 };
 
 const MAX_PATH_LENGTH = 200;
