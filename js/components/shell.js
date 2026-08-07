@@ -40,7 +40,7 @@ const NAV = [
     // click/scroll away.
     label: "Daily Tasks",
     links: [
-      { path: "/attendance", icon: "fact_check", text: "Attendance", roles: ["class_teacher", "admin", "principal"] },
+      { path: "/attendance", icon: "fact_check", text: "Attendance", roles: ["class_teacher", "admin", "deputy_principal", "principal"] },
       { path: "/marks", icon: "edit_note", text: "Marks Entry", roles: ["subject_teacher", "class_teacher", "academic_master", "admin"] },
       { path: "/timetable", icon: "calendar_month", text: "Timetable", allRoles: true },
       { path: "/notifications", icon: "notifications", text: "Notifications", allRoles: true },
@@ -49,9 +49,9 @@ const NAV = [
   {
     label: "People",
     links: [
-      { path: "/students", icon: "school", text: "Students", roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"] },
-      { path: "/teachers", icon: "person", text: "Teachers", roles: ["admin", "principal"] },
-      { path: "/parents", icon: "groups", text: "Parents", roles: ["admin", "registrar"] },
+      { path: "/students", icon: "school", text: "Students", roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"] },
+      { path: "/teachers", icon: "person", text: "Teachers", roles: ["admin", "principal", "deputy_principal"] },
+      { path: "/parents", icon: "groups", text: "Parents", roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"] },
     ],
   },
   {
@@ -60,7 +60,7 @@ const NAV = [
       { path: "/assessments", icon: "quiz", text: "Assessments", roles: ["admin", "academic_master", "subject_teacher"] },
       { path: "/grading", icon: "analytics", text: "Grading & Positions", roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"] },
       { path: "/reports", icon: "description", text: "Report Cards", allRoles: true },
-      { path: "/analytics", icon: "insert_chart", text: "School Analytics", roles: ["admin", "principal", "academic_master"] },
+      { path: "/analytics", icon: "insert_chart", text: "School Analytics", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
       // Term-based setup, touched occasionally rather than daily - placed
       // last within Academics.
       { path: "/academics", icon: "meeting_room", text: "Classes & Streams", roles: ["admin", "academic_master"] },
@@ -70,7 +70,7 @@ const NAV = [
   {
     label: "Operations",
     links: [
-      { path: "/fees", icon: "payments", text: "Fees", roles: ["admin", "bursar"] },
+      { path: "/fees", icon: "payments", text: "Fees", roles: ["admin", "deputy_principal", "principal", "bursar"] },
     ],
   },
   {
