@@ -121,7 +121,7 @@
   <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif;text-align:center;padding:32px;background:#FAF6F0;color:#21262B;">
     <div>
       <h2 style="color:#0B2545;margin-bottom:8px;">JSS Manager needs JavaScript</h2>
-      <p style="color:#5C6A73;">Please enable JavaScript in your browser to use this system. Your data is safe - nothing has been changed.</p>
+      <p style="color:#5C6A73;">Please enable JavaScript in your browser to use this system. Your data is safe and nothing has been changed.</p>
     </div>
   </div>
 </noscript>
@@ -166,7 +166,7 @@
         '<div style="max-width:420px;width:100%;background:#FFFFFF;border:1px solid #DCE3E8;border-radius:8px;box-shadow:0 12px 32px rgba(11,37,69,0.16);padding:40px 32px;text-align:center;">' +
           '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#E4EDF7;display:flex;align-items:center;justify-content:center;font-size:30px;">&#9888;&#65039;</div>' +
           '<h2 style="color:#0B2545;margin:0 0 8px;font-family:Georgia,serif;">JSS Manager couldn\'t start</h2>' +
-          '<p style="color:#5C6A73;margin:0 0 12px;line-height:1.5;">' + reason + ' Your data is safe - nothing has been lost or changed.</p>' +
+          '<p style="color:#5C6A73;margin:0 0 12px;line-height:1.5;">' + reason + ' Your data is safe and nothing has been lost or changed.</p>' +
           '<button onclick="location.reload()" style="background:#14538A;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;">Reload page</button>' +
           '<p style="color:#5C6A73;font-size:12px;margin-top:16px;">If this keeps happening, check your internet connection or contact your school administrator.</p>' +
         '</div>' +
@@ -175,19 +175,9 @@
 })();
 </script>
 
-<!-- ==========================================================================
-     Splash minimum-display timer. The splash now lives outside #app (see
-     above) so the router repainting #app no longer yanks it away instantly.
-     This just holds it visible for a small minimum stretch after boot
-     succeeds, then fades it out - purely cosmetic, doesn't touch app/router
-     boot logic. Runs AFTER the boot watchdog script above, since that script
-     assigns window.__jssBootOk itself and would otherwise clobber this
-     wrapper. On an actual boot failure the watchdog hides the splash
-     immediately via __jssHideSplash instead of waiting out the minimum.
-     ========================================================================== -->
 <script>
 (function () {
-  var MIN_SPLASH_MS = 1400; // small bump over the old "instant" hide
+  var MIN_SPLASH_MS = 2000; 
   var shownAt = Date.now();
   var hidden = false;
 
@@ -197,10 +187,10 @@
     var el = document.getElementById("splash-screen");
     if (!el) return;
     el.classList.add("splash-screen--hide");
-    setTimeout(function () { el.remove(); }, 400); // matches CSS fade duration
+    setTimeout(function () { el.remove(); }, 400);
   }
 
-  window.__jssHideSplash = hideSplash; // boot watchdog calls this on failure
+  window.__jssHideSplash = hideSplash; 
 
   var origBootOk = window.__jssBootOk;
   window.__jssBootOk = function () {
