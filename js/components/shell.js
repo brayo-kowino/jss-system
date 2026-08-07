@@ -3,6 +3,30 @@ import { navigate } from "../router.js";
 import { el, icon } from "../utils.js";
 import { ROLES } from "../services/auth.service.js";
 import { getSchoolSettings } from "../services/settings.service.js";
+import { startTour } from "./tour.js";
+import { TOUR_STEPS } from "../tour-steps.js";
+
+// First-time visitors get the tour started for them automatically, once
+// per account (per browser). Keyed by uid so switching accounts on a
+// shared computer doesn't skip the tour for the next person, or replay it
+// unnecessarily for someone who already saw it.
+function tourSeenKey(uid) {
+  return `jss_tour_seen_${uid}`;
+}
+function hasSeenTour(uid) {
+  try {
+    return localStorage.getItem(tourSeenKey(uid)) === "1";
+  } catch {
+    return true; // no localStorage (private browsing, etc.) - don't force it on every load
+  }
+}
+function markTourSeen(uid) {
+  try {
+    localStorage.setItem(tourSeenKey(uid), "1");
+  } catch {
+    // best-effort only
+  }
+}
 
 // Lightens/darkens a hex color by `amt` (-255..255), used to derive a darker
 // sidebar shade from the school's single primary brand color.
@@ -145,7 +169,7 @@ export function renderShell(app, profile, activePath) {
   const sidebar = el("aside", { class: "sidebar" });
 
   // Logo only in the sidebar, centered above the nav.
-  const logoMount = el("div", { class: "sidebar__seal-mount" }, [
+  const logoMount = el("div", { class: "sidebar__seal-mount", "data-tour": "sidebar-logo" }, [
     el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: "assets/logo.png", alt: "JSS Manager logo" })])
   ]);
 
@@ -198,7 +222,7 @@ export function renderShell(app, profile, activePath) {
     autocomplete: "off",
   });
   sidebar.append(
-    el("div", { class: "sidebar__search" }, [
+    el("div", { class: "sidebar__search", "data-tour": "sidebar-search" }, [
       el("span", { class: "material-symbols-rounded icon sidebar__search-icon" }, "search"),
       searchInput,
     ])
@@ -235,6 +259,7 @@ export function renderShell(app, profile, activePath) {
         "div",
         {
           class: `nav-link${isActive ? " active" : ""}`,
+          "data-tour": `nav-${link.path.slice(1)}`,
           onClick: () => navigate(link.path),
         },
         [el("span", { class: "material-symbols-rounded icon" }, link.icon), el("span", {}, link.text)]
@@ -298,11 +323,23 @@ export function renderShell(app, profile, activePath) {
     schoolNameEl,
     el("div", { class: "topbar__title" }, currentTitle(activePath)),
   ]));
-  const userBox = el("div", { class: "topbar__user" }, [
+  const tourButton = el(
+    "button",
+    {
+      class: "btn btn--ghost btn--sm btn--icon-only",
+      "data-tour": "tour-trigger",
+      title: "Take a tour of this system",
+      "aria-label": "Take a tour of this system",
+      onClick: () => startTour(TOUR_STEPS),
+    },
+    [icon("help")]
+  );
+  const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     el("div", {}, [
       el("div", {}, profile.fullName || profile.email),
       el("div", { class: "topbar__user-role" }, roleLabel(profile.role)),
     ]),
+    tourButton,
     el("button", { class: "btn btn--ghost btn--sm", onClick: handleLogout }, [icon("logout"), "Sign out"]),
   ]);
   topbar.append(userBox);
@@ -314,6 +351,16 @@ export function renderShell(app, profile, activePath) {
 
   app.append(shell);
   sidebar.scrollTop = savedScrollTop;
+
+  // Auto-launch the tour once per account, the first time it lands on the
+  // dashboard after login. Deferred a tick so the route's own content has
+  // painted underneath it, and skipped entirely for super_admin's minimal
+  // Schools-only shell where most of the tour's targets don't apply.
+  if (activePath === "/dashboard" && profile.role !== "super_admin" && !hasSeenTour(profile.uid)) {
+    markTourSeen(profile.uid);
+    setTimeout(() => startTour(TOUR_STEPS), 400);
+  }
+
   return main;
 }
 

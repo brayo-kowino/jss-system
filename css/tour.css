@@ -1,0 +1,107 @@
+/* ==========================================================================
+   System Tour
+   Spotlight walkthrough: a dimmed full-screen overlay with a transparent
+   "cutout" box tracking the current step's target element, plus a small
+   card explaining it. See js/components/tour.js and js/tour-steps.js.
+   ========================================================================== */
+
+.tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300; /* above the modal (100) and toast (200) layers */
+  background: transparent;
+}
+
+/* The "hole" is faked with a huge box-shadow around a transparent box, so
+   the target element itself stays fully visible and interaction-free while
+   everything else dims. */
+.tour-spotlight {
+  position: fixed;
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 9999px rgba(11, 37, 69, 0.62);
+  border: 2px solid var(--color-gold);
+  transition: top 220ms ease, left 220ms ease, width 220ms ease, height 220ms ease;
+  pointer-events: none;
+}
+
+.tour-card {
+  position: fixed;
+  display: none;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  background: var(--color-white);
+  border-top: 3px solid var(--color-gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-5);
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  transition: top 220ms ease, left 220ms ease;
+}
+
+.tour-card__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--color-primary-700);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--sp-2);
+}
+.tour-card__eyebrow .material-symbols-rounded { font-size: 16px; }
+
+.tour-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  color: var(--color-primary-900);
+  margin: 0 0 var(--sp-2);
+}
+
+.tour-card__body {
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+  margin: 0 0 var(--sp-4);
+}
+
+.tour-card__dots {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--sp-4);
+}
+.tour-card__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-line);
+}
+.tour-card__dot--active {
+  background: var(--color-gold);
+  width: 16px;
+  border-radius: 3px;
+}
+
+.tour-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.tour-card__nav {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* Keeps the app's own scrolling calm while a tour is on screen. */
+body.tour-open { overflow: hidden; }
+
+.btn--icon-only {
+  padding: var(--sp-2);
+  line-height: 0;
+}
+
+@media (max-width: 640px) {
+  .tour-card { width: calc(100vw - 24px); }
+}
