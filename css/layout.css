@@ -32,56 +32,72 @@
   background: var(--color-cream);
 }
 
-/* Left: brand panel */
+/* 1. Spreads the top (logo) and bottom (text) apart */
 .auth-brand {
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: space-between; 
   padding: var(--sp-7) var(--sp-7) var(--sp-8);
   overflow: hidden;
   background: var(--color-primary-900);
   color: var(--color-cream);
 }
-.auth-brand::before {
-  content: "";
+
+/* 2. Pushes the laptop behind everything and aligns it to the top */
+.auth-brand__device {
   position: absolute;
+  z-index: 0;
   inset: 0;
-  background-image:
-    radial-gradient(rgba(233, 217, 160, 0.14) 1.5px, transparent 1.5px);
-  background-size: 26px 26px;
-  opacity: 0.5;
-  pointer-events: none;
-  z-index: 2;
+  display: flex;
+  align-items: flex-start; 
+  justify-content: center;
+  padding-top: 15%; 
+  min-height: 140px;
+  overflow: hidden;
 }
 
-/* Semi-transparent scrim over the hero/laptop art so headline text always
-   stays legible regardless of what the screenshot looks like underneath. */
 .auth-brand__scrim {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(11, 37, 69, 0.82) 0%, rgba(11, 37, 69, 0.35) 32%, rgba(11, 37, 69, 0.32) 56%, rgba(11, 37, 69, 0.93) 82%, rgba(11, 37, 69, 0.97) 100%),
-    radial-gradient(circle at 80% 10%, rgba(30, 111, 181, 0.30) 0%, transparent 55%);
+    linear-gradient(180deg, rgba(11, 37, 69, 0.40) 0%, rgba(11, 37, 69, 0.55) 52%, rgba(11, 37, 69, 0.62) 66%, rgba(11, 37, 69, 0.96) 82%, rgba(11, 37, 69, 0.99) 100%),
+    radial-gradient(circle at 80% 10%, rgba(30, 111, 181, 0.30) 0%, transparent 75%);
   pointer-events: none;
-  z-index: 1;
+  z-index: 1; 
 }
 
-/* Laptop mockup housing the hero product screenshot - floats in the free
-   space between the top brand row and the headline block. */
-.auth-brand__device {
+.auth-brand__top {
   position: relative;
-  z-index: 0;
-  flex: 1 1 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 140px;
-  padding: var(--sp-5) 0;
+  z-index: 2; 
+  display: flex;      
+  align-items: center; 
+  gap: var(--sp-3);   
 }
+
+.auth-brand__content {
+  position: relative;
+  z-index: 2;
+}
+
+/* Existing styles for the text inside the logo area */
+.auth-brand__top .seal { background: var(--color-cream); color: var(--color-primary-900); }
+.auth-brand__top-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  letter-spacing: 0.02em;
+}
+.auth-brand__top-tag {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-gold-soft);
+}
+
+
 .laptop-frame {
   width: min(86%, 460px);
-  transform: rotate(-2.5deg);
   filter: drop-shadow(0 35px 55px rgba(0, 0, 0, 0.45));
 }
 .laptop-frame__screen {
@@ -140,27 +156,7 @@
   background: #101d2e;
   border-radius: 0 0 6px 6px;
 }
-.auth-brand__top {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-.auth-brand__top .seal { background: var(--color-cream); color: var(--color-primary-900); }
-.auth-brand__top-name {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: var(--fs-md);
-  letter-spacing: 0.02em;
-}
-.auth-brand__top-tag {
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-gold-soft);
-}
-.auth-brand__content { position: relative; z-index: 3; margin-top: auto; max-width: 480px; }
+
 .auth-brand__headline {
   font-family: var(--font-display);
   font-weight: 700;
