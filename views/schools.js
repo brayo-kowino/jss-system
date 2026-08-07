@@ -16,8 +16,7 @@ export async function render({ profile }) {
   wrap.append(
     el("div", { class: "page-header" }, [
       el("div", {}, [
-        el("h2", { style: "margin:0;" }, "Schools"),
-        el("p", {}, "Every school on the platform. Create a new one to spin up its first admin login."),
+        el("p", {}, "Every school on the platform. Create a new one to activate its first admin login."),
       ]),
       el("button", { class: "btn btn--primary", id: "new-school-btn" }, [
         el("span", { class: "material-symbols-rounded" }, "add_business"),
