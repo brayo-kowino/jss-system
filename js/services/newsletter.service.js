@@ -3,9 +3,7 @@
 //   principalMessage, sections: [{ title, body, imageUrl }],
 //   status: "draft"|"published", createdBy, createdAt, publishedAt }
 //
-// `body` is kept for backwards compatibility with newsletters written before
-// the templated layout - the viewer falls back to it as a single plain
-// section when `sections` is empty.
+
 import {
   collection,
   doc,

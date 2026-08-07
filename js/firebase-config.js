@@ -10,8 +10,9 @@ import {
   browserLocalPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore,
-  enableIndexedDbPersistence,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 // Media (logos, student photos) now uploads to Cloudinary instead of
 // Firebase Storage - see js/services/cloudinary.service.js.
@@ -28,19 +29,11 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
 
-// Keep users logged in across refreshes/tabs
+export const db = initializeFirestore(firebaseApp, {
+  cache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
+
 setPersistence(auth, browserLocalPersistence).catch((err) =>
   console.error("Auth persistence error:", err)
 );
-
-// Allow basic offline caching (marks entry, attendance can be taken with a
-// flaky connection and will sync when back online).
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === "failed-precondition") {
-    console.warn("Offline persistence disabled: multiple tabs open.");
-  } else if (err.code === "unimplemented") {
-    console.warn("Offline persistence not supported in this browser.");
-  }
-});
