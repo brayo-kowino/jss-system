@@ -373,5 +373,4 @@ function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pi
   tableWrap.append(table);
   container.append(tableWrap);
 }
-
 export function init() {}
