@@ -6,4 +6,4 @@ User-agent: *
 Allow: /$
 Disallow: /*?*
 
-Sitemap: https://eeskia.app/sitemap.xml
+Sitemap: https://eeskia.netlify.app/sitemap.xml
