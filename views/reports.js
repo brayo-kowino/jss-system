@@ -199,7 +199,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("div", { class: "report-card__header" }, [
       settings.logoUrl
         ? el("img", { class: "report-card__logo", src: settings.logoUrl })
-        : el("img", { class: "report-card__logo", src: "assets/logo.png", alt: "logo" }),
+        : el("img", { class: "report-card__logo", src: "/assets/logo.png", alt: "logo" }),
       el("div", {}, [
         el("h2", { class: "report-card__school-name" }, settings.schoolName || "School Name"),
         el("p", { class: "report-card__motto" }, settings.motto || ""),

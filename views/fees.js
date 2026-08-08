@@ -350,7 +350,7 @@ function renderReceipt(container, payment) {
   const card = el("div", { class: "receipt" });
   card.append(
     el("div", { class: "receipt__header" }, [
-      el("img", { class: "receipt__logo", src: settings.logoUrl || "assets/logo.png", alt: "logo" }),
+      el("img", { class: "receipt__logo", src: settings.logoUrl || "/assets/logo.png", alt: "logo" }),
       el("div", {}, [
         el("h3", { class: "receipt__school-name" }, settings.schoolName || "School Name"),
         el("p", { class: "receipt__address" }, settings.address || ""),

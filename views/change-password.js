@@ -22,7 +22,7 @@ export async function render({ profile } = {}) {
         el("div", { class: "laptop-frame__screen" }, [
           el("div", { class: "laptop-frame__cam" }),
           el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
+            el("img", { src: "/assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
             el("div", { class: "laptop-frame__sheen" }),
           ]),
         ]),
@@ -31,7 +31,7 @@ export async function render({ profile } = {}) {
     ]),
     el("div", { class: "auth-brand__scrim" }),
     el("div", { class: "auth-brand__top" }, [
-      el("div", { class: "seal" }, [el("img", { class: "seal__img", src: "assets/logo.png", alt: "logo" })]),
+      el("div", { class: "seal" }, [el("img", { class: "seal__img", src: "/assets/logo.png", alt: "logo" })]),
       el("div", {}, [
         el("div", { class: "auth-brand__top-name" }, "Almost there"),
         el("div", { class: "auth-brand__top-tag" }, "One quick security step"),
@@ -50,7 +50,7 @@ export async function render({ profile } = {}) {
   const card = el("div", { class: "auth-card" });
   card.append(
     el("div", { class: "auth-card__header" }, [
-      el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: "assets/logo.png", alt: "logo" })]),
+      el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: "/assets/logo.png", alt: "logo" })]),
       el("h1", {}, "Set a new password"),
       el("p", { class: "text-muted" }, profile?.fullName ? `Welcome, ${profile.fullName}. Please set a password for your account.` : "Please set a password for your account."),
     ])

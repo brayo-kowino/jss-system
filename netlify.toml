@@ -2,13 +2,13 @@
   publish = "."
 
 # ==========================================================================
-# Maintenance-mode edge function.
-# Its path ("/*") is declared inline in netlify/edge-functions/maintenance.ts
+# Security edge function (maintenance mode + CSP nonce injection).
+# Its path ("/*") is declared inline in netlify/edge-functions/security.ts
 # via `export const config`, which is enough to wire it up — no
 # [[edge_functions]] block needed here too. It runs on every request,
-# before the headers below are applied to whatever it lets through.
-# Controlled by the MAINTENANCE_MODE env var — see that file for details
-# and how to toggle it from the Netlify UI.
+# after the static headers below have been applied, and rewrites the
+# Content-Security-Policy header's script-src to use a fresh per-request
+# nonce (see that file for details and how to toggle maintenance mode).
 # ==========================================================================
 
 # ==========================================================================
@@ -17,30 +17,33 @@
 # defense-in-depth headers that cost nothing and close off whole classes
 # of attack (clickjacking, MIME sniffing, referrer leakage, etc).
 #
-# IMPORTANT: the script-src hashes below correspond to the 4 inline
-# <script> blocks currently in index.html (splash particles, boot
-# watchdog, splash-hide timing, and the SEO JSON-LD structured-data
-# block). If you ever edit the *content* of those inline scripts, their
-# hashes change and the page will start failing to load (or the JSON-LD
-# will silently stop being read) with a CSP error in the console.
-# Recompute with:
-#   python3 -c "import hashlib,base64; print(base64.b64encode(hashlib.sha256(open('script.txt','rb').read()).digest()).decode())"
-# (paste the exact script body, including the leading/trailing newline,
-# into script.txt first) — or just ask me to regenerate them.
+# IMPORTANT: script-src below has no hashes or 'unsafe-inline' on
+# purpose. netlify/edge-functions/security.ts rewrites this directive on
+# every response, replacing it with a fresh 'nonce-...' value and
+# stamping the matching nonce onto every <script> tag in the HTML. That
+# means inline <script> content (splash particles, boot watchdog,
+# splash-hide timing, the landing-page header/nav/reveal/counters/FAQ/
+# form bootstrap script, etc.) can change freely with no build step and
+# no per-script hash to keep in sync. The value here is just a
+# same-origin fallback in the unlikely event the edge function doesn't
+# run — it intentionally has no inline-script allowance of its own, so
+# that fallback fails closed rather than silently permitting arbitrary
+# inline scripts.
 #
 # style-src includes 'unsafe-inline' because the app's el() DOM helper
 # (js/utils.js) renders dynamic styling as inline style="..." attributes
-# at ~150 call sites across the views. Hashing isn't practical here since
-# many of those strings are built at runtime (per-row colors, computed
-# widths, etc). This only relaxes CSS injection risk, not script
-# execution — script-src stays locked to hashes + explicit domains.
+# at ~150 call sites across the views. Hashing/nonce-ing isn't practical
+# here since many of those strings are built at runtime (per-row colors,
+# computed widths, etc). This only relaxes CSS injection risk, not script
+# execution — script-src stays locked to 'self' + explicit domains +
+# the per-request nonce.
 # ==========================================================================
 [[headers]]
   for = "/*"
   [headers.values]
     Content-Security-Policy = '''
       default-src 'self';
-      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net 'sha256-PDFdSI+b7dzVOuvJl94TFm6FUA/CqhP4Fpr7pHT/Qq8=' 'sha256-+gYpR/q1/2IzwvpOP/vHLW1fiv8O2dDfQBvf7sZK5g8=' 'sha256-1yV7Pq2x5YIc9UTQjajNNquPx3N78LXHLG9Re+Lwyho=' 'sha256-M51HeDpQ+hDBMhnU7V96CS5JjsS+p2mz3RgYctGBZr0=';
+      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https://res.cloudinary.com;

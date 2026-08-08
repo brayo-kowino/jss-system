@@ -79,7 +79,7 @@ export async function render() {
   // than the URL the visitor actually typed.
   history.replaceState(null, "", loginUrl(school?.slug));
 
-  const logoSrc = school?.logoUrl || "assets/logo.png";
+  const logoSrc = school?.logoUrl || "/assets/logo.png";
   const brandName = school?.schoolName || "Eeskia";
   const brandTag = school ? "Powered by Eeskia" : "School Management System";
   const headline = school ? `Welcome back to ${school.schoolName}` : "Run your junior secondary school with confidence";
@@ -96,7 +96,7 @@ export async function render() {
         el("div", { class: "laptop-frame__screen" }, [
           el("div", { class: "laptop-frame__cam" }),
           el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
+            el("img", { src: "/assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
             el("div", { class: "laptop-frame__sheen" }),
           ]),
         ]),
