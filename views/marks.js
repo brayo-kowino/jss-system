@@ -102,6 +102,20 @@ function renderPicker(container, profile, bodyMount) {
   }
   refreshAssessmentOptions();
 
+  // If a class/subject/assessment was already selected from a previous
+  // visit to this page (selection is retained in module state, and the
+  // selects above are pre-populated with `selected` from it), the initial
+  // mount used to sit there with an empty bodyMount until the person
+  // touched a dropdown - because maybeLoad() below only ever ran inside a
+  // `change` listener, which never fires just from setting the `selected`
+  // attribute at render time. Re-picking the exact same value doesn't fire
+  // `change` either, so the roster never loaded until a genuinely
+  // different value was chosen. Explicitly load once here for a selection
+  // that's already complete.
+  if (selection.classKey && selection.subjectCode && selection.assessmentId) {
+    maybeLoad(profile, bodyMount);
+  }
+
   classSelect.addEventListener("change", () => { selection.classKey = classSelect.value; refreshAssessmentOptions(); maybeLoad(profile, bodyMount); });
   subjectSelect.addEventListener("change", () => { selection.subjectCode = subjectSelect.value; refreshAssessmentOptions(); maybeLoad(profile, bodyMount); });
   assessmentSelect.addEventListener("change", () => { selection.assessmentId = assessmentSelect.value; maybeLoad(profile, bodyMount); });

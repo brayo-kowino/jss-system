@@ -324,6 +324,54 @@ tbody tr:hover { background: var(--color-primary-100); }
 .badge--muted   { background: var(--color-cream-dim); color: var(--color-ink-soft); }
 .badge--warning { background: #FFF3CD; color: #7A5B00; }
 
+/* Saved-modes panel - shown on Grading & Positions and Report Cards so
+   staff can see at a glance which of Midterm / Endterm / Average have
+   already been computed & saved for a class + term, before they compute,
+   save, or load anything again. */
+.saved-modes-panel {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+.saved-modes-panel__title {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  font-weight: 700;
+  flex: none;
+}
+.saved-modes-panel__chips { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.saved-mode-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  border-radius: 999px;
+  padding: 4px 14px 4px 10px;
+  font-size: var(--fs-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-ink);
+}
+.saved-mode-chip .material-symbols-rounded { font-size: 16px; flex: none; }
+.saved-mode-chip__meta { color: var(--color-ink-soft); font-weight: 400; }
+.saved-mode-chip strong { display: block; letter-spacing: 0.02em; }
+.saved-mode-chip--saved { border-color: var(--color-green); }
+.saved-mode-chip--saved .material-symbols-rounded { color: var(--color-green); }
+.saved-mode-chip--empty { color: var(--color-ink-soft); cursor: default; }
+.saved-mode-chip--empty .material-symbols-rounded { color: var(--color-line); }
+.saved-mode-chip--active { background: var(--color-primary-100); border-color: var(--color-primary-700); }
+.saved-mode-chip:disabled { cursor: default; }
+
 /* Alert / callout - used for setup warnings (e.g. assessment weights that
    don't add up to 100%) that need more room than a toast or badge. */
 .alert {

@@ -4,17 +4,21 @@ import {
   computeClassResults,
   saveResults,
   getPreviousResult,
+  listSavedModesForPeriod,
   reportModeLabel,
+  positionScopeLabel,
 } from "../js/services/grading.service.js";
 import { openModal } from "../js/components/modal.js";
+import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, spinner } from "../js/utils.js";
 
 const CAN_SAVE = ["admin", "academic_master"];
 
 let classes = [];
 let settings = null;
-let selection = { grade: "", stream: "", academicYear: "", term: "", reportMode: "average" };
+let selection = { grade: "", academicYear: "", term: "", reportMode: "average" };
 let lastResult = null; // { students, subjectsUsed, meta }
+let lastSavedModes = []; // listSavedModesForPeriod() result for the current selection
 
 export async function render({ profile }) {
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
@@ -48,19 +52,14 @@ function gradeOptions() {
   return classes.map((c) => c.grade);
 }
 
-function streamOptions(grade) {
-  return classes.find((c) => c.grade === grade)?.streams || [];
-}
-
 function renderPicker(container, profile, resultMount) {
   container.innerHTML = "";
-  const row = el("div", { style: "display:grid; grid-template-columns: repeat(5, 1fr); gap:16px; align-items:end;" });
+  const row = el("div", { style: "display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; align-items:end;" });
 
   const gradeSelect = el("select", {}, [
     el("option", { value: "" }, "Select grade"),
     ...gradeOptions().map((g) => el("option", { value: g, ...(g === selection.grade ? { selected: "true" } : {}) }, g)),
   ]);
-  const streamSelect = el("select", {}, [el("option", { value: "" }, "All streams")]);
   const yearInput = el("input", { type: "text", value: selection.academicYear, placeholder: "2026" });
   const termSelect = el("select", {}, (settings.terms || []).map((t) =>
     el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)
@@ -71,32 +70,25 @@ function renderPicker(container, profile, resultMount) {
     el("option", { value: "endterm", ...(selection.reportMode === "endterm" ? { selected: "true" } : {}) }, "Endterm Report Only"),
   ]);
 
-  function refreshStreams() {
-    streamSelect.innerHTML = "";
-    streamSelect.append(el("option", { value: "" }, "All streams"));
-    for (const s of streamOptions(gradeSelect.value)) {
-      streamSelect.append(el("option", { value: s, ...(s === selection.stream ? { selected: "true" } : {}) }, s));
-    }
-  }
-  refreshStreams();
-
-  gradeSelect.addEventListener("change", () => { selection.grade = gradeSelect.value; selection.stream = ""; refreshStreams(); });
-  streamSelect.addEventListener("change", () => { selection.stream = streamSelect.value; });
+  gradeSelect.addEventListener("change", () => { selection.grade = gradeSelect.value; });
   yearInput.addEventListener("change", () => { selection.academicYear = yearInput.value.trim(); });
   termSelect.addEventListener("change", () => { selection.term = termSelect.value; });
   reportModeSelect.addEventListener("change", () => { selection.reportMode = reportModeSelect.value; });
 
   row.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Stream"), streamSelect]),
     el("div", { class: "field" }, [el("label", {}, "Academic Year"), yearInput]),
     el("div", { class: "field" }, [el("label", {}, "Term"), termSelect]),
     el("div", { class: "field" }, [el("label", {}, "Report Mode"), reportModeSelect])
   );
   container.append(row);
   container.append(
+    el("p", { class: "text-muted text-sm", style: "margin:12px 0 0;" }, "Computes and saves every stream in this grade at once - there's no per-stream step. Pick a stream to view on the Report Cards page afterwards."),
+  );
+  container.append(
     el("button", {
       class: "btn btn--primary",
+      style: "margin-top:12px;",
       onClick: () => runCompute(profile, resultMount),
     }, [icon("analytics"), "Compute Results"])
   );
@@ -112,8 +104,12 @@ async function runCompute(profile, resultMount) {
     el("div", {}, "Computing averages, grades, and positions…"),
   ]));
   try {
-    const result = await computeClassResults({ ...selection, gradingScale: settings.gradingScale });
+    const [result, savedModes] = await Promise.all([
+      computeClassResults({ grade: selection.grade, academicYear: selection.academicYear, term: selection.term, reportMode: selection.reportMode, gradingScale: settings.gradingScale }),
+      listSavedModesForPeriod(selection),
+    ]);
     lastResult = result;
+    lastSavedModes = savedModes;
     renderResult(resultMount, profile);
   } catch (err) {
     resultMount.innerHTML = "";
@@ -125,6 +121,11 @@ function renderResult(container, profile) {
   container.innerHTML = "";
   const { students, subjectsUsed, meta } = lastResult;
 
+  // Shown even on empty/no-marks states below so it's clear this Save
+  // Results click won't be the first one for this class/term if something
+  // was already saved earlier (by this person or someone else).
+  container.append(savedModesPanel(lastSavedModes, { activeMode: selection.reportMode }));
+
   if (meta.noAssessments) {
     container.append(el("div", { class: "empty-state" }, [
       el("h3", {}, "No assessments found"),
@@ -135,7 +136,7 @@ function renderResult(container, profile) {
   if (meta.noStudents) {
     container.append(el("div", { class: "empty-state" }, [
       el("h3", {}, "No active students"),
-      el("p", {}, `No active students found in ${meta.grade}${meta.stream ? " " + meta.stream : ""}.`),
+      el("p", {}, `No active students found in ${meta.grade}.`),
     ]));
     return;
   }
@@ -151,16 +152,16 @@ function renderResult(container, profile) {
   header.append(
     el("div", {}, [
       el("h3", { style: "margin:0 0 4px;" }, [
-        `${meta.grade}${meta.stream ? " " + meta.stream : ""}: ${meta.term} ${meta.academicYear}`,
+        `${meta.grade}: ${meta.term} ${meta.academicYear}`,
         " ",
         el("span", { class: `badge ${meta.reportMode === "average" ? "badge--success" : "badge--gold"}` }, reportModeLabel(meta.reportMode)),
       ]),
-      el("p", { class: "text-muted", style: "margin:0;" }, `${meta.classSize} student(s) · ${subjectsUsed.length} subject(s) with marks · ${meta.assessmentsUsed} assessment(s) counted`),
+      el("p", { class: "text-muted", style: "margin:0;" }, `${meta.classSize} student(s), every stream · ${subjectsUsed.length} subject(s) with marks · ${meta.assessmentsUsed} assessment(s) counted · Overall Position shown below`),
     ])
   );
   if (CAN_SAVE.includes(profile.role)) {
     header.append(
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => handleSave(profile, header) }, [icon("save"), "Save Results"])
+      el("button", { class: "btn btn--primary btn--sm", onClick: () => handleSave(profile, container) }, [icon("save"), "Save Results"])
     );
   }
   container.append(header);
@@ -216,9 +217,9 @@ function renderResult(container, profile) {
   for (const s of sorted) {
     const hasScores = s.subjects.length > 0;
     tbody.append(el("tr", {}, [
-      el("td", {}, hasScores ? `${s.overallPosition}/${meta.classSize}` : "N/A"),
+      el("td", {}, hasScores ? `${s.overallPosition}/${s.classSize}` : "N/A"),
       el("td", {}, s.admissionNumber || "N/A"),
-      el("td", {}, s.fullName),
+      el("td", {}, `${s.fullName}${s.stream ? ` (${s.stream})` : ""}`),
       el("td", {}, hasScores ? `${s.totalMarks.toFixed(1)}/${s.totalOutOf}` : "N/A"),
       el("td", {}, hasScores ? `${s.meanMarks.toFixed(2)}%` : "N/A"),
       el("td", {}, hasScores
@@ -238,7 +239,7 @@ function renderResult(container, profile) {
   container.append(tableWrap);
 }
 
-async function handleSave(profile, header) {
+async function handleSave(profile, resultMount) {
   const incompleteCount = lastResult.students.filter((s) => s.hasIncompleteSubject).length;
   if (incompleteCount > 0) {
     const proceed = confirm(
@@ -248,13 +249,17 @@ async function handleSave(profile, header) {
   }
   try {
     await saveResults(profile.uid, selection, lastResult.students);
-    toast("Results saved. They're now available for report cards.", "success");
+    toast(`${reportModeLabel(selection.reportMode)} results saved. They're now available for report cards.`, "success");
+    // Refresh the saved-so-far panel immediately so this save shows up
+    // right away, instead of only after leaving and re-entering the page.
+    lastSavedModes = await listSavedModesForPeriod(selection);
+    renderResult(resultMount, profile);
   } catch (err) {
     toast(err.message || "Could not save results.", "error");
   }
 }
 
-async function showDetail(student, profile) {
+async function showDetail(student, profile, isStreamPreview) {
   const body = el("div", {});
   body.append(el("div", { style: "display:flex; justify-content:space-between; margin-bottom:12px;" }, [
     el("div", {}, [
@@ -262,7 +267,7 @@ async function showDetail(student, profile) {
       el("div", { class: "text-muted text-sm" }, `Adm No. ${student.admissionNumber || "N/A"}`),
     ]),
     el("div", { style: "text-align:right;" }, [
-      el("div", {}, [el("span", { class: "badge badge--success" }, `Position ${student.overallPosition}/${student.classSize}`)]),
+      el("div", {}, [el("span", { class: "badge badge--success" }, `${positionScopeLabel(isStreamPreview)} ${isStreamPreview ? student.classPosition : student.overallPosition}/${isStreamPreview ? student.streamClassSize : student.classSize}`)]),
       el("div", { class: "text-muted text-sm", style: "margin-top:4px;" }, `Mean ${student.meanMarks.toFixed(2)}% · Grade ${student.meanGrade} · ${student.totalPoints} pts`),
     ]),
   ]));
@@ -287,7 +292,7 @@ async function showDetail(student, profile) {
       el("td", {}, s.average.toFixed(1)),
       el("td", {}, s.grade),
       el("td", {}, String(s.points)),
-      el("td", {}, `${s.position}/${student.classSize}`),
+      el("td", {}, isStreamPreview ? `${s.classPosition}/${student.streamClassSize}` : `${s.position}/${student.classSize}`),
       el("td", {}, s.incomplete
         ? el("span", { class: "badge badge--warning", title: "Not all assessments for this subject have marks yet" }, `${s.weightUsed}% of ${s.weightExpected}%`)
         : el("span", { class: "badge badge--success" }, "Complete")),
@@ -320,7 +325,7 @@ async function showDetail(student, profile) {
   openModal(`Results: ${student.fullName}`, body);
 
   try {
-    const prev = await getPreviousResult(student.studentId, selection.grade, selection.stream, selection.academicYear, selection.term, settings.terms);
+    const prev = await getPreviousResult(student.studentId, selection.grade, selection.academicYear, selection.term, settings.terms, selection.reportMode);
     devMount.innerHTML = "";
     if (!prev) {
       devMount.append(el("p", { class: "text-muted text-sm" }, "No saved result from a prior term to compare against yet."));
@@ -328,10 +333,12 @@ async function showDetail(student, profile) {
     }
     const devMarks = student.meanMarks - prev.meanMarks;
     const devPoints = student.totalPoints - prev.totalPoints;
+    const prevPos = isStreamPreview ? prev.classPosition : prev.overallPosition;
+    const prevSize = isStreamPreview ? prev.streamClassSize : prev.classSize;
     devMount.append(
       el("h3", { style: "margin:0 0 8px;" }, "Compared to Last Term"),
       el("p", { class: "text-sm" }, [
-        `${prev.term} ${prev.academicYear}: mean ${prev.meanMarks.toFixed(2)}% (${prev.meanGrade}), ${prev.totalPoints} pts, position ${prev.overallPosition}/${prev.classSize}. `,
+        `${prev.term} ${prev.academicYear}: mean ${prev.meanMarks.toFixed(2)}% (${prev.meanGrade}), ${prev.totalPoints} pts, ${positionScopeLabel(isStreamPreview).toLowerCase()} ${prevPos}/${prevSize}. `,
         el("span", { class: `badge ${devMarks >= 0 ? "badge--success" : "badge--danger"}` }, `${devMarks >= 0 ? "▲" : "▼"} ${Math.abs(devMarks).toFixed(2)} marks`),
         " ",
         el("span", { class: `badge ${devPoints >= 0 ? "badge--success" : "badge--danger"}` }, `${devPoints >= 0 ? "▲" : "▼"} ${Math.abs(devPoints)} pts`),

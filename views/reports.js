@@ -3,11 +3,15 @@ import { getSchoolSettings } from "../js/services/settings.service.js";
 import {
   listResultsByPeriod,
   listResultsForStudent,
+  listSavedModesForPeriod,
   updateResultRemarks,
   reportModeLabel,
+  positionScopeLabel,
+  positionScopeTag,
 } from "../js/services/grading.service.js";
 import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
-import { downloadElementAsPdf } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, downloadPdfsAsZip } from "../js/services/pdf.util.js";
+import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
@@ -17,6 +21,7 @@ const NO_PORTAL_YET = ["parent", "student"];
 let classes = [];
 let settings = null;
 let selection = { grade: "", stream: "", academicYear: "", term: "" };
+let activeMode = null; // which saved report mode is currently being viewed
 
 export async function render({ profile }) {
   if (NO_PORTAL_YET.includes(profile.role)) {
@@ -102,8 +107,8 @@ async function loadList(bodyMount, profile) {
   bodyMount.append(el("div", { class: "skeleton-rows" }, [
     skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
   ]));
-  const results = await listResultsByPeriod(selection);
-  if (!results.length) {
+  const savedModes = await listSavedModesForPeriod(selection);
+  if (!savedModes.length) {
     bodyMount.innerHTML = "";
     bodyMount.append(el("div", { class: "empty-state" }, [
       icon("description", "empty-state__icon"),
@@ -112,15 +117,53 @@ async function loadList(bodyMount, profile) {
     ]));
     return;
   }
-  renderList(bodyMount, results, profile);
+  // Keep whichever mode is already selected if it's still valid (e.g.
+  // returning here after viewing a card); otherwise default to Average
+  // (the closest thing to a "final" report), falling back to whichever
+  // mode was most recently saved.
+  if (!activeMode || !savedModes.some((m) => m.reportMode === activeMode)) {
+    activeMode = savedModes.find((m) => m.reportMode === "average")?.reportMode
+      || [...savedModes].sort((a, b) => (b.latestComputedAt || 0) - (a.latestComputedAt || 0))[0].reportMode;
+  }
+  renderPeriodBody(bodyMount, profile, savedModes);
 }
 
-function renderList(container, results, profile) {
+// Renders the "saved so far" chip row for this grade/stream/year/term
+// plus the student list for whichever mode is currently active, so
+// clicking a different saved mode swaps the list in place without
+// re-picking grade/stream/year/term.
+function renderPeriodBody(bodyMount, profile, savedModes) {
+  bodyMount.innerHTML = "";
+  bodyMount.append(savedModesPanel(savedModes, {
+    activeMode,
+    onSelect: (mode) => { activeMode = mode; renderPeriodBody(bodyMount, profile, savedModes); },
+  }));
+  const listMount = el("div", { style: "margin-top:16px;" });
+  bodyMount.append(listMount);
+  listMount.append(el("div", { class: "skeleton-rows" }, [skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%")]));
+  listResultsByPeriod({ ...selection, reportMode: activeMode }).then((results) => {
+    listMount.innerHTML = "";
+    renderList(listMount, results, profile, bodyMount);
+  });
+}
+
+function renderList(container, results, profile, bodyMount) {
   container.innerHTML = "";
-  const header = el("div", { class: "card", style: "margin-bottom:16px;" }, [
-    el("h3", { style: "margin:0 0 4px;" }, `${selection.grade}${selection.stream ? " " + selection.stream : ""}: ${selection.term} ${selection.academicYear}`),
-    el("p", { class: "text-muted", style: "margin:0;" }, `${results.length} saved report card(s).`),
+  const header = el("div", { class: "card", style: "margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+    el("div", {}, [
+      el("h3", { style: "margin:0 0 4px;" }, [
+        `${selection.grade}${selection.stream ? " " + selection.stream : ""}: ${selection.term} ${selection.academicYear}`,
+        " ",
+        el("span", { class: "badge badge--success" }, reportModeLabel(activeMode)),
+      ]),
+      el("p", { class: "text-muted", style: "margin:0;" }, `${results.length} saved report card(s) for this report.`),
+    ]),
   ]);
+  if (results.length) {
+    const bulkBtn = el("button", { class: "btn btn--ghost btn--sm" }, [icon("folder_zip"), "Download All (ZIP)"]);
+    bulkBtn.addEventListener("click", () => handleBulkDownload(bulkBtn, results, profile));
+    header.append(bulkBtn);
+  }
   container.append(header);
 
   const tableWrap = el("div", { class: "table-wrap" });
@@ -130,14 +173,17 @@ function renderList(container, results, profile) {
     ])),
   ]);
   const tbody = el("tbody", {});
+  const isStreamView = Boolean(selection.stream);
   for (const r of results) {
+    const pos = isStreamView ? r.classPosition : r.overallPosition;
+    const size = isStreamView ? r.streamClassSize : r.classSize;
     tbody.append(el("tr", {}, [
-      el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
+      el("td", {}, pos ? `${pos}/${size}` : "N/A"),
       el("td", {}, r.admissionNumber || "N/A"),
       el("td", {}, r.fullName),
       el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
       el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(container, r, profile) }, [icon("description"), "View Report Card"])),
+      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(bodyMount, r, profile) }, [icon("description"), "View Report Card"])),
     ]));
   }
   table.append(tbody);
@@ -145,28 +191,83 @@ function renderList(container, results, profile) {
   container.append(tableWrap);
 }
 
-async function openCard(container, result, profile) {
-  container.innerHTML = "";
-  container.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
+// Builds every report card for this list off-screen (one at a time - see
+// downloadPdfsAsZip for why) and bundles them into a single .zip. Reuses
+// the exact same buildCard() the single "View Report Card" flow uses, so
+// a bulk card looks identical to one downloaded individually - just the
+// fee/history lookups are re-fetched per student since they were never
+// loaded for anyone but whoever was actively being viewed.
+async function handleBulkDownload(button, results, profile) {
+  if (!results.length) return;
+  const original = button.textContent;
+  button.disabled = true;
+  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:900px;" });
+  document.body.appendChild(offscreen);
+  try {
+    const items = results.map((r) => ({
+      filename: `${(r.fullName || "student").replace(/\s+/g, "_")}_${r.admissionNumber || r.studentId}.pdf`,
+      build: async () => {
+        const [feeSummary, history] = await Promise.all([
+          getFeeSummary({ studentId: r.studentId, grade: r.grade, academicYear: r.academicYear, term: r.term }),
+          listResultsForStudent(r.studentId),
+        ]);
+        const priorHistory = history
+          .filter((h) => !(h.academicYear === r.academicYear && h.term === r.term))
+          .filter((h) => (h.reportMode || "average") === (r.reportMode || "average"))
+          .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
+          .slice(0, 4);
+        offscreen.innerHTML = "";
+        const card = buildCard(r, feeSummary, priorHistory, profile);
+        offscreen.appendChild(card);
+        return card;
+      },
+    }));
+    await downloadPdfsAsZip(
+      items,
+      `ReportCards_${selection.grade}${selection.stream ? "_" + selection.stream : ""}_${selection.term}_${selection.academicYear}.zip`,
+      { onProgress: (done, total) => { button.textContent = `Preparing ${done}/${total}…`; } }
+    );
+    toast(`Downloaded ${results.length} report card(s).`, "success");
+  } catch (err) {
+    toast(err.message || "Could not generate the ZIP.", "error");
+  } finally {
+    offscreen.remove();
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+async function openCard(bodyMount, result, profile) {
+  bodyMount.innerHTML = "";
+  bodyMount.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
   const [feeSummary, history] = await Promise.all([
     getFeeSummary({ studentId: result.studentId, grade: result.grade, academicYear: result.academicYear, term: result.term }),
     listResultsForStudent(result.studentId),
   ]);
+  // "History" means a genuinely different term - not another saved mode
+  // (Midterm/Endterm/Average), which now persists as a separate doc and
+  // would otherwise show up here looking like a separate past term. Kept
+  // to the same report mode as the card being viewed, so the trend is
+  // apples-to-apples (e.g. Average-to-Average). Every saved doc carries
+  // both class and overall positions now, so there's no stream-scope
+  // filter needed here - buildCard picks whichever pair matches the
+  // scope currently selected in the picker.
   const priorHistory = history
-    .filter((h) => h.id !== result.id)
+    .filter((h) => !(h.academicYear === result.academicYear && h.term === result.term))
+    .filter((h) => (h.reportMode || "average") === (result.reportMode || "average"))
     .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
     .slice(0, 4);
 
-  container.innerHTML = "";
-  container.append(buildActionBar(container, result, profile));
+  bodyMount.innerHTML = "";
+  bodyMount.append(buildActionBar(bodyMount, result, profile));
   const card = buildCard(result, feeSummary, priorHistory, profile);
-  container.append(card);
+  bodyMount.append(card);
 }
 
-function buildActionBar(container, result, profile) {
+function buildActionBar(bodyMount, result, profile) {
   const bar = el("div", { class: "no-print", style: "display:flex; justify-content:space-between; margin-bottom:16px;" });
   bar.append(
-    el("button", { class: "btn btn--ghost btn--sm", onClick: () => { container.innerHTML = ""; loadList(container, profile); } }, [icon("arrow_back"), "Back to list"]),
+    el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back"), "Back to list"]),
     el("div", { style: "display:flex; gap:8px;" }, [
       el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
       el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, result) }, [icon("download"), "Download PDF"]),
@@ -228,13 +329,16 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   // Summary stats - a real table (header row of labels, one row of
   // values) so it reads as part of the same tabular record as the rest
   // of the card, instead of a separate boxed stat grid.
+  const isStreamView = Boolean(selection.stream);
+  const cardPos = isStreamView ? result.classPosition : result.overallPosition;
+  const cardSize = isStreamView ? result.streamClassSize : result.classSize;
   card.append(el("h4", { class: "report-card__section-title" }, "Performance Summary"));
   card.append(summaryTable([
     ["Total Marks", `${result.totalMarks.toFixed(1)}/${result.totalOutOf}`],
     ["Mean Marks", `${result.meanMarks.toFixed(2)}%`],
     ["Mean Grade", result.meanGrade ?? "N/A"],
     ["Total Points", String(result.totalPoints)],
-    ["Overall Position", `${result.overallPosition}/${result.classSize}`],
+    [positionScopeLabel(isStreamView), `${cardPos}/${cardSize}`],
   ]));
 
   // Pathway breakdown
@@ -274,7 +378,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       el("td", {}, s.average.toFixed(1)),
       el("td", {}, s.grade),
       el("td", {}, String(s.points)),
-      el("td", {}, `${s.position}/${result.classSize}`),
+      el("td", {}, isStreamView ? `${s.classPosition}/${cardSize}` : `${s.position}/${cardSize}`),
       el("td", {}, s.remark),
     ]));
   }
@@ -287,17 +391,20 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     card.append(el("h4", { class: "report-card__section-title" }, "Performance History"));
     const histWrap = el("div", { class: "table-wrap", style: "margin-bottom:16px;" });
     const histTable = el("table", {}, [
-      el("thead", {}, el("tr", {}, [el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean"), el("th", {}, "Points"), el("th", {}, "Grade"), el("th", {}, "Rank")])),
+      el("thead", {}, el("tr", {}, [el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean"), el("th", {}, "Points"), el("th", {}, "Grade"), el("th", {}, "Position"), el("th", {}, "Scope")])),
     ]);
     const histBody = el("tbody", {});
     for (const h of priorHistory) {
+      const hPos = isStreamView ? h.classPosition : h.overallPosition;
+      const hSize = isStreamView ? h.streamClassSize : h.classSize;
       histBody.append(el("tr", {}, [
         el("td", {}, `${h.term} '${String(h.academicYear).slice(-2)}`),
         el("td", {}, `${h.grade}${h.stream ? " " + h.stream : ""}`),
         el("td", {}, `${h.meanMarks?.toFixed(2) ?? "N/A"}%`),
         el("td", {}, String(h.totalPoints ?? "N/A")),
         el("td", {}, h.meanGrade || "N/A"),
-        el("td", {}, h.overallPosition ? `${h.overallPosition}/${h.classSize}` : "N/A"),
+        el("td", {}, hPos ? `${hPos}/${hSize}` : "N/A"),
+        el("td", {}, positionScopeTag(isStreamView)),
       ]));
     }
     histTable.append(histBody);

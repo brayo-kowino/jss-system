@@ -96,6 +96,16 @@ export function skeletonPage({ cards = 3, rows = 6 } = {}) {
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
+    // Callers commonly write conditional attributes like
+    // `selected: cond ? "true" : undefined` intending "only set this when
+    // cond is true." Without this guard, setAttribute(key, undefined)
+    // stringifies to the literal text "undefined" and sets the attribute
+    // anyway - for boolean attributes (selected, disabled, checked,
+    // required, readonly) presence alone is what matters to the browser,
+    // so EVERY option in a list built this way ends up "selected" and the
+    // last one inserted silently wins, regardless of which one actually
+    // matched the intended condition.
+    if (value === undefined || value === null) continue;
     if (key === "class") node.className = value;
     else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);
@@ -111,6 +121,14 @@ export function formatDate(date) {
   if (!date) return "N/A";
   const d = date instanceof Date ? date : date.toDate ? date.toDate() : new Date(date);
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+export function formatDateTime(date) {
+  if (!date) return "N/A";
+  const d = date instanceof Date ? date : date.toDate ? date.toDate() : new Date(date);
+  const day = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return `${day}, ${time}`;
 }
 
 // Namespaces a human-readable/deterministic doc ID (grade slug, subject

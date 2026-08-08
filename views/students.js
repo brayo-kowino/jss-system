@@ -16,7 +16,7 @@ import {
   formatKES,
   PAYMENT_METHODS,
 } from "../js/services/fee.service.js";
-import { listResultsForStudent, reportModeLabel } from "../js/services/grading.service.js";
+import { listResultsForStudent, reportModeLabel, positionScopeTag, pickHeadlineResult } from "../js/services/grading.service.js";
 import { listAttendanceForClassPeriod, summarizeForRoster } from "../js/services/attendance.service.js";
 import { listLogsForEntity } from "../js/services/audit.service.js";
 import {
@@ -326,7 +326,7 @@ async function renderOverviewTab(panel, profile, student, refreshAll) {
       : Promise.resolve(null),
     listResultsForStudent(student.id).catch(() => []),
   ]);
-  const latestResult = [...results].sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))[0];
+  const latestResult = pickHeadlineResult(results);
   const openCount = openIssueCounts.get(student.id) || 0;
 
   panel.innerHTML = "";
@@ -334,7 +334,7 @@ async function renderOverviewTab(panel, profile, student, refreshAll) {
   const stats = el("div", { class: "profile-stats" }, [
     statChip("Fee Balance (this term)", feeSummary ? formatKES(feeSummary.balance) : "N/A", feeSummary && feeSummary.balance > 0 ? "warn" : "good"),
     statChip("Latest Mean Grade", latestResult ? `${latestResult.meanGrade || "N/A"} (${latestResult.meanMarks?.toFixed(1) ?? "N/A"}%)` : "No results yet"),
-    statChip("Latest Position", latestResult?.overallPosition ? `${latestResult.overallPosition} / ${latestResult.classSize}` : "N/A"),
+    statChip("Latest Position", latestResult?.overallPosition ? `${latestResult.overallPosition} / ${latestResult.classSize} (${positionScopeTag(false)})` : "N/A"),
     statChip("Open Issues", String(openCount), openCount ? "warn" : "good"),
   ]);
   panel.append(stats);
@@ -422,7 +422,7 @@ async function renderAcademicTab(panel, profile, student, refreshAll) {
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Year"), el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean %"),
-      el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Position"), el("th", {}, "Mode"), el("th", {}, ""),
+      el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Class Pos"), el("th", {}, "Overall Pos"), el("th", {}, "Mode"), el("th", {}, ""),
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -434,6 +434,7 @@ async function renderAcademicTab(panel, profile, student, refreshAll) {
       el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
       el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
       el("td", {}, String(r.totalPoints ?? "N/A")),
+      el("td", {}, r.classPosition ? `${r.classPosition}/${r.streamClassSize}` : "N/A"),
       el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
       el("td", {}, reportModeLabel(r.reportMode)),
       el("td", {}, el("button", {

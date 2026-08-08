@@ -11,7 +11,7 @@ import {
   getFeeSummary,
   formatKES,
 } from "../js/services/fee.service.js";
-import { downloadElementAsPdf } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, downloadPdfsAsZip } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
 
@@ -319,7 +319,13 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
   if (!payments.length) return;
 
   const card = el("div", { class: "card" });
-  card.append(el("h3", { style: "margin:0 0 16px;" }, "Recent Payments"));
+  const headerRow = el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;" }, [
+    el("h3", { style: "margin:0;" }, "Recent Payments"),
+  ]);
+  const bulkBtn = el("button", { class: "btn btn--ghost btn--sm" }, [icon("folder_zip"), `Download All Receipts (ZIP)`]);
+  bulkBtn.addEventListener("click", () => handleBulkReceiptDownload(bulkBtn, payments));
+  headerRow.append(bulkBtn);
+  card.append(headerRow);
   const tableWrap = el("div", { class: "table-wrap" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
@@ -345,8 +351,43 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
 
 // -------------------------------------------------------------- Receipt --
 
-function renderReceipt(container, payment) {
-  container.innerHTML = "";
+// Every receipt already has all the data it needs sitting in the payment
+// record itself (no per-item fetch needed, unlike report cards), so build
+// is synchronous here - downloadPdfsAsZip still renders/rasterizes them
+// one at a time to keep memory and CPU bounded for a big class.
+async function handleBulkReceiptDownload(button, payments) {
+  if (!payments.length) return;
+  const original = button.textContent;
+  button.disabled = true;
+  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:420px;" });
+  document.body.appendChild(offscreen);
+  try {
+    const { grade, stream, academicYear, term } = selection;
+    const items = payments.map((p) => ({
+      filename: `receipt_${(p.studentName || "student").replace(/\s+/g, "_")}_${p.date}_${p.id.slice(0, 6)}.pdf`,
+      build: () => {
+        offscreen.innerHTML = "";
+        const card = buildReceiptCard(p);
+        offscreen.appendChild(card);
+        return card;
+      },
+    }));
+    await downloadPdfsAsZip(
+      items,
+      `Receipts_${grade}_${stream}_${term}_${academicYear}.zip`,
+      { onProgress: (done, total) => { button.textContent = `Preparing ${done}/${total}…`; } }
+    );
+    toast(`Downloaded ${payments.length} receipt(s).`, "success");
+  } catch (err) {
+    toast(err.message || "Could not generate the ZIP.", "error");
+  } finally {
+    offscreen.remove();
+    button.disabled = false;
+    button.textContent = original;
+  }
+}
+
+function buildReceiptCard(payment) {
   const card = el("div", { class: "receipt" });
   card.append(
     el("div", { class: "receipt__header" }, [
@@ -367,6 +408,12 @@ function renderReceipt(container, payment) {
     el("div", { class: "receipt__amount" }, formatKES(payment.amount)),
     el("div", { class: "receipt__footer" }, "Thank you. Keep this receipt for your records.")
   );
+  return card;
+}
+
+function renderReceipt(container, payment) {
+  container.innerHTML = "";
+  const card = buildReceiptCard(payment);
 
   const actions = el("div", { class: "no-print", style: "display:flex; gap:8px; justify-content:center; margin-top:12px;" }, [
     el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),

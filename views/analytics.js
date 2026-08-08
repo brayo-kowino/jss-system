@@ -89,16 +89,53 @@ function renderControls(container, reportMount, profile) {
   );
 }
 
-// Helper to fetch results for one grade or all grades
+// Preference order when a student has more than one saved report for the
+// same grade/year/term (schools can save a standalone Midterm and/or
+// Endterm report in addition to the final Average - see Grading &
+// Positions). Average is the most complete/final figure, so it wins when
+// present; otherwise fall back to whichever single mode was actually saved.
+const RESULT_MODE_PRIORITY = ["average", "endterm", "midterm"];
+
+// Collapses possibly-multiple saved records per student (one per report
+// mode) down to a single "best" record each, so charts/tables never
+// double- or triple-count a student who has both a Midterm and an Average
+// saved for the same period.
+function pickBestPerStudent(docs) {
+  const byStudent = new Map();
+  for (const r of docs) {
+    const key = r.studentId || r.id;
+    const existing = byStudent.get(key);
+    if (!existing) {
+      byStudent.set(key, r);
+      continue;
+    }
+    const existingRank = RESULT_MODE_PRIORITY.indexOf(existing.reportMode || "average");
+    const candidateRank = RESULT_MODE_PRIORITY.indexOf(r.reportMode || "average");
+    if (candidateRank !== -1 && (existingRank === -1 || candidateRank < existingRank)) {
+      byStudent.set(key, r);
+    }
+  }
+  return [...byStudent.values()];
+}
+
+// Helper to fetch results for one grade or all grades. Previously this
+// locked the query to reportMode: "average" only, which meant a school
+// that had only saved a Midterm or Endterm-only report (and never
+// computed/saved the final Average) got "No Results Found" here even
+// though results genuinely existed in Grading & Positions. Now it fetches
+// every saved mode for the period and dedupes per student via
+// pickBestPerStudent, so any saved mode is picked up without double-
+// counting a student who has more than one mode saved.
 async function fetchTargetedResults() {
   if (selection.grade) {
-    return await listResultsByPeriod({ grade: selection.grade, stream: "", academicYear: selection.academicYear, term: selection.term });
+    const docs = await listResultsByPeriod({ grade: selection.grade, stream: "", academicYear: selection.academicYear, term: selection.term });
+    return pickBestPerStudent(docs);
   }
-  
+
   let allResults = [];
   for (const c of classes) {
-    const res = await listResultsByPeriod({ grade: c.grade, stream: "", academicYear: selection.academicYear, term: selection.term });
-    allResults.push(...res);
+    const docs = await listResultsByPeriod({ grade: c.grade, stream: "", academicYear: selection.academicYear, term: selection.term });
+    allResults.push(...pickBestPerStudent(docs));
   }
   return allResults;
 }

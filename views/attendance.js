@@ -81,6 +81,16 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
     container.append(el("p", { class: "text-muted" }, "You have no class assigned. Contact the administrator."));
   }
 
+  // Same reasoning as Marks Entry: a retained class/date from a previous
+  // visit pre-fills the controls above via `selected`/`value`, but that
+  // alone never fires a `change` event, so maybeLoad() (only ever called
+  // from the listeners below) never ran on return - leaving the roster
+  // blank until you picked a genuinely different value. Load once here
+  // when the selection is already complete.
+  if (selection.classKey && selection.date) {
+    maybeLoad(profile, bodyMount, summaryMount);
+  }
+
   classSelect.addEventListener("change", () => { selection.classKey = classSelect.value; maybeLoad(profile, bodyMount, summaryMount); });
   dateInput.addEventListener("change", () => { selection.date = dateInput.value; maybeLoad(profile, bodyMount, summaryMount); });
 }

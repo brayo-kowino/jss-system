@@ -109,9 +109,23 @@ function renderNotFound(app, { authed }) {
   );
 }
 
+// Bumped on every renderRoute() call. Each call captures its own token and
+// checks it against this counter before it touches the DOM after an
+// `await`. Without this, hopping between pages quickly (e.g. Analytics ->
+// Marks Entry -> back to Analytics before the Marks Entry render actually
+// finishes loading its data) could let the slower, now-stale render win
+// the final `main.innerHTML =`/`appendChild` and stomp on the page you're
+// actually looking at - leaving it blank, half-built, or showing another
+// page's content until you poked a control and something happened to
+// trigger a fresh render.
+let currentRenderToken = 0;
+
 export async function renderRoute() {
   const app = document.getElementById("app");
   if (!app) return;
+
+  const renderToken = ++currentRenderToken;
+  const isStale = () => renderToken !== currentRenderToken;
 
   let path;
   try {
@@ -139,8 +153,10 @@ export async function renderRoute() {
   try {
     if (route.public) {
       if (profile) return navigate("/dashboard");
+      const content = await route.view.render();
+      if (isStale()) return;
       app.innerHTML = "";
-      app.appendChild(await route.view.render());
+      app.appendChild(content);
       await route.view.init?.();
       return;
     }
@@ -154,8 +170,10 @@ export async function renderRoute() {
     // standing credential once someone else has read it off a shared link,
     // a chat message, or a sticky note.
     if (profile.mustChangePassword) {
+      const content = await changePasswordView.render({ profile });
+      if (isStale()) return;
       app.innerHTML = "";
-      app.appendChild(await changePasswordView.render({ profile }));
+      app.appendChild(content);
       await changePasswordView.init?.({ profile });
       return;
     }
@@ -184,22 +202,28 @@ export async function renderRoute() {
       showFatalError(err, { where: "router.renderShell" });
       return;
     }
+    if (isStale()) return;
 
     main.innerHTML = "";
     main.appendChild(skeletonPage());
     try {
       const content = await route.view.render({ profile, title: route.title });
+      if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
       await route.view.init?.({ profile });
     } catch (viewErr) {
+      if (isStale()) return;
       renderInlineError(main, viewErr, {
         context: { where: `view:${path}` },
         onRetry: async () => {
+          const retryToken = ++currentRenderToken;
           const retryMain = renderShell(app, profile, path);
+          if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(skeletonPage());
           const content = await route.view.render({ profile, title: route.title });
+          if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(content);
           await route.view.init?.({ profile });

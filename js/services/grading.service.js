@@ -72,6 +72,21 @@ export function reportModeLabel(mode) {
   if (mode === "endterm") return "ENDTERM";
   return "ENDTERM AVG";
 }
+
+// Every compute now ranks each student in BOTH scopes at once - within
+// their own stream (classPosition/streamClassSize) and across the whole
+// grade (overallPosition/classSize) - so a single Compute+Save covers
+// every stream plus the whole-grade view with no re-fetching. These
+// helpers just pick which pair of numbers to show; pass an explicit
+// boolean for which scope is currently being *viewed* (e.g. a stream is
+// selected in the picker) rather than inferring it from a result's own
+// `stream` field, since a saved result now always carries a real stream.
+export function positionScopeLabel(isClassScope) {
+  return isClassScope ? "Class Position" : "Overall Position";
+}
+export function positionScopeTag(isClassScope) {
+  return isClassScope ? "Class" : "Overall";
+}
 // { key, value } - highest value first, ties share a rank.
 function rank(entries) {
   const sorted = [...entries].sort((a, b) => b.value - a.value);
@@ -86,6 +101,22 @@ function rank(entries) {
     positions[entry.key] = lastRank;
   });
   return positions;
+}
+
+// Ranks the same set of entries two ways in one pass: `overall` against
+// every entry regardless of group, and `byGroup` against only the other
+// entries sharing that entry's `group` (here, stream). This is what lets
+// one compute produce both "Class Position" and "Overall Position" for
+// every student without querying per stream.
+function rankBothScopes(entries) {
+  const overall = rank(entries);
+  const groups = {};
+  for (const e of entries) {
+    (groups[e.group || ""] = groups[e.group || ""] || []).push(e);
+  }
+  const byGroup = {};
+  for (const key of Object.keys(groups)) Object.assign(byGroup, rank(groups[key]));
+  return { overall, byGroup };
 }
 
 // ---------------------------------------------------------------- Compute --
@@ -104,17 +135,37 @@ function previousPeriod(academicYear, term, terms) {
   return { academicYear: prevYear, term: terms[terms.length - 1] };
 }
 
-export function resultId(academicYear, term, grade, stream, studentId) {
-  return scopedId(getCurrentSchoolId(), slugify(academicYear), slugify(term), slugify(grade), slugify(stream || "all"), studentId);
+// reportMode is part of the ID (not just a field) so Midterm, Endterm, and
+// Average saves for the same year/term/class/student are three distinct
+// documents instead of one overwriting another - a school saves a Midterm
+// report, then later saves the Endterm/Average report for the same term,
+// and both need to still be there for report cards and history.
+//
+// Stream is NOT part of the ID: one Compute+Save covers the whole grade
+// (every stream) in a single pass, and each student's doc carries both
+// their class-within-stream ranking and their grade-wide ranking (see
+// computeClassResults). That's what avoids running Compute+Save once per
+// stream plus once more for "all streams" - three-plus round trips to
+// Firestore for what is really one dataset.
+export function resultId(academicYear, term, grade, studentId, reportMode = "average") {
+  return scopedId(getCurrentSchoolId(), slugify(academicYear), slugify(term), slugify(grade), slugify(reportMode || "average"), studentId);
 }
 
+// Canonical display order for the three report modes, used anywhere they're
+// listed together (saved-runs summaries, tabs, etc).
+export const REPORT_MODES = ["midterm", "endterm", "average"];
+
 /**
- * Computes grading + positions for one class (grade, optionally a single
- * stream) in one academicYear/term.
+ * Computes grading + positions for one whole grade (every stream at once)
+ * in one academicYear/term. Every student gets ranked two ways in the same
+ * pass - classPosition (within their own stream) and overallPosition
+ * (across the whole grade) - so a single compute/save serves every
+ * stream's class report and the whole-grade report; nothing needs to be
+ * recomputed per stream.
  *
  * @returns {Promise<{ students: object[], subjectsUsed: object[], meta: object }>}
  */
-export async function computeClassResults({ grade, stream, academicYear, term, gradingScale, reportMode = "average" }) {
+export async function computeClassResults({ grade, academicYear, term, gradingScale, reportMode = "average" }) {
   if (!grade || !academicYear || !term) throw new Error("Grade, academic year, and term are required.");
 
   const [allSubjects, allAssessments, allStudents] = await Promise.all([
@@ -153,14 +204,14 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
   }
 
   const roster = allStudents
-    .filter((s) => s.grade === grade && (!stream || s.stream === stream) && s.status === "active")
+    .filter((s) => s.grade === grade && s.status === "active")
     .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
   if (!relevantAssessments.length) {
-    return { students: [], subjectsUsed: [], meta: { grade, stream, academicYear, term, noAssessments: true } };
+    return { students: [], subjectsUsed: [], meta: { grade, academicYear, term, noAssessments: true } };
   }
   if (!roster.length) {
-    return { students: [], subjectsUsed: [], meta: { grade, stream, academicYear, term, noStudents: true } };
+    return { students: [], subjectsUsed: [], meta: { grade, academicYear, term, noStudents: true } };
   }
 
   // marksIndex[assessmentId][subjectCode] = [{studentId, score}]
@@ -296,19 +347,29 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
     }
   }
 
-  // Subject positions: rank within class, per subject, among students who
-  // have an average for it.
+  // Subject positions: rank per subject among students who have an
+  // average for it, both within the student's own stream (classPosition)
+  // and across the whole grade (position) - same reasoning as the overall
+  // ranking below.
   for (const subj of subjectsUsed) {
     const entries = roster
       .filter((s) => perStudentSubjects[s.id][subj.code])
-      .map((s) => ({ key: s.id, value: perStudentSubjects[s.id][subj.code].average }));
-    const positions = rank(entries);
+      .map((s) => ({ key: s.id, value: perStudentSubjects[s.id][subj.code].average, group: s.stream || "" }));
+    const { overall, byGroup } = rankBothScopes(entries);
     for (const s of roster) {
       if (perStudentSubjects[s.id][subj.code]) {
-        perStudentSubjects[s.id][subj.code].position = positions[s.id];
+        perStudentSubjects[s.id][subj.code].position = overall[s.id];
+        perStudentSubjects[s.id][subj.code].classPosition = byGroup[s.id];
       }
     }
   }
+
+  // Count of active roster members per stream, so a stream-scoped
+  // position can be shown as "x/streamClassSize" - same convention as the
+  // grade-wide classSize below (the denominator is everyone active in
+  // that scope, not just students with a score).
+  const streamSizes = {};
+  for (const s of roster) streamSizes[s.stream || ""] = (streamSizes[s.stream || ""] || 0) + 1;
 
   // Per-student totals + pathway breakdown.
   const summaries = {};
@@ -348,6 +409,7 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
       fullName: student.fullName,
       gender: student.gender || "",
       photoUrl: student.photoUrl || "",
+      stream: student.stream || "",
       subjects: subjectResults,
       totalMarks,
       totalOutOf,
@@ -358,17 +420,22 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
       meanRemark: meanGradeInfo?.remark || null,
       pathwayBreakdown,
       classSize: roster.length,
+      streamClassSize: streamSizes[student.stream || ""] || 0,
       hasIncompleteSubject,
     };
   }
 
-  // Overall position: rank by total marks, only among students with any score.
+  // Position: rank by total marks, only among students with any score -
+  // both overall (whole grade) and classPosition (within the student's own
+  // stream), computed together so a report picking "Grade 7 Blue" and one
+  // picking "All streams" both read off this same compute/save.
   const overallEntries = roster
     .filter((s) => summaries[s.id].subjects.length)
-    .map((s) => ({ key: s.id, value: summaries[s.id].totalMarks }));
-  const overallPositions = rank(overallEntries);
+    .map((s) => ({ key: s.id, value: summaries[s.id].totalMarks, group: s.stream || "" }));
+  const { overall: overallPositions, byGroup: classPositions } = rankBothScopes(overallEntries);
   for (const s of roster) {
     summaries[s.id].overallPosition = overallPositions[s.id] || null;
+    summaries[s.id].classPosition = classPositions[s.id] || null;
   }
 
   const subjectsIncomplete = subjectsUsed
@@ -404,7 +471,7 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
     students: roster.map((s) => summaries[s.id]),
     subjectsUsed,
     meta: {
-      grade, stream, academicYear, term, classSize: roster.length,
+      grade, academicYear, term, classSize: roster.length,
       reportMode,
       assessmentsUsed: relevantAssessments.length,
       relevantAssessments: relevantAssessments.map((a) => ({
@@ -421,11 +488,11 @@ export async function computeClassResults({ grade, stream, academicYear, term, g
 
 // ---------------------------------------------------------------- Persist --
 
-export async function saveResults(userId, { grade, stream, academicYear, term, reportMode }, students) {
+export async function saveResults(userId, { grade, academicYear, term, reportMode }, students) {
   const batch = writeBatch(db);
   for (const s of students) {
     if (!s.subjects.length) continue; // nothing to save for a student with no marks yet
-    const id = resultId(academicYear, term, grade, stream, s.studentId);
+    const id = resultId(academicYear, term, grade, s.studentId, reportMode);
     batch.set(doc(db, "results", id), {
       schoolId: getCurrentSchoolId(),
       studentId: s.studentId,
@@ -435,7 +502,7 @@ export async function saveResults(userId, { grade, stream, academicYear, term, r
       gender: s.gender || "",
       photoUrl: s.photoUrl || "",
       grade,
-      stream: stream || "",
+      stream: s.stream || "",
       academicYear,
       term,
       reportMode: reportMode || "average",
@@ -450,15 +517,26 @@ export async function saveResults(userId, { grade, stream, academicYear, term, r
       pathwayBreakdown: s.pathwayBreakdown,
       overallPosition: s.overallPosition,
       classSize: s.classSize,
+      classPosition: s.classPosition,
+      streamClassSize: s.streamClassSize,
       computedBy: userId,
       computedAt: serverTimestamp(),
     }, { merge: true });
   }
   await batch.commit();
-  await logAction(userId, "compute_results", "results", `${grade}_${stream || "all"}_${academicYear}_${term}`);
+  await logAction(userId, "compute_results", "results", `${grade}_${academicYear}_${term}`);
 }
 
-export async function listResultsByPeriod({ grade, stream, academicYear, term }) {
+// reportMode is an optional client-side filter (not a Firestore `where`, to
+// avoid requiring a new composite index) - pass it to get just that mode's
+// saved results, or omit it to get every mode saved for this period (e.g.
+// to build the saved-runs summary). `stream` is likewise a client-side
+// filter down to one stream's students; omit it (or pass "") to get the
+// whole grade - all from the SAME saved dataset, since one Compute+Save
+// now covers every stream at once (see computeClassResults). Sorted by
+// whichever position matches what was asked for: classPosition when a
+// stream was requested, overallPosition otherwise.
+export async function listResultsByPeriod({ grade, stream, academicYear, term, reportMode }) {
   const snap = await getDocs(
     query(
       collection(db, "results"),
@@ -469,12 +547,42 @@ export async function listResultsByPeriod({ grade, stream, academicYear, term })
     )
   );
   let docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  if (stream) docs = docs.filter((d) => d.stream === stream);
-  return docs.sort((a, b) => (a.overallPosition || 999) - (b.overallPosition || 999));
+  if (stream) docs = docs.filter((d) => (d.stream || "") === stream);
+  if (reportMode) docs = docs.filter((d) => (d.reportMode || "average") === reportMode);
+  const positionField = stream ? "classPosition" : "overallPosition";
+  return docs.sort((a, b) => (a[positionField] ?? 999) - (b[positionField] ?? 999));
 }
 
-export async function getSavedResult(studentId, academicYear, term, grade, stream) {
-  const id = resultId(academicYear, term, grade, stream, studentId);
+// Summarizes what's already been saved for a grade/year/term, one entry
+// per report mode that has at least one saved student, so the Grading and
+// Report Card screens can show "Midterm: saved, 32 students, 5 Aug" etc
+// before anyone computes/saves/loads anything. Grade-wide, not
+// per-stream - one Compute+Save now covers every stream, so there's only
+// ever one "saved" state per grade/year/term/mode to report on.
+export async function listSavedModesForPeriod({ grade, academicYear, term }) {
+  const results = await listResultsByPeriod({ grade, academicYear, term });
+  const groups = {};
+  for (const r of results) {
+    const mode = r.reportMode || "average";
+    const g = (groups[mode] = groups[mode] || {
+      reportMode: mode,
+      count: 0,
+      classSize: r.classSize || 0,
+      latestComputedAt: null,
+      computedBy: "",
+    });
+    g.count += 1;
+    const ts = r.computedAt?.toDate ? r.computedAt.toDate() : null;
+    if (ts && (!g.latestComputedAt || ts > g.latestComputedAt)) {
+      g.latestComputedAt = ts;
+      g.computedBy = r.computedBy || g.computedBy;
+    }
+  }
+  return REPORT_MODES.map((mode) => groups[mode]).filter(Boolean);
+}
+
+export async function getSavedResult(studentId, academicYear, term, grade, reportMode = "average") {
+  const id = resultId(academicYear, term, grade, studentId, reportMode);
   const snap = await getDocs(
     query(collection(db, "results"), where("schoolId", "==", getCurrentSchoolId()), where("studentId", "==", studentId))
   );
@@ -490,9 +598,39 @@ export async function updateResultRemarks(userId, resultDocId, { teacherRemark, 
   await logAction(userId, "update_remarks", "results", resultDocId);
 }
 
-export async function getPreviousResult(studentId, grade, stream, academicYear, term, terms) {
+// Prefers a prior-period saved result in the same report mode (Midterm vs
+// Midterm, Average vs Average); if that exact mode wasn't saved for the
+// prior period, falls back to whichever mode was saved (preferring
+// Average, since that's the closest thing to a "final" result) rather than
+// showing no comparison at all. Not stream-scoped: every saved result
+// carries both classPosition and overallPosition, so the caller picks
+// whichever pair matches the scope currently being viewed.
+export async function getPreviousResult(studentId, grade, academicYear, term, terms, reportMode = "average") {
   const { academicYear: prevYear, term: prevTerm } = previousPeriod(academicYear, term, terms);
-  return getSavedResult(studentId, prevYear, prevTerm, grade, stream);
+  const exact = await getSavedResult(studentId, prevYear, prevTerm, grade, reportMode);
+  if (exact) return exact;
+  const all = await listResultsForStudent(studentId);
+  const candidates = all.filter(
+    (r) => r.academicYear === prevYear && r.term === prevTerm && r.grade === grade
+  );
+  if (!candidates.length) return null;
+  return candidates.find((r) => (r.reportMode || "average") === "average") || candidates[0];
+}
+
+// Picks one "headline" result to represent a student's most recent term,
+// out of a list that may now contain a few saved docs for that same term
+// (one per report mode - Midterm/Endterm/Average; no longer one per
+// stream, since a single Compute+Save covers the whole grade). Most
+// recent term first, then prefers the Average mode, since that's the
+// closest thing to a single official figure for a "latest result" summary.
+export function pickHeadlineResult(results) {
+  if (!results?.length) return null;
+  const latestKey = results.reduce((max, r) => {
+    const key = `${r.academicYear}${r.term}`;
+    return key > max ? key : max;
+  }, "");
+  const candidates = results.filter((r) => `${r.academicYear}${r.term}` === latestKey);
+  return candidates.find((r) => (r.reportMode || "average") === "average") || candidates[0];
 }
 
 export async function listResultsForStudent(studentId) {
