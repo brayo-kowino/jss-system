@@ -228,6 +228,11 @@ ul { margin: 0; padding: 0; list-style: none; }
   z-index: -1;
 }
 .hero__grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+.hero-in-left { animation: fadeInLeft 800ms var(--ease) both; }
+.hero-in-right { animation: fadeInRight 800ms var(--ease) 150ms both; }
+@keyframes fadeInLeft { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes fadeInRight { from { opacity: 0; transform: translateX(40px) } to { opacity: 1; transform: translateX(0) } }
+@media (prefers-reduced-motion: reduce) { .hero-in-left, .hero-in-right { animation: none; } }
 .hero h1 { font-size: clamp(2.4rem, 4.4vw, 3.5rem); letter-spacing: -0.01em; }
 .hero h1 em { font-style: normal; color: var(--navy-700); }
 .hero p.lead { margin-top: 18px; font-size: 1.18rem; color: var(--ink-soft); max-width: 520px; }
@@ -236,7 +241,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .hero__trust .num { font-family: var(--font-display); font-size: 1.8rem; color: var(--navy-900); font-weight: 700; }
 .hero__trust .lbl { font-size: 0.85rem; color: var(--ink-soft); margin-top: 2px; font-weight: 600; }
 
-.mock { position: relative; transform: rotate(1.2deg); }
+.mock { position: relative; }
 .mock__chrome { background: var(--white); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); border: 1px solid var(--line); overflow: hidden; }
 .mock__bar { display: flex; align-items: center; gap: 6px; padding: 12px 14px; background: var(--cream-dim); border-bottom: 1px solid var(--line); }
 .mock__bar span { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
@@ -499,6 +504,7 @@ ul { margin: 0; padding: 0; list-style: none; }
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
       <a href="#contact">Contact</a>
+      <a href="#siteFooter">Legal</a>
     </nav>
 
     <div class="nav__actions">
@@ -515,7 +521,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 <section class="hero" id="top">
   <div class="container hero__grid">
-    <div class="reveal is-visible">
+    <div class="hero-in-left">
       <h1>Run your whole school from <em>one clear dashboard</em></h1>
       <p class="lead">Eeskia brings students, CBC grading, fees, attendance and timetables into a single system that admins, teachers and parents can actually use. No spreadsheets, no paper trail, no guesswork.</p>
       <div class="hero__ctas">
@@ -524,11 +530,11 @@ ul { margin: 0; padding: 0; list-style: none; }
       </div>
       <div class="hero__trust">
         <div>
-          <div class="num"><span class="count" data-target="10">0</span>+</div>
+          <div class="num"><span class="count" data-target="7">0</span>+</div>
           <div class="lbl">Schools onboarded</div>
         </div>
         <div>
-          <div class="num"><span class="count" data-target="5000">0</span>+</div>
+          <div class="num"><span class="count" data-target="2000">0</span>+</div>
           <div class="lbl">Students managed</div>
         </div>
         <div>
@@ -538,7 +544,7 @@ ul { margin: 0; padding: 0; list-style: none; }
       </div>
     </div>
 
-    <div class="mock reveal is-visible">
+    <div class="mock hero-in-right">
       <div class="mock__chrome">
         <div class="mock__bar"><span></span><span></span><span></span></div>
         <img class="mock__img" src="assets/eeskia-hero-image.png" alt="Eeskia dashboard showing active students, staff, attendance and term revenue" />
@@ -557,7 +563,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 <div class="trust-strip">
   <div class="container trust-strip__row">
-    <span>Trusted by school administrators across <strong>Nairobi</strong>, <strong>Kiambu</strong>, <strong>Nakuru</strong>, <strong>Mombasa</strong> and other counties</span>
+    <span>Trusted by school administrators across <strong>Nairobi</strong>, <strong>Kiambu</strong>, <strong>Nakuru</strong> and <strong>Mombasa</strong> counties</span>
   </div>
 </div>
 
@@ -667,7 +673,7 @@ ul { margin: 0; padding: 0; list-style: none; }
       <div class="tour-row__art reveal">
         <div class="art-card">
           <div class="art-card__head">
-            <h4>Form 2B, this week</h4>
+            <h4>Grade 7, this week</h4>
             <span class="tag">Attendance</span>
           </div>
           <div class="grid-cal">
@@ -1055,7 +1061,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 
 </main>
 
-<footer class="site-footer">
+<footer class="site-footer" id="siteFooter">
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
