@@ -33,30 +33,56 @@ const isExternalUrl = (id) => /^https?:\/\//.test(id);
 function obfuscatorPlugin() {
   return {
     name: "obfuscate-chunks",
-    renderChunk(code, chunk) {
-      if (!chunk.fileName.endsWith(".js")) return null;
-      const result = JavaScriptObfuscator.obfuscate(code, {
-        compact: true,
-        controlFlowFlattening: true,
-        controlFlowFlatteningThreshold: 0.6,
-        deadCodeInjection: true,
-        deadCodeInjectionThreshold: 0.3,
-        stringArray: true,
-        stringArrayEncoding: ["base64"],
-        stringArrayThreshold: 0.75,
-        rotateStringArray: true,
-        shuffleStringArray: true,
-        splitStrings: false,
-        selfDefending: false, // needs 'unsafe-eval' — CSP doesn't allow it
-        debugProtection: false, // same reason
-        disableConsoleOutput: false, // app relies on console for its own error/audit paths
-        numbersToExpressions: true,
-        simplify: true,
-        identifierNamesGenerator: "hexadecimal",
-        renameGlobals: false,
-        target: "browser",
-      });
-      return { code: result.getObfuscatedCode(), map: null };
+    // IMPORTANT: this must run in generateBundle, not renderChunk.
+    //
+    // Rollup resolves cross-chunk references (e.g. the filename inside a
+    // dynamic `import("./router-<hash>.js")`) via internal placeholder
+    // tokens like `!~{008}~` that get swapped for the real content hash in
+    // a final literal find-and-replace pass over each chunk's rendered
+    // code - a pass that runs *after* every plugin's renderChunk hook, once
+    // every chunk's final hash is known.
+    //
+    // This plugin's string-array obfuscation feature doesn't know that
+    // convention - it treats a dynamic import's specifier as just another
+    // string literal to sweep into its encoded/rotated string array. Doing
+    // that in renderChunk meant the literal `!~{008}~` text got encoded
+    // into the array *before* Rollup's placeholder pass ran, so the
+    // placeholder text Rollup was searching for no longer existed anywhere
+    // in the chunk verbatim - it silently failed to substitute, and the
+    // unresolved placeholder shipped straight to production, breaking
+    // every dynamically-imported chunk (auth.service.js, router.js, etc.)
+    // with a 404.
+    //
+    // generateBundle runs after that substitution, so by the time this
+    // hook sees the code, every import specifier - static or dynamic - is
+    // already the real final filename, and obfuscating it is safe.
+    generateBundle(_options, bundle) {
+      for (const fileName of Object.keys(bundle)) {
+        const asset = bundle[fileName];
+        if (asset.type !== "chunk" || !fileName.endsWith(".js")) continue;
+        const result = JavaScriptObfuscator.obfuscate(asset.code, {
+          compact: true,
+          controlFlowFlattening: true,
+          controlFlowFlatteningThreshold: 0.6,
+          deadCodeInjection: true,
+          deadCodeInjectionThreshold: 0.3,
+          stringArray: true,
+          stringArrayEncoding: ["base64"],
+          stringArrayThreshold: 0.75,
+          rotateStringArray: true,
+          shuffleStringArray: true,
+          splitStrings: false,
+          selfDefending: false, // needs 'unsafe-eval' — CSP doesn't allow it
+          debugProtection: false, // same reason
+          disableConsoleOutput: false, // app relies on console for its own error/audit paths
+          numbersToExpressions: true,
+          simplify: true,
+          identifierNamesGenerator: "hexadecimal",
+          renameGlobals: false,
+          target: "browser",
+        });
+        asset.code = result.getObfuscatedCode();
+      }
     },
   };
 }
