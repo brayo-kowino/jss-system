@@ -68,7 +68,7 @@
 
 /* KPI Color Variations */
 .md3-kpi-chip--blue .md3-kpi-chip__icon { background: #E3F2FD; color: #1565C0; }
-.md3-kpi-chip--purple .md3-kpi-chip__icon { background: #F3E5F5; color: #6A1B9A; }
+.md3-kpi-chip--red .md3-kpi-chip__icon { background: #FDECEA; color: var(--color-red); }
 .md3-kpi-chip--green .md3-kpi-chip__icon { background: #E8F5E9; color: var(--color-green); }
 .md3-kpi-chip--gold .md3-kpi-chip__icon { background: #FFF8E1; color: #F57F17; }
 
@@ -225,6 +225,41 @@
   font-size: var(--fs-xs);
   margin-top: var(--sp-1);
   min-height: 1em;
+}
+
+/* Login-code field: fixed "ees-" prefix badge + editable suffix, styled as
+   a single input control. */
+.slug-input-group {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.slug-input-group:focus-within {
+  border-color: var(--color-primary-600);
+}
+.slug-input__prefix {
+  display: flex;
+  align-items: center;
+  padding: var(--sp-3);
+  background: var(--color-surface-alt, #F3F4F6);
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  border-right: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+.slug-input-group input {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: var(--sp-3);
+}
+.slug-input-group input:focus {
+  outline: none;
 }
 
 /* Checklists (e.g. linked parents, subjects, classes, grades) */

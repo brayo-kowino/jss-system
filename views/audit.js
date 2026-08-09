@@ -131,7 +131,7 @@ function renderKpis(container) {
 
   const kpis = [
     { label: `Actions (${rangeLabel})`, value: logs.length, icon: "today", color: "blue" },
-    { label: "Active Users", value: distinctUsers, icon: "group", color: "purple" },
+    { label: "Active Users", value: distinctUsers, icon: "group", color: "blue" },
     { label: "Busiest Module", value: busiest ? busiest.entity.replace(/_/g, " ") : "N/A", icon: "bolt", color: "green" },
   ];
 

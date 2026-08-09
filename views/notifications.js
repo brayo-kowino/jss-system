@@ -160,7 +160,7 @@ function renderNotificationKpis() {
     { label: "Sent This History", value: total, icon: "notifications", color: "blue" },
     { label: "Delivered", value: delivered, icon: "mark_email_read", color: "green" },
     { label: "Queued", value: queued, icon: "hourglass_top", color: "gold" },
-    { label: "Parents Reachable", value: `${contactable}/${parents.length}`, icon: "contact_phone", color: "purple" },
+    { label: "Parents Reachable", value: `${contactable}/${parents.length}`, icon: "contact_phone", color: "gold" },
   ];
 
   return el(

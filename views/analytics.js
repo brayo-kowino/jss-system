@@ -276,7 +276,7 @@ async function renderFeeReport(container) {
       el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, "payments")]),
       el("div", {}, [el("div", { class: "md3-kpi-chip__label" }, "Total Collected"), el("div", { class: "md3-kpi-chip__value numeric text-sm" }, formatKES(totalPaid))])
     ]),
-    el("div", { class: "md3-kpi-chip md3-kpi-chip--purple" }, [
+    el("div", { class: "md3-kpi-chip md3-kpi-chip--red" }, [
       el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, "money_off")]),
       el("div", {}, [el("div", { class: "md3-kpi-chip__label" }, "Pending Balances"), el("div", { class: "md3-kpi-chip__value numeric text-sm" }, formatKES(totalDeficit))])
     ])

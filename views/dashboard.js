@@ -127,7 +127,7 @@ export async function render({ profile }) {
   const kpiGrid = el("div", { class: "md3-kpi-grid" });
   const kpis = [
     { label: "Active Students", value: studentsCount, icon: "school", color: "blue" },
-    { label: "Active Staff", value: teachers, icon: "badge", color: "purple" },
+    { label: "Active Staff", value: teachers, icon: "badge", color: "gold" },
     { label: "Attendance Today", value: attendanceToday || "0%", icon: "how_to_reg", color: "green" },
     { label: "Term Revenue", value: formatKES(feesCollected), icon: "account_balance_wallet", color: "gold" }
   ];

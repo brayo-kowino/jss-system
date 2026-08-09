@@ -1,5 +1,5 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify } from "../js/services/settings.service.js";
-import { applyBranding, invalidateSchoolSettingsCache } from "../js/components/shell.js";
+import { invalidateSchoolSettingsCache, refreshSchoolChrome } from "../js/components/shell.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton } from "../js/utils.js";
@@ -7,6 +7,11 @@ import { el, icon, toast, busyButton } from "../js/utils.js";
 let settings = null;
 let activeThemeId = "custom";
 let gradingRowSeq = 0;
+
+// Every school's login code is prefixed with this so links are
+// recognizable as belonging to our system at a glance (e.g.
+// "ees-greenhill-jss"). Fixed and non-removable from the UI.
+const SLUG_PREFIX = "ees";
 
 const TABS = [
   { id: "profile", label: "Profile", icon: "domain" },
@@ -103,55 +108,107 @@ function buildProfileTab() {
 // don't land on the generic "Eeskia" login screen every time.
 // ===========================================================================
 
+// Strips the fixed SLUG_PREFIX off a full saved slug, leaving just the part
+// the school actually chose (what the input field shows/edits).
+function slugSuffix(fullSlug) {
+  const clean = slugify(fullSlug || "");
+  const withDash = `${SLUG_PREFIX}-`;
+  return clean.startsWith(withDash) ? clean.slice(withDash.length) : clean;
+}
+
+// Rebuilds the full, prefixed slug from whatever the school typed into the
+// editable part of the field.
+function buildFullSlug(suffixRaw) {
+  const cleanSuffix = slugify(suffixRaw || "");
+  return cleanSuffix ? `${SLUG_PREFIX}-${cleanSuffix}` : "";
+}
+
+// Exposes the login-link card's live state to the profile form's submit
+// handler, so a save can (a) read the real full slug and (b) tell the card
+// its pending edit is now persisted, clearing the "not saved yet" warning.
+let loginLinkUI = null;
+
 function buildLoginLinkCard() {
   const card = el("div", { class: "card settings-card", style: "margin-top:20px;" });
   card.append(
-    el("h3", {}, "Your Login Link"),
-    el("p", { class: "text-sm text-muted" }, "Share this link with your staff and parents so they land on your school's own branded sign-in page instead of the generic one. Changing the code changes the link.")
+    el("h3", {}, "Your School Login Link"),
+    el("p", { class: "text-sm text-muted" }, "Share this link with your staff and parents so they land on your school's own branded sign-in page instead of the generic one. Every code starts with \u201cees-\u201d so it's recognizable as an Eeskia link."),
+    el("p", { class: "text-sm text-muted" }, "Changing the code changes the link - anyone still using the old link or code (bookmarked, saved, shared earlier) won't be able to use it anymore, so only change it if you really need to.")
   );
 
-  const codeInput = el("input", { id: "school-slug", type: "text", value: settings.slug || "", placeholder: "e.g. greenhill-jss", maxlength: "40" });
+  // Suggest a code from the school name for schools that haven't set one
+  // yet, instead of handing them a blank field to figure out themselves.
+  const initialSuffix = settings.slug ? slugSuffix(settings.slug) : slugify(settings.schoolName || "");
+
+  const prefixBadge = el("span", { class: "slug-input__prefix" }, `${SLUG_PREFIX}-`);
+  const codeInput = el("input", {
+    id: "school-slug",
+    type: "text",
+    value: initialSuffix,
+    placeholder: "e.g. greenhill-jss",
+    maxlength: "36", // 40 total minus the "ees-" prefix
+  });
+  const inputGroup = el("div", { class: "slug-input-group" }, [prefixBadge, codeInput]);
+
   const availabilityMsg = el("div", { class: "text-sm", id: "slug-availability", style: "min-height:18px;margin-top:4px;" });
+  const unsavedMsg = el("div", { class: "text-sm", id: "slug-unsaved", style: "min-height:18px;color:var(--color-gold);display:none;" }, [
+    icon("info", "text-sm"), " Not saved yet - click \u201cSave profile\u201d below for this link to work.",
+  ]);
   const linkPreview = el("div", { class: "text-sm text-muted", id: "slug-link-preview", style: "margin-top:8px;word-break:break-all;" });
   const copyBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm", id: "copy-login-link" }, [icon("content_copy"), "Copy link"]);
 
   function loginLinkFor(slug) {
     return `${location.origin}${location.pathname}?school=${slug}`;
   }
+  function currentFullSlug() {
+    return buildFullSlug(codeInput.value);
+  }
+  function isDirty() {
+    return currentFullSlug() !== (settings.slug || "");
+  }
   function refreshPreview() {
-    const clean = slugify(codeInput.value);
-    linkPreview.textContent = clean ? loginLinkFor(clean) : "Enter a code above to see your link.";
+    const full = currentFullSlug();
+    linkPreview.textContent = full ? loginLinkFor(full) : "Enter a code above to see your link.";
+  }
+  function refreshDirtyState() {
+    unsavedMsg.style.display = isDirty() && currentFullSlug() ? "" : "none";
   }
   refreshPreview();
+  refreshDirtyState();
 
   codeInput.addEventListener("input", () => {
     codeInput.value = codeInput.value.toLowerCase().replace(/[^a-z0-9-\s]/g, "");
     refreshPreview();
+    refreshDirtyState();
     availabilityMsg.textContent = "";
   });
 
   codeInput.addEventListener("blur", async () => {
-    const clean = slugify(codeInput.value);
-    if (!clean) return;
-    if (clean === settings.slug) {
+    const full = currentFullSlug();
+    if (!full) return;
+    if (full === settings.slug) {
       availabilityMsg.textContent = "";
       return;
     }
     availabilityMsg.textContent = "Checking availability…";
     availabilityMsg.style.color = "var(--color-ink-soft)";
-    const available = await isSlugAvailable(clean, getCurrentSchoolId()).catch(() => false);
+    const available = await isSlugAvailable(full, getCurrentSchoolId()).catch(() => false);
     availabilityMsg.textContent = available ? "Available." : "That code is already taken - try another.";
     availabilityMsg.style.color = available ? "var(--color-green)" : "var(--color-red)";
   });
 
   copyBtn.addEventListener("click", async () => {
-    const clean = slugify(codeInput.value) || settings.slug;
-    if (!clean) {
-      toast("Set a login code first, then save.", "error");
+    const full = currentFullSlug() || settings.slug;
+    if (!full) {
+      toast("Set a school code first, then save.", "error");
+      return;
+    }
+    if (isDirty()) {
+      toast("Save your profile first so this link actually works.", "error");
       return;
     }
     try {
-      await navigator.clipboard.writeText(loginLinkFor(clean));
+      await navigator.clipboard.writeText(loginLinkFor(full));
       toast("Login link copied.", "success");
     } catch {
       toast("Couldn't copy automatically - copy the link text manually.", "error");
@@ -160,13 +217,16 @@ function buildLoginLinkCard() {
 
   card.append(
     el("div", { class: "field" }, [
-      el("label", { for: "school-slug" }, "Login Code"),
-      codeInput,
+      el("label", { for: "school-slug" }, "School Code"),
+      inputGroup,
       availabilityMsg,
+      unsavedMsg,
     ]),
     linkPreview,
     el("div", { class: "settings-form-actions" }, [copyBtn])
   );
+
+  loginLinkUI = { refreshPreview, refreshDirtyState };
 
   return card;
 }
@@ -275,7 +335,7 @@ function applyThemePreset(t) {
     c.classList.toggle("theme-card--active", active);
     const status = c.querySelector(".theme-card__status");
     status.innerHTML = "";
-    status.append(active ? icon("check_circle") : null, active ? "Installed" : "Apply");
+    status.append(...(active ? [icon("check_circle")] : []), active ? "Installed" : "Apply");
   }
   updateThemePreview(t.primary, t.secondary);
   toast(`${t.name} theme ready to save.`, "info", 2500);
@@ -434,10 +494,10 @@ export function init({ profile }) {
     const restore = busyButton(e.submitter, "Saving…");
     try {
       const previousSlug = settings.slug;
-      const cleanSlug = slugify(val("school-slug"));
+      const cleanSlug = buildFullSlug(val("school-slug"));
       if (cleanSlug && cleanSlug !== previousSlug) {
         const available = await isSlugAvailable(cleanSlug, getCurrentSchoolId());
-        if (!available) throw new Error("That login code is already taken - choose a different one.");
+        if (!available) throw new Error("That school code is already taken - choose a different one.");
       }
       const schoolName = val("schoolName");
       await saveSchoolSettings(profile.uid, {
@@ -461,8 +521,8 @@ export function init({ profile }) {
           status: settings.status,
         });
       }
-      applyBranding(settings);
-      invalidateSchoolSettingsCache();
+      await refreshSchoolChrome();
+      loginLinkUI?.refreshDirtyState();
       toast("School profile saved.", "success");
     } catch (err) {
       toast(err.message || "Could not save school profile.", "error");
@@ -496,8 +556,7 @@ export function init({ profile }) {
           status: settings.status,
         });
       }
-      applyBranding(settings);
-      invalidateSchoolSettingsCache();
+      await refreshSchoolChrome();
       toast("Branding saved.", "success");
     } catch (err) {
       toast(err.message || "Could not save branding.", "error");

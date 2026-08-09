@@ -156,6 +156,32 @@ export function invalidateSchoolSettingsCache() {
   settingsPromise = null;
 }
 
+// References to the currently-mounted topbar/sidebar chrome, kept live so
+// refreshSchoolChrome() can patch them in place. Set on every renderShell()
+// call; null before the shell has ever been rendered.
+let schoolNameElRef = null;
+let logoMountRef = null;
+
+// Re-fetches settings and patches the *already-rendered* shell (topbar
+// name, sidebar logo, theme colors) immediately - without this, School
+// Settings saves would invalidate the cache but the visible chrome would
+// stay stale until the user happened to navigate to another route (the
+// shell only rebuilds on route change), which looked like "nothing
+// updates until I refresh the page".
+export async function refreshSchoolChrome() {
+  invalidateSchoolSettingsCache();
+  const settings = await loadSchoolSettingsOnce();
+  if (schoolNameElRef && settings.schoolName) {
+    schoolNameElRef.textContent = settings.schoolName;
+  }
+  if (logoMountRef && settings.logoUrl) {
+    logoMountRef.innerHTML = "";
+    logoMountRef.append(el("img", { src: settings.logoUrl, alt: "School Logo", class: "sidebar__logo-img" }));
+  }
+  applyBranding(settings);
+  return settings;
+}
+
 export function renderShell(app, profile, activePath) {
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
@@ -209,6 +235,9 @@ export function renderShell(app, profile, activePath) {
       applyBranding(settings);
     }).catch(() => {});
   }
+
+  schoolNameElRef = schoolNameEl;
+  logoMountRef = logoMount;
 
   sidebar.append(logoMount);
 

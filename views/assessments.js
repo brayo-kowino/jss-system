@@ -204,7 +204,7 @@ function renderKpis(container) {
   const kpis = [
     { label: "Total Assessments", value: assessments.length, icon: "assignment", color: "blue" },
     { label: "Open for Entry", value: open, icon: "edit_note", color: "green" },
-    { label: "Locked", value: locked, icon: "lock", color: "purple" },
+    { label: "Locked", value: locked, icon: "lock", color: "red" },
     { label: "Upcoming", value: upcoming, icon: "event_upcoming", color: "gold" },
   ];
 

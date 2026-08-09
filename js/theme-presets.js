@@ -27,13 +27,6 @@ export const THEME_PRESETS = [
     secondary: "#C9A227",
   },
   {
-    id: "royal-purple",
-    name: "Royal Purple",
-    description: "Regal purple with a soft bronze accent.",
-    primary: "#4B2E83",
-    secondary: "#B08D57",
-  },
-  {
     id: "ocean-breeze",
     name: "Ocean Breeze",
     description: "Bright teal-blue with a warm coral-orange accent.",
