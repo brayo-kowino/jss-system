@@ -59,11 +59,6 @@ function renderStructures(container, profile) {
     el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" }, [
       el("h3", { style: "margin:0;" }, "Fee Structures"),
       el("div", { style: "display:flex; gap:8px;" }, [
-        el("button", {
-          class: "btn btn--ghost btn--sm",
-          title: "Recompute every active student's balance summary for the current term - use this once after upgrading, or any time the dashboard's balances count looks stale.",
-          onClick: (e) => handleBackfillFeeStatus(e.currentTarget),
-        }, [icon("sync"), "Sync Balances Now"]),
         el("button", { class: "btn btn--primary btn--sm", onClick: () => openStructureModal(profile, null, container) }, [icon("price_change"), "Set Fee Structure"]),
       ]),
     ])
