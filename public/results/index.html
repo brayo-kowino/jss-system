@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Check results - Eeskia</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" type="image/png" href="/assets/learning-journey.png" />
+<style>
+  :root {
+    --navy: #0B2545; --blue: #14538A; --cream: #FAF6F0; --cream-dim: #F1EAE0;
+    --ink: #21262B; --ink-soft: #5C6A73; --gold: #C9A227; --green: #2E7D46;
+    --red: #B3261E; --line: #DCE3E8; --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--cream); color: var(--ink);
+    font-family: Arial, Helvetica, sans-serif; display: flex; justify-content: center;
+    padding: 32px 16px;
+  }
+  .wrap { width: 100%; max-width: 440px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .brand img { width: 32px; height: 32px; border-radius: 6px; }
+  .brand span { font-family: Georgia, 'Times New Roman', serif; font-size: 19px; color: var(--navy); }
+  .card {
+    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
+    padding: 28px 24px; box-shadow: 0 8px 24px rgba(11,37,69,0.08);
+  }
+  h1 { font-family: Georgia, serif; font-size: 20px; color: var(--navy); margin: 0 0 6px; }
+  .sub { font-size: 13px; color: var(--ink-soft); margin: 0 0 20px; line-height: 1.5; }
+  label { display: block; font-size: 12px; color: var(--ink-soft); margin: 14px 0 4px; }
+  input[type="text"], input[type="date"] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; font-family: inherit; color: var(--ink); background: var(--cream);
+  }
+  input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  button {
+    width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 8px;
+    background: var(--blue); color: var(--white); font-size: 14px; font-weight: bold;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .error {
+    margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+    background: #FBEAEA; color: var(--red); display: none;
+  }
+  .error.show { display: block; }
+  .result-card { margin-top: 18px; }
+  .result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .result-header h2 { font-family: Georgia, serif; font-size: 17px; color: var(--navy); margin: 0; }
+  .meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--ink-soft); font-weight: normal; font-size: 11px; text-transform: uppercase; }
+  .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .stat { background: var(--cream-dim); border-radius: 8px; padding: 8px 12px; font-size: 12px; flex: 1; min-width: 90px; }
+  .stat b { display: block; font-size: 16px; color: var(--navy); }
+  .remark { margin-top: 12px; font-size: 13px; }
+  .remark b { color: var(--navy); }
+  .back-link { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--blue); cursor: pointer; }
+  .fine { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <img src="/assets/learning-journey.png" alt="" />
+    <span>Eeskia</span>
+  </div>
+
+  <div class="card" id="form-card">
+    <h1>Check student results</h1>
+    <p class="sub">Enter the student's admission number and date of birth exactly as registered with the school.</p>
+
+    <form id="lookup-form">
+      <label for="slug">School code</label>
+      <input type="text" id="slug" placeholder="e.g. greenhill-academy" autocomplete="off" required />
+
+      <label for="admNo">Admission number</label>
+      <input type="text" id="admNo" placeholder="e.g. JSS/2024/001" autocomplete="off" required />
+
+      <label for="dob">Date of birth</label>
+      <input type="date" id="dob" required />
+
+      <!-- Cloudflare Turnstile widget. Replace YOUR_TURNSTILE_SITE_KEY below
+           once you've created a site key in the Turnstile dashboard, and
+           add https://challenges.cloudflare.com to script-src/frame-src/
+           connect-src in netlify.toml's CSP (see comment at bottom). -->
+      <div class="cf-turnstile" data-sitekey="YOUR_TURNSTILE_SITE_KEY" style="margin-top:14px;"></div>
+
+      <button type="submit" id="submit-btn">Check results</button>
+    </form>
+
+    <div class="error" id="error-box"></div>
+  </div>
+
+  <div class="card result-card" id="result-card" style="display:none;"></div>
+
+  <p class="fine">If you don't know your school code, contact the school office. This page never stores your search.</p>
+</div>
+
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<script>
+  const form = document.getElementById("lookup-form");
+  const errorBox = document.getElementById("error-box");
+  const submitBtn = document.getElementById("submit-btn");
+  const formCard = document.getElementById("form-card");
+  const resultCard = document.getElementById("result-card");
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add("show");
+  }
+  function clearError() {
+    errorBox.classList.remove("show");
+    errorBox.textContent = "";
+  }
+
+  function renderResult(data) {
+    const s = data.student || {};
+    let html = `<div class="result-header"><h2>${escapeHtml(s.fullName || "Student")}</h2></div>`;
+    html += `<div class="meta">${escapeHtml(s.grade || "")}${s.stream ? " " + escapeHtml(s.stream) : ""}</div>`;
+
+    if (!data.results) {
+      html += `<p>${escapeHtml(data.message || "No results published yet.")}</p>`;
+    } else {
+      const r = data.results;
+      html += `<div class="meta">${escapeHtml(String(r.academicYear || ""))} — ${escapeHtml(r.term || "")}</div>`;
+      html += `<table><thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Points</th></tr></thead><tbody>`;
+      (r.subjects || []).forEach((subj) => {
+        html += `<tr><td>${escapeHtml(subj.name || subj.code || "")}</td><td>${fmtNum(subj.average)}</td><td>${escapeHtml(subj.grade || "")}</td><td>${fmtNum(subj.points)}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      html += `<div class="summary">`;
+      html += statBlock("Mean", fmtNum(r.meanMarks));
+      html += statBlock("Mean grade", r.meanGrade || "-");
+      html += statBlock("Position", r.overallPosition ? `${r.overallPosition} / ${r.classSize || "-"}` : "-");
+      html += `</div>`;
+      if (r.teacherRemark) html += `<div class="remark"><b>Class teacher:</b> ${escapeHtml(r.teacherRemark)}</div>`;
+      if (r.principalRemark) html += `<div class="remark"><b>Principal:</b> ${escapeHtml(r.principalRemark)}</div>`;
+    }
+
+    html += `<div class="back-link" id="back-link">&larr; Check another student</div>`;
+    resultCard.innerHTML = html;
+    resultCard.style.display = "block";
+    formCard.style.display = "none";
+    document.getElementById("back-link").addEventListener("click", () => {
+      resultCard.style.display = "none";
+      formCard.style.display = "block";
+      if (window.turnstile) window.turnstile.reset();
+    });
+  }
+
+  function statBlock(label, value) {
+    return `<div class="stat">${escapeHtml(label)}<b>${escapeHtml(String(value))}</b></div>`;
+  }
+  function fmtNum(n) {
+    return typeof n === "number" ? Math.round(n * 10) / 10 : (n || "-");
+  }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    clearError();
+
+    const slug = document.getElementById("slug").value.trim();
+    const admissionNumber = document.getElementById("admNo").value.trim();
+    const dob = document.getElementById("dob").value;
+    const captchaToken = window.turnstile ? window.turnstile.getResponse() : "";
+
+    if (!slug || !admissionNumber || !dob) {
+      showError("Please fill in every field.");
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Checking…";
+
+    try {
+      const res = await fetch("/results-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, admissionNumber, dob, captchaToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.error || "Something went wrong. Please try again.");
+        if (window.turnstile) window.turnstile.reset();
+        return;
+      }
+      renderResult(data);
+    } catch {
+      showError("Couldn't reach the results service. Please try again.");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Check results";
+    }
+  });
+</script>
+</body>
+</html>

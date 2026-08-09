@@ -32,6 +32,7 @@ import * as assessmentsView from "../views/assessments.js";
 import * as marksView from "../views/marks.js";
 import * as gradingView from "../views/grading.js";
 import * as reportsView from "../views/reports.js";
+import * as releaseResultsView from "../views/release-results.js";
 import * as attendanceView from "../views/attendance.js";
 import * as feesView from "../views/fees.js";
 import * as timetableView from "../views/timetable.js";
@@ -59,6 +60,7 @@ export const routes = {
 
   "/attendance": { view: attendanceView, roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
   "/reports": { view: reportsView, allRoles: true, title: "Report Cards & Reports" },
+  "/release-results": { view: releaseResultsView, roles: ["admin", "academic_master"], title: "Release Results" },
   "/fees": { view: feesView, roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
 
   "/timetable": { view: timetableView, allRoles: true, title: "Timetable" },

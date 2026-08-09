@@ -84,6 +84,7 @@ const NAV = [
       { path: "/assessments", icon: "quiz", text: "Assessments", roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"] },
       { path: "/grading", icon: "analytics", text: "Grading & Positions", roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"] },
       { path: "/reports", icon: "description", text: "Report Cards", allRoles: true },
+      { path: "/release-results", icon: "visibility", text: "Release Results", roles: ["admin", "academic_master"] },
       { path: "/analytics", icon: "insert_chart", text: "School Analytics", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
       { path: "/academics", icon: "meeting_room", text: "Classes & Streams", roles: ["admin", "deputy_principal", "principal", "academic_master"] },
       { path: "/subjects", icon: "menu_book", text: "Subjects", roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"] },

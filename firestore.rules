@@ -278,6 +278,21 @@ service cloud.firestore {
       allow delete: if false; // app never deletes marks
     }
 
+    // Result releases - one doc per grade/year/term/mode, controlling
+    // whether the public results portal (netlify/edge-functions/
+    // results-lookup.ts) is allowed to hand that batch of results to a
+    // parent, and when it stops (expiresAt). The edge function reads this
+    // collection with a service-account credential that bypasses these
+    // rules entirely (same as it does for /results and /students) - this
+    // rule only governs the in-app Release Results screen. Same write
+    // group as computing results in the first place, since releasing is
+    // the natural next step after Save Results.
+    match /result_releases/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canComputeResults() && ownsIncoming() && ownsExisting();
+      allow delete: if false;
+    }
+
     // Results - read broadly (report cards, grading page). Full
     // compute/publish is admin/academic_master only; class_teacher may
     // only ever touch their own remark field, and principal/deputy
@@ -362,6 +377,19 @@ service cloud.firestore {
     // reads/writes the schools/{id} doc above instead) - dropped rather than
     // left open as unused attack surface. Add it back with the same
     // ownsExisting()/ownsIncoming() pattern above if it's ever wired up.
+
+    // lookup_attempts/{schoolId_admissionNumber} - failed-attempt counters
+    // for the public results portal (netlify/edge-functions/results-lookup.ts).
+    // That function authenticates with a Google service-account credential,
+    // which reads/writes Firestore with Admin-level authority and bypasses
+    // these rules entirely - so this collection is never actually reached
+    // through a client SDK call. Explicit deny here anyway, so the intent
+    // is documented rather than relying silently on default-deny, and so a
+    // future refactor that accidentally routes a client call through this
+    // collection fails closed instead of open.
+    match /lookup_attempts/{docId} {
+      allow read, write: if false;
+    }
 
     // No catch-all wildcard anymore: every operational collection above is
     // named explicitly, and anything not matched here is denied by
