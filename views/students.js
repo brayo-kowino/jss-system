@@ -440,10 +440,7 @@ async function renderAcademicTab(panel, profile, student, refreshAll) {
       el("td", {}, r.classPosition ? `${r.classPosition}/${r.streamClassSize}` : "N/A"),
       el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
       el("td", {}, reportModeLabel(r.reportMode)),
-      el("td", {}, el("button", {
-        class: "btn btn--ghost btn--sm",
-        onClick: () => openIssueForm(profile, student, { academicYear: r.academicYear, term: r.term, resultId: r.id }, refreshAll),
-      }, [icon("flag"), "Flag"])),
+
     ]));
   }
   table.append(tbody);

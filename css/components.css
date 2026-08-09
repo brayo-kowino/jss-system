@@ -481,7 +481,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   border-radius: var(--radius-lg);
   padding: var(--sp-6);
   width: 100%;
-  max-width: 720px;
+  max-width: 56%;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--shadow-lg);
