@@ -1026,6 +1026,11 @@ tbody tr:hover { background: var(--color-primary-100); }
   grid-column: 1 / -1;
 }
 
+.settings-login-link {
+  grid-column: 1 / -1;
+  margin: var(--sp-4) 0 0;
+}
+
 /* Logo uploader */
 .brand-logo-row { display: flex; gap: var(--sp-4); align-items: center; flex-wrap: wrap; }
 .brand-logo-preview {

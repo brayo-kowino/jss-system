@@ -93,13 +93,16 @@ function buildProfileTab() {
     field("phone", "Phone", settings.phone),
     field("email", "Email", settings.email, "email"),
   );
+  // The login link card lives inside this same form, above the Save
+  // button, so it's visually obvious that saving covers the school code
+  // too - not just the fields above it.
+  form.append(buildLoginLinkCard());
   form.append(
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save profile"]),
     ])
   );
   card.append(form);
-  card.append(buildLoginLinkCard());
   return card;
 }
 
@@ -129,7 +132,7 @@ function buildFullSlug(suffixRaw) {
 let loginLinkUI = null;
 
 function buildLoginLinkCard() {
-  const card = el("div", { class: "card settings-card", style: "margin-top:20px;" });
+  const card = el("div", { class: "card settings-card settings-login-link" });
   card.append(
     el("h3", {}, "Your School Login Link"),
     el("p", { class: "text-sm text-muted" }, "Share this link with your staff and parents so they land on your school's own branded sign-in page instead of the generic one. Every code starts with \u201cees-\u201d so it's recognizable as an Eeskia link."),
