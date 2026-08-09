@@ -78,7 +78,7 @@ initializeAppCheck(firebaseApp, {
   // -> this app's registration (see step 1 above). App Check will not
   // function - and will fail silently into "no token" - until this is a
   // real site key rather than the placeholder.
-  provider: new ReCaptchaV3Provider("REPLACE_WITH_RECAPTCHA_V3_SITE_KEY"),
+  provider: new ReCaptchaV3Provider("6LcEUX0tAAAAAA_U1HH-0ci7DiVoND7z-pzdEz4J"),
   isTokenAutoRefreshEnabled: true,
 });
 

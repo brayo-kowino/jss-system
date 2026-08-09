@@ -32,7 +32,7 @@
 
 import type { Context } from "https://edge.netlify.com";
 
-const CLOUDINARY_CLOUD_NAME = "xtselsxh"; // not a secret - it's part of every public delivery URL already
+const CLOUDINARY_CLOUD_NAME = "xtselsxh"; 
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 // Same public Web API key already shipped in js/firebase-config.js - it

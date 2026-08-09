@@ -140,7 +140,7 @@ async function applyNonceCsp(response: Response): Promise<Response> {
   if (existingCsp) {
     const nonceCsp = existingCsp.replace(
       /script-src[^;]*/,
-      `script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net 'nonce-${nonce}'`,
+      `script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com 'nonce-${nonce}'`,
     );
     headers.set("Content-Security-Policy", nonceCsp);
   }
