@@ -4,13 +4,11 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Eeskia - School Management System</title>
-
 <meta name="description" content="Eeskia is a school management system built for the Kenya curriculum especially for the CBC - one dashboard for admins, teachers, parents and support staff to manage students, grading, fees, attendance and timetables." />
 <meta name="keywords" content="school management system, CBC grading, student information system, school fees software, attendance tracking, Kenya school software" />
 <meta name="robots" content="index, follow" />
 <meta name="author" content="Eeskia" />
 
-<!-- Open Graph -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Eeskia" />
 <meta property="og:title" content="Eeskia - School Management System" />
@@ -22,14 +20,12 @@
 <meta property="og:image:alt" content="Eeskia dashboard preview" />
 <meta property="og:locale" content="en_US" />
 
-<!-- Twitter Card -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Eeskia - School Management System" />
 <meta name="twitter:description" content="One dashboard for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance and timetables." />
 <meta name="twitter:image" content="https://eeskia.netlify.app/assets/eeskia-hero-image.png" />
 <meta name="twitter:image:alt" content="Eeskia dashboard preview" />
 
-<!-- Theme / PWA -->
 <meta name="theme-color" content="#14538A" />
 <link rel="manifest" href="/site.webmanifest" />
 
@@ -84,11 +80,8 @@
 
 <script>
 (function () {
-  // Lightweight canvas particle field for the splash screen only.
-  // Self-contained, no deps, and stops itself the instant the router
-  // wipes #app (innerHTML = "") so it never runs against a detached node.
   var mq = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
-  if (mq && mq.matches) return; // respect reduced-motion: keep the CSS-only splash
+  if (mq && mq.matches) return;
 
   var canvas = document.getElementById("splash-canvas");
   if (!canvas || !canvas.getContext) return;
@@ -139,7 +132,7 @@
       ctx.fillStyle = "rgba(" + p.c + "," + p.a + ")";
       ctx.fill();
     }
-    // faint connecting lines between nearby particles for a "network" feel
+  
     var maxDist = 90 * dpr;
     for (var a = 0; a < particles.length; a++) {
       for (var b = a + 1; b < particles.length; b++) {
@@ -172,15 +165,6 @@
   </div>
 </noscript>
 
-<!-- ==========================================================================
-     Boot watchdog. Deliberately plain, inline, and independent of every
-     other file: if a script/stylesheet fails to load, or the app JS never
-     finishes starting up (blocked CDN, offline on first visit, a broken
-     deploy...), this still shows something readable instead of leaving the
-     splash screen spinning forever or a blank white tab. js/app.js pings
-     __jssBootPing() as soon as it starts running and __jssBootOk() once the
-     first route has rendered, both of which cancel this fallback.
-     ========================================================================== -->
 <script>
 (function () {
   var settled = false;
@@ -247,7 +231,6 @@
 })();
 </script>
 
-<!-- Firebase (modular SDK, v10) -->
 <script type="module" src="../js/firebase-config.js"></script>
 <script type="module" src="../js/app.js"></script>
 </body>
