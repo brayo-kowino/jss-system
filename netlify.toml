@@ -1,5 +1,31 @@
 [build]
-  publish = "."
+  command = "npm run build"
+  publish = "dist"
+
+# ==========================================================================
+# Build step (Vite)
+# `npm run build` runs `vite build` (see vite.config.js), which:
+#   - bundles the ES modules under js/ and views/ into content-hashed chunks
+#     under dist/assets/*.js, minified and then obfuscated (see the
+#     obfuscatorPlugin in vite.config.js);
+#   - bundles/minifies the CSS from css/*.css into dist/assets/*.css;
+#   - leaves the Firebase (gstatic.com) and Chart.js (jsdelivr, +esm) CDN
+#     imports untouched/external, exactly as they load today - already
+#     whitelisted below in script-src, so no CSP change was needed for them;
+#   - copies public/ (a copy of assets/, robots.txt, sitemap.xml,
+#     site.webmanifest) straight into dist/ unhashed, since app/index.html,
+#     site.webmanifest, robots.txt and sitemap.xml all reference those by
+#     fixed absolute path;
+#   - emits the 4 HTML entry points (index.html, app/index.html,
+#     data-protection.html, terms-of-service.html) at the same URLs they
+#     live at today, each with the same inline <script> content it had
+#     before (splash particles, boot watchdog, etc.) - security.ts's nonce
+#     regex stamps those the same way it always has, since it matches on
+#     any <script> tag regardless of what build tool produced the HTML.
+# `netlify/edge-functions/*` are picked up by Netlify directly from the
+# repo regardless of the publish directory, so nothing there needed to
+# change for this.
+# ==========================================================================
 
 # ==========================================================================
 # Security edge function (maintenance mode + CSP nonce injection).
@@ -108,21 +134,19 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
     
-[[headers]]
-  for = "/css/*"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
-[[headers]]
-  for = "/js/*"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
-[[headers]]
-  for = "/views/*"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-
+# /css/*, /js/*, and /views/* no longer exist as served paths post-build
+# (everything bundles into /assets/*) - those three header rules were
+# removed rather than left dangling on paths nothing matches.
+#
+# /assets/* now holds a mix of content-hashed build output (app-<hash>.js,
+# app-<hash>.css - safe to cache forever, a content change gets a new
+# filename) and a handful of unhashed passthrough images/icons copied
+# straight from assets/ (referenced by fixed absolute path from
+# app/index.html and site.webmanifest, so their filenames can't change).
+# Netlify's header matching can't tell those two apart by path alone, so
+# this keeps the same moderate, always-revalidated policy the unhashed
+# files already relied on rather than risking a stale logo/icon being
+# served under an aggressive immutable cache.
 [[headers]]
   for = "/assets/*"
   [headers.values]
