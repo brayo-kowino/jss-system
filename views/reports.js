@@ -204,13 +204,28 @@ async function handleBulkDownload(button, results, profile) {
   const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:900px;" });
   document.body.appendChild(offscreen);
   try {
-    const items = results.map((r) => ({
-      filename: `${(r.fullName || "student").replace(/\s+/g, "_")}_${r.admissionNumber || r.studentId}.pdf`,
-      build: async () => {
-        const [feeSummary, history] = await Promise.all([
+    // Fetch every student's fee summary + history up front, all in
+    // parallel, instead of one pair of awaits per student interleaved into
+    // the render loop below. The render loop itself stays sequential (see
+    // downloadPdfsAsZip) to keep the browser from rasterizing 40+ report
+    // cards at once, but there's no reason the *network* reads should be
+    // serialized behind that - prefetching them concurrently means the
+    // whole batch's Firestore round trips overlap instead of queuing up
+    // one by one as each card is about to render.
+    button.textContent = "Fetching data…";
+    const prefetched = await Promise.all(
+      results.map((r) =>
+        Promise.all([
           getFeeSummary({ studentId: r.studentId, grade: r.grade, academicYear: r.academicYear, term: r.term }),
           listResultsForStudent(r.studentId),
-        ]);
+        ])
+      )
+    );
+
+    const items = results.map((r, i) => ({
+      filename: `${(r.fullName || "student").replace(/\s+/g, "_")}_${r.admissionNumber || r.studentId}.pdf`,
+      build: async () => {
+        const [feeSummary, history] = prefetched[i];
         const priorHistory = history
           .filter((h) => !(h.academicYear === r.academicYear && h.term === r.term))
           .filter((h) => (h.reportMode || "average") === (r.reportMode || "average"))

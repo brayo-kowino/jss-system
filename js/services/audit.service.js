@@ -6,7 +6,10 @@ import {
   serverTimestamp,
   query,
   where,
+  orderBy,
+  limit,
   getDocs,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
@@ -30,11 +33,44 @@ export async function logAction(userId, action, entity, entityId) {
 export async function fetchRecentLogs(count = 50) {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return [];
-  const snap = await getDocs(query(collection(db, "audit_logs"), where("schoolId", "==", schoolId)));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
-    .slice(0, count);
+  // Sort/limit natively in Firestore so we only ever download `count` docs,
+  // rather than pulling the whole audit_logs collection and slicing in JS
+  // (that pattern crashes the app once the collection grows past a few
+  // thousand entries). Requires a composite index on
+  // (schoolId ==, timestamp desc) - Firestore will surface a
+  // console link to create it the first time this runs if missing.
+  const snap = await getDocs(
+    query(
+      collection(db, "audit_logs"),
+      where("schoolId", "==", schoolId),
+      orderBy("timestamp", "desc"),
+      limit(count)
+    )
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Time-bounded fetch for the Audit Trail page. Pushes the "how far back"
+// filter into the Firestore query itself (schoolId ==, timestamp >=,
+// timestamp desc) instead of pulling a fixed batch of docs and filtering
+// client-side - so picking "Last hour" actually reads ~10-50 docs instead
+// of paying for a 1000-doc fetch every time regardless of range.
+// Requires a composite index on (schoolId ==, timestamp >=, timestamp desc);
+// Firestore will surface a console link to create it the first time this
+// runs if missing.
+export async function fetchLogsSince(sinceMs, count = 500) {
+  const schoolId = getCurrentSchoolId();
+  if (!schoolId) return [];
+  const snap = await getDocs(
+    query(
+      collection(db, "audit_logs"),
+      where("schoolId", "==", schoolId),
+      where("timestamp", ">=", Timestamp.fromMillis(sinceMs)),
+      orderBy("timestamp", "desc"),
+      limit(count)
+    )
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 // One entity's history (e.g. every logged action against a single student),
@@ -47,13 +83,12 @@ export async function listLogsForEntity(entity, entityId, count = 30) {
       collection(db, "audit_logs"),
       where("schoolId", "==", schoolId),
       where("entity", "==", entity),
-      where("entityId", "==", entityId)
+      where("entityId", "==", entityId),
+      orderBy("timestamp", "desc"),
+      limit(count)
     )
   );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
-    .slice(0, count);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 // ---------------------------------------------------------------------------

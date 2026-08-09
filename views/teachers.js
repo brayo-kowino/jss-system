@@ -85,7 +85,9 @@ function refreshPanel(profile) {
 }
 
 async function refreshAll(profile) {
-  const [t, u] = await Promise.all([listTeachers(), listSchoolUsers()]);
+  // forceRefresh: true - we just created/edited a teacher record, so skip
+  // straight past the cache instead of possibly showing stale data.
+  const [t, u] = await Promise.all([listTeachers(true), listSchoolUsers()]);
   teachers = t; staffUsers = u;
   refreshPanel(profile);
 }

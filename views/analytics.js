@@ -3,7 +3,7 @@ import { getSchoolSettings } from "../js/services/settings.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { listTeachers } from "../js/services/teacher.service.js";
 import { listResultsByPeriod } from "../js/services/grading.service.js";
-import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
+import { listFeeStatusesForPeriod, formatKES } from "../js/services/fee.service.js";
 import { el, icon, toast, spinner, escapeHtml } from "../js/utils.js";
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 
@@ -132,12 +132,14 @@ async function fetchTargetedResults() {
     return pickBestPerStudent(docs);
   }
 
-  let allResults = [];
-  for (const c of classes) {
-    const docs = await listResultsByPeriod({ grade: c.grade, stream: "", academicYear: selection.academicYear, term: selection.term });
-    allResults.push(...pickBestPerStudent(docs));
-  }
-  return allResults;
+  // Fire the per-grade queries in parallel instead of blocking one grade on
+  // the next - independent reads with nothing for a sequential await to buy us.
+  const perGrade = await Promise.all(
+    classes.map((c) =>
+      listResultsByPeriod({ grade: c.grade, stream: "", academicYear: selection.academicYear, term: selection.term })
+    )
+  );
+  return perGrade.flatMap((docs) => pickBestPerStudent(docs));
 }
 
 function resetChart() {
@@ -237,20 +239,27 @@ async function renderTopStudents(container) {
 
 // --- 2. Fee Report ---
 async function renderFeeReport(container) {
-  const students = await listStudents();
-  let activeStudents = students.filter(s => s.status === "active");
-  if (selection.grade) activeStudents = activeStudents.filter(s => s.grade === selection.grade);
+  // Single query against student_fee_status instead of looping
+  // getFeeSummary() per active student - same pattern as the dashboard's
+  // getStudentsWithBalancesCount(). listStudents() is still needed for
+  // name/admission number/status, but no per-student fee reads happen here.
+  const [students, feeStatuses] = await Promise.all([
+    listStudents(),
+    listFeeStatusesForPeriod({ grade: selection.grade, academicYear: selection.academicYear, term: selection.term }),
+  ]);
+  const studentsById = new Map(students.map((s) => [s.id, s]));
 
   const balances = [];
   let totalExpected = 0, totalPaid = 0, totalDeficit = 0;
 
-  for (const s of activeStudents) {
-    const summary = await getFeeSummary({ studentId: s.id, grade: s.grade, academicYear: selection.academicYear, term: selection.term });
-    totalExpected += summary.expected;
-    totalPaid += summary.paid;
-    if (summary.balance > 0) {
-      totalDeficit += summary.balance;
-      balances.push({ student: s, ...summary });
+  for (const status of feeStatuses) {
+    const s = studentsById.get(status.studentId);
+    if (!s || s.status !== "active") continue;
+    totalExpected += status.expected || 0;
+    totalPaid += status.paid || 0;
+    if (status.balance > 0) {
+      totalDeficit += status.balance;
+      balances.push({ student: s, expected: status.expected || 0, paid: status.paid || 0, balance: status.balance });
     }
   }
 

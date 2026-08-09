@@ -20,6 +20,7 @@ import {
 import { db } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { logAction } from "./audit.service.js";
+import { cached, invalidate } from "./query-cache.js";
 
 export const CATEGORIES = [
   { value: "fees", label: "Fee Balance Reminder" },
@@ -46,20 +47,33 @@ export function categoryMeta(category) {
   return map[category] || { icon: "notifications", label: "Notification" };
 }
 
-export async function listNotifications() {
+function notificationsCacheKey(schoolId) {
+  return `notifications:${schoolId}`;
+}
+
+export async function listNotifications(forceRefresh = false) {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return [];
-  const snap = await getDocs(
-    query(collection(db, "notifications"), where("schoolId", "==", schoolId))
-  );
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  // Same cache-with-forceRefresh pattern as listClasses()/listSubjects() in
+  // academic.service.js. Shorter TTL than the mostly-static lookups (2 min
+  // vs 5) since status flips queued -> delivered fairly often, but every
+  // write below still invalidates immediately so that's just a ceiling on
+  // staleness for a tab left open, not something callers need to think about.
+  if (forceRefresh) invalidate(notificationsCacheKey(schoolId));
+  return cached(notificationsCacheKey(schoolId), 2 * 60_000, async () => {
+    const snap = await getDocs(
+      query(collection(db, "notifications"), where("schoolId", "==", schoolId))
+    );
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  });
 }
 
 export async function createNotification(userId, data) {
+  const schoolId = getCurrentSchoolId();
   const ref = await addDoc(collection(db, "notifications"), {
-    schoolId: getCurrentSchoolId(),
+    schoolId,
     title: data.title,
     body: data.body,
     category: data.category,
@@ -69,12 +83,14 @@ export async function createNotification(userId, data) {
     status: "queued",
     createdAt: serverTimestamp(),
   });
+  invalidate(notificationsCacheKey(schoolId));
   await logAction(userId, "send_notification", "notifications", ref.id);
   return ref.id;
 }
 
 export async function setNotificationStatus(userId, id, status) {
   await updateDoc(doc(db, "notifications", id), { status });
+  invalidate(notificationsCacheKey(getCurrentSchoolId()));
   await logAction(
     userId,
     status === "delivered" ? "deliver_notification" : "requeue_notification",
@@ -85,6 +101,7 @@ export async function setNotificationStatus(userId, id, status) {
 
 export async function deleteNotification(userId, id) {
   await deleteDoc(doc(db, "notifications", id));
+  invalidate(notificationsCacheKey(getCurrentSchoolId()));
   await logAction(userId, "delete_notification", "notifications", id);
 }
 

@@ -9,6 +9,8 @@ import {
   recordPayment,
   listPaymentsForClassPeriod,
   getFeeSummary,
+  syncStudentFeeStatus,
+  backfillAllFeeStatuses,
   formatKES,
 } from "../js/services/fee.service.js";
 import { downloadElementAsPdf, downloadPdfsAsZip } from "../js/services/pdf.util.js";
@@ -56,7 +58,14 @@ function renderStructures(container, profile) {
   container.append(
     el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" }, [
       el("h3", { style: "margin:0;" }, "Fee Structures"),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => openStructureModal(profile, null, container) }, [icon("price_change"), "Set Fee Structure"]),
+      el("div", { style: "display:flex; gap:8px;" }, [
+        el("button", {
+          class: "btn btn--ghost btn--sm",
+          title: "Recompute every active student's balance summary for the current term - use this once after upgrading, or any time the dashboard's balances count looks stale.",
+          onClick: (e) => handleBackfillFeeStatus(e.currentTarget),
+        }, [icon("sync"), "Sync Balances Now"]),
+        el("button", { class: "btn btn--primary btn--sm", onClick: () => openStructureModal(profile, null, container) }, [icon("price_change"), "Set Fee Structure"]),
+      ]),
     ])
   );
 
@@ -150,6 +159,23 @@ async function handleDeleteStructure(profile, structure, container) {
   }
 }
 
+// One-off (or occasional) full resync of student_fee_status for the
+// school's current term - the dashboard's "students with balances" count
+// only reflects students who've had a payment recorded or a fee structure
+// resaved since that summary collection was introduced, so this catches
+// everyone else up in one go.
+async function handleBackfillFeeStatus(button) {
+  const restore = busyButton(button, "Syncing…");
+  try {
+    const count = await backfillAllFeeStatuses(settings.currentAcademicYear, settings.currentTerm);
+    toast(`Synced fee balances for ${count} student(s).`, "success");
+  } catch (err) {
+    toast(err.message || "Could not sync fee balances.", "error");
+  } finally {
+    restore();
+  }
+}
+
 // ------------------------------------------------------ Balances Picker --
 
 function streamOptions(grade) {
@@ -215,11 +241,24 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
   const students = (await listStudents()).filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
     .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
-  balanceRows = [];
-  for (const student of students) {
-    const summary = await getFeeSummary({ studentId: student.id, grade, academicYear, term });
-    balanceRows.push({ student, ...summary });
-  }
+  balanceRows = (
+    await Promise.all(
+      students.map(async (student) => ({
+        student,
+        ...(await getFeeSummary({ studentId: student.id, grade, academicYear, term })),
+      }))
+    )
+  );
+  // Piggyback the balances collection sync on a page view that's already
+  // paying for these reads - keeps student_fee_status fresh for whichever
+  // classes staff actually look at, on top of the explicit "Sync Balances
+  // Now" backfill above. Fire-and-forget: a failed sync here shouldn't
+  // block the balances table from rendering.
+  Promise.all(
+    balanceRows.map(({ student, expected, paid, balance }) =>
+      syncStudentFeeStatus({ studentId: student.id, grade, academicYear, term, summary: { expected, paid, balance } }).catch(() => {})
+    )
+  );
 
   renderBalances(balancesMount, profile, paymentsMount, receiptMount);
   await renderPaymentsHistory(paymentsMount, profile, receiptMount);

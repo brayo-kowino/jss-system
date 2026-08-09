@@ -228,4 +228,18 @@ export default async (request: Request, context: Context) => {
   return applyNonceCsp(response);
 };
 
-export const config = { path: "/*" };
+export const config = {
+  path: "/*",
+  // Blunt, site-wide backstop against scraping/bot floods. Deliberately
+  // generous - a real visitor's initial SPA load fetches index.html plus
+  // a couple dozen JS/CSS/view files, and normal navigation lazy-loads a
+  // few more per route change, so this is sized to never bother a human
+  // and only bite sustained scripted hammering from one IP. Firestore
+  // reads/writes are NOT covered by this (they never touch Netlify - see
+  // App Check in firebase-config.js for that side).
+  rateLimit: {
+    windowLimit: 400,
+    windowSize: 60,
+    aggregateBy: ["ip", "domain"],
+  },
+};

@@ -30,6 +30,14 @@
 # that fallback fails closed rather than silently permitting arbitrary
 # inline scripts.
 #
+# App Check additions: reCAPTCHA v3 (which App Check uses to attest that
+# requests come from the real app, not a script or a cloned frontend)
+# loads a script from google.com and runs its challenge in a google.com
+# iframe, and App Check tokens themselves are minted by
+# firebaseappcheck.googleapis.com — hence the additions to script-src,
+# frame-src, and connect-src below. See js/firebase-config.js for the
+# App Check init and how the reCAPTCHA site key is wired in.
+#
 # style-src includes 'unsafe-inline' because the app's el() DOM helper
 # (js/utils.js) renders dynamic styling as inline style="..." attributes
 # at ~150 call sites across the views. Hashing/nonce-ing isn't practical
@@ -38,22 +46,44 @@
 # execution — script-src stays locked to 'self' + explicit domains +
 # the per-request nonce.
 # ==========================================================================
+# ==========================================================================
+# Cloudinary upload proxy + rate limit.
+# The browser now POSTs to same-origin /media-upload (see
+# js/services/cloudinary.service.js) instead of api.cloudinary.com
+# directly. Netlify proxies it server-side to Cloudinary and enforces the
+# limit below before the request ever reaches Cloudinary. 20/min/IP is
+# generous for a human uploading a logo or a few student photos, and
+# blocks scripted hammering of the upload endpoint. This is a rate-limit
+# chokepoint, not authentication - see the comment in
+# cloudinary.service.js for what this does and doesn't protect against.
+# ==========================================================================
+# ==========================================================================
+# Cloudinary upload proxy has moved to netlify/edge-functions/media-upload.ts.
+# It used to be a plain [[redirects]] proxy here, but a signed upload needs
+# to compute a Cloudinary signature (requires the API secret, which must
+# never reach the browser) and verify the caller's Firebase ID token before
+# signing anything - both of those need actual code, not a static redirect.
+# The edge function declares its own path ("/media-upload") and rate limit
+# in its exported `config`, same pattern as security.ts, so nothing needs
+# to be registered here.
+# ==========================================================================
+
 [[headers]]
   for = "/*"
   [headers.values]
     Content-Security-Policy = '''
       default-src 'self';
-      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net;
+      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com;
       style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
       font-src 'self' https://fonts.gstatic.com;
       img-src 'self' data: blob: https://res.cloudinary.com;
-      connect-src 'self' https://api.cloudinary.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com;
+      connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseappcheck.googleapis.com;
       worker-src 'self' blob:;
       manifest-src 'self';
       object-src 'none';
       base-uri 'self';
       form-action 'self';
-      frame-src 'none';
+      frame-src https://www.google.com;
       frame-ancestors 'none';
       upgrade-insecure-requests;
     '''

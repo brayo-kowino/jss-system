@@ -11,11 +11,11 @@ import {
 import { listClasses, listSubjects, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import { listStudents } from "../js/services/student.service.js";
-import { listAllMarks } from "../js/services/marks.service.js";
+import { listMarksByAssessment } from "../js/services/marks.service.js";
 import { gradeFor } from "../js/services/grading.service.js";
 import { openModal } from "../js/components/modal.js";
 import { navigate } from "../js/router.js";
-import { el, icon, toast, formatDate, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -24,24 +24,36 @@ let assessments = [];
 let classes = [];
 let subjects = [];
 let students = [];
-let allMarks = [];
 let settings = null;
-let statsById = new Map();
+
+// "Students Sat" / "Mean Score" etc. need the actual marks for an
+// assessment, which used to mean pulling the whole school's marks
+// collection upfront (listAllMarks()) just so the table could be sorted
+// and the KPI strip could show an "Overall Mean". That doesn't scale, so
+// this page no longer fetches marks until someone actually opens an
+// assessment's Results modal - see getAssessmentStats() below. The one
+// thing computable for free (no fetch) is "expected" - who *should* sit
+// the assessment - since that only needs students/classes, which are
+// already loaded for the rest of the page.
+let expectedById = new Map();
+// assessmentId -> stats object, filled in lazily by getAssessmentStats().
+// Cleared whenever assessments/marks might have changed (refresh()).
+let statsCache = new Map();
 
 let filters = { search: "", type: "all", term: "all", year: "all", status: "all", grade: "all", subject: "all" };
 let sort = { key: "date", dir: "desc" };
 
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
-  [assessments, classes, subjects, students, allMarks, settings] = await Promise.all([
+  [assessments, classes, subjects, students, settings] = await Promise.all([
     listAssessments(),
     listClasses(),
     listSubjects(),
     listStudents(),
-    listAllMarks(),
     getSchoolSettings(),
   ]);
-  statsById = buildStatsIndex();
+  expectedById = buildExpectedIndex();
+  statsCache = new Map();
   // Filters may reference a term/year/grade that no longer exists - that's fine,
   // it'll just show 0 results until cleared.
   const canManage = CAN_MANAGE.includes(profile.role);
@@ -82,40 +94,50 @@ export async function render({ profile }) {
 
 // ------------------------------------------------------------ analytics --
 
-// Groups the whole marks collection by assessment so every row's "students
-// sat" / mean-score stats are ready without extra Firestore round-trips.
-function buildStatsIndex() {
+// Cheap ("expected" only) index computed entirely client-side from
+// students/classes already loaded for the page - no marks fetch involved.
+function buildExpectedIndex() {
   const map = new Map();
   const activeStudents = students.filter((s) => s.status === "active");
-
   for (const a of assessments) {
-    const marksForA = allMarks.filter((m) => m.assessmentId === a.id);
-    const studentIds = new Set(marksForA.map((m) => m.studentId));
     const eligible = activeStudents.filter((s) => !a.grades?.length || a.grades.includes(s.grade));
-
-    const bySubject = new Map();
-    let sumPct = 0;
-    for (const m of marksForA) {
-      const pct = m.maxScore ? (Number(m.score) / Number(m.maxScore)) * 100 : 0;
-      sumPct += pct;
-      const rec = bySubject.get(m.subjectCode) || { count: 0, sum: 0, min: Infinity, max: -Infinity };
-      rec.count += 1;
-      rec.sum += pct;
-      rec.min = Math.min(rec.min, pct);
-      rec.max = Math.max(rec.max, pct);
-      bySubject.set(m.subjectCode, rec);
-    }
-
-    map.set(a.id, {
-      sat: studentIds.size,
-      expected: eligible.length,
-      meanPercent: marksForA.length ? sumPct / marksForA.length : null,
-      subjectsCovered: bySubject.size,
-      bySubject,
-      entries: marksForA.length,
-    });
+    map.set(a.id, eligible.length);
   }
   return map;
+}
+
+// The real "students sat" / mean-score stats need this assessment's marks,
+// fetched lazily (only when Results is opened or CSV export is clicked) and
+// cached both here and in marks.service.js's own query cache, so re-opening
+// an assessment's Results or re-exporting doesn't refetch.
+async function getAssessmentStats(a) {
+  if (statsCache.has(a.id)) return statsCache.get(a.id);
+  const marksForA = await listMarksByAssessment(a.id);
+  const studentIds = new Set(marksForA.map((m) => m.studentId));
+
+  const bySubject = new Map();
+  let sumPct = 0;
+  for (const m of marksForA) {
+    const pct = m.maxScore ? (Number(m.score) / Number(m.maxScore)) * 100 : 0;
+    sumPct += pct;
+    const rec = bySubject.get(m.subjectCode) || { count: 0, sum: 0, min: Infinity, max: -Infinity };
+    rec.count += 1;
+    rec.sum += pct;
+    rec.min = Math.min(rec.min, pct);
+    rec.max = Math.max(rec.max, pct);
+    bySubject.set(m.subjectCode, rec);
+  }
+
+  const stats = {
+    sat: studentIds.size,
+    expected: expectedById.get(a.id) || 0,
+    meanPercent: marksForA.length ? sumPct / marksForA.length : null,
+    subjectsCovered: bySubject.size,
+    bySubject,
+    entries: marksForA.length,
+  };
+  statsCache.set(a.id, stats);
+  return stats;
 }
 
 function uniqueYears() {
@@ -136,8 +158,11 @@ function getFilteredSorted() {
 
   const dir = sort.dir === "asc" ? 1 : -1;
   list = list.slice().sort((a, b) => {
-    const sa = statsById.get(a.id) || {};
-    const sb = statsById.get(b.id) || {};
+    // "sat"/"mean" aren't offered as sortable columns (no marks fetched
+    // upfront to sort by anymore), but fall back gracefully via whatever's
+    // already in statsCache in case that ever changes.
+    const sa = statsCache.get(a.id) || {};
+    const sb = statsCache.get(b.id) || {};
     switch (sort.key) {
       case "name":
         return a.name.localeCompare(b.name) * dir;
@@ -172,22 +197,15 @@ function renderKpis(container) {
   const locked = assessments.filter((a) => a.status === "locked").length;
   const upcoming = assessments.filter((a) => a.date && a.date >= today).length;
 
-  const withMarks = assessments.filter((a) => statsById.get(a.id)?.entries);
-  const overallMean = withMarks.length
-    ? withMarks.reduce((sum, a) => sum + statsById.get(a.id).meanPercent, 0) / withMarks.length
-    : null;
-
+  // "Overall Mean" used to live here, but it required every assessment's
+  // marks to be loaded upfront to average - no longer cheap now that marks
+  // are fetched lazily per-assessment. Dropped rather than fetched eagerly
+  // just for this one number.
   const kpis = [
     { label: "Total Assessments", value: assessments.length, icon: "assignment", color: "blue" },
     { label: "Open for Entry", value: open, icon: "edit_note", color: "green" },
     { label: "Locked", value: locked, icon: "lock", color: "purple" },
     { label: "Upcoming", value: upcoming, icon: "event_upcoming", color: "gold" },
-    {
-      label: "Overall Mean",
-      value: overallMean != null ? `${overallMean.toFixed(1)}%` : "N/A",
-      icon: "insights",
-      color: "green",
-    },
   ];
 
   const grid = el(
@@ -313,7 +331,14 @@ function renderFilters(container, profile) {
       renderFilters(container, profile);
       rerender(profile);
     });
-    document.getElementById("export-csv")?.addEventListener("click", () => exportCsv());
+    document.getElementById("export-csv")?.addEventListener("click", async (e) => {
+      const restore = busyButton(e.currentTarget, "Exporting…");
+      try {
+        await exportCsv();
+      } finally {
+        restore();
+      }
+    });
   });
 }
 
@@ -326,19 +351,24 @@ function rerender(profile) {
 }
 
 async function refresh(profile) {
-  [assessments, allMarks] = await Promise.all([listAssessments(), listAllMarks()]);
-  statsById = buildStatsIndex();
+  assessments = await listAssessments();
+  expectedById = buildExpectedIndex();
+  statsCache = new Map();
   const kpiMount = document.querySelector(".md3-kpi-grid")?.parentElement;
   if (kpiMount) renderKpis(kpiMount);
   rerender(profile);
 }
 
-function exportCsv() {
+async function exportCsv() {
   const list = getFilteredSorted();
   if (!list.length) return toast("Nothing to export with current filters.", "error");
+  // Stats (Students Sat / Mean %) are only fetched here, on demand, rather
+  // than upfront for the whole page - one listMarksByAssessment() call per
+  // assessment in the current filtered view, run in parallel.
+  const statsList = await Promise.all(list.map((a) => getAssessmentStats(a)));
   const header = ["Name", "Type", "Term", "Academic Year", "Date", "Out Of", "Out Of Overrides", "Mode", "Classes", "Subjects", "Students Sat", "Expected", "Mean %", "Status"];
-  const rows = list.map((a) => {
-    const s = statsById.get(a.id) || {};
+  const rows = list.map((a, i) => {
+    const s = statsList[i] || {};
     return [
       a.name,
       a.type,
@@ -616,10 +646,25 @@ function subjectName(code) {
   return subjects.find((s) => s.code === code)?.name || code;
 }
 
-function openResultsModal(a) {
-  const s = statsById.get(a.id) || { sat: 0, expected: 0, meanPercent: null, bySubject: new Map(), subjectsCovered: 0 };
-  const body = el("div", {});
+async function openResultsModal(a) {
+  const body = el("div", { style: "display:grid; place-items:center; padding:32px;" }, [spinner("md", "dark")]);
+  openModal(`Results: ${a.name}`, body);
 
+  let s;
+  try {
+    s = await getAssessmentStats(a);
+  } catch {
+    body.innerHTML = "";
+    body.append(emptyState("Couldn't load results", "Something went wrong fetching marks for this assessment. Try again."));
+    return;
+  }
+
+  body.setAttribute("style", "");
+  body.innerHTML = "";
+  renderResultsBody(body, s);
+}
+
+function renderResultsBody(body, s) {
   const meanGrade = s.meanPercent != null ? gradeFor(s.meanPercent, settings.gradingScale) : null;
   const completionPct = s.expected ? Math.round((s.sat / s.expected) * 100) : s.sat ? 100 : 0;
 
@@ -690,8 +735,6 @@ function openResultsModal(a) {
       ),
     ])
   );
-
-  openModal(`Results: ${a.name}`, body);
 }
 
 function summaryItem(label, value) {

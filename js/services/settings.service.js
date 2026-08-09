@@ -66,11 +66,13 @@ function schoolDocRef(schoolId) {
   return doc(db, "schools", id);
 }
 
-export async function getSchoolSettings(schoolId) {
+export async function getSchoolSettings(schoolId, forceRefresh = false) {
   const id = schoolId || getCurrentSchoolId();
   // Read on almost every view (theming, letterhead, grading scale) but
   // changes only from the School Settings page - cache for a few minutes
-  // rather than re-fetching it on every navigation.
+  // rather than re-fetching it on every navigation. forceRefresh lets a
+  // caller that just saved settings skip past a still-fresh cache entry.
+  if (forceRefresh) invalidate(`school_settings:${id}`);
   return cached(`school_settings:${id}`, 5 * 60_000, async () => {
     const snap = await getDoc(schoolDocRef(id));
     // Merge over the defaults so any field never actually saved to Firestore

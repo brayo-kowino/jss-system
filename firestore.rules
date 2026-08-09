@@ -313,6 +313,17 @@ service cloud.firestore {
       allow delete: if canManageFees() && ownsExisting();
     }
 
+    // Per-student, per-term balance summary - written by fee.service.js
+    // (syncStudentFeeStatus()/resyncFeeStatusForGrade()) as a side effect of
+    // recording a payment or saving a fee structure, never edited directly
+    // by a user. Read/write groups mirror /fees 1:1 since it's derived from
+    // the same data and gated by the same actions.
+    match /student_fee_status/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create, update: if canManageFees() && ownsIncoming() && ownsExisting();
+      allow delete: if canManageFees() && ownsExisting();
+    }
+
     // Fee payments - same read reasoning as fees. Writes are create-only
     // (the app never edits or deletes a recorded payment - corrections go
     // in as a new entry), admin/bursar only.

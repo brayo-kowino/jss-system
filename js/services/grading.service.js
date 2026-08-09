@@ -28,7 +28,7 @@ import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { listSubjects, slugify } from "./academic.service.js";
 import { listAssessments, getAssessmentMaxScore } from "./assessment.service.js";
-import { listMarks } from "./marks.service.js";
+import { listMarksByAssessment } from "./marks.service.js";
 import { listStudents } from "./student.service.js";
 import { DEFAULT_GRADING_SCALE } from "./settings.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
@@ -218,17 +218,23 @@ export async function computeClassResults({ grade, academicYear, term, gradingSc
   // Fetched from allTermAssessments (not the reportMode-filtered
   // relevantAssessments) so Midterm/Endterm reference marks are available
   // for display regardless of which Report Mode is selected.
+  //
+  // One listMarksByAssessment() call per assessment (already used - and
+  // cached - by the Assessments page) instead of one listMarks() call per
+  // assessment×subject pair: a class with 5 assessments and 10 subjects
+  // used to fire 50 queries here, now it fires 5. Marks are grouped by
+  // subjectCode client-side from that single per-assessment fetch.
   const marksIndex = {};
-  await Promise.all(
-    allTermAssessments.flatMap((a) =>
-      allSubjects.map(async (subj) => {
-        const marks = await listMarks(a.id, subj.code);
-        if (!marks.length) return;
-        marksIndex[a.id] = marksIndex[a.id] || {};
-        marksIndex[a.id][subj.code] = marks;
-      })
-    )
+  const marksByAssessment = await Promise.all(
+    allTermAssessments.map((a) => listMarksByAssessment(a.id))
   );
+  allTermAssessments.forEach((a, i) => {
+    for (const mark of marksByAssessment[i]) {
+      if (!mark.subjectCode) continue;
+      marksIndex[a.id] = marksIndex[a.id] || {};
+      (marksIndex[a.id][mark.subjectCode] = marksIndex[a.id][mark.subjectCode] || []).push(mark);
+    }
+  });
 
   const subjectsUsed = allSubjects.filter((subj) =>
     relevantAssessments.some((a) => marksIndex[a.id]?.[subj.code]?.length)

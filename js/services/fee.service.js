@@ -13,6 +13,9 @@ import {
   deleteDoc,
   getDoc,
   getDocs,
+  getAggregateFromServer,
+  getCountFromServer,
+  sum,
   query,
   where,
   serverTimestamp,
@@ -22,11 +25,23 @@ import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
+import { listStudents } from "./student.service.js";
 
 export const PAYMENT_METHODS = ["Cash", "M-Pesa", "Bank Transfer", "Cheque"];
 
 function structureId(schoolId, grade, academicYear, term) {
   return scopedId(schoolId, slugify(grade), slugify(academicYear), slugify(term));
+}
+
+// student_fee_status/{schoolId__studentId_academicYear_term}: { schoolId,
+//   studentId, grade, academicYear, term, expected, paid, balance,
+//   updatedAt } - one summary doc per student per term, kept in sync from
+//   recordPayment() (single student) and saveFeeStructure() (bulk-resynced
+//   for every student in the affected grade). Exists purely so the
+//   dashboard's "students with balances" stat is a single getCountFromServer()
+//   instead of an N+1 getFeeSummary() loop over every active student.
+function feeStatusId(schoolId, studentId, academicYear, term) {
+  return scopedId(schoolId, studentId, slugify(academicYear), slugify(term));
 }
 
 // ---------------------------------------------------------- Fee Structure --
@@ -53,6 +68,11 @@ export async function saveFeeStructure(userId, { grade, academicYear, term, amou
     { merge: true }
   );
   await logAction(userId, "set_fee_structure", "fees", id);
+  // The fee structure changing means "expected" (and therefore balance) for
+  // every student in this grade/term just moved - resync student_fee_status
+  // for all of them so the dashboard's balances count reflects it, instead
+  // of silently going stale until each student's next payment.
+  await resyncFeeStatusForGrade({ grade, academicYear, term });
   return id;
 }
 
@@ -82,6 +102,9 @@ export async function recordPayment(userId, { studentId, studentName, grade, str
     createdAt: serverTimestamp(),
   });
   await logAction(userId, "record_payment", "fee_payments", ref_.id);
+  // Keep the balances summary current for this one student - the cheap,
+  // common-case path (a single payment) vs. the grade-wide resync below.
+  await syncStudentFeeStatus({ studentId, grade: grade || "", academicYear, term });
   return ref_.id;
 }
 
@@ -111,21 +134,108 @@ export async function getPayment(id) {
   return snap.exists() ? { id, ...snap.data() } : null;
 }
 
-/** For the dashboard's "Fees Collected (Term)" stat. */
+/** For the dashboard's "Fees Collected (Term)" stat - a single server-side
+ * sum aggregate instead of downloading every payment doc for the term. */
 export async function getTermCollectionTotal(academicYear, term) {
   try {
-    const snap = await getDocs(
+    const snap = await getAggregateFromServer(
       query(
         collection(db, "fee_payments"),
         where("schoolId", "==", getCurrentSchoolId()),
         where("academicYear", "==", academicYear),
         where("term", "==", term)
-      )
+      ),
+      { total: sum("amount") }
     );
-    return snap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+    return snap.data().total || 0;
   } catch {
     return 0;
   }
+}
+
+/** Last `months` months of revenue for the dashboard's trend chart, as
+ * [{ label, total }] oldest-first. Each month is one server-side sum
+ * aggregate (bounded by the `date` string field, which sorts the same as
+ * chronological order since dates are stored "YYYY-MM-DD") - no payment
+ * docs are downloaded at all, however many terms of history exist. */
+export async function getMonthlyRevenueTrend(months = 6) {
+  const schoolId = getCurrentSchoolId();
+  const now = new Date();
+
+  const monthDefs = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    monthDefs.push({
+      label: start.toLocaleString("en-GB", { month: "short", year: "numeric" }),
+      startStr: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-01`,
+      endStr: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-01`,
+    });
+  }
+
+  const results = await Promise.all(
+    monthDefs.map(async ({ label, startStr, endStr }) => {
+      try {
+        const snap = await getAggregateFromServer(
+          query(
+            collection(db, "fee_payments"),
+            where("schoolId", "==", schoolId),
+            where("date", ">=", startStr),
+            where("date", "<", endStr)
+          ),
+          { total: sum("amount") }
+        );
+        return { label, total: snap.data().total || 0 };
+      } catch {
+        return { label, total: 0 };
+      }
+    })
+  );
+  return results;
+}
+
+/** For the dashboard's "students with pending balances" insight - a single
+ * count aggregate against the student_fee_status summary collection instead
+ * of an N+1 getFeeSummary() call per active student. Relies on that
+ * collection being kept in sync by syncStudentFeeStatus()/
+ * resyncFeeStatusForGrade() below, so it's only as fresh as the last
+ * payment or fee-structure change. */
+export async function getStudentsWithBalancesCount(academicYear, term) {
+  try {
+    const snap = await getCountFromServer(
+      query(
+        collection(db, "student_fee_status"),
+        where("schoolId", "==", getCurrentSchoolId()),
+        where("academicYear", "==", academicYear),
+        where("term", "==", term),
+        where("balance", ">", 0)
+      )
+    );
+    return snap.data().count;
+  } catch {
+    return 0;
+  }
+}
+
+/** For the Analytics "Fee Defaulters & Balances" report - a single query
+ * against the student_fee_status summary collection instead of an N+1
+ * getFeeSummary() call per active student (the pattern already replaced on
+ * the dashboard by getStudentsWithBalancesCount() above). Returns the raw
+ * per-student summary docs for the period (optionally narrowed to one
+ * grade); callers join against listStudents() for name/admission
+ * number/status since student_fee_status doesn't carry those. Same
+ * freshness caveat as getStudentsWithBalancesCount(): only as current as
+ * the last payment or fee-structure change that synced it. */
+export async function listFeeStatusesForPeriod({ grade, academicYear, term }) {
+  const schoolId = getCurrentSchoolId();
+  const constraints = [
+    where("schoolId", "==", schoolId),
+    where("academicYear", "==", academicYear),
+    where("term", "==", term),
+  ];
+  if (grade) constraints.push(where("grade", "==", grade));
+  const snap = await getDocs(query(collection(db, "student_fee_status"), ...constraints));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 export async function getFeeSummary({ studentId, grade, academicYear, term }) {
@@ -143,9 +253,72 @@ export async function getFeeSummary({ studentId, grade, academicYear, term }) {
       where("term", "==", term)
     )
   );
-  const paid = paymentsSnap.docs.reduce((sum, d) => sum + (Number(d.data().amount) || 0), 0);
+  const paid = paymentsSnap.docs.reduce((total, d) => total + (Number(d.data().amount) || 0), 0);
 
   return { expected, paid, balance: Math.max(expected - paid, 0) };
+}
+
+// ---------------------------------------------------- student_fee_status --
+
+/** Recomputes and upserts one student's balance summary. Called after every
+ * payment - cheap (one getFeeSummary() read/write pair), so it's fine to run
+ * on the hot path. Silently skipped if the student has no grade yet (mirrors
+ * the dashboard's own "skip - no fee structure yet" behavior).
+ *
+ * Pass `summary` ({ expected, paid, balance }) when the caller already has
+ * it (e.g. the Fees page just ran getFeeSummary() for the same student) to
+ * skip the redundant read - otherwise it's fetched here. */
+export async function syncStudentFeeStatus({ studentId, grade, academicYear, term, summary }) {
+  if (!studentId || !grade || !academicYear || !term) return;
+  const schoolId = getCurrentSchoolId();
+  const { expected, paid, balance } = summary || (await getFeeSummary({ studentId, grade, academicYear, term }));
+  await setDoc(
+    doc(db, "student_fee_status", feeStatusId(schoolId, studentId, academicYear, term)),
+    {
+      schoolId,
+      studentId,
+      grade,
+      academicYear,
+      term,
+      expected,
+      paid,
+      balance,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/** Recomputes student_fee_status for every active student in a grade -
+ * called when a fee structure is saved, since that changes "expected" (and
+ * therefore balance) for the whole grade at once. Heavier than the
+ * single-student sync above, but only runs on an explicit admin/bursar
+ * action, not on every dashboard load. */
+async function resyncFeeStatusForGrade({ grade, academicYear, term }) {
+  if (!grade || !academicYear || !term) return;
+  const students = await listStudents();
+  const activeInGrade = students.filter((s) => s.status === "active" && s.grade === grade);
+  await Promise.all(
+    activeInGrade.map((s) => syncStudentFeeStatus({ studentId: s.id, grade, academicYear, term }))
+  );
+}
+
+/** One-time (or run-whenever-you-like) backfill: syncs student_fee_status
+ * for every active, graded student for one academic year + term. Needed
+ * because syncStudentFeeStatus() only fires going forward, as a side effect
+ * of recordPayment()/saveFeeStructure() - a student whose balance was set
+ * before this collection existed, and who hasn't had a new payment or
+ * fee-structure resave since, has no doc yet and won't show up in
+ * getStudentsWithBalancesCount() until this runs once for their period.
+ * Returns how many students were synced. */
+export async function backfillAllFeeStatuses(academicYear, term) {
+  if (!academicYear || !term) throw new Error("Academic year and term are required.");
+  const students = await listStudents();
+  const eligible = students.filter((s) => s.status === "active" && s.grade);
+  await Promise.all(
+    eligible.map((s) => syncStudentFeeStatus({ studentId: s.id, grade: s.grade, academicYear, term }))
+  );
+  return eligible.length;
 }
 
 export function formatKES(amount) {

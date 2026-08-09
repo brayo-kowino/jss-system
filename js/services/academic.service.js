@@ -18,6 +18,7 @@ import {
   getDocs,
   query,
   where,
+  writeBatch,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
@@ -64,9 +65,13 @@ function classesCacheKey() {
   return `classes:${getCurrentSchoolId()}`;
 }
 
-export async function listClasses() {
+export async function listClasses(forceRefresh = false) {
   // Read in nearly every picker/dropdown across the app but changes only
   // from Classes & Streams - cache rather than re-querying on every render.
+  // forceRefresh lets a caller that just created/updated/deleted a class
+  // skip straight past a still-fresh cache entry instead of waiting out
+  // the TTL.
+  if (forceRefresh) invalidate(classesCacheKey());
   return cached(classesCacheKey(), 5 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "classes"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.grade || "").localeCompare(b.grade || ""));
@@ -182,9 +187,10 @@ function subjectsCacheKey() {
   return `subjects:${getCurrentSchoolId()}`;
 }
 
-export async function listSubjects() {
+export async function listSubjects(forceRefresh = false) {
   // Same reasoning as listClasses() above - read everywhere, written only
   // from the Subjects page.
+  if (forceRefresh) invalidate(subjectsCacheKey());
   return cached(subjectsCacheKey(), 5 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "subjects"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
@@ -249,15 +255,19 @@ export async function seedDefaultsIfEmpty() {
   const schoolId = getCurrentSchoolId();
   const [classes, subjects] = await Promise.all([listClasses(), listSubjects()]);
   if (classes.length === 0) {
+    const batch = writeBatch(db);
     for (const c of DEFAULT_CLASSES) {
-      await setDoc(doc(db, "classes", scopedId(schoolId, slugify(c.grade))), { ...c, schoolId, createdAt: serverTimestamp() });
+      batch.set(doc(db, "classes", scopedId(schoolId, slugify(c.grade))), { ...c, schoolId, createdAt: serverTimestamp() });
     }
+    await batch.commit();
     invalidate(classesCacheKey());
   }
   if (subjects.length === 0) {
+    const batch = writeBatch(db);
     for (const s of DEFAULT_SUBJECTS) {
-      await setDoc(doc(db, "subjects", scopedId(schoolId, s.code)), { ...s, schoolId, createdAt: serverTimestamp() });
+      batch.set(doc(db, "subjects", scopedId(schoolId, s.code)), { ...s, schoolId, createdAt: serverTimestamp() });
     }
+    await batch.commit();
     invalidate(subjectsCacheKey());
   }
 }

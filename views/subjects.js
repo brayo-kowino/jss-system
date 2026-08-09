@@ -71,7 +71,9 @@ function renderTable(container, profile) {
 }
 
 async function refresh(profile) {
-  subjects = await listSubjects();
+  // forceRefresh: true - we just created/edited/deleted a subject, so skip
+  // straight past the cache instead of possibly showing stale data.
+  subjects = await listSubjects(true);
   const tableWrap = document.querySelector(".table-wrap");
   if (tableWrap) renderTable(tableWrap, profile);
 }

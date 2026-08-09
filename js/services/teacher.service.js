@@ -22,9 +22,11 @@ function teachersCacheKey() {
   return `teachers:${getCurrentSchoolId()}`;
 }
 
-export async function listTeachers() {
+export async function listTeachers(forceRefresh = false) {
   // Full roster - read by the Teachers page and Analytics, written to only
-  // by the handful of functions below.
+  // by the handful of functions below. forceRefresh lets a caller that
+  // just wrote a teacher record bypass a still-fresh cache entry.
+  if (forceRefresh) invalidate(teachersCacheKey());
   return cached(teachersCacheKey(), 3 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));

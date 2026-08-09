@@ -17,6 +17,7 @@ import {
   getDocs,
   query,
   where,
+  writeBatch,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
@@ -24,6 +25,7 @@ import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
+import { cached, invalidate, invalidatePrefix } from "./query-cache.js";
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -42,18 +44,31 @@ const DEFAULT_PERIODS = [
 
 // ------------------------------------------------------------------ Periods --
 
-export async function listPeriods() {
-  const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+function periodsCacheKey() {
+  return `periods:${getCurrentSchoolId()}`;
+}
+
+export async function listPeriods(forceRefresh = false) {
+  // Read on every Timetable render but changes only from this page's own
+  // period editor - same cache-with-forceRefresh pattern as
+  // listClasses()/listSubjects() in academic.service.js.
+  if (forceRefresh) invalidate(periodsCacheKey());
+  return cached(periodsCacheKey(), 5 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+  });
 }
 
 export async function seedDefaultPeriodsIfEmpty() {
   const existing = await listPeriods();
   if (existing.length) return;
   const schoolId = getCurrentSchoolId();
+  const batch = writeBatch(db);
   for (const p of DEFAULT_PERIODS) {
-    await addDoc(collection(db, "periods"), { ...p, schoolId, createdAt: serverTimestamp() });
+    batch.set(doc(collection(db, "periods")), { ...p, schoolId, createdAt: serverTimestamp() });
   }
+  await batch.commit();
+  invalidate(periodsCacheKey());
 }
 
 export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
@@ -67,6 +82,7 @@ export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
     isBreak: !!isBreak,
     createdAt: serverTimestamp(),
   });
+  invalidate(periodsCacheKey());
   await logAction(userId, "create_period", "periods", ref_.id);
   return ref_.id;
 }
@@ -79,6 +95,7 @@ export async function updatePeriod(userId, id, { name, startTime, endTime, isBre
     isBreak: !!isBreak,
     updatedAt: serverTimestamp(),
   });
+  invalidate(periodsCacheKey());
   await logAction(userId, "update_period", "periods", id);
 }
 
@@ -90,6 +107,7 @@ export async function deletePeriod(userId, id) {
     throw new Error(`Cannot delete: ${snap.size} timetable slot(s) still use this period. Clear them first.`);
   }
   await deleteDoc(doc(db, "periods", id));
+  invalidate(periodsCacheKey());
   await logAction(userId, "delete_period", "periods", id);
 }
 
@@ -99,34 +117,50 @@ function slotId(schoolId, grade, stream, day, periodId) {
   return scopedId(schoolId, slugify(grade), slugify(stream), slugify(day), periodId);
 }
 
-/** Returns a lookup map keyed by "day_periodId" for easy grid rendering. */
-export async function getClassTimetable(grade, stream) {
-  const snap = await getDocs(
-    query(
-      collection(db, "timetable_slots"),
-      where("schoolId", "==", getCurrentSchoolId()),
-      where("grade", "==", grade),
-      where("stream", "==", stream)
-    )
-  );
-  const byKey = {};
-  for (const d of snap.docs) {
-    const data = d.data();
-    byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
-  }
-  return byKey;
+function classTimetableCacheKey(grade, stream) {
+  return `timetable_class:${getCurrentSchoolId()}:${grade}:${stream}`;
 }
 
-export async function getTeacherTimetable(teacherId) {
-  const snap = await getDocs(
-    query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("teacherId", "==", teacherId))
-  );
-  const byKey = {};
-  for (const d of snap.docs) {
-    const data = d.data();
-    byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
-  }
-  return byKey;
+function teacherTimetableCacheKey(teacherId) {
+  return `timetable_teacher:${getCurrentSchoolId()}:${teacherId}`;
+}
+
+/** Returns a lookup map keyed by "day_periodId" for easy grid rendering. */
+export async function getClassTimetable(grade, stream, forceRefresh = false) {
+  const key = classTimetableCacheKey(grade, stream);
+  if (forceRefresh) invalidate(key);
+  return cached(key, 5 * 60_000, async () => {
+    const snap = await getDocs(
+      query(
+        collection(db, "timetable_slots"),
+        where("schoolId", "==", getCurrentSchoolId()),
+        where("grade", "==", grade),
+        where("stream", "==", stream)
+      )
+    );
+    const byKey = {};
+    for (const d of snap.docs) {
+      const data = d.data();
+      byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
+    }
+    return byKey;
+  });
+}
+
+export async function getTeacherTimetable(teacherId, forceRefresh = false) {
+  const key = teacherTimetableCacheKey(teacherId);
+  if (forceRefresh) invalidate(key);
+  return cached(key, 5 * 60_000, async () => {
+    const snap = await getDocs(
+      query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("teacherId", "==", teacherId))
+    );
+    const byKey = {};
+    for (const d of snap.docs) {
+      const data = d.data();
+      byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
+    }
+    return byKey;
+  });
 }
 
 /**
@@ -171,12 +205,22 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   });
+  invalidate(classTimetableCacheKey(grade, stream));
+  // A reassignment can also change (or clear) a *different* teacher's prior
+  // booking of this exact slot, which we don't have loaded here without an
+  // extra read - invalidate every cached teacher timetable for the school
+  // rather than risk showing a stale grid to whichever teacher lost/gained
+  // a slot. Cheap: this only runs on an explicit admin save, not on render.
+  invalidatePrefix(`timetable_teacher:${schoolId}`);
   await logAction(userId, "assign_timetable_slot", "timetable_slots", id);
   return id;
 }
 
 export async function clearSlot(userId, grade, stream, day, periodId) {
-  const id = slotId(getCurrentSchoolId(), grade, stream, day, periodId);
+  const schoolId = getCurrentSchoolId();
+  const id = slotId(schoolId, grade, stream, day, periodId);
   await deleteDoc(doc(db, "timetable_slots", id));
+  invalidate(classTimetableCacheKey(grade, stream));
+  invalidatePrefix(`timetable_teacher:${schoolId}`);
   await logAction(userId, "clear_timetable_slot", "timetable_slots", id);
 }

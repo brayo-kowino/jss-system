@@ -1,26 +1,41 @@
-import { fetchRecentLogs, describeLog } from "../js/services/audit.service.js";
+import { fetchRecentLogs, fetchLogsSince, describeLog } from "../js/services/audit.service.js";
 import { listSchoolUsers } from "../js/services/auth.service.js";
 import { el, icon, toast } from "../js/utils.js";
 
-// Firestore stores appreciably more logs than anyone needs to scroll
-// through - this is the ceiling we pull back and then filter/sort
-// client-side, same pattern the rest of the app uses for its list views.
-const FETCH_LIMIT = 1000;
+// The "When" filter now drives the Firestore query itself (schoolId ==,
+// timestamp >=, timestamp desc via fetchLogsSince), instead of pulling a
+// fixed 1000-doc batch on every page load and filtering client-side.
+// Default range is short (last hour) since that's the common "what just
+// happened" check; widening the range re-queries rather than re-slicing
+// an already-fetched set, so you only pay for the reads you actually need.
+// "All time" is the one case that still falls back to a bounded
+// fetchRecentLogs() call, so even that stays capped rather than unbounded.
+const RANGE_OPTIONS = {
+  "1h": { label: "Last hour", ms: 60 * 60 * 1000 },
+  "12h": { label: "Last 12 hours", ms: 12 * 60 * 60 * 1000 },
+  today: { label: "Today", ms: 24 * 60 * 60 * 1000 },
+  "7d": { label: "Last 7 days", ms: 7 * 24 * 60 * 60 * 1000 },
+  "30d": { label: "Last 30 days", ms: 30 * 24 * 60 * 60 * 1000 },
+  all: { label: "All time (last 1000)", ms: null },
+};
+const RANGE_LABELS = Object.fromEntries(Object.entries(RANGE_OPTIONS).map(([k, v]) => [k, v.label]));
+const DEFAULT_RANGE = "1h";
+const ALL_TIME_FETCH_LIMIT = 1000;
 
 let logs = [];
 let usersById = new Map();
+let loadingRange = false;
 
-let filters = { search: "", entity: "all", action: "all", user: "all", range: "all" };
+let filters = { search: "", entity: "all", action: "all", user: "all", range: DEFAULT_RANGE };
 
-const RANGE_LABELS = {
-  all: "All time",
-  today: "Today",
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-};
+async function loadLogsForRange(range) {
+  const opt = RANGE_OPTIONS[range] || RANGE_OPTIONS[DEFAULT_RANGE];
+  if (opt.ms == null) return fetchRecentLogs(ALL_TIME_FETCH_LIMIT);
+  return fetchLogsSince(Date.now() - opt.ms);
+}
 
 export async function render({ profile }) {
-  const [rawLogs, users] = await Promise.all([fetchRecentLogs(FETCH_LIMIT), listSchoolUsers().catch(() => [])]);
+  const [rawLogs, users] = await Promise.all([loadLogsForRange(filters.range), listSchoolUsers().catch(() => [])]);
   logs = rawLogs;
   usersById = new Map(users.map((u) => [u.uid, u]));
 
@@ -32,7 +47,7 @@ export async function render({ profile }) {
     ])
   );
 
-  const kpiMount = el("div", {});
+  const kpiMount = el("div", { id: "audit-kpi-mount" });
   wrap.append(kpiMount);
   renderKpis(kpiMount);
 
@@ -52,9 +67,10 @@ export function init() {}
 // ------------------------------------------------------------- helpers --
 
 function summaryLine() {
-  if (!logs.length) return "No actions have been logged yet.";
+  const rangeLabel = (RANGE_LABELS[filters.range] || "").toLowerCase();
+  if (!logs.length) return `No actions logged in the selected range (${rangeLabel}).`;
   const distinctUsers = new Set(logs.map((l) => l.userId)).size;
-  return `${logs.length} action(s) logged across ${distinctUsers} user(s).`;
+  return `${logs.length} action(s) logged across ${distinctUsers} user(s) — ${rangeLabel}.`;
 }
 
 function userLabel(userId) {
@@ -69,29 +85,16 @@ function roleLabel(role) {
   return role.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
-function withinRange(log, range) {
-  if (range === "all") return true;
-  const seconds = log.timestamp?.seconds;
-  if (!seconds) return false;
-  const ms = seconds * 1000;
-  const now = Date.now();
-  if (range === "today") {
-    const d = new Date(ms);
-    const n = new Date();
-    return d.toDateString() === n.toDateString();
-  }
-  if (range === "7d") return now - ms <= 7 * 24 * 60 * 60 * 1000;
-  if (range === "30d") return now - ms <= 30 * 24 * 60 * 60 * 1000;
-  return true;
-}
-
+// The time-range filter is now applied server-side (loadLogsForRange), so
+// `logs` already only contains entries within the selected window. What's
+// left here is the cheap, in-memory refinement (search/module/action/user)
+// on that already-bounded set - same as before, just no second range pass.
 function getFiltered() {
   const q = filters.search.trim().toLowerCase();
   return logs
     .filter((l) => filters.entity === "all" || l.entity === filters.entity)
     .filter((l) => filters.action === "all" || l.action === filters.action)
     .filter((l) => filters.user === "all" || l.userId === filters.user)
-    .filter((l) => withinRange(l, filters.range))
     .filter((l) => {
       if (!q) return true;
       const { label } = describeLog(l);
@@ -111,8 +114,10 @@ function formatDateTime(timestamp) {
 function renderKpis(container) {
   container.innerHTML = "";
 
-  const today = logs.filter((l) => withinRange(l, "today")).length;
-  const week = logs.filter((l) => withinRange(l, "7d")).length;
+  // `logs` is already scoped to the selected "When" range (fetched via
+  // fetchLogsSince), so these KPIs describe that range rather than
+  // recomputing fixed today/7d windows over a separately-fetched 1000-doc
+  // batch - one query backs both the table and the KPI strip.
   const distinctUsers = new Set(logs.map((l) => l.userId)).size;
 
   const entityCounts = new Map();
@@ -122,9 +127,10 @@ function renderKpis(container) {
     if (!busiest || count > busiest.count) busiest = { entity, count };
   }
 
+  const rangeLabel = RANGE_LABELS[filters.range] || "Selected range";
+
   const kpis = [
-    { label: "Actions Today", value: today, icon: "today", color: "blue" },
-    { label: "Actions This Week", value: week, icon: "date_range", color: "gold" },
+    { label: `Actions (${rangeLabel})`, value: logs.length, icon: "today", color: "blue" },
     { label: "Active Users", value: distinctUsers, icon: "group", color: "purple" },
     { label: "Busiest Module", value: busiest ? busiest.entity.replace(/_/g, " ") : "N/A", icon: "bolt", color: "green" },
   ];
@@ -204,16 +210,43 @@ function renderFilters(container, profile) {
       filters.user = e.target.value;
       rerender(profile);
     });
-    document.getElementById("f-range")?.addEventListener("change", (e) => {
+    document.getElementById("f-range")?.addEventListener("change", async (e) => {
       filters.range = e.target.value;
-      rerender(profile);
+      await reloadForRange(profile);
     });
-    document.getElementById("clear-filters")?.addEventListener("click", () => {
-      filters = { search: "", entity: "all", action: "all", user: "all", range: "all" };
-      rerender(profile);
+    document.getElementById("clear-filters")?.addEventListener("click", async () => {
+      const rangeChanged = filters.range !== DEFAULT_RANGE;
+      filters = { search: "", entity: "all", action: "all", user: "all", range: DEFAULT_RANGE };
+      if (rangeChanged) await reloadForRange(profile);
+      else rerender(profile);
     });
     document.getElementById("export-csv")?.addEventListener("click", exportCsv);
   });
+}
+
+// Changing the "When" filter re-queries Firestore for just that window
+// (see loadLogsForRange) rather than re-slicing an in-memory 1000-doc
+// batch, so switching to "Last hour" actually reads fewer docs instead of
+// just hiding rows the app already paid to fetch.
+async function reloadForRange(profile) {
+  if (loadingRange) return;
+  loadingRange = true;
+  const tableWrap = document.querySelector(".table-wrap");
+  if (tableWrap) tableWrap.innerHTML = `<div class="empty-state"><p>Loading…</p></div>`;
+  try {
+    logs = await loadLogsForRange(filters.range);
+  } catch (err) {
+    console.error("Failed to load audit logs for range:", err);
+    toast("Couldn't load logs for that range.", "error");
+    logs = [];
+  } finally {
+    loadingRange = false;
+  }
+  const kpiMount = document.getElementById("audit-kpi-mount");
+  if (kpiMount) renderKpis(kpiMount);
+  const summaryEl = document.querySelector(".page-header p");
+  if (summaryEl) summaryEl.textContent = summaryLine();
+  rerender(profile);
 }
 
 function rerender(profile) {
@@ -261,7 +294,10 @@ function renderTable(container) {
   container.innerHTML = "";
 
   if (!logs.length) {
-    container.append(emptyState("No activity yet", "Actions taken across the system will show up here as they happen."));
+    const rangeLabel = (RANGE_LABELS[filters.range] || "").toLowerCase();
+    container.append(
+      emptyState("No activity in this window", `No actions were logged for "${rangeLabel}". Try a wider range above.`)
+    );
     return;
   }
 

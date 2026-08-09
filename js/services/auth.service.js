@@ -37,7 +37,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db, firebaseApp } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
-import { clearAll as clearReadCache } from "./query-cache.js";
+import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
 
 let currentProfile = null; // cached { uid, ...firestore user doc }
 
@@ -145,6 +145,7 @@ export async function createUserAccount({ fullName, email, role, tempPassword, s
       mustChangePassword: true,
       createdAt: serverTimestamp(),
     });
+    invalidate(schoolUsersCacheKey(schoolId || getCurrentSchoolId()));
     await logAction(currentProfile?.uid, "create_user", "users", cred.user.uid);
     return cred.user.uid;
   } finally {
@@ -153,15 +154,27 @@ export async function createUserAccount({ fullName, email, role, tempPassword, s
   }
 }
 
-export async function listSchoolUsers() {
+function schoolUsersCacheKey(schoolId) {
+  return `school_users:${schoolId}`;
+}
+
+export async function listSchoolUsers(forceRefresh = false) {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return [];
-  const snap = await getDocs(query(collection(db, "users"), where("schoolId", "==", schoolId)));
-  return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  // Read by the Audit Trail (to label each log with who did it) and by User
+  // Management on every render - same cache-with-forceRefresh pattern as
+  // listClasses()/listSubjects() in academic.service.js. Cleared entirely on
+  // logout via clearReadCache() above, same as every other cached list.
+  if (forceRefresh) invalidate(schoolUsersCacheKey(schoolId));
+  return cached(schoolUsersCacheKey(schoolId), 5 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "users"), where("schoolId", "==", schoolId)));
+    return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
+  });
 }
 
 export async function setUserStatus(actingUserId, uid, status) {
   await setDoc(doc(db, "users", uid), { status }, { merge: true });
+  invalidate(schoolUsersCacheKey(getCurrentSchoolId()));
   await logAction(actingUserId, `${status}_user`, "users", uid);
 }
 

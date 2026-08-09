@@ -2,7 +2,7 @@ import { listClasses, listSubjects, seedDefaultsIfEmpty } from "../js/services/a
 import { listAssessments, setAssessmentStatus, getAssessmentMaxScore } from "../js/services/assessment.service.js";
 import { getTeacherByUserId, getTeacherByEmail } from "../js/services/teacher.service.js";
 import { listStudents } from "../js/services/student.service.js";
-import { listMarks, upsertMark, bulkUpsertMarks } from "../js/services/marks.service.js";
+import { listMarks, bulkUpsertMarks } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
@@ -13,12 +13,37 @@ let allSubjects = [];
 let allAssessments = [];
 let allowedSubjectCodes = null; // null = unrestricted (admin/academic_master)
 let selection = { classKey: "", subjectCode: "", assessmentId: "" };
+// Which class/subject/assessment the currently-loaded roster (and
+// whatever is in `dirty`) actually belongs to. Kept separate from
+// `selection` above - that one flips to the *next* picked value the
+// moment a dropdown changes, before maybeLoad() has swapped the roster
+// out, so anything trying to flush leftover dirty scores needs this
+// snapshot to attribute them to the right assessment/subject instead of
+// whatever was just picked.
+let loadedSelection = { classKey: "", subjectCode: "", assessmentId: "" };
 let roster = []; // students in the selected class
 let marksByStudent = {}; // studentId -> mark doc
 let dirty = new Set();
+// Latest value typed for each dirty student, captured straight from the
+// `input` listener below. The auto-save loop reads from here rather than
+// re-querying the DOM, so a pending edit still gets flushed to Firestore
+// even if the roster table has since been re-rendered or the person has
+// navigated to a different page while the timer keeps ticking in the
+// background.
+let pendingValues = {};
+// The signed-in user, captured on every render() so the background
+// auto-save loop (started once, see startAutoSaveLoop below) always has
+// a `uid` to attribute writes to without needing its own profile plumbing.
+let currentProfile = null;
+
+const AUTO_SAVE_INTERVAL_MS = 7000; // 5-10s per spec
+let autoSaveTimer = null;
+let autoSaveToastShown = false; // avoid re-toasting the same error every tick
 
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
+  currentProfile = profile;
+  startAutoSaveLoop();
   [classes, allSubjects, allAssessments] = await Promise.all([listClasses(), listSubjects(), listAssessments()]);
 
   allowedSubjectCodes = null;
@@ -122,6 +147,12 @@ function renderPicker(container, profile, bodyMount) {
 }
 
 async function maybeLoad(profile, bodyMount) {
+  // Flush any unsaved edits from whatever was previously loaded before
+  // swapping the roster out from under them - otherwise picking a
+  // different class/subject/assessment would silently discard scores
+  // that hadn't been picked up by the auto-save loop yet.
+  await flushDirtyMarks();
+
   const { classKey, subjectCode, assessmentId } = selection;
   if (!classKey || !subjectCode || !assessmentId) {
     bodyMount.innerHTML = "";
@@ -139,6 +170,8 @@ async function maybeLoad(profile, bodyMount) {
   marksByStudent = {};
   for (const m of marks) marksByStudent[m.studentId] = m;
   dirty.clear();
+  pendingValues = {};
+  loadedSelection = { classKey, subjectCode, assessmentId };
 
   renderRoster(bodyMount, profile);
 }
@@ -172,7 +205,7 @@ function renderRoster(container, profile) {
   if (!locked) {
     actions.append(
       el("button", { class: "btn btn--ghost btn--sm", onClick: () => openBulkPaste(container) }, [icon("content_paste"), "Paste bulk scores"]),
-      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => saveAllDirty(profile, container, e.currentTarget) }, [icon("save"), "Save All"]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => saveAllDirty(profile, e.currentTarget) }, [icon("save"), "Save All"]),
     );
   }
   infoCard.append(actions);
@@ -209,13 +242,11 @@ function renderRoster(container, profile) {
 
     input.addEventListener("input", () => {
       dirty.add(student.id);
+      pendingValues[student.id] = input.value;
       statusCell.className = "badge badge--gold";
       statusCell.textContent = "Unsaved";
       const n = Number(input.value);
       pctCell.textContent = input.value !== "" && !Number.isNaN(n) ? formatHint(n) : "—";
-    });
-    input.addEventListener("change", async () => {
-      await saveOne(profile, student, input, statusCell, maxScore);
     });
 
     tbody.append(el("tr", {}, [
@@ -231,42 +262,94 @@ function renderRoster(container, profile) {
   container.append(tableWrap);
 }
 
-async function saveOne(profile, student, input, statusCell, maxScore) {
-  const [grade, stream] = selection.classKey.split("|");
+// ---------------------------------------------------------- auto-save --
+//
+// Replaces the old per-cell `change` listener (one Firestore write per
+// blur) with a single background loop that periodically flushes whatever
+// is in `dirty` via one bulkUpsertMarks() call. Started once (guarded
+// below) and left running for the life of the page/tab rather than
+// stopped on navigation, so an edit made just before switching pages
+// still gets saved instead of silently lost - the loop is a no-op
+// (skips the network entirely) whenever `dirty` is empty, so idling on
+// another page costs nothing.
+function startAutoSaveLoop() {
+  if (autoSaveTimer) return; // already running - render() can be called
+                              // again on repeat visits to /marks
+  autoSaveTimer = setInterval(() => {
+    flushDirtyMarks().catch(() => {}); // flushDirtyMarks handles its own errors
+  }, AUTO_SAVE_INTERVAL_MS);
+}
+
+async function flushDirtyMarks() {
+  if (!dirty.size || !currentProfile) return;
+  // Attribute to whatever roster is actually loaded, not `selection` -
+  // which may have already moved on to the next dropdown pick (see
+  // maybeLoad()'s call to this function before it swaps the roster out).
+  const { classKey, subjectCode, assessmentId } = loadedSelection;
+  if (!classKey || !subjectCode || !assessmentId) return;
+
+  const assessment = allAssessments.find((a) => a.id === assessmentId);
+  if (assessment?.status === "locked") return; // nothing to do until reopened
+
+  const [grade, stream] = classKey.split("|");
+  const maxScore = getAssessmentMaxScore(assessment, subjectCode);
+  const ids = Array.from(dirty).filter((id) => pendingValues[id] !== undefined);
+  if (!ids.length) return;
+
+  for (const id of ids) markBadge(id, "badge--muted", "Saving…");
+
   try {
-    await upsertMark(profile.uid, {
-      assessmentId: selection.assessmentId,
-      subjectCode: selection.subjectCode,
-      studentId: student.id,
-      grade, stream,
-      score: input.value,
-      maxScore,
-    });
-    dirty.delete(student.id);
-    statusCell.className = "badge badge--success";
-    statusCell.textContent = "Saved";
+    const entries = ids.map((studentId) => ({ studentId, grade, stream, score: pendingValues[studentId], maxScore }));
+    const results = await bulkUpsertMarks(currentProfile.uid, assessmentId, subjectCode, entries);
+    const failedIds = new Set((results.failed || []).map((f) => f.studentId));
+    for (const id of ids) {
+      if (failedIds.has(id)) {
+        markBadge(id, "badge--danger", "Retry pending");
+        continue; // leave in `dirty` - picked up again next tick
+      }
+      dirty.delete(id);
+      delete pendingValues[id];
+      markBadge(id, "badge--success", "Saved");
+    }
+    autoSaveToastShown = false; // a later real failure should toast again
   } catch (err) {
-    statusCell.className = "badge badge--danger";
-    statusCell.textContent = "Error";
-    toast(`${student.fullName}: ${err.message}`, "error");
+    // Whole-batch failure (e.g. offline, or the assessment got locked
+    // mid-flight) - leave everything dirty for the next tick and surface
+    // it once rather than spamming a toast every 7 seconds.
+    for (const id of ids) markBadge(id, "badge--danger", "Retry pending");
+    if (!autoSaveToastShown) {
+      autoSaveToastShown = true;
+      toast(err.message || "Couldn't save some scores - will retry automatically.", "error");
+    }
   }
 }
 
-async function saveAllDirty(profile, container, button) {
+function markBadge(studentId, className, text) {
+  const badge = document.getElementById(`status-${studentId}`);
+  if (!badge) return; // person has navigated away or re-picked a class -
+                       // the save above still happened, just nothing to update
+  badge.className = `badge ${className}`;
+  badge.textContent = text;
+}
+
+// Manual "Save All" button - an explicit user action, so it's fine for
+// this one to hit the network immediately rather than waiting for the
+// next auto-save tick. Reuses flushDirtyMarks() so there's exactly one
+// place that knows how to write marks, instead of two save paths that
+// could drift apart.
+async function saveAllDirty(profile, button) {
   if (!dirty.size) return toast("Nothing to save - every score is already saved.", "info");
   const restore = button ? busyButton(button, "Saving…") : () => {};
-  const [grade, stream] = selection.classKey.split("|");
-  const assessment = allAssessments.find((a) => a.id === selection.assessmentId);
-  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
-  const entries = [];
-  for (const studentId of dirty) {
-    const input = container.querySelector(`input[data-student-id="${studentId}"]`);
-    if (input) entries.push({ studentId, grade, stream, score: input.value, maxScore });
-  }
+  const before = dirty.size;
   try {
-    const results = await bulkUpsertMarks(profile.uid, selection.assessmentId, selection.subjectCode, entries);
-    toast(`Saved ${results.saved} score(s).${results.failed.length ? ` ${results.failed.length} failed - check highlighted rows.` : ""}`, results.failed.length ? "error" : "success");
-    await maybeLoad(profile, container);
+    await flushDirtyMarks();
+    const saved = before - dirty.size;
+    toast(
+      saved === before
+        ? `Saved ${saved} score(s).`
+        : `Saved ${saved} of ${before} score(s) - ${before - saved} failed, will retry automatically.`,
+      saved === before ? "success" : "error"
+    );
   } finally {
     restore();
   }

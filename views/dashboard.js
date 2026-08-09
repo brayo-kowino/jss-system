@@ -1,8 +1,8 @@
-import { collection, getCountFromServer, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { collection, getCountFromServer, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../js/firebase-config.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import { getTodayAttendanceStat } from "../js/services/attendance.service.js";
-import { getTermCollectionTotal, formatKES, getFeeSummary } from "../js/services/fee.service.js";
+import { getTermCollectionTotal, getMonthlyRevenueTrend, getStudentsWithBalancesCount, formatKES } from "../js/services/fee.service.js";
 import { fetchRecentLogs, describeLog } from "../js/services/audit.service.js";
 import { listAssessments } from "../js/services/assessment.service.js";
 import { listStudents } from "../js/services/student.service.js";
@@ -32,65 +32,32 @@ let chartDataCache = {
 
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
-  
-  const [teachers, attendanceToday, feesCollected, recentLogs, assessments, allStudents, paymentsSnap] = await Promise.all([
+
+  const [teachers, attendanceToday, feesCollected, recentLogs, assessments, allStudents, studentsWithBalancesCount, monthlyRevenue] = await Promise.all([
     safeCount("teachers"),
     getTodayAttendanceStat(),
     getTermCollectionTotal(settings.currentAcademicYear, settings.currentTerm),
-    fetchRecentLogs(7), 
+    fetchRecentLogs(7),
     listAssessments(),
     listStudents(),
-    // Fetch all fee payments for the current term!
-    getDocs(query(collection(db, "fee_payments"), where("schoolId", "==", getCurrentSchoolId()), where("academicYear", "==", settings.currentAcademicYear), where("term", "==", settings.currentTerm)))
+    // Single count aggregate against student_fee_status (kept in sync by
+    // fee.service.js on every payment/fee-structure change) instead of a
+    // per-student getFeeSummary() loop over the whole active roster.
+    getStudentsWithBalancesCount(settings.currentAcademicYear, settings.currentTerm),
+    // 6 bounded server-side sum aggregates, one per month - no payment docs
+    // are downloaded to build the revenue trend chart.
+    getMonthlyRevenueTrend(6),
   ]);
 
   const activeStudents = allStudents.filter(s => s.status === 'active');
   const studentsCount = activeStudents.length;
 
-  // 1. Calculate Real Fee Balances
-  let studentsWithBalancesCount = 0;
-  await Promise.all(activeStudents.map(async (student) => {
-    if (!student.grade) return; 
-    let summary;
-    try {
-      summary = await getFeeSummary({
-        studentId: student.id,
-        grade: student.grade,
-        academicYear: settings.currentAcademicYear || "",
-        term: settings.currentTerm || ""
-      });
-    } catch {
-      return; // no fee structure set for this student's grade/term yet - skip rather than fail the whole dashboard
-    }
-    if (summary.balance > 0) {
-      studentsWithBalancesCount++;
-    }
-  }));
+  // 1. Revenue Trend (oldest-first months, straight from getMonthlyRevenueTrend)
+  const hasRevenueData = monthlyRevenue.some((m) => m.total > 0);
+  chartDataCache.revenueLabels = hasRevenueData ? monthlyRevenue.map((m) => m.label) : ['No Data Yet'];
+  chartDataCache.revenueData = hasRevenueData ? monthlyRevenue.map((m) => m.total) : [0];
 
-  // 2. Calculate Real Revenue Trend (Group by Month, sorted chronologically)
-  const monthlyRevenueByKey = {};
-  paymentsSnap.docs.forEach(doc => {
-    const data = doc.data();
-    if (!data.date) return;
-    const d = new Date(data.date);
-    if (isNaN(d)) return;
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleString('en-GB', { month: 'short', year: 'numeric' });
-    if (!monthlyRevenueByKey[key]) monthlyRevenueByKey[key] = { label, total: 0 };
-    monthlyRevenueByKey[key].total += Number(data.amount) || 0;
-  });
-  const sortedMonthKeys = Object.keys(monthlyRevenueByKey).sort();
-
-  chartDataCache.revenueLabels = sortedMonthKeys.map((k) => monthlyRevenueByKey[k].label);
-  chartDataCache.revenueData = sortedMonthKeys.map((k) => monthlyRevenueByKey[k].total);
-
-  // Fallback if no payments exist yet
-  if (chartDataCache.revenueLabels.length === 0) {
-    chartDataCache.revenueLabels = ['No Data Yet'];
-    chartDataCache.revenueData = [0];
-  }
-
-  // 3. Calculate Demographics Data
+  // 2. Calculate Demographics Data
   const gradeDistribution = {};
   activeStudents.forEach(s => {
     const g = s.grade || "Unassigned";
@@ -99,11 +66,11 @@ export async function render({ profile }) {
   chartDataCache.gradeLabels = Object.keys(gradeDistribution);
   chartDataCache.gradeCounts = Object.values(gradeDistribution);
 
-  // 4. Gender split (real headcount, not a guess)
+  // 3. Gender split (real headcount, not a guess)
   const boysCount = activeStudents.filter((s) => s.gender === "Male").length;
   const girlsCount = activeStudents.filter((s) => s.gender === "Female").length;
 
-  // 5. New admissions in the last 30 days
+  // 4. New admissions in the last 30 days
   const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
   const newAdmissionsCount = activeStudents.filter((s) => {
     if (!s.admissionDate) return false;
@@ -111,23 +78,21 @@ export async function render({ profile }) {
     return !isNaN(admitted) && Date.now() - admitted <= THIRTY_DAYS_MS;
   }).length;
 
-  // 6. Assessment pipeline: what's open (needs marks) vs locked
+  // 5. Assessment pipeline: what's open (needs marks) vs locked
   const openAssessmentsCount = assessments.filter((a) => a.status === "open").length;
   const lockedAssessmentsCount = assessments.filter((a) => a.status === "locked").length;
 
-  // 7. Which grade carries the largest headcount
+  // 6. Which grade carries the largest headcount
   let topGrade = null;
   for (const [grade, count] of Object.entries(gradeDistribution)) {
     if (!topGrade || count > topGrade.count) topGrade = { grade, count };
   }
 
-  // 8. Month-over-month revenue trend (needs at least two months of payments)
+  // 7. Month-over-month revenue trend (last two months of the bounded window)
   let revenueTrend = null;
-  if (sortedMonthKeys.length >= 2) {
-    const lastKey = sortedMonthKeys[sortedMonthKeys.length - 1];
-    const prevKey = sortedMonthKeys[sortedMonthKeys.length - 2];
-    const last = monthlyRevenueByKey[lastKey];
-    const prev = monthlyRevenueByKey[prevKey];
+  if (monthlyRevenue.length >= 2) {
+    const last = monthlyRevenue[monthlyRevenue.length - 1];
+    const prev = monthlyRevenue[monthlyRevenue.length - 2];
     if (prev.total > 0) {
       revenueTrend = {
         label: last.label,

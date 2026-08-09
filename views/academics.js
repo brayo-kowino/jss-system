@@ -97,7 +97,9 @@ function renderGrid(container, profile) {
 }
 
 async function refresh(profile) {
-  classes = await listClasses();
+  // forceRefresh: true - we just created/edited/deleted a grade or stream,
+  // so skip straight past the cache instead of possibly showing stale data.
+  classes = await listClasses(true);
   const container = document.querySelector(".card-grid")?.parentElement;
   if (container) renderGrid(container, profile);
 }

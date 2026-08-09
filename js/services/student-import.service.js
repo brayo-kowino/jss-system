@@ -16,6 +16,7 @@ import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { sanitizeInput } from "../utils.js";
+import { invalidateStudentsCache } from "./student.service.js";
 
 // Column order doubles as the template's header row and the accepted
 // (case/spacing-insensitive) input headers. "required" columns block a
@@ -312,6 +313,7 @@ export async function commitStudentRows(userId, rows) {
     await batch.commit();
   }
 
+  invalidateStudentsCache();
   await logAction(userId, "bulk_import_students", "students", null);
   return { created, updated, total: created + updated };
 }

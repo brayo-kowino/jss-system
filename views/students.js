@@ -200,7 +200,10 @@ function rowActions(student, profile) {
 }
 
 async function refresh(profile) {
-  const [studentsRes, openIssuesRes] = await Promise.all([listStudents(), listOpenIssues().catch(() => [])]);
+  // forceRefresh: true - we just admitted/edited/transferred/status-changed
+  // a student (or bulk-imported), so skip straight past the cache instead
+  // of possibly showing stale data.
+  const [studentsRes, openIssuesRes] = await Promise.all([listStudents(true), listOpenIssues().catch(() => [])]);
   students = studentsRes;
   openIssueCounts = new Map();
   for (const issue of openIssuesRes) {
