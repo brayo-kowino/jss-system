@@ -1,4 +1,4 @@
-import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify } from "../js/services/settings.service.js";
+import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { invalidateSchoolSettingsCache, refreshSchoolChrome } from "../js/components/shell.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
@@ -7,11 +7,6 @@ import { el, icon, toast, busyButton } from "../js/utils.js";
 let settings = null;
 let activeThemeId = "custom";
 let gradingRowSeq = 0;
-
-// Every school's login code is prefixed with this so links are
-// recognizable as belonging to our system at a glance (e.g.
-// "ees-greenhill-jss"). Fixed and non-removable from the UI.
-const SLUG_PREFIX = "ees";
 
 const TABS = [
   { id: "profile", label: "Profile", icon: "domain" },

@@ -106,6 +106,14 @@ export async function uploadSchoolLogo(file) {
 // branded sign-in page - nothing operational or sensitive.
 // ===========================================================================
 
+// Every school's login code is prefixed with this so links are
+// recognizable as belonging to our system at a glance (e.g.
+// "ees-greenhill-jss"). Single source of truth - both the School Settings
+// slug editor and the login screen's manual code entry need to agree on
+// it, since a code typed without the prefix will never match a stored
+// school_public/{slug} doc.
+export const SLUG_PREFIX = "ees";
+
 // Normalizes any input into a URL/doc-ID-safe code: lowercase letters,
 // digits and single hyphens only, capped at 40 chars.
 export function slugify(str = "") {

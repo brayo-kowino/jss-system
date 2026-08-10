@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { navigate } from "../js/router.js";
 import { el, icon, toast, busyButton } from "../js/utils.js";
-import { getSchoolBySlug, slugify } from "../js/services/settings.service.js";
+import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { applyBranding } from "../js/components/shell.js";
 
 const BRAND_POINTS = [
@@ -168,9 +168,11 @@ export async function render() {
       ]);
 
   const codeInput = el("input", { id: "school-code-input", type: "text", placeholder: "e.g. greenhill-jss" });
+  const codePrefixBadge = el("span", { class: "slug-input__prefix" }, `${SLUG_PREFIX}-`);
+  const codeInputGroup = el("div", { class: "slug-input-group", style: "flex:1;" }, [codePrefixBadge, codeInput]);
   const codeForm = el("form", { id: "school-code-form", style: "display:none;margin-top:10px;" }, [
     el("div", { style: "display:flex;gap:8px;align-items:flex-start;" }, [
-      el("div", { class: "field", style: "flex:1;margin-bottom:0;" }, [codeInput]),
+      el("div", { class: "field", style: "flex:1;margin-bottom:0;" }, [codeInputGroup]),
       el("button", { type: "submit", class: "btn btn--tonal btn--sm" }, "Go"),
     ]),
     el("div", { class: "field-error", id: "school-code-error" }, ""),
@@ -269,8 +271,11 @@ export function init() {
     const codeErrorEl = document.getElementById("school-code-error");
     codeErrorEl.textContent = "";
     const raw = document.getElementById("school-code-input").value;
-    const clean = slugify(raw);
-    if (!clean) {
+    // The badge only shows the prefix - it isn't part of the input's own
+    // value - so it has to be re-added here before slugifying, same as
+    // School Settings' buildFullSlug() does when saving a code.
+    const clean = slugify(`${SLUG_PREFIX}-${raw}`);
+    if (clean === SLUG_PREFIX || !raw.trim()) {
       codeErrorEl.textContent = "Enter your school's code first.";
       return;
     }
