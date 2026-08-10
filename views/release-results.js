@@ -17,7 +17,6 @@ export async function render({ profile }) {
   wrap.append(
     el("div", { class: "page-header" }, [
       el("div", {}, [
-        el("h1", {}, "Release results"),
         el("p", { class: "text-muted" }, "Control when saved results become visible on the public results portal, and set an expiry after which parents are told to contact the school."),
       ]),
     ])
