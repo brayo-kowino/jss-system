@@ -131,6 +131,11 @@
       <label for="dob">Date of birth</label>
       <input type="date" id="dob" required />
 
+      <!-- Cloudflare Turnstile widget. Only loads once a real site key is
+           set below - see TURNSTILE_SITE_KEY in the script at the bottom.
+           Until then this stays hidden and the form works without it
+           (the backend already skips captcha verification when its own
+           secret key isn't configured, so the two stay in sync). -->
       <div class="cf-turnstile" id="turnstile-widget" style="margin-top:16px; display:none;"></div>
 
       <button type="submit" id="submit-btn"><span class="material-symbols-rounded">search</span>Check results</button>
@@ -152,14 +157,43 @@
     const el = document.getElementById("turnstile-widget");
     if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "0x4AAAAAAC9iTSt_Ix-PKTIw") {
       el.style.display = "block";
-      window.turnstile.render(el, { sitekey: TURNSTILE_SITE_KEY });
+      window.turnstile.render(el, {
+        sitekey: TURNSTILE_SITE_KEY,
+        // Turnstile fails silently by default - a bad sitekey, a domain
+        // that isn't on the widget's allowed list, an ad-blocker, etc. all
+        // just leave getResponse() empty with nothing in the console. This
+        // surfaces whatever Cloudflare's actual error code is directly in
+        // the banner instead of us guessing at it one theory at a time.
+        "error-callback": function (code) {
+          console.error("Turnstile widget error code:", code);
+          showBanner("The verification widget couldn't load (error " + code + "). This usually means the domain isn't added to the Turnstile widget's allowed domains in the Cloudflare dashboard.", "warning");
+        },
+        "expired-callback": function () {
+          window.turnstile.reset();
+        },
+      });
     }
   };
 </script>
+
 <script>
+  // Set this once you've created a Turnstile widget in the Cloudflare
+  // dashboard (see instructions below). Left as-is, the captcha step is
+  // skipped entirely - no broken widget, no console errors - and the
+  // backend already does the same on its side when TURNSTILE_SECRET_KEY
+  // isn't set, so the two stay in sync automatically.
   const TURNSTILE_SITE_KEY = "0x4AAAAAAC9iTSt_Ix-PKTIw";
   if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "0x4AAAAAAC9iTSt_Ix-PKTIw") {
+    // Netlify's edge middleware (netlify/edge-functions/security.ts) injects
+    // a per-response nonce onto every <script> tag it finds in the HTML
+    // source and requires that nonce in the CSP header - but it only ever
+    // sees the static markup, not scripts created at runtime. A script tag
+    // built with document.createElement doesn't inherit one automatically,
+    // so CSP silently blocks it. Grabbing the nonce off this currently-
+    // running script (which DID get one, since it was in the HTML source)
+    // and copying it onto the new tag satisfies the same policy.
     const s = document.createElement("script");
+    s.nonce = document.currentScript ? document.currentScript.nonce : "";
     s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback";
     s.async = true;
     s.defer = true;
@@ -192,6 +226,8 @@
     bannerText.textContent = "";
   }
 
+  // Maps a failed response to a banner tone - a typo in the form isn't the
+  // same situation as the service being down, and the copy/icon should say so.
   function bannerKindForStatus(status) {
     if (status === 429) return "warning";
     if (status === 400) return "warning";
