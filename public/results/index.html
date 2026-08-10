@@ -150,7 +150,7 @@
 <script>
   window.onloadTurnstileCallback = function () {
     const el = document.getElementById("turnstile-widget");
-    if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "YOUR_TURNSTILE_SITE_KEY") {
+    if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "0x4AAAAAAC9iTSt_Ix-PKTIw") {
       el.style.display = "block";
       window.turnstile.render(el, { sitekey: TURNSTILE_SITE_KEY });
     }
