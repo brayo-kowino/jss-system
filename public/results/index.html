@@ -5,67 +5,116 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Check results - Eeskia</title>
 <meta name="robots" content="noindex, nofollow" />
-<link rel="icon" type="image/png" href="/assets/learning-journey.png" />
+<link rel="icon" type="image/png" href="/assets/logo.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..600,0..1,0" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Lora:wght@600;700&display=swap" />
+
 <style>
   :root {
     --navy: #0B2545; --blue: #14538A; --cream: #FAF6F0; --cream-dim: #F1EAE0;
-    --ink: #21262B; --ink-soft: #5C6A73; --gold: #C9A227; --green: #2E7D46;
-    --red: #B3261E; --line: #DCE3E8; --white: #FFFFFF;
+    --ink: #21262B; --ink-soft: #5C6A73; --gold: #C9A227; --gold-soft: #F3E7C4;
+    --green: #2E7D46; --green-soft: #E4F2E7; --red: #B3261E; --red-soft: #FBE7E5;
+    --line: #DCE3E8; --white: #FFFFFF; --radius: 6px; --radius-sm: 4px;
   }
   * { box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
   body {
     margin: 0; min-height: 100vh; background: var(--cream); color: var(--ink);
-    font-family: Arial, Helvetica, sans-serif; display: flex; justify-content: center;
-    padding: 32px 16px;
+    font-family: "Manrope", Arial, Helvetica, sans-serif; display: flex; justify-content: center;
+    padding: 40px 16px 56px;
   }
+  .material-symbols-rounded {
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    font-size: 20px; line-height: 1; vertical-align: middle;
+  }
+
   .wrap { width: 100%; max-width: 440px; }
-  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-  .brand img { width: 32px; height: 32px; border-radius: 6px; }
-  .brand span { font-family: Georgia, 'Times New Roman', serif; font-size: 19px; color: var(--navy); }
+
+  /* ---- Letterhead ---- */
+  .letterhead { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 18px; }
+  .letterhead__crest { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 1px solid var(--line); background: var(--white); }
+  .letterhead__brand { font-family: "Lora", Georgia, serif; font-weight: 700; font-size: 20px; color: var(--navy); margin-top: 10px; }
+  .letterhead__tag { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); font-weight: 700; margin-top: 2px; }
+  .letterhead__rule { width: 56px; height: 2px; background: var(--gold); margin: 14px auto 0; border-radius: 2px; }
+
+  /* ---- Cards ---- */
   .card {
-    background: var(--white); border: 1px solid var(--line); border-radius: 12px;
-    padding: 28px 24px; box-shadow: 0 8px 24px rgba(11,37,69,0.08);
+    background: var(--white); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 24px; box-shadow: 0 1px 2px rgba(11,37,69,0.04);
   }
-  h1 { font-family: Georgia, serif; font-size: 20px; color: var(--navy); margin: 0 0 6px; }
+  h1 { font-family: "Lora", Georgia, serif; font-size: 18px; font-weight: 700; color: var(--navy); margin: 0 0 6px; }
   .sub { font-size: 13px; color: var(--ink-soft); margin: 0 0 20px; line-height: 1.5; }
-  label { display: block; font-size: 12px; color: var(--ink-soft); margin: 14px 0 4px; }
+
+  label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-soft); margin: 14px 0 5px; }
   input[type="text"], input[type="date"] {
-    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px;
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
     font-size: 14px; font-family: inherit; color: var(--ink); background: var(--cream);
   }
-  input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+  input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
   button {
-    width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 8px;
-    background: var(--blue); color: var(--white); font-size: 14px; font-weight: bold;
-    cursor: pointer;
+    width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: var(--radius-sm);
+    background: var(--navy); color: var(--white); font-size: 14px; font-weight: 700;
+    font-family: inherit; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: background 0.15s ease;
   }
+  button:hover:not(:disabled) { background: var(--blue); }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .error {
-    margin-top: 14px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
-    background: #FBEAEA; color: var(--red); display: none;
+  .back-btn {
+    width: auto; margin: 16px auto 0; padding: 8px 4px; background: transparent; color: var(--blue);
+    font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 4px;
   }
-  .error.show { display: block; }
+  .back-btn:hover:not(:disabled) { background: transparent; color: var(--navy); text-decoration: underline; }
+
+  /* ---- Status banner ---- */
+  .banner {
+    margin-top: 16px; padding: 12px 13px; border-radius: var(--radius-sm); border: 1px solid transparent;
+    font-size: 13px; line-height: 1.45; display: none; gap: 10px; align-items: flex-start;
+  }
+  .banner.show { display: flex; }
+  .banner .material-symbols-rounded { font-size: 18px; margin-top: 1px; flex-shrink: 0; }
+  .banner--error { background: var(--red-soft); border-color: #F3C9C5; color: var(--red); }
+  .banner--warning { background: var(--gold-soft); border-color: #E6D294; color: #7A5B00; }
+  .banner--info { background: #E8F1FA; border-color: #C7DEF0; color: var(--blue); }
+  .banner--network { background: var(--cream-dim); border-color: var(--line); color: var(--ink-soft); }
+
+  /* ---- Result panel ---- */
   .result-card { margin-top: 18px; }
-  .result-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-  .result-header h2 { font-family: Georgia, serif; font-size: 17px; color: var(--navy); margin: 0; }
-  .meta { font-size: 12px; color: var(--ink-soft); margin-bottom: 14px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
-  th { color: var(--ink-soft); font-weight: normal; font-size: 11px; text-transform: uppercase; }
-  .summary { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-  .stat { background: var(--cream-dim); border-radius: 8px; padding: 8px 12px; font-size: 12px; flex: 1; min-width: 90px; }
-  .stat b { display: block; font-size: 16px; color: var(--navy); }
-  .remark { margin-top: 12px; font-size: 13px; }
-  .remark b { color: var(--navy); }
-  .back-link { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--blue); cursor: pointer; }
-  .fine { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 16px; }
+  .result-card__topbar { height: 4px; background: var(--gold); border-radius: var(--radius) var(--radius) 0 0; margin: -26px -24px 22px; }
+  .result-header h2 { font-family: "Lora", Georgia, serif; font-size: 18px; color: var(--navy); margin: 0; }
+  .meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 14px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  td { font-variant-numeric: tabular-nums; }
+  th { color: var(--ink-soft); font-weight: 700; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr:last-child td { border-bottom: none; }
+
+  .summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .stat { background: var(--cream-dim); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 11.5px; color: var(--ink-soft); flex: 1; min-width: 92px; }
+  .stat b { display: block; font-family: "Lora", Georgia, serif; font-size: 17px; color: var(--navy); margin-top: 1px; }
+
+  .remark { margin-top: 14px; font-size: 13px; line-height: 1.5; }
+  .remark b { color: var(--navy); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 2px; }
+
+  .status-note { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0 2px; }
+  .status-note .material-symbols-rounded { font-size: 26px; flex-shrink: 0; }
+  .status-note p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-soft); }
+
+  .fine { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 20px; line-height: 1.6; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="brand">
-    <img src="/assets/learning-journey.png" alt="" />
-    <span>Eeskia</span>
+
+  <div class="letterhead">
+    <img class="letterhead__crest" src="/assets/logo.png" alt="" />
+    <div class="letterhead__brand">Eeskia</div>
+    <div class="letterhead__tag">Results Portal</div>
+    <div class="letterhead__rule"></div>
   </div>
 
   <div class="card" id="form-card">
@@ -82,46 +131,76 @@
       <label for="dob">Date of birth</label>
       <input type="date" id="dob" required />
 
-      <div class="cf-turnstile" data-sitekey="0x4AAAAAAC9iTSt_Ix-PKTIw" style="margin-top:14px;"></div>
+      <!-- Cloudflare Turnstile widget. Replace YOUR_TURNSTILE_SITE_KEY below
+           once you've created a site key in the Turnstile dashboard. -->
+      <div class="cf-turnstile" data-sitekey="YOUR_TURNSTILE_SITE_KEY" style="margin-top:16px;"></div>
 
-      <button type="submit" id="submit-btn">Check results</button>
+      <button type="submit" id="submit-btn"><span class="material-symbols-rounded">search</span>Check results</button>
     </form>
 
-    <div class="error" id="error-box"></div>
+    <div class="banner" id="banner">
+      <span class="material-symbols-rounded" id="banner-icon"></span>
+      <span id="banner-text"></span>
+    </div>
   </div>
 
   <div class="card result-card" id="result-card" style="display:none;"></div>
 
-  <p class="fine">If you don't know your school code, contact the school office. This page never stores your search.</p>
+  <p class="fine">If you don't know your school code, contact the school office.<br />This page never stores your search.</p>
 </div>
 
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
   const form = document.getElementById("lookup-form");
-  const errorBox = document.getElementById("error-box");
+  const banner = document.getElementById("banner");
+  const bannerIcon = document.getElementById("banner-icon");
+  const bannerText = document.getElementById("banner-text");
   const submitBtn = document.getElementById("submit-btn");
   const formCard = document.getElementById("form-card");
   const resultCard = document.getElementById("result-card");
 
-  function showError(msg) {
-    errorBox.textContent = msg;
-    errorBox.classList.add("show");
+  const BANNER_KIND = {
+    error:   { icon: "error", cls: "banner--error" },
+    warning: { icon: "warning", cls: "banner--warning" },
+    info:    { icon: "schedule", cls: "banner--info" },
+    network: { icon: "cloud_off", cls: "banner--network" },
+  };
+
+  function showBanner(message, kind = "error") {
+    const spec = BANNER_KIND[kind] || BANNER_KIND.error;
+    banner.className = `banner show ${spec.cls}`;
+    bannerIcon.textContent = spec.icon;
+    bannerText.textContent = message;
   }
-  function clearError() {
-    errorBox.classList.remove("show");
-    errorBox.textContent = "";
+  function clearBanner() {
+    banner.className = "banner";
+    bannerText.textContent = "";
+  }
+
+  // Maps a failed response to a banner tone - a typo in the form isn't the
+  // same situation as the service being down, and the copy/icon should say so.
+  function bannerKindForStatus(status) {
+    if (status === 429) return "warning";
+    if (status === 400) return "warning";
+    if (status >= 500) return "network";
+    return "error";
   }
 
   function renderResult(data) {
     const s = data.student || {};
-    let html = `<div class="result-header"><h2>${escapeHtml(s.fullName || "Student")}</h2></div>`;
-    html += `<div class="meta">${escapeHtml(s.grade || "")}${s.stream ? " " + escapeHtml(s.stream) : ""}</div>`;
+    let html = `<div class="result-card__topbar"></div>`;
+    html += `<div class="result-header"><h2>${escapeHtml(s.fullName || "Student")}</h2>`;
+    html += `<div class="meta">${escapeHtml(s.grade || "")}${s.stream ? " " + escapeHtml(s.stream) : ""}</div></div>`;
 
     if (!data.results) {
-      html += `<p>${escapeHtml(data.message || "No results published yet.")}</p>`;
+      const expired = /expired/i.test(data.message || "");
+      html += `<div class="status-note" style="margin-top:18px;">
+        <span class="material-symbols-rounded" style="color:${expired ? "var(--red)" : "var(--gold)"};">${expired ? "event_busy" : "schedule"}</span>
+        <p>${escapeHtml(data.message || "No results published yet.")}</p>
+      </div>`;
     } else {
       const r = data.results;
-      html += `<div class="meta">${escapeHtml(String(r.academicYear || ""))} — ${escapeHtml(r.term || "")}</div>`;
+      html += `<div class="meta">${escapeHtml(String(r.academicYear || ""))} — ${escapeHtml(r.term || "")}${r.reportMode ? " · " + escapeHtml(reportModeText(r.reportMode)) : ""}</div>`;
       html += `<table><thead><tr><th>Subject</th><th>Score</th><th>Grade</th><th>Points</th></tr></thead><tbody>`;
       (r.subjects || []).forEach((subj) => {
         html += `<tr><td>${escapeHtml(subj.name || subj.code || "")}</td><td>${fmtNum(subj.average)}</td><td>${escapeHtml(subj.grade || "")}</td><td>${fmtNum(subj.points)}</td></tr>`;
@@ -132,21 +211,25 @@
       html += statBlock("Mean grade", r.meanGrade || "-");
       html += statBlock("Position", r.overallPosition ? `${r.overallPosition} / ${r.classSize || "-"}` : "-");
       html += `</div>`;
-      if (r.teacherRemark) html += `<div class="remark"><b>Class teacher:</b> ${escapeHtml(r.teacherRemark)}</div>`;
-      if (r.principalRemark) html += `<div class="remark"><b>Principal:</b> ${escapeHtml(r.principalRemark)}</div>`;
+      if (r.teacherRemark) html += `<div class="remark"><b>Class teacher</b>${escapeHtml(r.teacherRemark)}</div>`;
+      if (r.principalRemark) html += `<div class="remark"><b>Principal</b>${escapeHtml(r.principalRemark)}</div>`;
     }
 
-    html += `<div class="back-link" id="back-link">&larr; Check another student</div>`;
+    html += `<button type="button" class="back-btn" id="back-link"><span class="material-symbols-rounded" style="font-size:16px;">arrow_back</span>Check another student</button>`;
     resultCard.innerHTML = html;
     resultCard.style.display = "block";
     formCard.style.display = "none";
     document.getElementById("back-link").addEventListener("click", () => {
       resultCard.style.display = "none";
       formCard.style.display = "block";
+      clearBanner();
       if (window.turnstile) window.turnstile.reset();
     });
   }
 
+  function reportModeText(mode) {
+    return { midterm: "Midterm", endterm: "Endterm", average: "Average" }[mode] || mode;
+  }
   function statBlock(label, value) {
     return `<div class="stat">${escapeHtml(label)}<b>${escapeHtml(String(value))}</b></div>`;
   }
@@ -159,7 +242,7 @@
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    clearError();
+    clearBanner();
 
     const slug = document.getElementById("slug").value.trim();
     const admissionNumber = document.getElementById("admNo").value.trim();
@@ -167,12 +250,12 @@
     const captchaToken = window.turnstile ? window.turnstile.getResponse() : "";
 
     if (!slug || !admissionNumber || !dob) {
-      showError("Please fill in every field.");
+      showBanner("Fill in the school code, admission number, and date of birth to continue.", "warning");
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = "Checking…";
+    submitBtn.innerHTML = `<span class="material-symbols-rounded">hourglass_top</span>Checking…`;
 
     try {
       const res = await fetch("/results-lookup", {
@@ -182,16 +265,16 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        showError(data.error || "Something went wrong. Please try again.");
+        showBanner(data.error || "Something went wrong. Please try again.", bannerKindForStatus(res.status));
         if (window.turnstile) window.turnstile.reset();
         return;
       }
       renderResult(data);
     } catch {
-      showError("Couldn't reach the results service. Please try again.");
+      showBanner("Couldn't reach the results service. Check your connection and try again.", "network");
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Check results";
+      submitBtn.innerHTML = `<span class="material-symbols-rounded">search</span>Check results`;
     }
   });
 </script>
