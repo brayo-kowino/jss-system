@@ -44,27 +44,59 @@
   color: var(--color-cream);
 }
 
-/* 2. Pushes the laptop behind everything and aligns it to the top */
-.auth-brand__device {
+/* 2. Abstract animated backdrop - a slowly drifting dot/line grid plus two
+   soft blurred gradient orbs. No photo, no screenshot: keeps the panel calm
+   and lets the rotating feature line (below) carry all the motion focus. */
+.auth-brand__bg {
   position: absolute;
   z-index: 0;
   inset: 0;
-  display: flex;
-  align-items: flex-start; 
-  justify-content: center;
-  padding-top: 15%; 
-  min-height: 140px;
   overflow: hidden;
-}
-
-.auth-brand__scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(11, 37, 69, 0.40) 0%, rgba(11, 37, 69, 0.55) 52%, rgba(11, 37, 69, 0.62) 66%, rgba(11, 37, 69, 0.96) 82%, rgba(11, 37, 69, 0.99) 100%),
-    radial-gradient(circle at 80% 10%, rgba(30, 111, 181, 0.30) 0%, transparent 75%);
   pointer-events: none;
-  z-index: 1; 
+}
+.auth-brand__grid {
+  position: absolute;
+  inset: -10%;
+  background-image:
+    linear-gradient(rgba(233, 217, 160, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(233, 217, 160, 0.07) 1px, transparent 1px);
+  background-size: 42px 42px;
+  -webkit-mask-image: radial-gradient(circle at 28% 22%, black 0%, transparent 72%);
+  mask-image: radial-gradient(circle at 28% 22%, black 0%, transparent 72%);
+  animation: authGridDrift 44s linear infinite;
+}
+.auth-brand__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  animation: authOrbFloat 15s ease-in-out infinite;
+}
+.auth-brand__orb--1 {
+  width: 340px;
+  height: 340px;
+  top: -80px;
+  right: -80px;
+  background: radial-gradient(circle, rgba(30, 111, 181, 0.55), transparent 70%);
+}
+.auth-brand__orb--2 {
+  width: 280px;
+  height: 280px;
+  bottom: -60px;
+  left: -60px;
+  background: radial-gradient(circle, rgba(201, 162, 39, 0.38), transparent 70%);
+  animation-delay: -7s;
+}
+@keyframes authGridDrift {
+  from { transform: translate(0, 0); }
+  to { transform: translate(-42px, -42px); }
+}
+@keyframes authOrbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(18px, -22px) scale(1.08); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-brand__grid, .auth-brand__orb { animation: none; }
 }
 
 .auth-brand__top {
@@ -78,6 +110,120 @@
 .auth-brand__content {
   position: relative;
   z-index: 2;
+}
+
+/* 3. Illustrated learner motif - a seated figure in a graduation gown and
+   mortarboard, reading an open book on a stack of books, drawn in the same
+   gold-stroke / translucent-cream-fill line-art style as the rest of the
+   panel. Sits where the old headline/sub copy (and later the network
+   diagram) used to be. Motion is kept gentle and ambient: the page settles
+   as if just turned, the cap has a faint float, and a few soft twinkles
+   fade in and out around the figure - no literal tech imagery. */
+.auth-brand__illustration {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  margin: var(--sp-2) 0;
+}
+.learner-svg {
+  width: 100%;
+  height: 100%;
+  max-width: 420px;
+  max-height: 360px;
+}
+.learner-shadow { fill: rgba(11, 37, 69, 0.28); }
+.learner-books rect {
+  fill: rgba(250, 246, 240, 0.1);
+  stroke: var(--color-gold-soft);
+  stroke-width: 1.5;
+  stroke-opacity: 0.6;
+}
+.learner-legs ellipse,
+.learner-robe {
+  fill: rgba(250, 246, 240, 0.1);
+  stroke: var(--color-gold-soft);
+  stroke-width: 1.5;
+}
+.learner-arms path {
+  fill: none;
+  stroke: var(--color-gold-soft);
+  stroke-width: 8;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+.learner-hand { fill: var(--color-gold-soft); opacity: 0.9; }
+.learner-head {
+  fill: rgba(250, 246, 240, 0.14);
+  stroke: var(--color-gold);
+  stroke-width: 2;
+}
+
+/* Book: gentle "just turned" settle on the right-hand page only. */
+.learner-book__page-left,
+.learner-book__page-right {
+  fill: rgba(250, 246, 240, 0.14);
+  stroke: var(--color-gold-soft);
+  stroke-width: 1.2;
+}
+.learner-book__lines path {
+  fill: none;
+  stroke: rgba(233, 217, 160, 0.5);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+.learner-book__page-right {
+  transform-box: fill-box;
+  transform-origin: left center;
+  animation: learnerPageSettle 4.4s ease-in-out infinite;
+}
+
+/* Cap: soft float + faint sway, tassel swings with it. */
+.learner-cap {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: learnerCapBob 4s ease-in-out infinite;
+}
+.learner-cap__board { fill: var(--color-gold); opacity: 0.88; }
+.learner-cap__band { fill: var(--color-gold-soft); opacity: 0.9; }
+.learner-cap__button { fill: var(--color-cream); }
+.learner-cap__tassel {
+  fill: none;
+  stroke: var(--color-gold-soft);
+  stroke-width: 2;
+}
+.learner-cap__tuft { fill: var(--color-gold); }
+
+/* Twinkles: small sparkles fading in and out around the figure. */
+.learner-twinkle {
+  fill: var(--color-gold-soft);
+  opacity: 0;
+  filter: drop-shadow(0 0 3px rgba(233, 217, 160, 0.8));
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: learnerTwinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes learnerPageSettle {
+  0%, 100% { transform: rotateY(0deg) scaleX(1); }
+  50% { transform: scaleX(0.94) translateX(1px); }
+}
+@keyframes learnerCapBob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-1.5deg); }
+}
+@keyframes learnerTwinkle {
+  0%, 100% { opacity: 0; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learner-book__page-right, .learner-cap, .learner-twinkle { animation: none; }
+  .learner-twinkle { opacity: 0.6; }
 }
 
 /* Existing styles for the text inside the logo area */
@@ -96,67 +242,6 @@
 }
 
 
-.laptop-frame {
-  width: min(86%, 460px);
-  filter: drop-shadow(0 35px 55px rgba(0, 0, 0, 0.45));
-}
-.laptop-frame__screen {
-  position: relative;
-  background: #101d2e;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 11px 11px 3px 3px;
-  padding: 9px 9px 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-.laptop-frame__cam {
-  position: absolute;
-  top: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #2a4260;
-}
-.laptop-frame__viewport {
-  position: relative;
-  overflow: hidden;
-  border-radius: 3px 3px 0 0;
-  aspect-ratio: 16 / 10;
-  background: var(--color-cream);
-}
-.laptop-frame__viewport img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: top center;
-  display: block;
-}
-.laptop-frame__sheen {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, transparent 28%);
-  pointer-events: none;
-}
-.laptop-frame__base {
-  height: 14px;
-  margin: 0 -8px 0;
-  background: linear-gradient(180deg, #223650, #0c1826);
-  border-radius: 0 0 8px 8px;
-  position: relative;
-}
-.laptop-frame__base::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%);
-  width: 64px;
-  height: 5px;
-  background: #101d2e;
-  border-radius: 0 0 6px 6px;
-}
-
 .auth-brand__headline {
   font-family: var(--font-display);
   font-weight: 700;
@@ -174,15 +259,55 @@
   margin: 0 0 var(--sp-6);
   max-width: 420px;
 }
-.auth-brand__points { display: flex; flex-direction: column; gap: var(--sp-3); }
-.auth-brand__point {
+/* Rotating single-line feature carousel: one point shown at a time, cross-
+   fading with a small upward slide on swap. Height is fixed so the layout
+   below (dots, form panel) never jumps as the text length changes. */
+.auth-rotator {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.auth-rotator__track {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.auth-rotator__track.is-swapping {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.auth-rotator__icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-seal);
+  background: rgba(233, 217, 160, 0.16);
+  color: var(--color-gold-soft);
+  font-size: 17px;
+}
+.auth-rotator__text {
+  font-size: var(--fs-md);
+  font-weight: 500;
+  color: rgba(250, 246, 240, 0.95);
+}
+/* Static variant used on change-password (a couple of tips that both apply
+   at once, so unlike the login carousel these stay put rather than rotate). */
+.auth-brand__tips { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-2); }
+.auth-brand__tip {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   font-size: var(--fs-sm);
   color: rgba(250, 246, 240, 0.92);
 }
-.auth-brand__point .icon {
+.auth-brand__tip .icon {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -193,6 +318,25 @@
   background: rgba(233, 217, 160, 0.16);
   color: var(--color-gold-soft);
   font-size: 17px;
+}
+.auth-rotator__dots {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--sp-5);
+}
+.auth-rotator__dot {
+  width: 22px;
+  height: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: rgba(250, 246, 240, 0.25);
+  cursor: pointer;
+  transition: background 200ms ease, width 200ms ease;
+}
+.auth-rotator__dot.is-active { width: 34px; background: var(--color-gold); }
+@media (prefers-reduced-motion: reduce) {
+  .auth-rotator__track { transition: none; }
 }
 
 /* Right: form panel */

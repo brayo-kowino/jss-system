@@ -26,6 +26,81 @@ const BRAND_POINTS = [
 // browser last used, and skin the page before it's ever shown.
 // ===========================================================================
 
+// Illustrated learner motif for the left brand panel: a seated figure in a
+// graduation gown, reading a book with a mortarboard cap, drawn in the same
+// gold/cream line-art style as the rest of the auth screen (translucent
+// cream fills, gold strokes) instead of a literal tech/network diagram.
+// Motion stays gentle and ambient: the book's page settles as if just
+// turned, the cap has a faint float, and a handful of soft twinkles fade
+// in and out around the figure.
+const TWINKLES = [
+  { cx: 96, cy: 108, s: 1.0, dur: 3.4, delay: 0.0 },
+  { cx: 372, cy: 96, s: 0.75, dur: 3.0, delay: 0.6 },
+  { cx: 392, cy: 236, s: 0.85, dur: 3.8, delay: 1.4 },
+  { cx: 78, cy: 258, s: 0.7, dur: 3.2, delay: 2.0 },
+  { cx: 336, cy: 330, s: 0.6, dur: 2.8, delay: 0.9 },
+  { cx: 150, cy: 60, s: 0.65, dur: 3.6, delay: 1.7 },
+];
+
+// Small 4-point sparkle path centered on (cx, cy), sized by `s`.
+function sparklePath(cx, cy, s) {
+  const a = 9 * s, b = 2.4 * s;
+  return `M${cx},${cy - a} L${cx + b},${cy - b} L${cx + a},${cy} L${cx + b},${cy + b} ` +
+    `L${cx},${cy + a} L${cx - b},${cy + b} L${cx - a},${cy} L${cx - b},${cy - b} Z`;
+}
+
+function buildLearnerSvg() {
+  const twinkles = TWINKLES.map(
+    (t, i) => `<path class="learner-twinkle" style="animation-duration:${t.dur}s;animation-delay:${t.delay}s" d="${sparklePath(t.cx, t.cy, t.s)}" />`
+  ).join("");
+
+  return `
+    <svg class="learner-svg" viewBox="0 0 480 420" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <g class="learner-twinkles">${twinkles}</g>
+
+      <ellipse class="learner-shadow" cx="240" cy="378" rx="118" ry="12" />
+
+      <g class="learner-books">
+        <rect x="145" y="358" width="190" height="18" rx="4" transform="rotate(-1.5 240 367)" />
+        <rect x="158" y="340" width="164" height="18" rx="4" transform="rotate(1.5 240 349)" />
+        <rect x="150" y="322" width="180" height="18" rx="4" transform="rotate(-1 240 331)" />
+      </g>
+
+      <g class="learner-legs">
+        <ellipse cx="203" cy="304" rx="36" ry="17" transform="rotate(-14 203 304)" />
+        <ellipse cx="277" cy="304" rx="36" ry="17" transform="rotate(16 277 304)" />
+      </g>
+
+      <path class="learner-robe" d="M202,300 C197,264 199,229 214,209 L266,209 C281,229 283,264 278,300 Z" />
+
+      <g class="learner-arms">
+        <path d="M212,222 C192,244 182,270 194,293" />
+        <path d="M268,222 C288,244 298,270 286,293" />
+        <circle class="learner-hand" cx="194" cy="295" r="7" />
+        <circle class="learner-hand" cx="286" cy="295" r="7" />
+      </g>
+
+      <circle class="learner-head" cx="240" cy="174" r="35" />
+
+      <g class="learner-book">
+        <path class="learner-book__page-left" d="M240,282 L179,290 L181,313 L240,306 Z" />
+        <path class="learner-book__page-right" d="M240,282 L301,290 L299,313 L240,306 Z" />
+        <g class="learner-book__lines">
+          <path d="M197,291 L226,288" /><path d="M195,297 L227,294" /><path d="M194,303 L228,300" />
+          <path d="M254,288 L283,291" /><path d="M253,294 L285,297" /><path d="M252,300 L286,303" />
+        </g>
+      </g>
+
+      <g class="learner-cap">
+        <path class="learner-cap__tassel" d="M240,120 C258,128 268,147 262,169" />
+        <circle class="learner-cap__tuft" cx="262" cy="171" r="5" />
+        <rect class="learner-cap__band" x="221" y="132" width="38" height="17" rx="8" />
+        <path class="learner-cap__board" d="M240,94 L302,124 L240,142 L178,124 Z" />
+        <circle class="learner-cap__button" cx="240" cy="119" r="4" />
+      </g>
+    </svg>`;
+}
+
 const LAST_SCHOOL_KEY = "jss_school_slug";
 
 function readStoredSlug() {
@@ -82,28 +157,29 @@ export async function render() {
   const logoSrc = school?.logoUrl || "/assets/logo.png";
   const brandName = school?.schoolName || "Eeskia";
   const brandTag = school ? "Powered by Eeskia" : "School Management System";
-  const headline = school ? `Welcome back to ${school.schoolName}` : "Run your junior secondary school with confidence";
-  const sub = school
-    ? "Sign in to manage students, grading, fees, attendance and more."
-    : "One dashboard for admins, teachers, parents and support staff to manage students, grading, fees and more - built for the CBC curriculum.";
 
   const wrap = el("div", { class: "auth-screen" });
 
-  // Left: brand panel
+  // Left: brand panel. No screenshot/photo - just an animated abstract
+  // backdrop (drifting grid + soft gradient orbs) behind a rotating,
+  // one-line-at-a-time feature carousel. Keeps the panel calm at a glance
+  // while still feeling alive/tech rather than a static wall of text.
+  const rotatorIcon = el("span", { class: "auth-rotator__icon", id: "auth-rotator-icon" }, [icon(BRAND_POINTS[0].icon)]);
+  const rotatorText = el("span", { class: "auth-rotator__text", id: "auth-rotator-text" }, BRAND_POINTS[0].text);
+  const rotatorTrack = el("div", { class: "auth-rotator__track", id: "auth-rotator-track" }, [rotatorIcon, rotatorText]);
+  const rotatorDots = el("div", { class: "auth-rotator__dots", id: "auth-rotator-dots" }, BRAND_POINTS.map((_, i) =>
+    el("button", { type: "button", class: `auth-rotator__dot${i === 0 ? " is-active" : ""}`, "data-index": String(i), "aria-label": `Show feature ${i + 1}` })
+  ));
+
+  const illustration = el("div", { class: "auth-brand__illustration", "aria-hidden": "true" });
+  illustration.innerHTML = buildLearnerSvg();
+
   const brand = el("div", { class: "auth-brand" }, [
-    el("div", { class: "auth-brand__device" }, [
-      el("div", { class: "laptop-frame" }, [
-        el("div", { class: "laptop-frame__screen" }, [
-          el("div", { class: "laptop-frame__cam" }),
-          el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "/assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
-            el("div", { class: "laptop-frame__sheen" }),
-          ]),
-        ]),
-        el("div", { class: "laptop-frame__base" }),
-      ]),
+    el("div", { class: "auth-brand__bg" }, [
+      el("div", { class: "auth-brand__grid" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--1" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--2" }),
     ]),
-    el("div", { class: "auth-brand__scrim" }),
     el("div", { class: "auth-brand__top" }, [
       el("div", { class: "seal" }, [el("img", { class: "seal__img", src: logoSrc, alt: `${brandName} logo` })]),
       el("div", {}, [
@@ -111,12 +187,10 @@ export async function render() {
         el("div", { class: "auth-brand__top-tag" }, brandTag),
       ]),
     ]),
+    illustration,
     el("div", { class: "auth-brand__content" }, [
-      el("h1", { class: "auth-brand__headline" }, headline),
-      el("p", { class: "auth-brand__sub" }, sub),
-      el("div", { class: "auth-brand__points" }, BRAND_POINTS.map((p) =>
-        el("div", { class: "auth-brand__point" }, [icon(p.icon), el("span", {}, p.text)])
-      )),
+      el("div", { class: "auth-rotator", id: "auth-rotator" }, [rotatorTrack]),
+      rotatorDots,
     ]),
   ]);
 
@@ -206,6 +280,55 @@ export async function render() {
   return wrap;
 }
 
+// Cycles the left-panel feature line through BRAND_POINTS on a timer, with
+// a small fade/slide swap. Self-cleaning: each tick checks the rotator is
+// still attached to the document (this app's views have no unmount hook)
+// and stops the interval once the user has navigated away.
+function initRotator() {
+  const root = document.getElementById("auth-rotator");
+  if (!root) return;
+  const track = document.getElementById("auth-rotator-track");
+  const iconEl = document.getElementById("auth-rotator-icon");
+  const textEl = document.getElementById("auth-rotator-text");
+  const dots = Array.from(document.querySelectorAll("#auth-rotator-dots .auth-rotator__dot"));
+  const SWAP_MS = 220;
+  const INTERVAL_MS = 3800;
+  let index = 0;
+  let timer = null;
+
+  function show(i) {
+    index = i;
+    track.classList.add("is-swapping");
+    setTimeout(() => {
+      iconEl.innerHTML = "";
+      iconEl.append(icon(BRAND_POINTS[i].icon));
+      textEl.textContent = BRAND_POINTS[i].text;
+      track.classList.remove("is-swapping");
+    }, SWAP_MS);
+    dots.forEach((d, di) => d.classList.toggle("is-active", di === i));
+  }
+
+  function restart() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+      if (!document.body.contains(root)) {
+        clearInterval(timer);
+        return;
+      }
+      show((index + 1) % BRAND_POINTS.length);
+    }, INTERVAL_MS);
+  }
+
+  dots.forEach((d) => {
+    d.addEventListener("click", () => {
+      show(Number(d.dataset.index));
+      restart();
+    });
+  });
+
+  restart();
+}
+
 export function init() {
   const form = document.getElementById("login-form");
   const errorEl = document.getElementById("login-error");
@@ -246,6 +369,8 @@ export function init() {
       restore();
     }
   });
+
+  initRotator();
 
   // "Not your school?" - drop the remembered code and reload onto the
   // generic screen. A full reload (rather than re-rendering in place) is

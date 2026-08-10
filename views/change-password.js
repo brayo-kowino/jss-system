@@ -17,19 +17,11 @@ export async function render({ profile } = {}) {
   const wrap = el("div", { class: "auth-screen" });
 
   const brand = el("div", { class: "auth-brand" }, [
-    el("div", { class: "auth-brand__device" }, [
-      el("div", { class: "laptop-frame" }, [
-        el("div", { class: "laptop-frame__screen" }, [
-          el("div", { class: "laptop-frame__cam" }),
-          el("div", { class: "laptop-frame__viewport" }, [
-            el("img", { src: "/assets/eeskia-hero-image.png", alt: "Eeskia dashboard preview" }),
-            el("div", { class: "laptop-frame__sheen" }),
-          ]),
-        ]),
-        el("div", { class: "laptop-frame__base" }),
-      ]),
+    el("div", { class: "auth-brand__bg" }, [
+      el("div", { class: "auth-brand__grid" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--1" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--2" }),
     ]),
-    el("div", { class: "auth-brand__scrim" }),
     el("div", { class: "auth-brand__top" }, [
       el("div", { class: "seal" }, [el("img", { class: "seal__img", src: "/assets/logo.png", alt: "logo" })]),
       el("div", {}, [
@@ -40,9 +32,9 @@ export async function render({ profile } = {}) {
     el("div", { class: "auth-brand__content" }, [
       el("h1", { class: "auth-brand__headline" }, "Set your own password"),
       el("p", { class: "auth-brand__sub" }, "For your account's security, the temporary password you were given can only be used once. Choose a new password only you know before you continue."),
-      el("div", { class: "auth-brand__points" }, [
-        el("div", { class: "auth-brand__point" }, [icon("lock"), el("span", {}, "Never share this password with anyone")]),
-        el("div", { class: "auth-brand__point" }, [icon("verified_user"), el("span", {}, "Choose something you don't use elsewhere")]),
+      el("div", { class: "auth-brand__tips" }, [
+        el("div", { class: "auth-brand__tip" }, [icon("lock"), el("span", {}, "Never share this password with anyone")]),
+        el("div", { class: "auth-brand__tip" }, [icon("verified_user"), el("span", {}, "Choose something you don't use elsewhere")]),
       ]),
     ]),
   ]);
