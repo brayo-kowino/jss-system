@@ -159,11 +159,6 @@
       el.style.display = "block";
       window.turnstile.render(el, {
         sitekey: TURNSTILE_SITE_KEY,
-        // Turnstile fails silently on most error types - a domain that
-        // isn't on the widget's allowed list, an ad-blocker, etc. all just
-        // leave getResponse() empty with nothing in the console otherwise.
-        // This surfaces whatever Cloudflare's actual error code is
-        // directly in the banner instead of a generic dead end.
         "error-callback": function (code) {
           console.error("[turnstile] widget error code:", code);
           showBanner("The verification widget couldn't load (error " + code + "). If this persists, check that this domain is on the Turnstile widget's allowed-domains list in the Cloudflare dashboard.", "warning");
@@ -177,20 +172,8 @@
 </script>
 
 <script>
-  // Backend (netlify/edge-functions/results-lookup.ts) skips captcha
-  // verification entirely when TURNSTILE_SECRET_KEY isn't set on Netlify -
-  // keep this in sync with that: leave it as the placeholder to disable
-  // the widget on this side too, or set both together.
   const TURNSTILE_SITE_KEY = "0x4AAAAAAC9iTSt_Ix-PKTIw";
   if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "YOUR_TURNSTILE_SITE_KEY") {
-    // Netlify's edge middleware (netlify/edge-functions/security.ts) injects
-    // a per-response nonce onto every <script> tag it finds in the HTML
-    // source and requires that nonce in the CSP header - but it only ever
-    // sees the static markup, not scripts created at runtime. A script tag
-    // built with document.createElement doesn't inherit one automatically,
-    // so CSP silently blocks it. Grabbing the nonce off this currently-
-    // running script (which DID get one, since it was in the HTML source)
-    // and copying it onto the new tag satisfies the same policy.
     const s = document.createElement("script");
     s.nonce = document.currentScript ? document.currentScript.nonce : "";
     s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback";
@@ -225,8 +208,6 @@
     bannerText.textContent = "";
   }
 
-  // Maps a failed response to a banner tone - a typo in the form isn't the
-  // same situation as the service being down, and the copy/icon should say so.
   function bannerKindForStatus(status) {
     if (status === 429) return "warning";
     if (status === 400) return "warning";
