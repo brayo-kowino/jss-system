@@ -22,7 +22,7 @@
 // consistent time daily, which Netlify's scheduler guarantees.
 //
 // REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
-// variables - already documented in netlify/edge-functions/_firestore-rest.ts,
+// variables - already documented in netlify/edge-functions/lib/firestore-rest.ts,
 // nothing new to add here):
 //   GOOGLE_SERVICE_ACCOUNT_KEY - same service-account JSON key.
 // ==========================================================================

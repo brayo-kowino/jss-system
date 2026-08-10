@@ -11,13 +11,13 @@
 // touchesSubscriptionFields() carve-out blocks a normal client write, even
 // from that school's own admin, on purpose).
 //
-// REQUIRED SETUP: see _firestore-rest.ts (GOOGLE_SERVICE_ACCOUNT_KEY) and
-// _subscription-tokens.ts (SUBSCRIPTION_TOKEN_SECRET).
+// REQUIRED SETUP: see lib/firestore-rest.ts (GOOGLE_SERVICE_ACCOUNT_KEY) and
+// lib/subscription-tokens.ts (SUBSCRIPTION_TOKEN_SECRET).
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./_firestore-rest.ts";
-import { verifySubscriptionToken } from "./_subscription-tokens.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { verifySubscriptionToken } from "./lib/subscription-tokens.ts";
 
 export default async (request: Request, _context: Context) => {
   if (request.method !== "POST") {

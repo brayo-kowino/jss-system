@@ -11,7 +11,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, runFsQuery, verifyFirebaseIdToken, jsonResponse } from "./_firestore-rest.ts";
+import { getAccessToken, getFsDoc, runFsQuery, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 
 export default async (request: Request, _context: Context) => {
   if (request.method !== "GET") {

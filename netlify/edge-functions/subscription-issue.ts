@@ -11,8 +11,8 @@
 // their own users/{uid} doc is read with a privileged service-account
 // credential to confirm they're actually super_admin, entirely server-side.
 //
-// REQUIRED SETUP: see _firestore-rest.ts (GOOGLE_SERVICE_ACCOUNT_KEY) and
-// _subscription-tokens.ts (SUBSCRIPTION_TOKEN_SECRET).
+// REQUIRED SETUP: see lib/firestore-rest.ts (GOOGLE_SERVICE_ACCOUNT_KEY) and
+// lib/subscription-tokens.ts (SUBSCRIPTION_TOKEN_SECRET).
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
@@ -23,7 +23,7 @@ import {
   addFsDoc,
   verifyFirebaseIdToken,
   jsonResponse,
-} from "./_firestore-rest.ts";
+} from "./lib/firestore-rest.ts";
 import {
   signSubscriptionToken,
   addMonthsUTC,
@@ -31,7 +31,7 @@ import {
   YEAR_MONTHS,
   MAX_CUSTOM_YEARS,
   VALID_PLANS,
-} from "./_subscription-tokens.ts";
+} from "./lib/subscription-tokens.ts";
 
 function isValidPlan(v: unknown): v is (typeof VALID_PLANS)[number] {
   return typeof v === "string" && (VALID_PLANS as readonly string[]).includes(v);
