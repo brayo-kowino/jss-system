@@ -113,12 +113,20 @@ service cloud.firestore {
     // A role alone doesn't prove *which* school's data someone may touch -
     // every doc in the operational collections carries a schoolId field
     // written by the app, and these two checks are what actually enforce
-    // the tenant boundary between schools.
+    // the tenant boundary between schools. isSubscriptionActive() is
+    // folded in here too (see definition above) - single choke point, so
+    // every operational collection below is automatically hard-locked the
+    // instant a school's subscription lapses, with no per-collection edits
+    // needed. This deliberately does NOT touch isStaff() itself, because
+    // the schools/{schoolId} read rule uses isStaff() directly (not
+    // ownsExisting/ownsIncoming) and must keep working even when expired -
+    // the app needs to read the school doc's own subscription fields to
+    // know it's expired and show the lock screen in the first place.
     function ownsExisting() {
-      return resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId());
+      return resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId() && isSubscriptionActive());
     }
     function ownsIncoming() {
-      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId() && isSubscriptionActive();
     }
 
     // True once an assessment has been locked - checked against the
@@ -128,6 +136,45 @@ service cloud.firestore {
     function assessmentIsLocked(assessmentId) {
       return exists(/databases/$(database)/documents/assessments/$(assessmentId))
         && get(/databases/$(database)/documents/assessments/$(assessmentId)).data.status == 'locked';
+    }
+
+    // ------------------------------------------------------------------
+    // Subscription enforcement.
+    // subscriptionExpiresAt/subscriptionStatus live on the same schools/{id}
+    // doc as everything else, but are only ever written by the
+    // subscription-issue.ts / subscription-activate.ts Netlify edge
+    // functions (via a Google service-account credential, which bypasses
+    // these rules entirely) - never by a client SDK call, even the school's
+    // own admin. See the "subscription fields are locked" carve-out in the
+    // schools/{schoolId} match block below for the other half of that.
+    //
+    // This is deliberately a *live* comparison against request.time, not a
+    // cached boolean someone flips once - so a lapsed subscription takes
+    // effect the instant the expiry passes, and there's no field a client
+    // could set to "renew" itself early.
+    //
+    // super_admin has no schoolId and manages the Schools registry itself
+    // (not gated by any single school's subscription), so it's exempt.
+    // Anyone with no resolvable schoolId is already denied everywhere else
+    // in this file, so exempting them here isn't an opening.
+    function isSubscriptionActive() {
+      return mySchoolId() == null || (
+        exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionStatus == 'active' &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt is timestamp &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
+      );
+    }
+
+    // Fields a school admin can never touch directly through a normal
+    // document write, on schools/{schoolId} - only the two subscription
+    // edge functions (running with a privileged service-account
+    // credential that bypasses rules entirely) can set these.
+    function touchesSubscriptionFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
+        'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId'
+      ]);
     }
 
     // Users can always read their own profile. Admins/super_admin manage
@@ -160,7 +207,27 @@ service cloud.firestore {
     // registry entry (create, suspend/reactivate, list).
     match /schools/{schoolId} {
       allow read: if isSuperAdmin() || (isStaff() && schoolId == mySchoolId());
-      allow write: if isSuperAdmin() || (isAdmin() && schoolId == mySchoolId());
+      // Only the super_admin (via createSchool) ever creates a school doc.
+      allow create: if isSuperAdmin();
+      // An admin can update their own school's profile/branding/settings
+      // as always, but never the subscription fields - those only ever
+      // change via the edge functions' privileged service-account write,
+      // which bypasses this rule entirely (so this "deny" only ever
+      // blocks a client SDK call, which is exactly the point).
+      allow update: if isSuperAdmin()
+        || (isAdmin() && schoolId == mySchoolId() && !touchesSubscriptionFields());
+      allow delete: if isSuperAdmin();
+    }
+
+    // Every signed token this platform has ever issued (see
+    // subscription-issue.ts). Purely a server-side ledger - the "consumed"
+    // check that makes a token single-use lives here, read/written only by
+    // the edge functions' service-account credential. No client, including
+    // super_admin's own browser session, ever reads or writes this
+    // collection directly, hence the flat deny below (documented rather
+    // than left to silent default-deny, same reasoning as lookup_attempts).
+    match /subscription_tokens/{tokenId} {
+      allow read, write: if false;
     }
 
     // Narrow, deliberately public mirror of a school's cosmetic branding

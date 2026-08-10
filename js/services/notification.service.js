@@ -34,6 +34,11 @@ export const CHANNELS = [
   { value: "sms", label: "SMS" },
   { value: "email", label: "Email" },
   { value: "whatsapp", label: "WhatsApp" },
+  // Not offered in the compose modal - only ever written by
+  // netlify/functions/subscription-expiry-check.mjs for the daily
+  // subscription-expiry reminder, which has no phone/email audience to
+  // dispatch to, just a banner for the school's own admin to see in-app.
+  { value: "app", label: "In-App" },
 ];
 
 export function categoryMeta(category) {
@@ -43,6 +48,7 @@ export function categoryMeta(category) {
     term_closing: { icon: "event_busy", label: "Term Closing" },
     term_opening: { icon: "event_available", label: "Term Opening" },
     general: { icon: "campaign", label: "General" },
+    subscription: { icon: "workspace_premium", label: "Subscription" },
   };
   return map[category] || { icon: "notifications", label: "Notification" };
 }

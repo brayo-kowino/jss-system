@@ -558,6 +558,12 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .notice-banner .material-symbols-rounded { color: var(--color-primary-700); font-size: 20px; flex-shrink: 0; }
 
+/* Warning variant - subscription lapsed/inactive, or anything else that
+   needs the same layout but should read as "needs attention" rather than
+   neutral info. */
+.notice-banner--warning { background: #FBE7E5; border-color: rgba(179, 38, 30, 0.2); color: #6B1F1A; }
+.notice-banner--warning .material-symbols-rounded { color: var(--color-red); }
+
 /* Page-level tabs (Notifications / Newsletters, etc.) - same visual
    language as .profile-tabs but usable outside a modal. */
 .page-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--color-line); margin-bottom: var(--sp-5); }

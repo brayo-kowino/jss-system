@@ -4,8 +4,11 @@
 // still logged in status-wise, but you'd typically also suspend their
 // admin account - full lockout on suspend is a good follow-up).
 import { listSchools, createSchool, setSchoolStatus } from "../js/services/school.service.js";
+import { issueSubscriptionToken, listSubscriptionTokens, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS } from "../js/services/subscription.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, formatDate, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDate, formatDateTime, busyButton } from "../js/utils.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { db } from "../js/firebase-config.js";
 
 let schools = [];
 
@@ -32,7 +35,7 @@ export async function render({ profile }) {
   const tableWrap = el("div", { class: "table-wrap card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Created"), el("th", {}, ""),
+      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Created"), el("th", {}, ""),
     ])),
   ]);
   const tbody = el("tbody");
@@ -41,9 +44,18 @@ export async function render({ profile }) {
       el("tr", {}, [
         el("td", {}, [el("strong", {}, s.schoolName || "(unnamed)"), el("div", { class: "text-sm text-muted" }, s.address || "")]),
         el("td", {}, [el("div", {}, s.email || "N/A"), el("div", { class: "text-sm text-muted" }, s.phone || "")]),
-        el("td", {}, el("span", { class: `badge badge--${s.status === "active" ? "green" : "red"}` }, s.status || "active")),
+        el("td", {}, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
+        el("td", {}, subscriptionBadge(s)),
         el("td", {}, s.createdAt ? formatDate(s.createdAt) : "N/A"),
-        el("td", {}, [
+        el("td", { style: "white-space:nowrap;" }, [
+          el("button", {
+            class: "btn btn--sm btn--ghost",
+            onClick: () => openIssueTokenModal(s),
+          }, [icon("key"), "Issue subscription"]),
+          el("button", {
+            class: "btn btn--sm btn--ghost",
+            onClick: () => openTokenHistoryModal(s),
+          }, [icon("history"), "Token history"]),
           el("button", {
             class: "btn btn--sm btn--ghost",
             onClick: (e) => toggleStatus(profile, s, e.currentTarget),
@@ -57,6 +69,31 @@ export async function render({ profile }) {
   wrap.append(tableWrap);
 
   return wrap;
+}
+
+// Renders a school's subscription state as a badge + "N days left"/"expired
+// N days ago" caption. Pure display - getSubscriptionState() is the single
+// shared definition of "active" (also used by school-settings.js's
+// activation panel and the router's lock gate).
+function subscriptionBadge(school) {
+  const { active, daysRemaining } = getSubscriptionState(school);
+  const wrapEl = el("div", {});
+  if (school.subscriptionStatus === "inactive" || !school.subscriptionExpiresAt) {
+    wrapEl.append(el("span", { class: "badge badge--muted" }, "Not activated"));
+    return wrapEl;
+  }
+  if (active) {
+    wrapEl.append(
+      el("span", { class: `badge badge--${daysRemaining <= 7 ? "gold" : "success"}` }, `${SUBSCRIPTION_PLANS.find((p) => p.value === school.subscriptionPlan)?.label || school.subscriptionPlan || "Active"}`),
+      el("div", { class: "text-sm text-muted" }, `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} left`)
+    );
+  } else {
+    wrapEl.append(
+      el("span", { class: "badge badge--danger" }, "Expired"),
+      el("div", { class: "text-sm text-muted" }, school.subscriptionExpiresAt ? `Lapsed ${formatDate(school.subscriptionExpiresAt)}` : "")
+    );
+  }
+  return wrapEl;
 }
 
 export function init({ profile }) {
@@ -106,6 +143,82 @@ function openNewSchoolModal(profile) {
   });
 }
 
+// Two-step modal: pick plan/duration and issue a token, then show that
+// token in a copyable field once the server returns it. The token itself
+// is never generated or held client-side before this - issueSubscriptionToken()
+// is the only source of a real one.
+function openIssueTokenModal(school) {
+  const durationSelect = el("select", { id: "sub-duration" },
+    SUBSCRIPTION_DURATIONS.map((d) => el("option", { value: d.value }, d.label))
+  );
+  const customDateField = el("div", { class: "field", id: "sub-custom-date-field", style: "display:none;" }, [
+    el("label", { for: "sub-custom-date" }, "Expiry date"),
+    el("input", { id: "sub-custom-date", type: "date" }),
+  ]);
+  durationSelect.addEventListener("change", () => {
+    customDateField.style.display = durationSelect.value === "custom" ? "" : "none";
+  });
+
+  const form = el("form", {}, [
+    el("p", { class: "text-sm text-muted" }, `Issuing a token for ${school.schoolName || "this school"}. Hand it to their school administrator to paste into Settings \u2192 Subscription - it's single-use and only works for this school.`),
+    el("div", { class: "field" }, [
+      el("label", { for: "sub-plan" }, "Plan"),
+      el("select", { id: "sub-plan" }, SUBSCRIPTION_PLANS.map((p) => el("option", { value: p.value }, p.label))),
+    ]),
+    el("div", { class: "field" }, [el("label", { for: "sub-duration" }, "Duration"), durationSelect]),
+    customDateField,
+    el("button", { type: "submit", class: "btn btn--primary", style: "margin-top:8px;" }, [icon("key"), "Issue token"]),
+  ]);
+
+  const close = openModal("Issue subscription token", form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Issuing…");
+    try {
+      const duration = document.getElementById("sub-duration").value;
+      const result = await issueSubscriptionToken({
+        schoolId: school.id,
+        plan: document.getElementById("sub-plan").value,
+        duration,
+        customExpiresAt: duration === "custom" ? document.getElementById("sub-custom-date").value : undefined,
+      });
+      showIssuedTokenModal(school, result);
+      close();
+    } catch (err) {
+      toast(err.message || "Couldn't issue a token.", "error");
+      restore();
+    }
+  });
+}
+
+function showIssuedTokenModal(school, result) {
+  const tokenBox = el("textarea", {
+    readonly: "true",
+    rows: "4",
+    style: "width:100%;font-family:monospace;font-size:0.85rem;resize:vertical;",
+  });
+  tokenBox.value = result.token;
+
+  const body = el("div", {}, [
+    el("p", { class: "text-sm text-muted" }, `Expires ${formatDate(result.expiresAt)}. Share this token with ${school.schoolName || "the school"}'s administrator - it's only shown once.`),
+    tokenBox,
+    el("button", {
+      type: "button", class: "btn btn--sm btn--ghost", style: "margin-top:8px;",
+      onClick: async (e) => {
+        try {
+          await navigator.clipboard.writeText(result.token);
+          toast("Token copied.", "success");
+        } catch {
+          tokenBox.select();
+          toast("Couldn't auto-copy - select and copy manually.", "error");
+        }
+      },
+    }, [icon("content_copy"), "Copy token"]),
+  ]);
+  openModal("Subscription token issued", body);
+}
+
 async function toggleStatus(profile, school, button) {
   const next = school.status === "suspended" ? "active" : "suspended";
   const restore = button ? busyButton(button) : () => {};
@@ -117,6 +230,91 @@ async function toggleStatus(profile, school, button) {
   } catch (err) {
     toast(err.message || "Couldn't update school status.", "error");
     restore();
+  }
+}
+
+// Resolves a uid to a display name for the token-history modal below.
+// subscription_tokens only ever stores issuedBy/consumedBy as uids (see
+// subscription-issue.ts/subscription-activate.ts) - super_admin can read
+// any users/{uid} doc directly per firestore.rules, so this reads straight
+// from Firestore rather than needing another edge-function round trip.
+// Cached at module scope since issuedBy in particular is almost always
+// the same super_admin, repeated across many tokens/schools.
+const userNameCache = new Map();
+async function resolveUserName(uid) {
+  if (!uid) return "\u2014";
+  if (userNameCache.has(uid)) return userNameCache.get(uid);
+  let name = uid;
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) name = snap.data().fullName || snap.data().email || uid;
+  } catch {
+    // Fall back to the raw uid rather than blocking the whole history list.
+  }
+  userNameCache.set(uid, name);
+  return name;
+}
+
+// Every token this platform has ever issued for one school - the only
+// window into subscription_tokens (otherwise unreadable by any client, see
+// firestore.rules), via subscription-tokens-list.ts.
+async function openTokenHistoryModal(school) {
+  const body = el("div", {}, [el("p", { class: "text-sm text-muted" }, "Loading\u2026")]);
+  openModal(`Token history \u2014 ${school.schoolName || "School"}`, body);
+
+  let tokens;
+  try {
+    ({ tokens } = await listSubscriptionTokens(school.id));
+  } catch (err) {
+    body.innerHTML = "";
+    body.append(el("p", { class: "text-sm" }, err.message || "Couldn't load token history."));
+    return;
+  }
+
+  body.innerHTML = "";
+  if (!tokens.length) {
+    body.append(el("p", { class: "text-sm text-muted" }, "No tokens have been issued for this school yet."));
+    return;
+  }
+
+  const tbody = el("tbody");
+  body.append(
+    el("div", { class: "table-wrap" }, [
+      el("table", {}, [
+        el("thead", {}, el("tr", {}, [
+          el("th", {}, "Plan"), el("th", {}, "Expires"), el("th", {}, "Issued"), el("th", {}, "Status"), el("th", {}, "Consumed"),
+        ])),
+        tbody,
+      ]),
+    ])
+  );
+
+  for (const t of tokens) {
+    const row = el("tr", {}, [
+      el("td", {}, SUBSCRIPTION_PLANS.find((p) => p.value === t.plan)?.label || t.plan || "\u2014"),
+      el("td", {}, formatDate(t.expiresAt)),
+      el("td", {}, [el("div", {}, formatDateTime(t.issuedAt)), el("div", { class: "text-sm text-muted", "data-issued-by": "true" }, "\u2026")]),
+      el("td", {}, t.consumedAt
+        ? el("span", { class: "badge badge--success" }, "Used")
+        : el("span", { class: "badge badge--muted" }, "Unused")),
+      el("td", {}, t.consumedAt
+        ? [el("div", {}, formatDateTime(t.consumedAt)), el("div", { class: "text-sm text-muted", "data-consumed-by": "true" }, "\u2026")]
+        : "\u2014"),
+    ]);
+    tbody.append(row);
+
+    // Resolve names after the row's already visible, so the modal isn't
+    // stuck on "Loading…" while a handful of extra reads trickle in.
+    resolveUserName(t.issuedBy).then((name) => {
+      const cell = row.querySelector("[data-issued-by]");
+      if (cell) cell.textContent = name;
+    });
+    if (t.consumedBy) {
+      resolveUserName(t.consumedBy).then((name) => {
+        const cell = row.querySelector("[data-consumed-by]");
+        if (cell) cell.textContent = name;
+      });
+    }
   }
 }
 

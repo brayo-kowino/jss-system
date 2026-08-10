@@ -84,6 +84,37 @@
 # cloudinary.service.js for what this does and doesn't protect against.
 # ==========================================================================
 # ==========================================================================
+# Subscription system.
+# Two same-origin edge functions - netlify/edge-functions/subscription-issue.ts
+# (super_admin mints a token from the Schools page) and
+# netlify/edge-functions/subscription-activate.ts (a school admin redeems
+# one from Settings, or from the subscription-expired lock screen) - plus
+# one standard Netlify Function, netlify/functions/subscription-expiry-check.mjs,
+# which is a scheduled function (cron) rather than an edge function only
+# because Netlify's scheduler doesn't support edge functions. All three
+# talk to Firestore with a Google service-account credential that bypasses
+# firestore.rules entirely, same pattern as results-lookup.ts. Their paths
+# ("/subscription-issue", "/subscription-activate") are declared inline via
+# each file's own `export const config`, so nothing needs registering here
+# - same as media-upload.ts/results-lookup.ts. Already covered by
+# connect-src 'self' below, so no CSP change was needed either.
+#
+# REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
+# variables - secrets, never commit them):
+#   GOOGLE_SERVICE_ACCOUNT_KEY - if already set for results-lookup.ts,
+#                                nothing new to add; all three subscription
+#                                functions reuse it.
+#   SUBSCRIPTION_TOKEN_SECRET  - a new one, only for these three functions:
+#                                any long random string (e.g.
+#                                `openssl rand -hex 32`), used to
+#                                sign/verify subscription tokens. Rotating
+#                                it just invalidates any tokens issued but
+#                                not yet activated - nothing else.
+# A new deploy is needed after setting these (env vars are snapshotted at
+# deploy time), same as every other function in this project.
+# ==========================================================================
+
+# ==========================================================================
 # Cloudinary upload proxy has moved to netlify/edge-functions/media-upload.ts.
 # It used to be a plain [[redirects]] proxy here, but a signed upload needs
 # to compute a Cloudinary signature (requires the API secret, which must

@@ -13,7 +13,8 @@
 //    blank the whole app - it falls back to a friendly in-shell error card
 //    with a "try again" button, and the sidebar/nav stay usable.
 // ==========================================================================
-import { getCurrentProfile } from "./services/auth.service.js";
+import { getCurrentProfile, getCurrentSchool } from "./services/auth.service.js";
+import { getSubscriptionState } from "./services/subscription.service.js";
 import { renderShell } from "./components/shell.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
@@ -21,6 +22,7 @@ import { renderInlineError, showFatalError } from "./error-handler.js";
 import * as analyticsView from "../views/analytics.js";
 import * as loginView from "../views/login.js";
 import * as changePasswordView from "../views/change-password.js";
+import * as subscriptionLockedView from "../views/subscription-locked.js";
 import * as dashboardView from "../views/dashboard.js";
 import * as settingsView from "../views/school-settings.js";
 import * as studentsView from "../views/students.js";
@@ -184,6 +186,27 @@ export async function renderRoute() {
     // data - the only thing it can see is the Schools registry.
     if (profile.role === "super_admin" && path !== "/schools") {
       return navigate("/schools");
+    }
+
+    // Hard lock, layer two (layer one is firestore.rules' isSubscriptionActive()
+    // - this just means people see a clear message instead of a wall of
+    // failed reads/writes). super_admin is exempt (no schoolId, manages the
+    // Schools registry itself, not gated by any single school's subscription).
+    // Every other role - including the school's own admin - lands here the
+    // instant subscriptionExpiresAt lapses; the lock screen itself is the
+    // one place an admin can still paste a fresh token (see
+    // views/subscription-locked.js), so this never fully strands a school.
+    if (profile.role !== "super_admin") {
+      const school = getCurrentSchool();
+      const { active } = getSubscriptionState(school || {});
+      if (!active) {
+        const content = await subscriptionLockedView.render({ profile, school });
+        if (isStale()) return;
+        app.innerHTML = "";
+        app.appendChild(content);
+        await subscriptionLockedView.init?.({ profile, school });
+        return;
+      }
     }
 
     const allowed = route.allRoles || (route.roles || []).includes(profile.role);

@@ -40,15 +40,22 @@ import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
 
 let currentProfile = null; // cached { uid, ...firestore user doc }
+// Cached schools/{schoolId} doc for the logged-in user's own school - kept
+// alongside currentProfile so the router can check subscription status
+// (subscriptionStatus/subscriptionExpiresAt) on every render without an
+// extra fetch. Null for super_admin (no schoolId) and while signed out.
+let currentSchool = null;
 
 export function onAuthChange(callback) {
   return onAuthStateChanged(auth, async (fbUser) => {
     if (!fbUser) {
       currentProfile = null;
+      currentSchool = null;
       callback(null);
       return;
     }
     currentProfile = await fetchProfile(fbUser.uid);
+    currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
     callback(currentProfile);
   });
 }
@@ -59,8 +66,31 @@ async function fetchProfile(uid) {
   return { uid, ...snap.data() };
 }
 
+async function fetchSchool(schoolId) {
+  const snap = await getDoc(doc(db, "schools", schoolId));
+  return snap.exists() ? { id: schoolId, ...snap.data() } : null;
+}
+
 export function getCurrentProfile() {
   return currentProfile;
+}
+
+// The logged-in user's own school doc, including its subscription fields
+// - read by router.js's lock gate. Not cached via query-cache.js like most
+// other reads, on purpose: the whole point is this can't go stale for
+// longer than a page render, since it's the thing deciding whether the
+// app is locked.
+export function getCurrentSchool() {
+  return currentSchool;
+}
+
+// Called right after activateSubscription() succeeds (school-settings.js)
+// so the just-activated status is reflected immediately, without waiting
+// for the next full sign-in.
+export async function refreshCurrentSchool() {
+  if (!currentProfile?.schoolId) return null;
+  currentSchool = await fetchSchool(currentProfile.schoolId);
+  return currentSchool;
 }
 
 // The school the logged-in user belongs to (null for super_admin, who

@@ -1,8 +1,9 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
+import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS } from "../js/services/subscription.service.js";
 import { invalidateSchoolSettingsCache, refreshSchoolChrome } from "../js/components/shell.js";
-import { getCurrentSchoolId } from "../js/services/auth.service.js";
+import { getCurrentSchoolId, refreshCurrentSchool } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
-import { el, icon, toast, busyButton } from "../js/utils.js";
+import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
 
 let settings = null;
 let activeThemeId = "custom";
@@ -14,6 +15,7 @@ const TABS = [
   { id: "leadership", label: "Leadership", icon: "badge" },
   { id: "calendar", label: "Academic Calendar", icon: "event" },
   { id: "grading", label: "Grading Scale", icon: "grading" },
+  { id: "subscription", label: "Subscription", icon: "workspace_premium" },
 ];
 
 export async function render({ profile }) {
@@ -56,6 +58,7 @@ export async function render({ profile }) {
   panels.leadership.append(buildLeadershipTab());
   panels.calendar.append(buildCalendarTab());
   panels.grading.append(buildGradingTab());
+  panels.subscription.append(buildSubscriptionTab());
 
   wrap.append(tabsNav);
   for (const t of TABS) wrap.append(panels[t.id]);
@@ -464,6 +467,45 @@ function buildGradingTab() {
   return card;
 }
 
+// ===========================================================================
+// Subscription tab
+// ===========================================================================
+// Shows the school's current subscription state (read-only - it can only
+// change via the activate call below, never via a normal settings save;
+// firestore.rules blocks a direct write to these fields on purpose) and a
+// field to redeem a token handed over by the platform administrator.
+// ===========================================================================
+
+function buildSubscriptionTab() {
+  const card = el("div", { class: "card settings-card" });
+  card.append(el("h3", {}, "Subscription"));
+
+  const { active, daysRemaining } = getSubscriptionState(settings);
+  const planLabel = SUBSCRIPTION_PLANS.find((p) => p.value === settings.subscriptionPlan)?.label || settings.subscriptionPlan;
+
+  const statusBanner = el("div", { class: `notice-banner${active ? "" : " notice-banner--warning"}` });
+  if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
+    statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact the platform administrator to get a subscription token, then paste it below."));
+  } else if (active) {
+    statusBanner.append(icon("check_circle"), el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`));
+  } else {
+    statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact the platform administrator for a new token.`));
+  }
+  card.append(statusBanner);
+
+  const form = el("form", { id: "subscription-form", class: "settings-form-grid", style: "margin-top:16px;" }, [
+    el("div", { class: "field field--full" }, [
+      el("label", { for: "sub-token" }, "Subscription token"),
+      el("textarea", { id: "sub-token", rows: "3", placeholder: "Paste the token from the platform administrator here", style: "font-family:monospace;font-size:0.85rem;" }),
+    ]),
+    el("div", { class: "settings-form-actions" }, [
+      el("button", { type: "submit", class: "btn btn--primary" }, [icon("key"), "Activate subscription"]),
+    ]),
+  ]);
+  card.append(form);
+  return card;
+}
+
 function field(id, label, value = "", type = "text", full = false) {
   return el("div", { class: `field${full ? " field--full" : ""}` }, [
     el("label", { for: id }, label),
@@ -623,6 +665,27 @@ export function init({ profile }) {
     } catch (err) {
       toast(err.message || "Could not save grading scale.", "error");
     } finally {
+      restore();
+    }
+  });
+
+  document.getElementById("subscription-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Activating…");
+    try {
+      const token = document.getElementById("sub-token").value.trim();
+      if (!token) throw new Error("Paste the token you were given first.");
+      const result = await activateSubscription(token);
+      settings.subscriptionStatus = result.subscriptionStatus;
+      settings.subscriptionPlan = result.subscriptionPlan;
+      settings.subscriptionExpiresAt = result.subscriptionExpiresAt;
+      invalidateSchoolSettingsCache();
+      await refreshCurrentSchool();
+      toast("Subscription activated.", "success");
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Couldn't activate that token.", "error");
       restore();
     }
   });

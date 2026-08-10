@@ -58,6 +58,12 @@ export const DEFAULT_SETTINGS = {
   openingDate: "",
   gradingScale: DEFAULT_GRADING_SCALE,
   status: "active",
+  // Subscription fields live on this same doc but are never set here or by
+  // any client write - only subscription-issue.ts/subscription-activate.ts
+  // (via their service-account credential) ever set them for real. This
+  // default just means a school that's never been activated reads back an
+  // explicit "inactive" rather than undefined everywhere that checks it.
+  subscriptionStatus: "inactive",
 };
 
 function schoolDocRef(schoolId) {
