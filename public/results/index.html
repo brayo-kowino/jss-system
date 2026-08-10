@@ -154,26 +154,42 @@
 
 <script>
   window.onloadTurnstileCallback = function () {
+    console.log("[turnstile] api.js loaded, onload fired");
     const el = document.getElementById("turnstile-widget");
     if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "0x4AAAAAAC9iTSt_Ix-PKTIw") {
       el.style.display = "block";
-      window.turnstile.render(el, {
-        sitekey: TURNSTILE_SITE_KEY,
-        // Turnstile fails silently by default - a bad sitekey, a domain
-        // that isn't on the widget's allowed list, an ad-blocker, etc. all
-        // just leave getResponse() empty with nothing in the console. This
-        // surfaces whatever Cloudflare's actual error code is directly in
-        // the banner instead of us guessing at it one theory at a time.
-        "error-callback": function (code) {
-          console.error("Turnstile widget error code:", code);
-          showBanner("The verification widget couldn't load (error " + code + "). This usually means the domain isn't added to the Turnstile widget's allowed domains in the Cloudflare dashboard.", "warning");
-        },
-        "expired-callback": function () {
-          window.turnstile.reset();
-        },
-      });
+      try {
+        window.turnstile.render(el, {
+          sitekey: TURNSTILE_SITE_KEY,
+          // Turnstile fails silently by default - a bad sitekey, a domain
+          // that isn't on the widget's allowed list, an ad-blocker, etc. all
+          // just leave getResponse() empty with nothing in the console. This
+          // surfaces whatever Cloudflare's actual error code is directly in
+          // the banner instead of us guessing at it one theory at a time.
+          callback: function (token) {
+            console.log("[turnstile] token acquired, length:", token.length);
+          },
+          "error-callback": function (code) {
+            console.error("[turnstile] widget error code:", code);
+            showBanner("The verification widget couldn't load (error " + code + "). This usually means the domain isn't added to the Turnstile widget's allowed domains in the Cloudflare dashboard.", "warning");
+          },
+          "expired-callback": function () {
+            window.turnstile.reset();
+          },
+        });
+        console.log("[turnstile] render() called successfully");
+      } catch (err) {
+        console.error("[turnstile] render() threw:", err);
+      }
     }
   };
+  // If this never logs anything at all, api.js itself never loaded or
+  // executed - almost always a browser privacy/tracking-prevention
+  // feature or an ad-blocker extension blocking challenges.cloudflare.com
+  // outright (it's on several block lists), not a config problem here.
+  setTimeout(function () {
+    if (!window.turnstile) console.warn("[turnstile] window.turnstile still undefined 5s after page load - the script likely never loaded (check Network tab for challenges.cloudflare.com, or try an incognito window with extensions disabled)");
+  }, 5000);
 </script>
 
 <script>
@@ -297,6 +313,7 @@
     const admissionNumber = document.getElementById("admNo").value.trim();
     const dob = document.getElementById("dob").value;
     const captchaToken = window.turnstile ? window.turnstile.getResponse() : "";
+    console.log("[turnstile] window.turnstile defined:", !!window.turnstile, "| token length at submit:", captchaToken.length);
 
     if (!slug || !admissionNumber || !dob) {
       showBanner("Fill in the school code, admission number, and date of birth to continue.", "warning");
