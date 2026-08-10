@@ -31,6 +31,33 @@ export async function cached(key, ttlMs, fetchFn) {
   return data;
 }
 
+// Separate from the TTL cache above, and never consulted to skip a fetch -
+// this only remembers the last value each key resolved to, for as long as
+// the tab's been open, purely as a fallback when a fetch fails outright
+// (e.g. offline, or a server-only aggregate query like getCountFromServer/
+// getAggregateFromServer that has no cache of its own to fall back to).
+const lastKnown = new Map();
+
+/**
+ * Calls `fetchFn`. On success, remembers the result under `key` (for future
+ * failures) and returns { value, stale: false }. On failure, returns the
+ * last value that ever succeeded for `key`, tagged { value, stale: true },
+ * instead of propagating the error or silently substituting a number like
+ * 0 that looks like real data. If nothing has ever succeeded for `key`
+ * either, returns { value: fallback, stale: false } - there's nothing
+ * stale to show, so this isn't mislabeled as "stale."
+ */
+export async function cachedWithFallback(key, fetchFn, fallback) {
+  try {
+    const data = await fetchFn();
+    lastKnown.set(key, data);
+    return { value: data, stale: false };
+  } catch (err) {
+    if (lastKnown.has(key)) return { value: lastKnown.get(key), stale: true };
+    return { value: fallback, stale: false };
+  }
+}
+
 /** Drop one cached entry (call after any write that changes it). */
 export function invalidate(key) {
   store.delete(key);

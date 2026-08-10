@@ -26,6 +26,7 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { listStudents } from "./student.service.js";
+import { cachedWithFallback } from "./query-cache.js";
 
 export const PAYMENT_METHODS = ["Cash", "M-Pesa", "Bank Transfer", "Cheque"];
 
@@ -135,9 +136,14 @@ export async function getPayment(id) {
 }
 
 /** For the dashboard's "Fees Collected (Term)" stat - a single server-side
- * sum aggregate instead of downloading every payment doc for the term. */
+ * sum aggregate instead of downloading every payment doc for the term.
+ * getAggregateFromServer has no offline cache of its own to fall back to
+ * (it's server-only), so a failed fetch (e.g. no connection) returns the
+ * last total that *did* load this session, tagged stale, rather than
+ * silently reporting 0 as if the school had collected nothing. */
 export async function getTermCollectionTotal(academicYear, term) {
-  try {
+  const key = `fees:term-total:${scopedId(getCurrentSchoolId(), academicYear, term)}`;
+  const { value, stale } = await cachedWithFallback(key, async () => {
     const snap = await getAggregateFromServer(
       query(
         collection(db, "fee_payments"),
@@ -148,16 +154,19 @@ export async function getTermCollectionTotal(academicYear, term) {
       { total: sum("amount") }
     );
     return snap.data().total || 0;
-  } catch {
-    return 0;
-  }
+  }, 0);
+  return { value, stale };
 }
 
 /** Last `months` months of revenue for the dashboard's trend chart, as
  * [{ label, total }] oldest-first. Each month is one server-side sum
  * aggregate (bounded by the `date` string field, which sorts the same as
  * chronological order since dates are stored "YYYY-MM-DD") - no payment
- * docs are downloaded at all, however many terms of history exist. */
+ * docs are downloaded at all, however many terms of history exist.
+ * Same offline-fallback reasoning as getTermCollectionTotal(): each
+ * month's aggregate that fails to load falls back to its own last
+ * successful total (stale) rather than 0, so a dropped connection doesn't
+ * make the trend chart look like revenue fell off a cliff. */
 export async function getMonthlyRevenueTrend(months = 6) {
   const schoolId = getCurrentSchoolId();
   const now = new Date();
@@ -175,7 +184,8 @@ export async function getMonthlyRevenueTrend(months = 6) {
 
   const results = await Promise.all(
     monthDefs.map(async ({ label, startStr, endStr }) => {
-      try {
+      const key = `fees:monthly-total:${scopedId(schoolId, startStr, endStr)}`;
+      const { value, stale } = await cachedWithFallback(key, async () => {
         const snap = await getAggregateFromServer(
           query(
             collection(db, "fee_payments"),
@@ -185,13 +195,12 @@ export async function getMonthlyRevenueTrend(months = 6) {
           ),
           { total: sum("amount") }
         );
-        return { label, total: snap.data().total || 0 };
-      } catch {
-        return { label, total: 0 };
-      }
+        return snap.data().total || 0;
+      }, 0);
+      return { label, total: value, stale };
     })
   );
-  return results;
+  return { months: results, stale: results.some((m) => m.stale) };
 }
 
 /** For the dashboard's "students with pending balances" insight - a single
@@ -201,7 +210,8 @@ export async function getMonthlyRevenueTrend(months = 6) {
  * resyncFeeStatusForGrade() below, so it's only as fresh as the last
  * payment or fee-structure change. */
 export async function getStudentsWithBalancesCount(academicYear, term) {
-  try {
+  const key = `fees:balances-count:${scopedId(getCurrentSchoolId(), academicYear, term)}`;
+  const { value, stale } = await cachedWithFallback(key, async () => {
     const snap = await getCountFromServer(
       query(
         collection(db, "student_fee_status"),
@@ -212,9 +222,8 @@ export async function getStudentsWithBalancesCount(academicYear, term) {
       )
     );
     return snap.data().count;
-  } catch {
-    return 0;
-  }
+  }, 0);
+  return { value, stale };
 }
 
 /** For the Analytics "Fee Defaulters & Balances" report - a single query

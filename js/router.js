@@ -124,6 +124,29 @@ function renderNotFound(app, { authed }) {
 // trigger a fresh render.
 let currentRenderToken = 0;
 
+// A view's render() can hang rather than reject when the network drops
+// mid-session - Firestore's own offline detection isn't instant (see
+// firebase-config.js), and a server-only aggregate read has no cache to
+// fall back to at all. Without a ceiling here, main.appendChild(skeletonPage())
+// below would just sit on screen indefinitely with no way out. After
+// RENDER_TIMEOUT_MS we give up waiting and fall through to the existing
+// inline-error/retry path instead, classified as "offline"/"timeout" by
+// error-handler.js's classifyError() so the person sees a real message and
+// a "Try again" button rather than a frozen skeleton. This doesn't cancel
+// the original render() call - if it resolves later in the background,
+// its result is simply never used - so a real (just slow) connection that
+// comes through after the timeout doesn't leave anything half-applied.
+const RENDER_TIMEOUT_MS = 12_000;
+function withTimeout(promise, ms) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(Object.assign(new Error("Timed out waiting for the server."), { code: "deadline-exceeded" }));
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function renderRoute() {
   const app = document.getElementById("app");
   if (!app) return;
@@ -232,7 +255,7 @@ export async function renderRoute() {
     main.innerHTML = "";
     main.appendChild(skeletonPage());
     try {
-      const content = await route.view.render({ profile, title: route.title });
+      const content = await withTimeout(route.view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
@@ -247,7 +270,7 @@ export async function renderRoute() {
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(skeletonPage());
-          const content = await route.view.render({ profile, title: route.title });
+          const content = await withTimeout(route.view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(content);

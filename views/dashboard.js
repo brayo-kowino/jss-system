@@ -7,19 +7,23 @@ import { fetchRecentLogs, describeLog } from "../js/services/audit.service.js";
 import { listAssessments } from "../js/services/assessment.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
+import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
 import { el, formatDate } from "../js/utils.js";
 
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 Chart.register(...registerables);
 
+// getCountFromServer is server-only - no offline cache of its own - so a
+// failed fetch falls back to the last count that *did* load this session
+// (tagged stale) instead of reporting 0 active staff, same reasoning as
+// the fee aggregates in fee.service.js.
 async function safeCount(collectionName) {
-  try {
-    const snap = await getCountFromServer(query(collection(db, collectionName), where("schoolId", "==", getCurrentSchoolId())));
+  const schoolId = getCurrentSchoolId();
+  return cachedWithFallback(`dashboard:count:${collectionName}:${schoolId}`, async () => {
+    const snap = await getCountFromServer(query(collection(db, collectionName), where("schoolId", "==", schoolId)));
     return snap.data().count;
-  } catch {
-    return 0; 
-  }
+  }, 0);
 }
 
 // Global cache so init() can grab the real data after render
@@ -33,7 +37,7 @@ let chartDataCache = {
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
 
-  const [teachers, attendanceToday, feesCollected, recentLogs, assessments, allStudents, studentsWithBalancesCount, monthlyRevenue] = await Promise.all([
+  const [teachersResult, attendanceToday, feesCollectedResult, recentLogs, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult] = await Promise.all([
     safeCount("teachers"),
     getTodayAttendanceStat(),
     getTermCollectionTotal(settings.currentAcademicYear, settings.currentTerm),
@@ -48,6 +52,18 @@ export async function render({ profile }) {
     // are downloaded to build the revenue trend chart.
     getMonthlyRevenueTrend(6),
   ]);
+
+  // These four are all server-only aggregate reads with no offline cache
+  // fallback of their own (see fee.service.js/safeCount above) - each one
+  // that couldn't refresh comes back as its last known value, tagged
+  // stale, rather than a misleading 0. showingStaleData drives the banner
+  // below so an offline admin sees "last known" figures, not a dashboard
+  // that quietly looks like the school suddenly has no revenue or staff.
+  const teachers = teachersResult.value;
+  const feesCollected = feesCollectedResult.value;
+  const studentsWithBalancesCount = studentsWithBalancesResult.value;
+  const monthlyRevenue = monthlyRevenueResult.months;
+  const showingStaleData = teachersResult.stale || feesCollectedResult.stale || studentsWithBalancesResult.stale || monthlyRevenueResult.stale;
 
   const activeStudents = allStudents.filter(s => s.status === 'active');
   const studentsCount = activeStudents.length;
@@ -122,6 +138,15 @@ export async function render({ profile }) {
     ])
   ]);
   wrap.append(header);
+
+  if (showingStaleData) {
+    wrap.append(
+      el("div", { class: "notice-banner" }, [
+        el("span", { class: "material-symbols-rounded" }, "wifi_off"),
+        "Some figures below (staff count, revenue, fee balances) couldn't refresh just now and are showing the last data we had - they may not reflect today's changes.",
+      ])
+    );
+  }
 
   // Interactive KPI Chips
   const kpiGrid = el("div", { class: "md3-kpi-grid" });
