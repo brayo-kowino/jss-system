@@ -131,9 +131,7 @@
       <label for="dob">Date of birth</label>
       <input type="date" id="dob" required />
 
-      <!-- Cloudflare Turnstile widget. Replace YOUR_TURNSTILE_SITE_KEY below
-           once you've created a site key in the Turnstile dashboard. -->
-      <div class="cf-turnstile" data-sitekey="YOUR_TURNSTILE_SITE_KEY" style="margin-top:16px;"></div>
+      <div class="cf-turnstile" id="turnstile-widget" style="margin-top:16px; display:none;"></div>
 
       <button type="submit" id="submit-btn"><span class="material-symbols-rounded">search</span>Check results</button>
     </form>
@@ -149,8 +147,25 @@
   <p class="fine">If you don't know your school code, contact the school office.<br />This page never stores your search.</p>
 </div>
 
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <script>
+  window.onloadTurnstileCallback = function () {
+    const el = document.getElementById("turnstile-widget");
+    if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "YOUR_TURNSTILE_SITE_KEY") {
+      el.style.display = "block";
+      window.turnstile.render(el, { sitekey: TURNSTILE_SITE_KEY });
+    }
+  };
+</script>
+<script>
+  const TURNSTILE_SITE_KEY = "YOUR_TURNSTILE_SITE_KEY";
+  if (TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY !== "0x4AAAAAAC9iTSt_Ix-PKTIw") {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onloadTurnstileCallback";
+    s.async = true;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
   const form = document.getElementById("lookup-form");
   const banner = document.getElementById("banner");
   const bannerIcon = document.getElementById("banner-icon");
@@ -177,8 +192,6 @@
     bannerText.textContent = "";
   }
 
-  // Maps a failed response to a banner tone - a typo in the form isn't the
-  // same situation as the service being down, and the copy/icon should say so.
   function bannerKindForStatus(status) {
     if (status === 429) return "warning";
     if (status === 400) return "warning";
