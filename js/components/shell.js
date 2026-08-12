@@ -388,6 +388,34 @@ export function renderShell(app, profile, activePath) {
     applyCollapsedState(collapsed);
   });
 
+  // Mobile nav toggle: below the 860px breakpoint the sidebar is an
+  // off-canvas panel (see layout.css), so it needs its own open/close
+  // control plus a backdrop - `collapseBtn` above only handles the
+  // desktop icon-only mode and is hidden on mobile via CSS.
+  const backdrop = el("div", { class: "sidebar-backdrop", onClick: () => closeMobileNav() });
+  const mobileMenuBtn = el(
+    "button",
+    { type: "button", class: "topbar__mobile-menu-btn", "aria-label": "Open menu", title: "Open menu" },
+    [el("span", { class: "material-symbols-rounded icon" }, "menu")]
+  );
+  function openMobileNav() {
+    sidebar.classList.add("open");
+    backdrop.classList.add("open");
+  }
+  function closeMobileNav() {
+    sidebar.classList.remove("open");
+    backdrop.classList.remove("open");
+  }
+  mobileMenuBtn.addEventListener("click", () => {
+    sidebar.classList.contains("open") ? closeMobileNav() : openMobileNav();
+  });
+  // Tapping a nav link should close the panel too, not just navigate
+  // behind it - relevant when a route re-renders content in place rather
+  // than rebuilding the whole shell.
+  sidebar.addEventListener("click", (ev) => {
+    if (ev.target.closest(".nav-link")) closeMobileNav();
+  });
+
   sidebar.append(
     el("div", { class: "sidebar__footer" }, [
       `© ${new Date().getFullYear()} `,
@@ -398,10 +426,12 @@ export function renderShell(app, profile, activePath) {
   applyCollapsedState(isSidebarCollapsed());
 
   shell.append(sidebar);
+  shell.append(backdrop);
 
   // Topbar
   const topbar = el("header", { class: "topbar" });
   topbar.append(el("div", { class: "topbar__left" }, [
+    mobileMenuBtn,
     collapseBtn,
     el("div", { class: "topbar__titles" }, [
       schoolNameEl,

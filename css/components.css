@@ -345,6 +345,71 @@ tbody td {
 tbody tr:nth-child(even) { background: var(--color-cream-dim); }
 tbody tr:hover { background: var(--color-primary-100); }
 
+/* Two-up form rows (e.g. class + date pickers). Reusable anywhere a pair
+   of fields sits side by side on desktop but needs to stack on mobile. */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+
+/* Card header with a title block + action buttons, wrapping to full-width
+   stacked buttons on mobile so touch targets stay thumb-sized. */
+.roster-header {
+  margin-bottom: var(--sp-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.roster-header__actions { display: flex; gap: var(--sp-2); }
+
+@media (max-width: 640px) {
+  .field-row { grid-template-columns: 1fr; }
+  .roster-header__actions { width: 100%; flex-direction: column; }
+  .roster-header__actions .btn { width: 100%; justify-content: center; }
+}
+
+/* Responsive table -> stacked cards. Add data-label="Column Name" to each
+   <td> and this kicks in automatically under 640px - no JS required.
+   Used by Attendance today; safe to reuse on Fees/Marks/etc. */
+@media (max-width: 640px) {
+  .table-wrap.table-wrap--responsive { border: none; background: none; overflow: visible; }
+  .table-wrap--responsive table { border-collapse: separate; border-spacing: 0 var(--sp-3); }
+  .table-wrap--responsive thead { display: none; }
+  .table-wrap--responsive tbody tr {
+    display: block;
+    background: var(--color-white);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-md);
+    padding: var(--sp-2) var(--sp-4);
+  }
+  .table-wrap--responsive tbody tr:nth-child(even) { background: var(--color-white); }
+  .table-wrap--responsive tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--color-line);
+    text-align: right;
+  }
+  .table-wrap--responsive tbody td:first-child { border-top: none; }
+  .table-wrap--responsive tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-ink-soft);
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .table-wrap--responsive .status-cell { justify-content: flex-end; }
+  .table-wrap--responsive .status-options { justify-content: flex-end; }
+}
+
 /* Badge */
 .badge {
   display: inline-block;
@@ -662,6 +727,14 @@ tbody tr:hover { background: var(--color-primary-100); }
 .status-option--absent:has(input:checked)  { color: var(--color-red); }
 .status-option--late:has(input:checked)    { color: #6B5416; }
 .status-option--excused:has(input:checked) { color: var(--color-ink-soft); }
+
+@media (max-width: 640px) {
+  /* Bigger tap targets once these sit inside stacked mobile cards instead
+     of a tight table cell - 15px bare radios are hard to hit by thumb. */
+  .status-options { gap: var(--sp-3); flex-direction: column; align-items: flex-end; }
+  .status-option { padding: 4px 0; }
+  .status-option input[type="radio"] { width: 20px; height: 20px; }
+}
 
 /* Timetable grid */
 .tt-scroll { overflow-x: auto; }

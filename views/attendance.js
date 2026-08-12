@@ -63,7 +63,7 @@ function classOptions() {
 function renderPicker(container, profile, bodyMount, summaryMount) {
   container.innerHTML = "";
   const opts = classOptions();
-  const row = el("div", { style: "display:grid; grid-template-columns: 1fr 1fr; gap:16px;" });
+  const row = el("div", { class: "field-row" });
 
   const classSelect = el("select", { id: "a-class" }, [
     el("option", { value: "" }, "Select class"),
@@ -124,13 +124,13 @@ function renderRoster(container, profile) {
   container.innerHTML = "";
   const [grade, stream] = selection.classKey.split("|");
 
-  const infoCard = el("div", { class: "card", style: "margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" });
+  const infoCard = el("div", { class: "card roster-header" });
   infoCard.append(
     el("div", {}, [
       el("h3", { style: "margin:0 0 4px;" }, `${grade} ${stream}`),
       el("p", { class: "text-muted", style: "margin:0;" }, `${formatDate(selection.date)} · ${roster.length} student(s)`),
     ]),
-    el("div", { style: "display:flex; gap:8px;" }, [
+    el("div", { class: "roster-header__actions" }, [
       el("button", { class: "btn btn--ghost btn--sm", onClick: () => markAll(container, "present") }, [icon("done_all"), "Mark all present"]),
       el("button", { class: "btn btn--primary btn--sm", onClick: (ev) => handleSave(profile, container, ev.currentTarget) }, [icon("save"), "Save Attendance"]),
     ])
@@ -145,16 +145,16 @@ function renderRoster(container, profile) {
     return;
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Status")])),
   ]);
   const tbody = el("tbody", {});
   for (const student of roster) {
     tbody.append(el("tr", { "data-row-for": student.id }, [
-      el("td", {}, student.admissionNumber || "N/A"),
-      el("td", {}, student.fullName),
-      el("td", { class: "status-cell" }, buildStatusRadios(student.id)),
+      el("td", { "data-label": "Adm No." }, student.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, student.fullName),
+      el("td", { class: "status-cell", "data-label": "Status" }, buildStatusRadios(student.id)),
     ]));
   }
   table.append(tbody);
@@ -232,7 +232,7 @@ async function renderSummary(container, grade, stream) {
       `${daysMarked} day(s) marked so far · class average ${classAveragePercentage ?? "N/A"}%`)
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Name"), el("th", {}, "Present"), el("th", {}, "Late"), el("th", {}, "Absent"), el("th", {}, "Excused"), el("th", {}, "%"),
@@ -242,12 +242,12 @@ async function renderSummary(container, grade, stream) {
   for (const student of roster) {
     const s = perStudent[student.id] || {};
     tbody.append(el("tr", {}, [
-      el("td", {}, student.fullName),
-      el("td", {}, String(s.present ?? 0)),
-      el("td", {}, String(s.late ?? 0)),
-      el("td", {}, String(s.absent ?? 0)),
-      el("td", {}, String(s.excused ?? 0)),
-      el("td", {}, s.percentage === null || s.percentage === undefined ? "N/A" : `${s.percentage}%`),
+      el("td", { "data-label": "Name" }, student.fullName),
+      el("td", { "data-label": "Present" }, String(s.present ?? 0)),
+      el("td", { "data-label": "Late" }, String(s.late ?? 0)),
+      el("td", { "data-label": "Absent" }, String(s.absent ?? 0)),
+      el("td", { "data-label": "Excused" }, String(s.excused ?? 0)),
+      el("td", { "data-label": "%" }, s.percentage === null || s.percentage === undefined ? "N/A" : `${s.percentage}%`),
     ]));
   }
   table.append(tbody);
