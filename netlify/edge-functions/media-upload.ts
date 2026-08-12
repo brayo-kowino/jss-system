@@ -32,15 +32,10 @@
 
 import type { Context } from "https://edge.netlify.com";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
+import { verifyFirebaseIdToken } from "./lib/firestore-rest.ts";
 
 const CLOUDINARY_CLOUD_NAME = "xtselsxh"; 
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
-
-// Same public Web API key already shipped in js/firebase-config.js - it
-// identifies the Firebase project, it isn't a credential. Duplicated here
-// rather than imported because this runs in a separate Deno edge runtime,
-// not bundled with the app's JS.
-const FIREBASE_API_KEY = "AIzaSyCURCEhuxdsfVNqBLdHTLfzZ8mYn_yQsVQ";
 
 // Generous ceiling for the *compressed* upload arriving from the browser
 // (see compressImage() in js/services/cloudinary.service.js, which brings
@@ -60,30 +55,6 @@ function jsonResponse(body: unknown, status: number): Response {
       "X-Content-Type-Options": "nosniff",
     },
   });
-}
-
-// Confirms the token is a live, currently-valid Firebase ID token for a
-// real user by asking Firebase itself, rather than trying to verify the
-// JWT signature ourselves (which would mean fetching and caching Google's
-// rotating public certs - doable, but this REST call is simpler and just
-// as authoritative: Firebase rejects expired/tampered/wrong-project
-// tokens here the same as it would anywhere else).
-async function verifyFirebaseIdToken(idToken: string): Promise<boolean> {
-  try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      },
-    );
-    if (!res.ok) return false;
-    const data = await res.json();
-    return Array.isArray(data.users) && data.users.length > 0;
-  } catch {
-    return false;
-  }
 }
 
 // Cloudinary folders are just organizational strings we pass through, but

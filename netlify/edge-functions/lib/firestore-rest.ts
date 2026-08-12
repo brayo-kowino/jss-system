@@ -6,9 +6,12 @@
 // REST calls, entirely inside the Deno edge runtime, no Admin SDK). Used by
 // subscription-issue.ts and subscription-activate.ts so both privileged
 // writes to schools/{id} and subscription_tokens/{id} go through the same,
-// once-reviewed code path. results-lookup.ts and media-upload.ts are left
-// with their own copies rather than migrated onto this - not touching
-// already-working code for a pure refactor.
+// once-reviewed code path. media-upload.ts imports verifyFirebaseIdToken()
+// from here too, rather than keeping its own copy, so there's exactly one
+// implementation of ID token verification to keep correct (see that
+// function's own comment for why it no longer calls Identity Toolkit).
+// results-lookup.ts doesn't verify user tokens at all - it's a public
+// lookup endpoint - so it's untouched.
 //
 // REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
 // variables - secrets, never commit them):
@@ -20,11 +23,6 @@
 
 const PROJECT_ID = "jss-management-system";
 export const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
-
-// Same public Web API key already shipped in js/firebase-config.js and
-// duplicated in media-upload.ts/results-lookup.ts for the same reason:
-// this runs in a separate Deno edge runtime, not bundled with the app's JS.
-const FIREBASE_API_KEY = "AIzaSyCURCEhuxdsfVNqBLdHTLfzZ8mYn_yQsVQ";
 
 // --------------------------------------------------------------------------
 // Google service-account auth (self-signed JWT -> OAuth2 access token).
@@ -98,29 +96,114 @@ export async function getAccessToken(): Promise<string> {
   return cachedToken.accessToken;
 }
 
-// Confirms the caller's Firebase ID token is live and currently valid by
-// asking Firebase itself (same reasoning as media-upload.ts's version),
-// and returns the uid it belongs to - the subscription endpoints need the
-// caller's uid to look up their role/schoolId from their own users/{uid}
-// doc, not just proof that *someone* is signed in.
+// --------------------------------------------------------------------------
+// Firebase ID token verification - local JWT check, no Identity Toolkit call.
+// --------------------------------------------------------------------------
+// This used to ask Firebase itself via identitytoolkit.googleapis.com's
+// accounts:lookup REST endpoint. That works right up until App Check
+// enforcement is turned on for the Identity Toolkit API in the Firebase
+// console (Console -> App Check -> APIs) - at that point Google starts
+// rejecting accounts:lookup calls that don't carry an X-Firebase-AppCheck
+// header, which this edge function has no way to attach (App Check tokens
+// are minted client-side, per browser/app instance). Every caller then
+// looks "not signed in" no matter how valid their session actually is.
+//
+// This verifies the ID token's RS256 signature ourselves instead, against
+// Google's own rotating public keys - exactly what the Admin SDK does
+// under the hood. It's one HTTP call to a public, unauthenticated Google
+// metadata endpoint (not an app-facing Identity Toolkit API call, so App
+// Check enforcement on that API has no effect on it), then pure crypto
+// after that. Keys are cached in-memory for the response's declared
+// max-age so a hot edge function isn't re-fetching them on every request.
+const GOOGLE_JWK_URL =
+  "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+
+let jwkCache: { keys: Record<string, CryptoKey>; expiresAt: number } | null = null;
+
+async function fetchGoogleSigningKeys(): Promise<Record<string, CryptoKey>> {
+  const res = await fetch(GOOGLE_JWK_URL);
+  if (!res.ok) throw new Error(`Failed to fetch Google signing keys: ${res.status}`);
+  const { keys: jwks } = await res.json();
+  const keys: Record<string, CryptoKey> = {};
+  for (const jwk of jwks) {
+    keys[jwk.kid] = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+  }
+  const maxAgeMatch = (res.headers.get("cache-control") || "").match(/max-age=(\d+)/);
+  const maxAgeMs = maxAgeMatch ? Number(maxAgeMatch[1]) * 1000 : 3600_000; // Google sends one; 1h fallback
+  jwkCache = { keys, expiresAt: Date.now() + maxAgeMs };
+  return keys;
+}
+
+async function getGoogleSigningKey(kid: string): Promise<CryptoKey | null> {
+  if (jwkCache && jwkCache.expiresAt > Date.now() && jwkCache.keys[kid]) {
+    return jwkCache.keys[kid];
+  }
+  // Cache miss or unknown kid (keys rotate) - (re)fetch once before giving up.
+  const keys = await fetchGoogleSigningKeys();
+  return keys[kid] || null;
+}
+
+function base64UrlToBytes(b64url: string): Uint8Array {
+  const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((b64url.length + 3) % 4);
+  const raw = atob(b64);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+}
+
+function decodeJwtJson(b64url: string): any {
+  return JSON.parse(new TextDecoder().decode(base64UrlToBytes(b64url)));
+}
+
+// Returns the uid the token belongs to, or null if it's missing, malformed,
+// expired, wrong-project, or fails signature verification - the subscription
+// endpoints need the caller's uid to look up their role/schoolId from their
+// own users/{uid} doc, not just proof that *someone* is signed in.
 export async function verifyFirebaseIdToken(idToken: string): Promise<string | null> {
   if (!idToken) return null;
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+
+  let header: any, payload: any;
   try {
-    const res = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const uid = data.users?.[0]?.localId;
-    return typeof uid === "string" && uid ? uid : null;
+    header = decodeJwtJson(headerB64);
+    payload = decodeJwtJson(payloadB64);
   } catch {
     return null;
   }
+  if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const CLOCK_SKEW_SECS = 300; // tolerate a few minutes of drift, same as Admin SDK
+  if (payload.iss !== `https://securetoken.google.com/${PROJECT_ID}`) return null;
+  if (payload.aud !== PROJECT_ID) return null;
+  if (typeof payload.exp !== "number" || payload.exp <= now - CLOCK_SKEW_SECS) return null;
+  if (typeof payload.iat !== "number" || payload.iat > now + CLOCK_SKEW_SECS) return null;
+  if (typeof payload.auth_time !== "number" || payload.auth_time > now + CLOCK_SKEW_SECS) return null;
+  if (typeof payload.sub !== "string" || !payload.sub) return null;
+
+  try {
+    const key = await getGoogleSigningKey(header.kid);
+    if (!key) return null;
+    const valid = await crypto.subtle.verify(
+      { name: "RSASSA-PKCS1-v1_5" },
+      key,
+      base64UrlToBytes(sigB64),
+      new TextEncoder().encode(`${headerB64}.${payloadB64}`),
+    );
+    if (!valid) return null;
+  } catch {
+    return null;
+  }
+
+  return payload.sub;
 }
 
 // --------------------------------------------------------------------------
