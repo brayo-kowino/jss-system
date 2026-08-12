@@ -540,21 +540,24 @@ export function init({ profile }) {
         if (!available) throw new Error("That school code is already taken - choose a different one.");
       }
       const schoolName = val("schoolName");
+      const motto = val("motto");
       await saveSchoolSettings(profile.uid, {
         schoolName,
-        motto: val("motto"),
+        motto,
         address: val("address"),
         phone: val("phone"),
         email: val("email"),
         slug: cleanSlug,
       });
       settings.schoolName = schoolName;
+      settings.motto = motto;
       settings.slug = cleanSlug;
       if (cleanSlug) {
         await publishSchoolBranding(getCurrentSchoolId(), {
           slug: cleanSlug,
           previousSlug,
           schoolName,
+          motto,
           logoUrl: settings.logoUrl,
           themeColor: settings.themeColor,
           secondaryColor: settings.secondaryColor,
@@ -590,6 +593,7 @@ export function init({ profile }) {
         await publishSchoolBranding(getCurrentSchoolId(), {
           slug: settings.slug,
           schoolName: settings.schoolName,
+          motto: settings.motto,
           logoUrl,
           themeColor,
           secondaryColor,

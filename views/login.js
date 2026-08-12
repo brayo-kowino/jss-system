@@ -6,7 +6,7 @@ import {
   browserSessionPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { navigate } from "../js/router.js";
-import { el, icon, toast, busyButton } from "../js/utils.js";
+import { el, icon, toast, busyButton, setFavicon } from "../js/utils.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { applyBranding } from "../js/components/shell.js";
 
@@ -101,6 +101,11 @@ function buildLearnerSvg() {
     </svg>`;
 }
 
+// Captured once, before any school branding has had a chance to overwrite
+// it, so we always have the real generic title to fall back to (e.g. when
+// switching back to the unbranded login screen).
+const DEFAULT_TITLE = document.title;
+
 const LAST_SCHOOL_KEY = "jss_school_slug";
 
 function readStoredSlug() {
@@ -156,7 +161,10 @@ export async function render() {
 
   const logoSrc = school?.logoUrl || "/assets/logo.png";
   const brandName = school?.schoolName || "Eeskia";
-  const brandTag = school ? "Powered by Eeskia" : "School Management System";
+  const brandTag = school ? (school.motto || "Powered by Eeskia") : "School Management System";
+
+  document.title = school?.schoolName ? `${school.schoolName} | Eeskia` : DEFAULT_TITLE;
+  setFavicon(logoSrc);
 
   const wrap = el("div", { class: "auth-screen" });
 

@@ -159,12 +159,13 @@ export async function getSchoolBySlug(slug) {
 // {slug} so the login page can find them. Pass previousSlug when the code
 // itself changed, so the old doc gets cleaned up rather than left as a
 // stale duplicate pointing at the same school.
-export async function publishSchoolBranding(schoolId, { slug, previousSlug, schoolName, logoUrl, themeColor, secondaryColor, status } = {}) {
+export async function publishSchoolBranding(schoolId, { slug, previousSlug, schoolName, motto, logoUrl, themeColor, secondaryColor, status } = {}) {
   const clean = slugify(slug);
   if (!clean) return;
   await setDoc(doc(db, "school_public", clean), {
     schoolId,
     schoolName: schoolName || "",
+    motto: motto || "",
     logoUrl: logoUrl || "",
     themeColor: themeColor || "#14538A",
     secondaryColor: secondaryColor || "#C9A227",

@@ -55,6 +55,7 @@
 
   /* Layout */
   --sidebar-w: 260px;
+  --sidebar-w-collapsed: 76px;
   --topbar-h: 64px;
   --transition: 160ms ease;
 }

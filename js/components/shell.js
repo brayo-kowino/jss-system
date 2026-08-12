@@ -1,6 +1,6 @@
 import { logout } from "../services/auth.service.js";
 import { navigate } from "../router.js";
-import { el, icon } from "../utils.js";
+import { el, icon, setFavicon } from "../utils.js";
 import { ROLES } from "../services/auth.service.js";
 import { getSchoolSettings } from "../services/settings.service.js";
 import { startTour } from "./tour.js";
@@ -39,9 +39,15 @@ function shade(hex, amt) {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-// Re-themes the whole app (sidebar, buttons, letterhead accents) to a
-// school's chosen brand colors by overriding the CSS custom properties
-// every stylesheet already keys off of.
+// Captured once, before any school branding has had a chance to overwrite
+// it, so there's a real generic title to fall back to for contexts with no
+// resolved school (e.g. super_admin/Platform Admin).
+const DEFAULT_TITLE = document.title;
+
+// Re-themes the whole app (sidebar, buttons, letterhead accents, browser
+// tab title) to a school's chosen brand - colors from CSS custom properties
+// every stylesheet already keys off of, plus the tab title so a user with
+// several schools open in different tabs can tell them apart at a glance.
 export function applyBranding(settings) {
   const root = document.documentElement.style;
   const primary = settings?.themeColor || "#14538A";
@@ -51,6 +57,8 @@ export function applyBranding(settings) {
   root.setProperty("--color-primary-600", shade(primary, 25));
   root.setProperty("--color-gold", accent);
   root.setProperty("--color-gold-soft", shade(accent, 60));
+  document.title = settings?.schoolName ? `${settings.schoolName} | Eeskia` : DEFAULT_TITLE;
+  setFavicon(settings?.logoUrl || "/assets/logo.png");
 }
 
 const NAV = [
@@ -133,6 +141,24 @@ function saveCollapsedGroups(set) {
   }
 }
 
+// Whether the whole sidebar is collapsed to an icon-only strip, persisted
+// across sessions/tabs the same way the per-group collapse state is.
+const SIDEBAR_COLLAPSE_KEY = "jss_sidebar_collapsed";
+function isSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function saveSidebarCollapsed(collapsed) {
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? "1" : "0");
+  } catch {
+    // Non-fatal - just won't be remembered next load.
+  }
+}
+
 // Cached across renderShell calls: the shell re-renders on every navigation,
 // but the school's name/logo/branding don't change mid-session, so we only
 // fetch them once and reuse the result (avoids a "School Portal" flash on
@@ -209,6 +235,8 @@ export function renderShell(app, profile, activePath) {
   // every time the shell re-renders on navigation.
   if (profile.role === "super_admin") {
     schoolNameEl.textContent = "Platform Admin";
+    document.title = "Platform Admin | Eeskia";
+    setFavicon();
   } else if (cachedSettings) {
     if (cachedSettings.schoolName) schoolNameEl.textContent = cachedSettings.schoolName;
     if (cachedSettings.logoUrl) {
@@ -290,6 +318,7 @@ export function renderShell(app, profile, activePath) {
         {
           class: `nav-link${isActive ? " active" : ""}`,
           "data-tour": `nav-${link.path.slice(1)}`,
+          title: link.text,
           onClick: () => navigate(link.path),
         },
         [el("span", { class: "material-symbols-rounded icon" }, link.icon), el("span", {}, link.text)]
@@ -338,6 +367,27 @@ export function renderShell(app, profile, activePath) {
     }
   });
 
+  // Collapse-to-icons toggle now lives at the top of the topbar, before the
+  // school name, so it's always reachable without scrolling and doesn't
+  // shift position as nav groups expand/collapse.
+  const collapseBtn = el(
+    "button",
+    { type: "button", class: "topbar__collapse-btn" },
+    [el("span", { class: "material-symbols-rounded icon" }, "left_panel_close")]
+  );
+  const applyCollapsedState = (collapsed) => {
+    shell.classList.toggle("shell--collapsed", collapsed);
+    sidebar.classList.toggle("sidebar--collapsed", collapsed);
+    collapseBtn.querySelector(".icon").textContent = collapsed ? "left_panel_open" : "left_panel_close";
+    collapseBtn.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+    collapseBtn.setAttribute("title", collapsed ? "Expand sidebar" : "Collapse sidebar");
+  };
+  collapseBtn.addEventListener("click", () => {
+    const collapsed = !sidebar.classList.contains("sidebar--collapsed");
+    saveSidebarCollapsed(collapsed);
+    applyCollapsedState(collapsed);
+  });
+
   sidebar.append(
     el("div", { class: "sidebar__footer" }, [
       `© ${new Date().getFullYear()} `,
@@ -345,13 +395,18 @@ export function renderShell(app, profile, activePath) {
     ])
   );
 
+  applyCollapsedState(isSidebarCollapsed());
+
   shell.append(sidebar);
 
   // Topbar
   const topbar = el("header", { class: "topbar" });
-  topbar.append(el("div", { class: "topbar__titles" }, [
-    schoolNameEl,
-    el("div", { class: "topbar__title" }, currentTitle(activePath)),
+  topbar.append(el("div", { class: "topbar__left" }, [
+    collapseBtn,
+    el("div", { class: "topbar__titles" }, [
+      schoolNameEl,
+      el("div", { class: "topbar__title" }, currentTitle(activePath)),
+    ]),
   ]));
   const tourButton = el(
     "button",
@@ -360,7 +415,15 @@ export function renderShell(app, profile, activePath) {
       "data-tour": "tour-trigger",
       title: "Take a tour of this system",
       "aria-label": "Take a tour of this system",
-      onClick: () => startTour(TOUR_STEPS),
+      onClick: () => {
+        // The tour points at sidebar text/search that only exist in
+        // expanded mode, so make sure it's expanded before it starts.
+        if (sidebar.classList.contains("sidebar--collapsed")) {
+          saveSidebarCollapsed(false);
+          applyCollapsedState(false);
+        }
+        startTour(TOUR_STEPS);
+      },
     },
     [icon("help")]
   );
@@ -388,6 +451,10 @@ export function renderShell(app, profile, activePath) {
   // Schools-only shell where most of the tour's targets don't apply.
   if (activePath === "/dashboard" && profile.role !== "super_admin" && !hasSeenTour(profile.uid)) {
     markTourSeen(profile.uid);
+    if (sidebar.classList.contains("sidebar--collapsed")) {
+      saveSidebarCollapsed(false);
+      applyCollapsedState(false);
+    }
     setTimeout(() => startTour(TOUR_STEPS), 400);
   }
 

@@ -21,7 +21,7 @@
   border: 2px solid var(--color-gold);
   flex-shrink: 0;
 }
-.seal--lg { width: 72px; height: 72px; font-size: var(--fs-xl); }
+.seal--lg { width: 72px; height: 72px; font-size: var(--fs-xl); transition: width var(--transition), height var(--transition); }
 .seal__img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; background: var(--color-white); }
 
 /* --- Auth screen: split panel, JKUAT-portal style --- */
@@ -446,7 +446,9 @@
     "sidebar main";
   height: 100vh;
   overflow: hidden;
+  transition: grid-template-columns var(--transition);
 }
+.shell--collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
 
 .sidebar {
   grid-area: sidebar;
@@ -465,11 +467,42 @@
 .sidebar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 999px; }
 .sidebar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
 
+/* --- Collapsed sidebar: icon-only strip --- */
+.sidebar--collapsed { padding-left: var(--sp-2); padding-right: var(--sp-2); }
+.sidebar--collapsed .sidebar__search,
+.sidebar--collapsed .sidebar__footer,
+.sidebar--collapsed .nav-group__label {
+  display: none;
+}
+/* A group's links stay visible in icon-only mode even if the group itself
+   was collapsed via its (now-hidden) label chevron - there's no room to
+   show a "collapsed group" state without labels, so just show every icon. */
+.sidebar--collapsed .nav-group--collapsed .nav-group__links { display: flex; }
+.sidebar--collapsed .nav-link {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  gap: 0;
+}
+.sidebar--collapsed .nav-link > span:not(.icon) {
+  display: none;
+}
+/* Both the default seal and a school's own uploaded logo need to shrink
+   here - the collapsed strip is only ~60px wide, so anything left at the
+   full 72px size gets clipped by the sidebar's edges. */
+.sidebar--collapsed .sidebar__seal-mount .seal--lg,
+.sidebar--collapsed .sidebar__logo-img {
+  width: 40px;
+  height: 40px;
+  font-size: var(--fs-base);
+}
+
 .sidebar__seal-mount {
   display: flex;
   justify-content: center;
   padding-bottom: var(--sp-4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  transition: padding var(--transition);
 }
 .sidebar__logo-img {
   width: 72px;
@@ -478,6 +511,7 @@
   object-fit: cover;
   border: 2px solid var(--color-gold);
   flex-shrink: 0;
+  transition: width var(--transition), height var(--transition);
 }
 
 .sidebar__search {
@@ -573,7 +607,6 @@
 .nav-link.active .icon { opacity: 1; color: var(--color-gold-soft); }
 
 .sidebar__footer {
-  margin-top: auto;
   padding-top: var(--sp-4);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.7rem;
@@ -591,6 +624,27 @@
   justify-content: space-between;
   padding: 0 var(--sp-6);
 }
+.topbar__left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.topbar__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition), border-color var(--transition);
+}
+.topbar__collapse-btn:hover {
+  background: var(--color-primary-50, rgba(0, 0, 0, 0.04));
+  color: var(--color-primary-900);
+  border-color: var(--color-primary-900);
+}
+.topbar__collapse-btn .icon { font-size: 1.2rem; }
 .topbar__titles { display: flex; flex-direction: column; gap: 1px; }
 .topbar__school-name {
   font-family: var(--font-display);

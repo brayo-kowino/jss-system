@@ -9,6 +9,20 @@ export function toast(message, type = "info", ms = 4000) {
   setTimeout(() => el.remove(), ms);
 }
 
+// Swaps the browser tab icon to a school's logo (or back to the default
+// Eeskia mark when no school is resolved). Reuses the existing <link
+// rel="icon"> tag if the page has one, otherwise creates it, so this is
+// safe to call from any view.
+export function setFavicon(url = "/assets/logo.png") {
+  let link = document.querySelector("link[rel~='icon']");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  link.href = url;
+}
+
 export function qs(selector, scope = document) {
   return scope.querySelector(selector);
 }
