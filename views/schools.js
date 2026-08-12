@@ -260,7 +260,7 @@ async function resolveUserName(uid) {
 // firestore.rules), via subscription-tokens-list.ts.
 async function openTokenHistoryModal(school) {
   const body = el("div", {}, [el("p", { class: "text-sm text-muted" }, "Loading\u2026")]);
-  openModal(`Token history \u2014 ${school.schoolName || "School"}`, body);
+  openModal(`Token history for ${school.schoolName || "School"}`, body);
 
   let tokens;
   try {
