@@ -12,10 +12,16 @@
 
 import type { Context } from "https://edge.netlify.com";
 import { getAccessToken, getFsDoc, runFsQuery, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "GET") {
     return jsonResponse({ error: "Method not allowed." }, 405);
+  }
+
+  const rl = await checkRateLimit(`subscription-tokens-list:${clientIp(request, context)}`, 20, 60);
+  if (!rl.allowed) {
+    return rateLimitedResponse(rl.retryAfterSeconds);
   }
 
   const authHeader = request.headers.get("authorization") || "";
@@ -76,9 +82,6 @@ export default async (request: Request, _context: Context) => {
 
 export const config = {
   path: "/subscription-tokens-list",
-  rateLimit: {
-    windowLimit: 20,
-    windowSize: 60,
-    aggregateBy: ["ip", "domain"],
-  },
+  // Rate limiting is enforced in-code now (see lib/rate-limit.ts) rather
+  // than declared here - see the comment at the top of that file for why.
 };

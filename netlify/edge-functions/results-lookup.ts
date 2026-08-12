@@ -42,6 +42,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -285,6 +286,20 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "Method not allowed." }, 405);
   }
 
+  const ip = clientIp(request, context);
+
+  // Rate limit first, before parsing the body or spending a Turnstile
+  // round-trip - this is the same 10/min/IP the platform's rateLimit
+  // config used to declare (see lib/rate-limit.ts for why this moved
+  // in-code). The per-admission-number lockout further down is still the
+  // real defense against guessing a specific child's DOB; this is just the
+  // blunt backstop against one IP hammering many different admission
+  // numbers.
+  const rl = await checkRateLimit(`results-lookup:${ip}`, 10, 60);
+  if (!rl.allowed) {
+    return rateLimitedResponse(rl.retryAfterSeconds);
+  }
+
   let body: any;
   try {
     body = await request.json();
@@ -301,7 +316,6 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "Please provide your school, admission number, and date of birth." }, 400);
   }
 
-  const ip = context.ip || request.headers.get("x-nf-client-connection-ip");
   if (!(await verifyTurnstile(captchaToken, ip))) {
     return jsonResponse({ error: "Captcha verification failed. Please try again." }, 400);
   }
@@ -466,13 +480,8 @@ export default async (request: Request, context: Context) => {
 
 export const config = {
   path: "/results-lookup",
-  // Tighter than media-upload's 20/min since this endpoint is guessable-
-  // input surface, not just abuse-of-a-feature surface. The per-admission-
-  // number lockout above is the real defense; this is a blunt backstop
-  // against one IP hammering many different admission numbers.
-  rateLimit: {
-    windowLimit: 10,
-    windowSize: 60,
-    aggregateBy: ["ip", "domain"],
-  },
+  // Rate limiting is enforced in-code now (see the checkRateLimit() call
+  // above and lib/rate-limit.ts) rather than declared here, because this
+  // project has more functions wanting their own limit than our account
+  // tier allows as platform code-based rules.
 };

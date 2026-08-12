@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "dependencies": {
+    "@netlify/blobs": "^8.2.0"
+  },
   "devDependencies": {
     "javascript-obfuscator": "^4.1.1",
     "vite": "^5.4.10"

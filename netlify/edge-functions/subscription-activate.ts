@@ -18,10 +18,18 @@
 import type { Context } from "https://edge.netlify.com";
 import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { verifySubscriptionToken } from "./lib/subscription-tokens.ts";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);
+  }
+
+  // Guessable-input surface (a token forgery/guessing attempt) - same
+  // reasoning results-lookup.ts uses for its lower limit.
+  const rl = await checkRateLimit(`subscription-activate:${clientIp(request, context)}`, 10, 60);
+  if (!rl.allowed) {
+    return rateLimitedResponse(rl.retryAfterSeconds);
   }
 
   let body: any;
@@ -129,12 +137,6 @@ export default async (request: Request, _context: Context) => {
 
 export const config = {
   path: "/subscription-activate",
-  // Tighter than issue - this is the guessable-input surface (someone
-  // could script attempts at forging/guessing a token), the same reasoning
-  // results-lookup.ts uses for its lower limit.
-  rateLimit: {
-    windowLimit: 10,
-    windowSize: 60,
-    aggregateBy: ["ip", "domain"],
-  },
+  // Rate limiting is enforced in-code now (see lib/rate-limit.ts) rather
+  // than declared here - see the comment at the top of that file for why.
 };

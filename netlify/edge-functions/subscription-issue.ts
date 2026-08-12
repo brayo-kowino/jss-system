@@ -32,6 +32,7 @@ import {
   MAX_CUSTOM_YEARS,
   VALID_PLANS,
 } from "./lib/subscription-tokens.ts";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 function isValidPlan(v: unknown): v is (typeof VALID_PLANS)[number] {
   return typeof v === "string" && (VALID_PLANS as readonly string[]).includes(v);
@@ -57,9 +58,14 @@ function computeExpiresAt(duration: unknown, customExpiresAt: unknown): Date | {
   return { error: "Please choose a valid duration." };
 }
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);
+  }
+
+  const rl = await checkRateLimit(`subscription-issue:${clientIp(request, context)}`, 20, 60);
+  if (!rl.allowed) {
+    return rateLimitedResponse(rl.retryAfterSeconds);
   }
 
   let body: any;
@@ -158,11 +164,6 @@ export default async (request: Request, _context: Context) => {
 
 export const config = {
   path: "/subscription-issue",
-  // Low-volume, super_admin-only action - generous enough for real use,
-  // tight enough to blunt a compromised session hammering the endpoint.
-  rateLimit: {
-    windowLimit: 20,
-    windowSize: 60,
-    aggregateBy: ["ip", "domain"],
-  },
+  // Rate limiting is enforced in-code now (see lib/rate-limit.ts) rather
+  // than declared here - see the comment at the top of that file for why.
 };

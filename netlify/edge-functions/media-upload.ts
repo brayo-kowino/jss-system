@@ -31,6 +31,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 const CLOUDINARY_CLOUD_NAME = "xtselsxh"; 
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
@@ -103,9 +104,15 @@ async function sha1Hex(input: string): Promise<string> {
     .join("");
 }
 
-export default async (request: Request, _context: Context) => {
+export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);
+  }
+
+  const ip = clientIp(request, context);
+  const rl = await checkRateLimit(`media-upload:${ip}`, 20, 60);
+  if (!rl.allowed) {
+    return rateLimitedResponse(rl.retryAfterSeconds);
   }
 
   // Reject oversized requests before spending any time parsing the body.
@@ -186,13 +193,6 @@ export default async (request: Request, _context: Context) => {
 
 export const config = {
   path: "/media-upload",
-  // Per-signed-in-caller ceiling. Generous for a human uploading a logo or
-  // a handful of student photos in one sitting; still stops a compromised
-  // or scripted session from hammering the endpoint. Independent of the
-  // 400/60s site-wide limit in security.ts, which covers everything else.
-  rateLimit: {
-    windowLimit: 20,
-    windowSize: 60,
-    aggregateBy: ["ip", "domain"],
-  },
+  // Rate limiting is enforced in-code now (see lib/rate-limit.ts) rather
+  // than declared here - see the comment at the top of that file for why.
 };
