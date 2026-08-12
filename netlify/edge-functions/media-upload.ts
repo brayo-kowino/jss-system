@@ -51,7 +51,13 @@ const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // 8 MB
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      // See lib/firestore-rest.ts's jsonResponse() for why this is set
+      // here directly rather than relied on from netlify.toml.
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 }
 
@@ -168,7 +174,13 @@ export default async (request: Request, _context: Context) => {
   const body = await cloudinaryRes.text();
   return new Response(body, {
     status: cloudinaryRes.status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      // See lib/firestore-rest.ts's jsonResponse() for why this is set
+      // here directly rather than relied on from netlify.toml.
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 };
 

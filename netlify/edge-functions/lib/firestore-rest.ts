@@ -238,6 +238,18 @@ export async function runFsQuery(
 export function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      // netlify.toml's [[headers]] block (CSP, X-Frame-Options, nosniff,
+      // etc.) only applies to responses that pass through Netlify's static
+      // file layer - confirmed live that a pure edge-function JSON response
+      // like this one doesn't inherit it. X-Frame-Options/CSP are moot on
+      // application/json (nothing to frame or execute), but nosniff costs
+      // nothing and closes the one header here that's still meaningful on
+      // a non-HTML response, without depending on platform header
+      // inheritance behavior this file can't control.
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 }

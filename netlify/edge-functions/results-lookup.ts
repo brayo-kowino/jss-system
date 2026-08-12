@@ -52,7 +52,13 @@ const LOCKOUT_MINUTES = 15;
 function jsonResponse(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      // See lib/firestore-rest.ts's jsonResponse() for why this is set
+      // here directly rather than relied on from netlify.toml.
+      "X-Content-Type-Options": "nosniff",
+    },
   });
 }
 
