@@ -192,22 +192,77 @@ function showIosInstallHint() {
 // ---------------------------------------------------------------------------
 let offlinePillCleanup = null;
 
+// How long someone can be offline before the pill escalates from a calm
+// "will sync" note to an explicit nudge to reconnect. Deliberately not
+// instant - a dropped connection for a minute mid-lesson is normal and
+// shouldn't feel urgent; the nudge is for "I've been offline long enough
+// that I should probably go find signal soon," not every brief drop.
+const OFFLINE_NUDGE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
+const LAST_ONLINE_KEY = "jss_last_online_at";
+
+function readLastOnlineAt() {
+  const raw = Number(localStorage.getItem(LAST_ONLINE_KEY));
+  return Number.isFinite(raw) && raw > 0 ? raw : Date.now();
+}
+function markOnlineNow() {
+  try { localStorage.setItem(LAST_ONLINE_KEY, String(Date.now())); } catch { /* non-fatal */ }
+}
+
+// Offline status pill - persistent (not auto-dismissing, unlike
+// error-handler.js's toasts) so someone marking attendance or entering
+// marks with no signal for an extended stretch can see, at a glance, that
+// they're still safely in "will sync later" territory. Past
+// OFFLINE_NUDGE_AFTER_MS it escalates to an explicit reconnect nudge -
+// partly so unsynced work (only ever saved on this one device until it
+// actually reaches the server) doesn't sit at risk indefinitely, and
+// partly because a lapsed subscription only gets caught and shown for
+// real once back online (see the "online" handler in app.js) - staying
+// offline doesn't grant continued access to anything, it just delays
+// finding out either way.
 function offlineStatusPill() {
-  const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;" }, [
+  const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;", title: "" }, [
     icon("wifi_off"),
-    "Offline - will sync",
+    el("span", {}, "Offline - will sync"),
   ]);
-  const sync = () => {
-    pill.style.display = navigator.onLine ? "none" : "inline-flex";
-  };
-  window.addEventListener("online", sync);
-  window.addEventListener("offline", sync);
-  sync();
+  const label = pill.querySelector("span");
+  let nudgeTimer = null;
+
+  function applyState(online) {
+    pill.style.display = online ? "none" : "inline-flex";
+    if (online) {
+      markOnlineNow();
+      if (nudgeTimer) { clearInterval(nudgeTimer); nudgeTimer = null; }
+      return;
+    }
+    checkDuration();
+    if (!nudgeTimer) nudgeTimer = setInterval(checkDuration, 60 * 1000);
+  }
+
+  function checkDuration() {
+    const offlineMs = Date.now() - readLastOnlineAt();
+    if (offlineMs >= OFFLINE_NUDGE_AFTER_MS) {
+      const mins = Math.round(offlineMs / 60000);
+      const hrs = Math.floor(mins / 60);
+      const readable = hrs >= 1 ? `${hrs}h` : `${mins}m`;
+      label.textContent = `Offline ${readable} - reconnect to sync`;
+      pill.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
+    } else {
+      label.textContent = "Offline - will sync";
+      pill.title = "No connection right now. What you enter is saved and will sync automatically once you're back online.";
+    }
+  }
+
+  const onOnline = () => applyState(true);
+  const onOffline = () => applyState(false);
+  window.addEventListener("online", onOnline);
+  window.addEventListener("offline", onOffline);
+  applyState(navigator.onLine);
 
   if (offlinePillCleanup) offlinePillCleanup();
   offlinePillCleanup = () => {
-    window.removeEventListener("online", sync);
-    window.removeEventListener("offline", sync);
+    window.removeEventListener("online", onOnline);
+    window.removeEventListener("offline", onOffline);
+    if (nudgeTimer) clearInterval(nudgeTimer);
   };
   return pill;
 }

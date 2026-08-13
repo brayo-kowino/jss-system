@@ -43,7 +43,7 @@ if ("serviceWorker" in navigator) {
 window.__jssBootPing?.();
 
 try {
-  const { onAuthChange } = await import("./services/auth.service.js");
+  const { onAuthChange, refreshCurrentSchool, getCurrentProfile } = await import("./services/auth.service.js");
   const { startRouter, renderRoute, navigate } = await import("./router.js");
 
   startRouter();
@@ -63,6 +63,35 @@ try {
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });
     }
+  });
+
+  // ------------------------------------------------------------------
+  // Reconnect: re-check subscription status for real, immediately.
+  //
+  // router.js's lock gate reads getCurrentSchool()'s in-memory snapshot,
+  // fetched once at sign-in - see that file's own comment: it's a UI
+  // convenience, never the actual security boundary (firestore.rules'
+  // isSubscriptionActive() re-checks live, server-side, on every real
+  // request, and always wins - a stale/optimistic client value can never
+  // grant more access than the rule allows). So there's no way to keep a
+  // lapsed subscription "working" by staying offline: any write made
+  // offline just sits queued until reconnect, and gets rejected then if
+  // the subscription had actually expired in the meantime.
+  //
+  // What staying offline *can* do is leave the on-screen status looking
+  // stale/wrong for longer than necessary - a school whose subscription
+  // quietly lapsed while a device was offline would otherwise keep
+  // showing the normal app (last known "active" snapshot) until the next
+  // full page reload. This re-fetches the real school doc and re-renders
+  // the moment connectivity returns, so the lock screen (or the all-clear)
+  // reflects reality within seconds of reconnecting, rather than however
+  // long it takes for the person to happen to navigate somewhere next.
+  // ------------------------------------------------------------------
+  window.addEventListener("online", () => {
+    if (!getCurrentProfile()) return; // signed out - nothing to refresh, avoid a needless read
+    refreshCurrentSchool()
+      .then(() => renderRoute())
+      .catch(() => {}); // best-effort - a real problem here still surfaces normally on next navigation
   });
 } catch (err) {
   // Firebase/auth/router failed to even load (bad config, blocked CDN,
