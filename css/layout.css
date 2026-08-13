@@ -645,13 +645,17 @@
   border-color: var(--color-primary-900);
 }
 .topbar__collapse-btn .icon { font-size: 1.2rem; }
-.topbar__titles { display: flex; flex-direction: column; gap: 1px; }
+.topbar__titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
 .topbar__school-name {
   font-family: var(--font-display);
   font-size: var(--fs-lg);
   font-weight: 700;
   line-height: 1.15;
   color: var(--color-primary-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .topbar__title {
   font-size: var(--fs-xs);

@@ -332,6 +332,14 @@ export function invalidateSchoolSettingsCache() {
 // References to the currently-mounted topbar/sidebar chrome, kept live so
 // refreshSchoolChrome() can patch them in place. Set on every renderShell()
 // call; null before the shell has ever been rendered.
+// Keeps the (now CSS-truncated, see .topbar__school-name) name element's
+// full text available as a native hover tooltip, since ellipsis alone
+// hides whatever doesn't fit with no way to see the rest.
+function setSchoolNameText(nameEl, text) {
+  nameEl.textContent = text;
+  nameEl.title = text;
+}
+
 let schoolNameElRef = null;
 let logoMountRef = null;
 
@@ -345,7 +353,7 @@ export async function refreshSchoolChrome() {
   invalidateSchoolSettingsCache();
   const settings = await loadSchoolSettingsOnce();
   if (schoolNameElRef && settings.schoolName) {
-    schoolNameElRef.textContent = settings.schoolName;
+    setSchoolNameText(schoolNameElRef, settings.schoolName);
   }
   if (logoMountRef && settings.logoUrl) {
     logoMountRef.innerHTML = "";
@@ -373,18 +381,18 @@ export function renderShell(app, profile, activePath) {
   ]);
 
   // The school name now lives in the topbar, above the page title.
-  const schoolNameEl = el("div", { class: "topbar__school-name" }, cachedSettings?.schoolName || "School Portal");
+  const schoolNameEl = el("div", { class: "topbar__school-name", title: cachedSettings?.schoolName || "School Portal" }, cachedSettings?.schoolName || "School Portal");
 
   // Fetch the real school settings in the background (super_admin has
   // no schoolId - they get the platform default look instead). Cached
   // after the first load, so it won't flash back to the placeholder
   // every time the shell re-renders on navigation.
   if (profile.role === "super_admin") {
-    schoolNameEl.textContent = "Platform Admin";
+    setSchoolNameText(schoolNameEl, "Platform Admin");
     document.title = "Platform Admin | Eeskia";
     setFavicon();
   } else if (cachedSettings) {
-    if (cachedSettings.schoolName) schoolNameEl.textContent = cachedSettings.schoolName;
+    if (cachedSettings.schoolName) setSchoolNameText(schoolNameEl, cachedSettings.schoolName);
     if (cachedSettings.logoUrl) {
       logoMount.innerHTML = "";
       logoMount.append(el("img", { src: cachedSettings.logoUrl, alt: "School Logo", class: "sidebar__logo-img" }));
@@ -394,7 +402,7 @@ export function renderShell(app, profile, activePath) {
     loadSchoolSettingsOnce().then(settings => {
       // Update name
       if (settings.schoolName) {
-        schoolNameEl.textContent = settings.schoolName;
+        setSchoolNameText(schoolNameEl, settings.schoolName);
       }
       // Update logo if one exists
       if (settings.logoUrl) {
