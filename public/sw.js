@@ -37,7 +37,7 @@
 // bytes change. Without a version bump here, anyone who installed the SW
 // before a CSP change keeps enforcing the old policy indefinitely (only a
 // forced/hard reload bypasses the SW long enough to hide the symptom).
-const CACHE_VERSION = "eeskia-v2.4";
+const CACHE_VERSION = "eeskia-v3.4";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
