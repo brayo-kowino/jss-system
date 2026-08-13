@@ -163,7 +163,7 @@ export async function render() {
   const brandName = school?.schoolName || "Eeskia";
   const brandTag = school ? (school.motto || "Powered by Eeskia") : "School Management System";
 
-  document.title = school?.schoolName ? `${school.schoolName} | Eeskia` : DEFAULT_TITLE;
+  document.title = school?.schoolName ? `${school.schoolName} ` : DEFAULT_TITLE;
   setFavicon(logoSrc);
 
   const wrap = el("div", { class: "auth-screen" });

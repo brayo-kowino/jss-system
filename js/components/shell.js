@@ -58,7 +58,7 @@ export function applyBranding(settings) {
   root.setProperty("--color-primary-600", shade(primary, 25));
   root.setProperty("--color-gold", accent);
   root.setProperty("--color-gold-soft", shade(accent, 60));
-  document.title = settings?.schoolName ? `${settings.schoolName} | Eeskia` : DEFAULT_TITLE;
+  document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;
   setFavicon(settings?.logoUrl || "/assets/logo.png");
 }
 
@@ -389,7 +389,7 @@ export function renderShell(app, profile, activePath) {
   // every time the shell re-renders on navigation.
   if (profile.role === "super_admin") {
     setSchoolNameText(schoolNameEl, "Platform Admin");
-    document.title = "Platform Admin | Eeskia";
+    document.title = "Platform Admin";
     setFavicon();
   } else if (cachedSettings) {
     if (cachedSettings.schoolName) setSchoolNameText(schoolNameEl, cachedSettings.schoolName);
