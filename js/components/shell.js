@@ -601,12 +601,19 @@ export function renderShell(app, profile, activePath) {
       "aria-label": "Take a tour of this system",
       onClick: () => {
         // The tour points at sidebar text/search that only exist in
-        // expanded mode, so make sure it's expanded before it starts.
+        // expanded mode, so make sure it's expanded before it starts. The
+        // expand itself is animated (.shell's grid-template-columns
+        // transition, see --transition in variables.css), so the tour has
+        // to wait for that to actually finish before measuring anything -
+        // starting it immediately would spotlight wherever the sidebar
+        // was mid-animation, not its final expanded position/width.
         if (sidebar.classList.contains("sidebar--collapsed")) {
           saveSidebarCollapsed(false);
           applyCollapsedState(false);
+          setTimeout(() => startTour(TOUR_STEPS), 200);
+        } else {
+          startTour(TOUR_STEPS);
         }
-        startTour(TOUR_STEPS);
       },
     },
     [icon("help")]
