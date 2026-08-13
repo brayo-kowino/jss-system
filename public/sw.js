@@ -30,7 +30,14 @@
 //     worker only ever touches static files, never app data.
 // ==========================================================================
 
-const CACHE_VERSION = "eeskia-v1";
+// IMPORTANT: bump this any time netlify.toml's CSP changes. A service
+// worker's own fetch() calls (see staleWhileRevalidate below) are bound to
+// the CSP that was live when that worker instance was installed - not the
+// page's current CSP - and browsers only reinstall a worker when its script
+// bytes change. Without a version bump here, anyone who installed the SW
+// before a CSP change keeps enforcing the old policy indefinitely (only a
+// forced/hard reload bypasses the SW long enough to hide the symptom).
+const CACHE_VERSION = "eeskia-v2";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
