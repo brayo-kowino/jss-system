@@ -446,7 +446,7 @@ function buildGradingTab() {
       el("span", {}, "Used to auto-grade marks entries and feed the Grading & Position engine. Ranges should not overlap; Points is what gets summed into a student's total/mean points."),
     ])
   );
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Min %"), el("th", {}, "Max %"), el("th", {}, "Grade"),
@@ -515,12 +515,12 @@ function field(id, label, value = "", type = "text", full = false) {
 
 function gradingRow(row = {}) {
   const tr = el("tr", {}, [
-    el("td", {}, el("input", { type: "number", value: row.min ?? "", class: "grade-min", style: "width:70px;" })),
-    el("td", {}, el("input", { type: "number", value: row.max ?? "", class: "grade-max", style: "width:70px;" })),
-    el("td", {}, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", style: "width:70px;" })),
-    el("td", {}, el("input", { type: "number", value: row.points ?? "", class: "grade-points", style: "width:70px;" })),
-    el("td", {}, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark" })),
-    el("td", {}, el("button", {
+    el("td", { "data-label": "Min %" }, el("input", { type: "number", value: row.min ?? "", class: "grade-min", style: "width:70px;" })),
+    el("td", { "data-label": "Max %" }, el("input", { type: "number", value: row.max ?? "", class: "grade-max", style: "width:70px;" })),
+    el("td", { "data-label": "Grade" }, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", style: "width:70px;" })),
+    el("td", { "data-label": "Points" }, el("input", { type: "number", value: row.points ?? "", class: "grade-points", style: "width:70px;" })),
+    el("td", { "data-label": "Remark" }, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark" })),
+    el("td", { class: "row-actions", "data-label": "Remove" }, el("button", {
       type: "button", class: "btn btn--ghost btn--sm", title: "Remove row",
       onClick: (e) => e.currentTarget.closest("tr").remove(),
     }, icon("delete"))),

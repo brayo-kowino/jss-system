@@ -98,7 +98,7 @@ export async function render({ profile }) {
   filters.append(searchInput, gradeSelect, statusSelect);
   wrap.append(filters);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   wrap.append(tableWrap);
   renderTable(tableWrap, profile);
 
@@ -161,7 +161,7 @@ function renderTable(container, profile) {
   const tbody = el("tbody", {});
   for (const s of filtered) {
     const openCount = openIssueCounts.get(s.id) || 0;
-    const nameCell = el("td", {}, [
+    const nameCell = el("td", { "data-label": "Name" }, [
       el("a", {
         href: "#",
         style: "font-weight:600;",
@@ -169,16 +169,16 @@ function renderTable(container, profile) {
       }, s.fullName),
     ]);
     tbody.append(el("tr", {}, [
-      el("td", { class: "numeric" }, s.admissionNumber || "N/A"),
+      el("td", { class: "numeric", "data-label": "Adm. No." }, s.admissionNumber || "N/A"),
       nameCell,
-      el("td", {}, `${s.grade || "N/A"} ${s.stream || ""}`),
-      el("td", {}, s.gender || "N/A"),
-      el("td", {}, statusBadge(s.status)),
-      el("td", {}, formatDate(s.admissionDate)),
-      el("td", {}, openCount
+      el("td", { "data-label": "Class" }, `${s.grade || "N/A"} ${s.stream || ""}`),
+      el("td", { "data-label": "Gender" }, s.gender || "N/A"),
+      el("td", { "data-label": "Status" }, statusBadge(s.status)),
+      el("td", { "data-label": "Admitted" }, formatDate(s.admissionDate)),
+      el("td", { "data-label": "Issues" }, openCount
         ? el("span", { class: "badge badge--danger", title: `${openCount} open issue(s)`, style: "cursor:pointer;", onClick: () => openStudentProfile(profile, s, "activity") }, [icon("report", ""), ` ${openCount}`])
         : ""),
-      el("td", {}, rowActions(s, profile)),
+      el("td", { class: "row-actions", "data-label": "Actions" }, rowActions(s, profile)),
     ]));
   }
   table.append(tbody);
@@ -421,25 +421,25 @@ async function renderAcademicTab(panel, profile, student, refreshAll) {
     return;
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Year"), el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean %"),
-      el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Class Pos"), el("th", {}, "Overall Pos"), el("th", {}, "Mode"), el("th", {}, ""),
+      el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Class Pos"), el("th", {}, "Overall Pos"), el("th", {}, "Mode"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const r of sorted) {
     tbody.append(el("tr", {}, [
-      el("td", {}, String(r.academicYear || "N/A")),
-      el("td", {}, r.term || "N/A"),
-      el("td", {}, `${r.grade || "N/A"} ${r.stream || ""}`),
-      el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
-      el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
-      el("td", {}, String(r.totalPoints ?? "N/A")),
-      el("td", {}, r.classPosition ? `${r.classPosition}/${r.streamClassSize}` : "N/A"),
-      el("td", {}, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
-      el("td", {}, reportModeLabel(r.reportMode)),
+      el("td", { "data-label": "Year" }, String(r.academicYear || "N/A")),
+      el("td", { "data-label": "Term" }, r.term || "N/A"),
+      el("td", { "data-label": "Class" }, `${r.grade || "N/A"} ${r.stream || ""}`),
+      el("td", { "data-label": "Mean %" }, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
+      el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
+      el("td", { "data-label": "Points" }, String(r.totalPoints ?? "N/A")),
+      el("td", { "data-label": "Class Pos" }, r.classPosition ? `${r.classPosition}/${r.streamClassSize}` : "N/A"),
+      el("td", { "data-label": "Overall Pos" }, r.overallPosition ? `${r.overallPosition}/${r.classSize}` : "N/A"),
+      el("td", { "data-label": "Mode" }, reportModeLabel(r.reportMode)),
 
     ]));
   }
@@ -490,7 +490,7 @@ async function renderFeesTab(panel, profile, student) {
   if (!ledgerRows.length) {
     panel.append(el("p", { class: "text-sm text-muted" }, "No fee structure or payments found for this student's grade yet."));
   } else {
-    const ledgerWrap = el("div", { class: "table-wrap", style: "margin-bottom:20px;" });
+    const ledgerWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-bottom:20px;" });
     const ledgerTable = el("table", {}, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, "Year"), el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Expected"), el("th", {}, "Paid"), el("th", {}, "Balance"), el("th", {}, "Status"),
@@ -501,13 +501,13 @@ async function renderFeesTab(panel, profile, student) {
       const statusTone = r.balance <= 0 ? "success" : (r.paid > 0 ? "gold" : "danger");
       const statusLabel = r.balance <= 0 ? "Paid" : (r.paid > 0 ? "Partial" : "Owing");
       ledgerBody.append(el("tr", {}, [
-        el("td", {}, String(r.academicYear || "N/A")),
-        el("td", {}, r.term || "N/A"),
-        el("td", {}, r.grade || "N/A"),
-        el("td", {}, formatKES(r.expected)),
-        el("td", {}, formatKES(r.paid)),
-        el("td", {}, formatKES(Math.max(r.balance, 0))),
-        el("td", {}, el("span", { class: `badge badge--${statusTone}` }, statusLabel)),
+        el("td", { "data-label": "Year" }, String(r.academicYear || "N/A")),
+        el("td", { "data-label": "Term" }, r.term || "N/A"),
+        el("td", { "data-label": "Class" }, r.grade || "N/A"),
+        el("td", { "data-label": "Expected" }, formatKES(r.expected)),
+        el("td", { "data-label": "Paid" }, formatKES(r.paid)),
+        el("td", { "data-label": "Balance" }, formatKES(Math.max(r.balance, 0))),
+        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${statusTone}` }, statusLabel)),
       ]));
     }
     ledgerTable.append(ledgerBody);
@@ -519,7 +519,7 @@ async function renderFeesTab(panel, profile, student) {
   if (!payments.length) {
     panel.append(el("p", { class: "text-sm text-muted" }, "No payments recorded yet."));
   } else {
-    const payWrap = el("div", { class: "table-wrap" });
+    const payWrap = el("div", { class: "table-wrap table-wrap--responsive" });
     const payTable = el("table", {}, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, "Date"), el("th", {}, "Year"), el("th", {}, "Term"), el("th", {}, "Amount"), el("th", {}, "Method"), el("th", {}, "Reference"),
@@ -528,12 +528,12 @@ async function renderFeesTab(panel, profile, student) {
     const payBody = el("tbody", {});
     for (const p of payments) {
       payBody.append(el("tr", {}, [
-        el("td", {}, formatDate(p.date)),
-        el("td", {}, String(p.academicYear || "N/A")),
-        el("td", {}, p.term || "N/A"),
-        el("td", {}, formatKES(p.amount)),
-        el("td", {}, p.method || "N/A"),
-        el("td", {}, p.reference || "—"),
+        el("td", { "data-label": "Date" }, formatDate(p.date)),
+        el("td", { "data-label": "Year" }, String(p.academicYear || "N/A")),
+        el("td", { "data-label": "Term" }, p.term || "N/A"),
+        el("td", { "data-label": "Amount" }, formatKES(p.amount)),
+        el("td", { "data-label": "Method" }, p.method || "N/A"),
+        el("td", { "data-label": "Reference" }, p.reference || "—"),
       ]));
     }
     payTable.append(payBody);
@@ -570,13 +570,13 @@ async function renderAttendanceTab(panel, profile, student) {
     panel.append(el("p", { class: "text-sm text-muted" }, "No attendance has been marked for this class yet this term."));
     return;
   }
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [el("thead", {}, el("tr", {}, [el("th", {}, "Date"), el("th", {}, "Status")]))]);
   const tbody = el("tbody", {});
   for (const day of recent) {
     const status = day.records?.[student.id] || "not marked";
     const tone = { present: "success", late: "gold", excused: "muted", absent: "danger" }[status] || "muted";
-    tbody.append(el("tr", {}, [el("td", {}, formatDate(day.date)), el("td", {}, el("span", { class: `badge badge--${tone}` }, status))]));
+    tbody.append(el("tr", {}, [el("td", { "data-label": "Date" }, formatDate(day.date)), el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${tone}` }, status))]));
   }
   table.append(tbody);
   tableWrap.append(table);
@@ -706,7 +706,7 @@ function openIssueForm(profile, student, context, onDone) {
   body.append(
     context ? el("p", { class: "text-sm text-muted" }, `Regarding: ${context.term || ""} ${context.academicYear || ""}`.trim()) : "",
     el("div", { class: "field" }, [el("label", {}, "Category"), categorySelect]),
-    el("div", { class: "field" }, [el("label", {}, "Describe the issue"), el("textarea", { id: "issue-description", rows: "4", placeholder: "e.g. Parent says Math CAT 2 score of 45 should be 54 — please recheck the marked script." }, "")]),
+    el("div", { class: "field" }, [el("label", {}, "Describe the issue"), el("textarea", { id: "issue-description", rows: "4", placeholder: "e.g. Parent says Math CAT 2 score of 45 should be 54 please recheck the marked script." }, "")]),
     el("button", { type: "submit", class: "btn btn--danger btn--block" }, [icon("report"), "Raise Issue"])
   );
   const close = openModal(`Raise Issue: ${student.fullName}`, body);
@@ -938,7 +938,7 @@ function openImportModal(profile) {
       ])
     );
 
-    const tableWrap = el("div", { class: "table-wrap", style: "margin-bottom:16px; max-height:420px; overflow:auto;" });
+    const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-bottom:16px; max-height:420px; overflow:auto;" });
     const table = el("table", {}, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, ""), el("th", {}, "Status"), el("th", {}, "Full Name"), el("th", {}, "Adm. No."),
@@ -1026,15 +1026,15 @@ function openImportModal(profile) {
       }
 
       tr.append(
-        el("td", {}, actionControl),
-        el("td", {}, el("span", { class: `badge badge--${STATUS_BADGE[row.status]}` }, STATUS_LABEL[row.status])),
-        el("td", {}, nameInput),
-        el("td", {}, admInput),
-        el("td", {}, genderSelect),
-        el("td", {}, gradeSelect),
-        el("td", {}, streamSelect),
-        el("td", {}, dobInput),
-        el("td", {}, issuesCell),
+        el("td", { "data-label": "Include" }, actionControl),
+        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${STATUS_BADGE[row.status]}` }, STATUS_LABEL[row.status])),
+        el("td", { "data-label": "Full Name" }, nameInput),
+        el("td", { "data-label": "Adm. No." }, admInput),
+        el("td", { "data-label": "Gender" }, genderSelect),
+        el("td", { "data-label": "Grade" }, gradeSelect),
+        el("td", { "data-label": "Stream" }, streamSelect),
+        el("td", { "data-label": "DOB" }, dobInput),
+        el("td", { "data-label": "Issues" }, issuesCell),
       );
       return tr;
     }

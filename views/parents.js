@@ -17,7 +17,7 @@ export async function render({ profile }) {
     ])
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   wrap.append(tableWrap);
   renderTable(tableWrap, profile);
 
@@ -50,12 +50,12 @@ function renderTable(container, profile) {
       .map((id) => students.find((s) => s.id === id)?.fullName)
       .filter(Boolean);
     tbody.append(el("tr", {}, [
-      el("td", {}, p.fullName),
-      el("td", {}, p.phone || "N/A"),
-      el("td", {}, p.email || "N/A"),
-      el("td", {}, p.relationship || "N/A"),
-      el("td", {}, linkedNames.length ? linkedNames.join(", ") : el("span", { class: "text-muted" }, "None")),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, [icon("edit"), "Edit"])),
+      el("td", { "data-label": "Name" }, p.fullName),
+      el("td", { "data-label": "Phone" }, p.phone || "N/A"),
+      el("td", { "data-label": "Email" }, p.email || "N/A"),
+      el("td", { "data-label": "Relationship" }, p.relationship || "N/A"),
+      el("td", { "data-label": "Linked Students" }, linkedNames.length ? linkedNames.join(", ") : el("span", { class: "text-muted" }, "None")),
+      el("td", { class: "row-actions", "data-label": "Actions" }, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, [icon("edit"), "Edit"])),
     ]));
   }
   table.append(tbody);

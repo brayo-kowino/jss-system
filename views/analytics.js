@@ -4,7 +4,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listTeachers } from "../js/services/teacher.service.js";
 import { listResultsByPeriod } from "../js/services/grading.service.js";
 import { listFeeStatusesForPeriod, formatKES } from "../js/services/fee.service.js";
-import { el, icon, toast, spinner, escapeHtml } from "../js/utils.js";
+import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice } from "../js/utils.js";
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 
 Chart.register(...registerables);
@@ -33,6 +33,10 @@ export async function render({ profile }) {
       ]),
     ])
   );
+  // Filter row + side-by-side charts and stat panels are a dashboard
+  // layout, not something that reflows cleanly to a phone width - set
+  // expectations rather than hand someone a squeezed chart.
+  wrap.append(mobileOnlyNotice("Analytics is a dashboard of filters, charts and side-by-side stats - it's built for a tablet or desktop screen."));
 
   const controlsCard = el("div", { class: "card", style: "margin-bottom:16px;" });
   wrap.append(controlsCard);
@@ -81,11 +85,12 @@ function renderControls(container, reportMount, profile) {
 
   container.append(row);
   container.append(
-    el("button", { 
-      class: "btn btn--primary", 
-      style: "margin-top:16px;",
-      onClick: () => runReport(reportMount) 
-    }, [icon("insert_chart"), "Generate Report"])
+    el("div", { class: "filter-actions" }, [
+      el("button", {
+        class: "btn btn--primary",
+        onClick: () => runReport(reportMount)
+      }, [icon("insert_chart"), "Generate Report"]),
+    ])
   );
 }
 
@@ -195,7 +200,7 @@ async function renderTopStudents(container) {
     ])
   ]);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Rank"), el("th", {}, "Class"), el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Mean %"), el("th", {}, "Grade")
@@ -205,12 +210,12 @@ async function renderTopStudents(container) {
   const tbody = el("tbody", {});
   topList.forEach((r, index) => {
     tbody.append(el("tr", {}, [
-      el("td", {}, `#${index + 1}`),
-      el("td", {}, r.grade),
-      el("td", {}, r.admissionNumber || "N/A"),
-      el("td", {}, el("b", {}, r.fullName)),
-      el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
-      el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A"))
+      el("td", { "data-label": "Rank" }, `#${index + 1}`),
+      el("td", { "data-label": "Class" }, r.grade),
+      el("td", { "data-label": "Adm No." }, r.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, el("b", {}, r.fullName)),
+      el("td", { "data-label": "Mean %" }, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
+      el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A"))
     ]));
   });
   
@@ -291,7 +296,7 @@ async function renderFeeReport(container) {
 
   grid.append(statsCol, chartCard);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Class"), el("th", {}, "Expected"), el("th", {}, "Paid"), el("th", {}, "Balance")
@@ -301,12 +306,12 @@ async function renderFeeReport(container) {
   const tbody = el("tbody", {});
   for (const row of balances) {
     tbody.append(el("tr", {}, [
-      el("td", {}, row.student.admissionNumber || "N/A"),
-      el("td", {}, row.student.fullName),
-      el("td", {}, `${row.student.grade} ${row.student.stream || ""}`),
-      el("td", {}, formatKES(row.expected)),
-      el("td", {}, formatKES(row.paid)),
-      el("td", {}, el("span", { class: "badge badge--danger" }, formatKES(row.balance)))
+      el("td", { "data-label": "Adm No." }, row.student.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, row.student.fullName),
+      el("td", { "data-label": "Class" }, `${row.student.grade} ${row.student.stream || ""}`),
+      el("td", { "data-label": "Expected" }, formatKES(row.expected)),
+      el("td", { "data-label": "Paid" }, formatKES(row.paid)),
+      el("td", { "data-label": "Balance" }, el("span", { class: "badge badge--danger" }, formatKES(row.balance)))
     ]));
   }
   
@@ -338,7 +343,7 @@ async function renderTeacherWorkload(container) {
   const workloadLabels = [];
   const workloadData = [];
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Teacher"), el("th", {}, "TSC No."), el("th", {}, "Subjects Taught"), el("th", {}, "Classes Assigned"), el("th", {}, "Status")
@@ -355,11 +360,11 @@ async function renderTeacherWorkload(container) {
     workloadData.push(classCount);
 
     tbody.append(el("tr", {}, [
-      el("td", {}, el("b", {}, t.fullName)),
-      el("td", {}, t.tscNumber || "N/A"),
-      el("td", {}, `${subjCount} Subject(s)`),
-      el("td", {}, `${classCount} Class(es)`),
-      el("td", {}, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active"))
+      el("td", { "data-label": "Teacher" }, el("b", {}, t.fullName)),
+      el("td", { "data-label": "TSC No." }, t.tscNumber || "N/A"),
+      el("td", { "data-label": "Subjects Taught" }, `${subjCount} Subject(s)`),
+      el("td", { "data-label": "Classes Assigned" }, `${classCount} Class(es)`),
+      el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active"))
     ]));
   }
 
@@ -435,7 +440,7 @@ async function renderClassAnalysis(container) {
     ])
   ]);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Subject Name"), el("th", {}, "Students Sat"), el("th", {}, "Mean %"), el("th", {}, "Performance")
@@ -445,10 +450,10 @@ async function renderClassAnalysis(container) {
   const tbody = el("tbody", {});
   for (const s of analysisArray) {
     tbody.append(el("tr", {}, [
-      el("td", {}, el("b", {}, s.name)),
-      el("td", {}, String(s.studentsSat)),
-      el("td", {}, `${s.mean.toFixed(2)}%`),
-      el("td", {}, el("span", { class: `badge ${s.mean >= 50 ? 'badge--success' : 'badge--danger'}` }, s.mean >= 50 ? "Pass" : "Requires Attention"))
+      el("td", { "data-label": "Subject Name" }, el("b", {}, s.name)),
+      el("td", { "data-label": "Students Sat" }, String(s.studentsSat)),
+      el("td", { "data-label": "Mean %" }, `${s.mean.toFixed(2)}%`),
+      el("td", { "data-label": "Performance" }, el("span", { class: `badge ${s.mean >= 50 ? 'badge--success' : 'badge--danger'}` }, s.mean >= 50 ? "Pass" : "Requires Attention"))
     ]));
   }
 

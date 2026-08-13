@@ -182,3 +182,13 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=26400, must-revalidate"
+
+# The service worker script itself must never be served stale - browsers
+# already cap SW script caching at 24h regardless of headers, but an
+# explicit no-cache means a new deploy's offline-caching logic (and the
+# "update available" toast in app.js) is picked up on the very next visit
+# rather than up to a day later.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"

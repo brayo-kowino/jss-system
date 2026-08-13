@@ -490,6 +490,29 @@ tbody tr:hover { background: var(--color-primary-100); }
 .alert--warning { background: #FFF7E0; color: #7A5B00; border-color: #F0D989; }
 .alert--danger { background: #FBE7E5; color: var(--color-red); border-color: #F3B9B3; }
 .alert--success { background: #E4F2E7; color: var(--color-green); border-color: #BFE3C8; }
+.alert--info { background: var(--color-primary-100); color: var(--color-primary-900); border-color: var(--color-primary-100); }
+
+/* Notices that only make sense on small screens (e.g. "this layout is
+   built for a bigger display") - invisible on desktop, shown once the
+   viewport drops to the same width where the sidebar goes off-canvas. */
+.mobile-only-notice { display: none; }
+@media (max-width: 860px) {
+  .mobile-only-notice { display: flex; }
+}
+
+/* Filter/picker rows across Reports, Analytics, Grading, Marks, Fees and
+   Release Results are built as a fixed 3- or 4-column CSS grid via inline
+   style (repeat(3, 1fr) / repeat(4, 1fr)) since they're generated in JS.
+   Below the point the sidebar goes off-canvas, that squeezes every field
+   down to an unusable sliver - stack them into one column instead. The
+   attribute selector targets those inline styles directly since there's
+   no shared class to hook; !important is needed to beat the inline style. */
+@media (max-width: 640px) {
+  [style*="grid-template-columns: repeat(3, 1fr)"],
+  [style*="grid-template-columns: repeat(4, 1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+}
 
 /* Chip (streams, tags) */
 .chip-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
@@ -553,13 +576,33 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .modal--wide { max-width: 1080px; }
 .modal__header {
-  display: flex; justify-content: space-between; align-items: center;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: var(--sp-3);
   margin-bottom: var(--sp-4);
 }
+.modal__header h3 { min-width: 0; overflow-wrap: break-word; }
 .modal__close {
+  flex-shrink: 0;
   background: none; border: none; cursor: pointer;
   font-size: var(--fs-lg); color: var(--color-ink-soft);
 }
+
+@media (max-width: 640px) {
+  /* Below 640px a centered box with a fixed max-width just leaves a
+     cramped column with awkward margins on either side (and, with a
+     long title, a 3-line header squeezed against the close button) - a
+     full-width sheet pinned to the bottom of the screen reads as
+     intentional instead of a shrunk desktop modal. */
+  .modal-backdrop { place-items: end center; }
+  .modal, .modal--wide {
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: var(--sp-4);
+  }
+  .modal__header h3 { font-size: var(--fs-base); }
+}
+
 
 /* Toast */
 #toast-root {
@@ -1100,9 +1143,22 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 .settings-form-actions {
   display: flex; gap: var(--sp-3); flex-wrap: wrap;
+  justify-content: flex-end;
   margin-top: var(--sp-4); padding-top: var(--sp-4);
   border-top: 1px solid var(--color-line);
   grid-column: 1 / -1;
+}
+
+/* Trailing action for a filter/picker row (Load Balances, Compute Results,
+   Load Report Cards, etc.) - these used to be plain buttons appended
+   straight after the filter grid, which left them sitting at the left
+   edge under the first field instead of reading as the row's action. */
+.filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
 }
 
 .settings-login-link {

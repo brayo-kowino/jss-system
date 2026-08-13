@@ -55,7 +55,7 @@ export async function render({ profile }) {
   wrap.append(filterMount);
   renderFilters(filterMount, profile);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   wrap.append(tableWrap);
   renderTable(tableWrap);
 
@@ -322,12 +322,12 @@ function renderTable(container) {
     const { icon: iconName, color, label } = describeLog(log);
     const u = usersById.get(log.userId);
 
-    const userCell = el("td", {}, [
+    const userCell = el("td", { "data-label": "User" }, [
       el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, userLabel(log.userId)),
       u?.role ? el("div", { class: "text-xs text-muted" }, roleLabel(u.role)) : "",
     ]);
 
-    const actionCell = el("td", {}, [
+    const actionCell = el("td", { "data-label": "Action" }, [
       el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
         el("span", { class: `material-symbols-rounded text-${color}`, style: "font-size:18px;" }, iconName),
         label,
@@ -336,13 +336,13 @@ function renderTable(container) {
 
     tbody.append(
       el("tr", {}, [
-        el("td", {}, [
+        el("td", { "data-label": "When" }, [
           el("div", { style: "font-size:var(--fs-sm);" }, formatDateTime(log.timestamp)),
         ]),
         userCell,
         actionCell,
-        el("td", {}, log.entity ? el("span", { class: "badge badge--muted" }, log.entity.replace(/_/g, " ")) : "N/A"),
-        el("td", {}, log.entityId ? el("span", { class: "text-xs text-muted", title: log.entityId }, log.entityId.length > 16 ? `${log.entityId.slice(0, 16)}…` : log.entityId) : el("span", { class: "text-muted" }, "—")),
+        el("td", { "data-label": "Module" }, log.entity ? el("span", { class: "badge badge--muted" }, log.entity.replace(/_/g, " ")) : "N/A"),
+        el("td", { "data-label": "Record" }, log.entityId ? el("span", { class: "text-xs text-muted", title: log.entityId }, log.entityId.length > 16 ? `${log.entityId.slice(0, 16)}…` : log.entityId) : el("span", { class: "text-muted" }, "—")),
       ])
     );
   }

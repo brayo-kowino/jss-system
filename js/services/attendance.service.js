@@ -123,8 +123,15 @@ export function summarizeForRoster(dayDocs, studentIds) {
 }
 
 /**
- * For the dashboard's "Attendance Today" stat: across every class marked
- * today, what fraction of recorded students were present or late.
+ * Raw totals for the dashboard's "Attendance Today" stat - across every
+ * class marked today, how many students were recorded and how many of
+ * those were present/late. Returns raw counts rather than a percentage
+ * because a percentage of only the *marked* students is misleading this
+ * early in the day: if one class of 8 has been marked (all present) out
+ * of a school of 22, that's not "100% attendance today" - it's 8 of 22
+ * students accounted for. The caller (dashboard.js) turns this into a
+ * percentage against the whole active roster, not just who's been marked
+ * so far.
  */
 export async function getTodayAttendanceStat() {
   try {
@@ -132,17 +139,16 @@ export async function getTodayAttendanceStat() {
       query(collection(db, "attendance"), where("schoolId", "==", getCurrentSchoolId()), where("date", "==", todayStr()))
     );
     let present = 0;
-    let total = 0;
+    let marked = 0;
     for (const d of snap.docs) {
       const records = d.data().records || {};
       for (const status of Object.values(records)) {
-        total += 1;
+        marked += 1;
         if (status === "present" || status === "late") present += 1;
       }
     }
-    if (!total) return "N/A";
-    return `${Math.round((present / total) * 100)}%`;
+    return { marked, present, classesMarked: snap.docs.length };
   } catch {
-    return "N/A";
+    return { marked: 0, present: 0, classesMarked: 0, failed: true };
   }
 }

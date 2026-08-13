@@ -145,7 +145,7 @@ function renderNotificationsTab(panel, profile) {
 
   panel.append(renderNotificationKpis());
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   panel.append(tableWrap);
   renderNotificationsTable(tableWrap, profile, canManage);
 }
@@ -214,25 +214,25 @@ function renderNotificationsTable(container, profile, canManage) {
   for (const n of notifications) {
     const meta = categoryMeta(n.category);
     const row = [
-      el("td", {}, [
+      el("td", { "data-label": "Title" }, [
         el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, n.title),
         el("div", { class: "text-xs text-muted" }, n.body ? `${n.body.slice(0, 60)}${n.body.length > 60 ? "…" : ""}` : ""),
       ]),
-      el("td", {}, [
+      el("td", { "data-label": "Category" }, [
         el("span", { class: "badge badge--muted" }, [
           el("span", { class: "material-symbols-rounded", style: "font-size:14px; vertical-align:-2px;" }, meta.icon),
           ` ${meta.label}`,
         ]),
       ]),
-      el("td", {}, audienceLabel(n)),
-      el("td", { class: "numeric" }, String(n.recipientCount ?? 0)),
-      el("td", {}, (CHANNELS.find((c) => c.value === n.channel)?.label) || n.channel || "N/A"),
-      el("td", {}, n.createdAt ? formatDate(n.createdAt) : "N/A"),
-      el("td", {}, el("span", { class: `badge badge--${n.status === "delivered" ? "success" : "gold"}` }, n.status === "delivered" ? "Delivered" : "Queued")),
+      el("td", { "data-label": "Audience" }, audienceLabel(n)),
+      el("td", { class: "numeric", "data-label": "Recipients" }, String(n.recipientCount ?? 0)),
+      el("td", { "data-label": "Channel" }, (CHANNELS.find((c) => c.value === n.channel)?.label) || n.channel || "N/A"),
+      el("td", { "data-label": "Sent" }, n.createdAt ? formatDate(n.createdAt) : "N/A"),
+      el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${n.status === "delivered" ? "success" : "gold"}` }, n.status === "delivered" ? "Delivered" : "Queued")),
     ];
 
     if (canManage) {
-      const actionsCell = el("td", { class: "row-actions" });
+      const actionsCell = el("td", { class: "row-actions", "data-label": "Actions" });
       actionsCell.append(
         el(
           "button",

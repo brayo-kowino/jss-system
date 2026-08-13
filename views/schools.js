@@ -32,7 +32,7 @@ export async function render({ profile }) {
     return wrap;
   }
 
-  const tableWrap = el("div", { class: "table-wrap card" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Created"), el("th", {}, ""),
@@ -42,12 +42,12 @@ export async function render({ profile }) {
   for (const s of schools) {
     tbody.append(
       el("tr", {}, [
-        el("td", {}, [el("strong", {}, s.schoolName || "(unnamed)"), el("div", { class: "text-sm text-muted" }, s.address || "")]),
-        el("td", {}, [el("div", {}, s.email || "N/A"), el("div", { class: "text-sm text-muted" }, s.phone || "")]),
-        el("td", {}, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
-        el("td", {}, subscriptionBadge(s)),
-        el("td", {}, s.createdAt ? formatDate(s.createdAt) : "N/A"),
-        el("td", { style: "white-space:nowrap;" }, [
+        el("td", { "data-label": "School" }, [el("strong", {}, s.schoolName || "(unnamed)"), el("div", { class: "text-sm text-muted" }, s.address || "")]),
+        el("td", { "data-label": "Contact" }, [el("div", {}, s.email || "N/A"), el("div", { class: "text-sm text-muted" }, s.phone || "")]),
+        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
+        el("td", { "data-label": "Subscription" }, subscriptionBadge(s)),
+        el("td", { "data-label": "Created" }, s.createdAt ? formatDate(s.createdAt) : "N/A"),
+        el("td", { class: "row-actions", "data-label": "Actions", style: "white-space:nowrap;" }, [
           el("button", {
             class: "btn btn--sm btn--ghost",
             onClick: () => openIssueTokenModal(s),
@@ -279,7 +279,7 @@ async function openTokenHistoryModal(school) {
 
   const tbody = el("tbody");
   body.append(
-    el("div", { class: "table-wrap" }, [
+    el("div", { class: "table-wrap table-wrap--responsive" }, [
       el("table", {}, [
         el("thead", {}, el("tr", {}, [
           el("th", {}, "Plan"), el("th", {}, "Expires"), el("th", {}, "Issued"), el("th", {}, "Status"), el("th", {}, "Consumed"),
@@ -291,13 +291,13 @@ async function openTokenHistoryModal(school) {
 
   for (const t of tokens) {
     const row = el("tr", {}, [
-      el("td", {}, SUBSCRIPTION_PLANS.find((p) => p.value === t.plan)?.label || t.plan || "\u2014"),
-      el("td", {}, formatDate(t.expiresAt)),
-      el("td", {}, [el("div", {}, formatDateTime(t.issuedAt)), el("div", { class: "text-sm text-muted", "data-issued-by": "true" }, "\u2026")]),
-      el("td", {}, t.consumedAt
+      el("td", { "data-label": "Plan" }, SUBSCRIPTION_PLANS.find((p) => p.value === t.plan)?.label || t.plan || "\u2014"),
+      el("td", { "data-label": "Expires" }, formatDate(t.expiresAt)),
+      el("td", { "data-label": "Issued" }, [el("div", {}, formatDateTime(t.issuedAt)), el("div", { class: "text-sm text-muted", "data-issued-by": "true" }, "\u2026")]),
+      el("td", { "data-label": "Status" }, t.consumedAt
         ? el("span", { class: "badge badge--success" }, "Used")
         : el("span", { class: "badge badge--muted" }, "Unused")),
-      el("td", {}, t.consumedAt
+      el("td", { "data-label": "Consumed" }, t.consumedAt
         ? [el("div", {}, formatDateTime(t.consumedAt)), el("div", { class: "text-sm text-muted", "data-consumed-by": "true" }, "\u2026")]
         : "\u2014"),
     ]);

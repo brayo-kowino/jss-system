@@ -95,7 +95,9 @@ function renderPicker(container, bodyMount, profile) {
   );
   container.append(row);
   container.append(
-    el("button", { class: "btn btn--primary", onClick: () => loadList(bodyMount, profile) }, [icon("description"), "Load Report Cards"])
+    el("div", { class: "filter-actions" }, [
+      el("button", { class: "btn btn--primary", onClick: () => loadList(bodyMount, profile) }, [icon("description"), "Load Report Cards"]),
+    ])
   );
 }
 
@@ -166,7 +168,7 @@ function renderList(container, results, profile, bodyMount) {
   }
   container.append(header);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Pos"), el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Mean"), el("th", {}, "Grade"), el("th", {}, ""),
@@ -178,12 +180,12 @@ function renderList(container, results, profile, bodyMount) {
     const pos = isStreamView ? r.classPosition : r.overallPosition;
     const size = isStreamView ? r.streamClassSize : r.classSize;
     tbody.append(el("tr", {}, [
-      el("td", {}, pos ? `${pos}/${size}` : "N/A"),
-      el("td", {}, r.admissionNumber || "N/A"),
-      el("td", {}, r.fullName),
-      el("td", {}, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
-      el("td", {}, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(bodyMount, r, profile) }, [icon("description"), "View Report Card"])),
+      el("td", { "data-label": "Pos" }, pos ? `${pos}/${size}` : "N/A"),
+      el("td", { "data-label": "Adm No." }, r.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, r.fullName),
+      el("td", { "data-label": "Mean" }, `${r.meanMarks?.toFixed(2) ?? "N/A"}%`),
+      el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--gold" }, r.meanGrade || "N/A")),
+      el("td", { class: "row-actions", "data-label": "Report Card" }, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCard(bodyMount, r, profile) }, [icon("description"), "View Report Card"])),
     ]));
   }
   table.append(tbody);

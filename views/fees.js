@@ -69,7 +69,7 @@ function renderStructures(container, profile) {
     return;
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Grade"), el("th", {}, "Academic Year"), el("th", {}, "Term"), el("th", {}, "Amount"), el("th", {}, "Actions"),
@@ -78,11 +78,11 @@ function renderStructures(container, profile) {
   const tbody = el("tbody", {});
   for (const s of structures) {
     tbody.append(el("tr", {}, [
-      el("td", {}, s.grade),
-      el("td", {}, s.academicYear),
-      el("td", {}, s.term),
-      el("td", {}, formatKES(s.amount)),
-      el("td", {}, [
+      el("td", { "data-label": "Grade" }, s.grade),
+      el("td", { "data-label": "Academic Year" }, s.academicYear),
+      el("td", { "data-label": "Term" }, s.term),
+      el("td", { "data-label": "Amount" }, formatKES(s.amount)),
+      el("td", { class: "row-actions", "data-label": "Actions" }, [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStructureModal(profile, s, container) }, [icon("edit"), "Edit"]),
         " ",
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeleteStructure(profile, s, container) }, [icon("delete"), "Delete"]),
@@ -214,10 +214,12 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   );
   container.append(row);
   container.append(
-    el("button", {
-      class: "btn btn--primary", style: "margin-top:16px;",
-      onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
-    }, [icon("search"), "Load Balances"])
+    el("div", { class: "filter-actions" }, [
+      el("button", {
+        class: "btn btn--primary",
+        onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
+      }, [icon("search"), "Load Balances"]),
+    ])
   );
 }
 
@@ -273,7 +275,7 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
     return;
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, "Expected"), el("th", {}, "Paid"), el("th", {}, "Balance"), el("th", {}, "Action"),
@@ -283,14 +285,14 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
   for (const row of balanceRows) {
     const { student, expected, paid, balance } = row;
     tbody.append(el("tr", {}, [
-      el("td", {}, student.admissionNumber || "N/A"),
-      el("td", {}, student.fullName),
-      el("td", {}, formatKES(expected)),
-      el("td", {}, formatKES(paid)),
-      el("td", {}, [
+      el("td", { "data-label": "Adm No." }, student.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, student.fullName),
+      el("td", { "data-label": "Expected" }, formatKES(expected)),
+      el("td", { "data-label": "Paid" }, formatKES(paid)),
+      el("td", { "data-label": "Balance" }, [
         el("span", { class: `badge badge--${balance > 0 ? "danger" : "success"}` }, formatKES(balance)),
       ]),
-      el("td", {}, el("button", {
+      el("td", { class: "row-actions", "data-label": "Action" }, el("button", {
         class: "btn btn--primary btn--sm",
         onClick: () => openPaymentModal(profile, student, container, paymentsMount, receiptMount),
       }, [icon("payments"), "Record Payment"])),
@@ -360,7 +362,7 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
   bulkBtn.addEventListener("click", () => handleBulkReceiptDownload(bulkBtn, payments));
   headerRow.append(bulkBtn);
   card.append(headerRow);
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Date"), el("th", {}, "Student"), el("th", {}, "Amount"), el("th", {}, "Method"), el("th", {}, "Reference"), el("th", {}, ""),
@@ -369,12 +371,12 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
   const tbody = el("tbody", {});
   for (const p of payments.slice(0, 25)) {
     tbody.append(el("tr", {}, [
-      el("td", {}, formatDate(p.date)),
-      el("td", {}, p.studentName || "N/A"),
-      el("td", {}, formatKES(p.amount)),
-      el("td", {}, p.method || "N/A"),
-      el("td", {}, p.reference || "N/A"),
-      el("td", {}, el("button", { class: "btn btn--ghost btn--sm", onClick: () => renderReceipt(receiptMount, p) }, [icon("receipt_long"), "View Receipt"])),
+      el("td", { "data-label": "Date" }, formatDate(p.date)),
+      el("td", { "data-label": "Student" }, p.studentName || "N/A"),
+      el("td", { "data-label": "Amount" }, formatKES(p.amount)),
+      el("td", { "data-label": "Method" }, p.method || "N/A"),
+      el("td", { "data-label": "Reference" }, p.reference || "N/A"),
+      el("td", { class: "row-actions", "data-label": "Receipt" }, el("button", { class: "btn btn--ghost btn--sm", onClick: () => renderReceipt(receiptMount, p) }, [icon("receipt_long"), "View Receipt"])),
     ]));
   }
   table.append(tbody);

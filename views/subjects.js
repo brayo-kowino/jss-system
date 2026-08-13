@@ -24,7 +24,7 @@ export async function render({ profile }) {
     ])
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   wrap.append(tableWrap);
   renderTable(tableWrap, profile);
 
@@ -56,11 +56,11 @@ function renderTable(container, profile) {
   const tbody = el("tbody", {});
   for (const s of subjects) {
     tbody.append(el("tr", {}, [
-      el("td", {}, el("span", { class: "badge badge--muted" }, s.code)),
-      el("td", {}, s.name),
-      el("td", {}, s.department || el("span", { class: "text-muted" }, "N/A")),
-      el("td", {}, s.pathway || el("span", { class: "text-muted" }, "N/A")),
-      el("td", {}, [
+      el("td", { "data-label": "Code" }, el("span", { class: "badge badge--muted" }, s.code)),
+      el("td", { "data-label": "Name" }, s.name),
+      el("td", { "data-label": "Department" }, s.department || el("span", { class: "text-muted" }, "N/A")),
+      el("td", { "data-label": "Pathway" }, s.pathway || el("span", { class: "text-muted" }, "N/A")),
+      el("td", { class: "row-actions", "data-label": "Actions" }, [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openSubjectForm(profile, s) }, [icon("edit"), "Edit"]),
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => confirmDelete(profile, s) }, [icon("delete"), "Delete"]),
       ]),

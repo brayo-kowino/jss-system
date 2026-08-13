@@ -13,7 +13,7 @@ import {
   clearSlot,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
+import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 // Only these roles ever need the *full* teacher roster (assign-slot modal's
@@ -56,6 +56,11 @@ export async function render({ profile }) {
     el("div", { class: "page-header" }, [
     ])
   );
+  // The weekly grid is a real day-by-period table - it scrolls sideways on
+  // a phone rather than breaking, but it's genuinely easier to read and
+  // manage on something wider. Say so up front instead of pretending it's
+  // a phone-native layout.
+  wrap.append(mobileOnlyNotice("The weekly schedule is easier to read and edit on a tablet or laptop - on a phone you'll need to scroll sideways through the days."));
 
   if (CAN_MANAGE.includes(profile.role)) {
     const periodsCard = el("div", { class: "card", style: "margin-bottom:16px;" });
@@ -89,7 +94,7 @@ function renderPeriods(container, profile) {
     ])
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Name"), el("th", {}, "Start"), el("th", {}, "End"), el("th", {}, "Type"), el("th", {}, "Actions"),
@@ -98,11 +103,11 @@ function renderPeriods(container, profile) {
   const tbody = el("tbody", {});
   for (const p of periods) {
     tbody.append(el("tr", {}, [
-      el("td", {}, p.name),
-      el("td", {}, p.startTime),
-      el("td", {}, p.endTime),
-      el("td", {}, el("span", { class: `badge badge--${p.isBreak ? "gold" : "muted"}` }, p.isBreak ? "Break" : "Lesson")),
-      el("td", {}, [
+      el("td", { "data-label": "Name" }, p.name),
+      el("td", { "data-label": "Start" }, p.startTime),
+      el("td", { "data-label": "End" }, p.endTime),
+      el("td", { "data-label": "Type" }, el("span", { class: `badge badge--${p.isBreak ? "gold" : "muted"}` }, p.isBreak ? "Break" : "Lesson")),
+      el("td", { class: "row-actions", "data-label": "Actions" }, [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openPeriodModal(profile, p, container) }, [icon("edit"), "Edit"]),
         " ",
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => handleDeletePeriod(profile, p, container) }, [icon("delete"), "Delete"]),

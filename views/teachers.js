@@ -104,7 +104,7 @@ function renderLoginsTab(container, profile) {
     ])
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   container.append(tableWrap);
 
   if (!logins.length) {
@@ -137,12 +137,12 @@ function renderLoginsTab(container, profile) {
         }, [icon(u.status === "suspended" ? "restart_alt" : "pause_circle"), u.status === "suspended" ? "Reinstate" : "Suspend"]));
       }
       tbody.append(el("tr", {}, [
-        el("td", {}, u.fullName || "—"),
-        el("td", {}, u.email || "—"),
-        el("td", {}, roleLabel(u.role)),
-        el("td", {}, linkedTeacher ? linkedTeacher.fullName : (TEACHING_ROLES.includes(u.role) ? el("span", { class: "text-muted" }, "Not linked") : el("span", { class: "text-muted" }, "—"))),
-        el("td", {}, el("span", { class: `badge badge--${u.status === "suspended" ? "muted" : "success"}` }, u.status === "suspended" ? "Suspended" : "Active")),
-        el("td", {}, actions),
+        el("td", { "data-label": "Name" }, u.fullName || "—"),
+        el("td", { "data-label": "Email" }, u.email || "—"),
+        el("td", { "data-label": "Role" }, roleLabel(u.role)),
+        el("td", { "data-label": "Teaching Record" }, linkedTeacher ? linkedTeacher.fullName : (TEACHING_ROLES.includes(u.role) ? el("span", { class: "text-muted" }, "Not linked") : el("span", { class: "text-muted" }, "—"))),
+        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${u.status === "suspended" ? "muted" : "success"}` }, u.status === "suspended" ? "Suspended" : "Active")),
+        el("td", { class: "row-actions", "data-label": "Actions" }, actions),
       ]));
     }
     table.append(tbody);
@@ -369,7 +369,7 @@ function renderRosterTab(container, profile) {
     ])
   );
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   container.append(tableWrap);
 
   if (!roster.length) {
@@ -390,12 +390,12 @@ function renderRosterTab(container, profile) {
       const subjNames = (t.subjectCodes || []).map((c) => subjects.find((s) => s.code === c)?.name).filter(Boolean).join(", ");
       const classNames = (t.classAssignments || []).map((a) => `${a.grade} ${a.stream}`).join(", ");
       tbody.append(el("tr", {}, [
-        el("td", {}, t.fullName),
-        el("td", { class: "numeric" }, t.tscNumber || "N/A"),
-        el("td", {}, subjNames || el("span", { class: "text-muted" }, "None")),
-        el("td", {}, classNames || el("span", { class: "text-muted" }, "None")),
-        el("td", {}, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active")),
-        el("td", {}, [
+        el("td", { "data-label": "Name" }, t.fullName),
+        el("td", { class: "numeric", "data-label": "TSC No." }, t.tscNumber || "N/A"),
+        el("td", { "data-label": "Subjects" }, subjNames || el("span", { class: "text-muted" }, "None")),
+        el("td", { "data-label": "Classes" }, classNames || el("span", { class: "text-muted" }, "None")),
+        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active")),
+        el("td", { class: "row-actions", "data-label": "Actions" }, [
           el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTeacherForm(profile, t) }, [icon("edit"), "Edit"]),
           el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleTeacherStatus(profile, t) }, [icon(t.status === "active" ? "pause_circle" : "restart_alt"), t.status === "active" ? "Suspend" : "Reinstate"]),
           el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCreateLoginModal(profile, t) }, [icon("badge"), "Create Login"]),

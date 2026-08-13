@@ -37,7 +37,7 @@ let chartDataCache = {
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
 
-  const [teachersResult, attendanceToday, feesCollectedResult, recentLogs, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult] = await Promise.all([
+  const [teachersResult, attendanceStat, feesCollectedResult, recentLogs, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult] = await Promise.all([
     safeCount("teachers"),
     getTodayAttendanceStat(),
     getTermCollectionTotal(settings.currentAcademicYear, settings.currentTerm),
@@ -67,6 +67,22 @@ export async function render({ profile }) {
 
   const activeStudents = allStudents.filter(s => s.status === 'active');
   const studentsCount = activeStudents.length;
+
+  // Turn the raw marked/present counts into a percentage of the WHOLE
+  // active roster, not just the students whose class happened to be
+  // marked already. A percentage of only who's-marked-so-far reads as
+  // final-for-the-day attendance and is easy to misread (mark one small
+  // class all-present early in the morning and it claimed "100%" for the
+  // whole school). "N/A" only when literally nothing has been marked yet.
+  let attendanceToday = "N/A";
+  let attendanceCoverageNote = null;
+  if (attendanceStat.marked > 0) {
+    const denominator = studentsCount > 0 ? studentsCount : attendanceStat.marked;
+    attendanceToday = `${Math.round((attendanceStat.present / denominator) * 100)}%`;
+    if (studentsCount > 0 && attendanceStat.marked < studentsCount) {
+      attendanceCoverageNote = `Only ${attendanceStat.marked} of ${studentsCount} student(s) marked so far today.`;
+    }
+  }
 
   // 1. Revenue Trend (oldest-first months, straight from getMonthlyRevenueTrend)
   const hasRevenueData = monthlyRevenue.some((m) => m.total > 0);
@@ -191,10 +207,10 @@ export async function render({ profile }) {
 
     attendancePct != null
       ? attendancePct >= 90
-        ? { icon: "how_to_reg", color: "green", text: `Attendance today is strong at ${attendanceToday}.` }
+        ? { icon: "how_to_reg", color: "green", text: `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}` }
         : attendancePct >= 75
-        ? { icon: "how_to_reg", color: "gold", text: `Attendance today is ${attendanceToday} - a bit below usual.` }
-        : { icon: "how_to_reg", color: "red", text: `Attendance today is low at ${attendanceToday}.` }
+        ? { icon: "how_to_reg", color: "gold", text: `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
+        : { icon: "how_to_reg", color: "red", text: `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
       : { icon: "fact_check", color: "blue", text: "Attendance hasn't been marked yet today." },
 
     settings.openingDate

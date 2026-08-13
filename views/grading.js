@@ -86,11 +86,12 @@ function renderPicker(container, profile, resultMount) {
     el("p", { class: "text-muted text-sm", style: "margin:12px 0 0;" }, "Computes and saves every stream in this grade at once - there's no per-stream step. Pick a stream to view on the Report Cards page afterwards."),
   );
   container.append(
-    el("button", {
-      class: "btn btn--primary",
-      style: "margin-top:12px;",
-      onClick: () => runCompute(profile, resultMount),
-    }, [icon("analytics"), "Compute Results"])
+    el("div", { class: "filter-actions" }, [
+      el("button", {
+        class: "btn btn--primary",
+        onClick: () => runCompute(profile, resultMount),
+      }, [icon("analytics"), "Compute Results"]),
+    ])
   );
 }
 
@@ -200,7 +201,7 @@ function renderResult(container, profile) {
     ]));
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Pos"), el("th", {}, "Adm No."), el("th", {}, "Name"),
@@ -217,19 +218,19 @@ function renderResult(container, profile) {
   for (const s of sorted) {
     const hasScores = s.subjects.length > 0;
     tbody.append(el("tr", {}, [
-      el("td", {}, hasScores ? `${s.overallPosition}/${s.classSize}` : "N/A"),
-      el("td", {}, s.admissionNumber || "N/A"),
-      el("td", {}, `${s.fullName}${s.stream ? ` (${s.stream})` : ""}`),
-      el("td", {}, hasScores ? `${s.totalMarks.toFixed(1)}/${s.totalOutOf}` : "N/A"),
-      el("td", {}, hasScores ? `${s.meanMarks.toFixed(2)}%` : "N/A"),
-      el("td", {}, hasScores
+      el("td", { "data-label": "Pos" }, hasScores ? `${s.overallPosition}/${s.classSize}` : "N/A"),
+      el("td", { "data-label": "Adm No." }, s.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, `${s.fullName}${s.stream ? ` (${s.stream})` : ""}`),
+      el("td", { "data-label": "Total" }, hasScores ? `${s.totalMarks.toFixed(1)}/${s.totalOutOf}` : "N/A"),
+      el("td", { "data-label": "Mean" }, hasScores ? `${s.meanMarks.toFixed(2)}%` : "N/A"),
+      el("td", { "data-label": "Mean Grade" }, hasScores
         ? el("span", {}, [
             el("span", { class: "badge badge--gold" }, s.meanGrade),
             s.hasIncompleteSubject ? el("span", { class: "badge badge--warning", style: "margin-left:4px;", title: "Based on incomplete assessment weight for at least one subject" }, "Partial") : "",
           ])
         : "N/A"),
-      el("td", {}, hasScores ? s.totalPoints : "N/A"),
-      el("td", {}, hasScores
+      el("td", { "data-label": "Total Pts" }, hasScores ? s.totalPoints : "N/A"),
+      el("td", { class: "row-actions", "data-label": "Details" }, hasScores
         ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => showDetail(s, profile) }, [icon("visibility"), "View"])
         : el("span", { class: "text-muted" }, "No marks")),
     ]));
@@ -272,7 +273,7 @@ async function showDetail(student, profile, isStreamPreview) {
     ]),
   ]));
 
-  const subjTableWrap = el("div", { class: "table-wrap" });
+  const subjTableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const showBothColumns = (selection.reportMode || "average") === "average";
   const subjTable = el("table", {}, [
     el("thead", {}, el("tr", {}, [
@@ -284,16 +285,16 @@ async function showDetail(student, profile, isStreamPreview) {
   const subjBody = el("tbody", {});
   for (const s of [...student.subjects].sort((a, b) => a.name.localeCompare(b.name))) {
     subjBody.append(el("tr", {}, [
-      el("td", {}, s.name),
+      el("td", { "data-label": "Subject" }, s.name),
       ...(showBothColumns ? [
-        el("td", {}, s.midtScore == null ? el("span", { class: "text-muted" }, "—") : s.midtScore.toFixed(1)),
-        el("td", {}, s.endScore == null ? el("span", { class: "text-muted" }, "—") : s.endScore.toFixed(1)),
+        el("td", { "data-label": "Midt" }, s.midtScore == null ? el("span", { class: "text-muted" }, "—") : s.midtScore.toFixed(1)),
+        el("td", { "data-label": "End" }, s.endScore == null ? el("span", { class: "text-muted" }, "—") : s.endScore.toFixed(1)),
       ] : []),
-      el("td", {}, s.average.toFixed(1)),
-      el("td", {}, s.grade),
-      el("td", {}, String(s.points)),
-      el("td", {}, isStreamPreview ? `${s.classPosition}/${student.streamClassSize}` : `${s.position}/${student.classSize}`),
-      el("td", {}, s.incomplete
+      el("td", { "data-label": "Score" }, s.average.toFixed(1)),
+      el("td", { "data-label": "Grade" }, s.grade),
+      el("td", { "data-label": "Pts" }, String(s.points)),
+      el("td", { "data-label": "Position" }, isStreamPreview ? `${s.classPosition}/${student.streamClassSize}` : `${s.position}/${student.classSize}`),
+      el("td", { "data-label": "Weight Marked" }, s.incomplete
         ? el("span", { class: "badge badge--warning", title: "Not all assessments for this subject have marks yet" }, `${s.weightUsed}% of ${s.weightExpected}%`)
         : el("span", { class: "badge badge--success" }, "Complete")),
     ]));
@@ -303,16 +304,16 @@ async function showDetail(student, profile, isStreamPreview) {
   body.append(subjTableWrap);
 
   body.append(el("h3", { style: "margin:20px 0 8px;" }, "Pathway Performance"));
-  const pathWrap = el("div", { class: "table-wrap" });
+  const pathWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const pathTable = el("table", {}, [
     el("thead", {}, el("tr", {}, [el("th", {}, "Pathway"), el("th", {}, "Points"), el("th", {}, "Percentage")])),
   ]);
   const pathBody = el("tbody", {});
   for (const p of student.pathwayBreakdown) {
     pathBody.append(el("tr", {}, [
-      el("td", {}, p.pathway),
-      el("td", {}, String(p.points)),
-      el("td", {}, `${p.percentage.toFixed(1)}%`),
+      el("td", { "data-label": "Pathway" }, p.pathway),
+      el("td", { "data-label": "Points" }, String(p.points)),
+      el("td", { "data-label": "Percentage" }, `${p.percentage.toFixed(1)}%`),
     ]));
   }
   pathTable.append(pathBody);

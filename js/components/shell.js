@@ -1,10 +1,11 @@
 import { logout } from "../services/auth.service.js";
 import { navigate } from "../router.js";
-import { el, icon, setFavicon } from "../utils.js";
+import { el, icon, setFavicon, toast } from "../utils.js";
 import { ROLES } from "../services/auth.service.js";
 import { getSchoolSettings } from "../services/settings.service.js";
 import { startTour } from "./tour.js";
 import { TOUR_STEPS } from "../tour-steps.js";
+import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -119,6 +120,96 @@ const NAV = [
 
 function roleLabel(roleValue) {
   return ROLES.find((r) => r.value === roleValue)?.label || roleValue;
+}
+
+// ---------------------------------------------------------------------------
+// Install button - shown in the topbar whenever the browser has something
+// useful to offer (a real one-tap Chrome/Edge/Android prompt, or iOS's
+// manual "Add to Home Screen" steps), hidden the moment the app is already
+// running installed. renderShell() rebuilds the whole topbar on every
+// navigation, so the previous button's live-update subscription is torn
+// down first (see installUnsubscribe below) rather than piling up a new
+// listener on every route change for the life of the session.
+// ---------------------------------------------------------------------------
+let installUnsubscribe = null;
+
+function installButton() {
+  const wrap = el("span", {});
+
+  function render() {
+    wrap.innerHTML = "";
+    if (!isInstallable() || isRunningInstalled()) return;
+    const method = installMethod();
+    const btn = el(
+      "button",
+      {
+        class: "btn btn--ghost btn--sm",
+        title: "Install Eeskia as an app on this device",
+        onClick: () => (method === "prompt" ? handleNativeInstall() : showIosInstallHint()),
+      },
+      [icon("install_desktop"), "Install app"]
+    );
+    wrap.append(btn);
+  }
+
+  if (installUnsubscribe) installUnsubscribe();
+  installUnsubscribe = onInstallabilityChange(render);
+  render();
+  return wrap;
+}
+
+async function handleNativeInstall() {
+  try {
+    const outcome = await promptInstall();
+    if (outcome === "accepted") toast("Eeskia is installing…", "success");
+  } catch {
+    // Prompt was already consumed or unavailable - nothing to show; the
+    // button itself will disappear on the next installability change.
+  }
+}
+
+function showIosInstallHint() {
+  import("./modal.js").then(({ openModal }) => {
+    const body = el("div", { style: "display:flex;flex-direction:column;gap:var(--sp-3);" }, [
+      el("p", {}, "Safari doesn't allow installing apps automatically - a couple of taps does it:"),
+      el("ol", { style: "margin:0;padding-left:20px;line-height:1.7;" }, [
+        el("li", {}, ['Tap the Share icon ', icon("ios_share"), ' in Safari\'s toolbar']),
+        el("li", {}, 'Scroll down and tap "Add to Home Screen"'),
+        el("li", {}, 'Tap "Add" - Eeskia will open from your Home Screen from then on, just like a normal app'),
+      ]),
+    ]);
+    openModal("Install Eeskia on iPhone/iPad", body);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Offline status pill - a persistent (not auto-dismissing) indicator so
+// someone marking attendance or entering marks with no signal for an
+// extended stretch can see, at a glance, that they're still safely in
+// "will sync later" territory rather than wondering if anything is being
+// saved at all. error-handler.js's toasts cover the *moment* connectivity
+// changes; this covers the whole time in between.
+// ---------------------------------------------------------------------------
+let offlinePillCleanup = null;
+
+function offlineStatusPill() {
+  const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;" }, [
+    icon("wifi_off"),
+    "Offline - will sync",
+  ]);
+  const sync = () => {
+    pill.style.display = navigator.onLine ? "none" : "inline-flex";
+  };
+  window.addEventListener("online", sync);
+  window.addEventListener("offline", sync);
+  sync();
+
+  if (offlinePillCleanup) offlinePillCleanup();
+  offlinePillCleanup = () => {
+    window.removeEventListener("online", sync);
+    window.removeEventListener("offline", sync);
+  };
+  return pill;
 }
 
 // Which nav groups the user has manually collapsed, persisted across
@@ -458,10 +549,12 @@ export function renderShell(app, profile, activePath) {
     [icon("help")]
   );
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
+    offlineStatusPill(),
     el("div", {}, [
       el("div", {}, profile.fullName || profile.email),
       el("div", { class: "topbar__user-role" }, roleLabel(profile.role)),
     ]),
+    installButton(),
     tourButton,
     el("button", { class: "btn btn--ghost btn--sm", onClick: handleLogout }, [icon("logout"), "Sign out"]),
   ]);
@@ -479,7 +572,13 @@ export function renderShell(app, profile, activePath) {
   // dashboard after login. Deferred a tick so the route's own content has
   // painted underneath it, and skipped entirely for super_admin's minimal
   // Schools-only shell where most of the tour's targets don't apply.
-  if (activePath === "/dashboard" && profile.role !== "super_admin" && !hasSeenTour(profile.uid)) {
+  // Also skipped on phone-width screens - same reason the tour trigger
+  // button is hidden there (see [data-tour="tour-trigger"] in layout.css):
+  // the tour points at sidebar text/search that's off-canvas and awkward
+  // to reach on a phone. Left unmarked-as-seen so it still auto-plays the
+  // first time this account opens the dashboard on a larger screen.
+  const isPhoneWidth = window.matchMedia("(max-width: 860px)").matches;
+  if (activePath === "/dashboard" && profile.role !== "super_admin" && !isPhoneWidth && !hasSeenTour(profile.uid)) {
     markTourSeen(profile.uid);
     if (sidebar.classList.contains("sidebar--collapsed")) {
       saveSidebarCollapsed(false);

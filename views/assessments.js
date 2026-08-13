@@ -81,7 +81,7 @@ export async function render({ profile }) {
   wrap.append(filterMount);
   renderFilters(filterMount, profile);
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   wrap.append(tableWrap);
   renderTable(tableWrap, profile, canManage);
 
@@ -462,7 +462,7 @@ function renderTable(container, profile, canManage) {
 
   for (const a of list) {
     // 2. Rich Assessment Name Cell (combines Name, Icon, and Term/Year)
-    const nameCell = el("td", {}, [
+    const nameCell = el("td", { "data-label": "Assessment" }, [
       el("div", { style: "display:flex; align-items:center; gap:12px;" }, [
         el("div", { style: "background:var(--color-primary-100); color:var(--color-primary-700); border-radius:8px; width:40px; height:40px; display:grid; place-items:center;" }, [
            el("span", { class: "material-symbols-rounded" }, "assignment")
@@ -476,28 +476,28 @@ function renderTable(container, profile, canManage) {
 
     const cells = [
       nameCell,
-      el("td", {}, el("span", { class: "badge badge--muted" }, a.type)),
-      el("td", {}, a.date ? formatDate(a.date) : "N/A"),
-      el("td", { class: "numeric" }, Object.keys(a.subjectMaxScores || {}).length
+      el("td", { "data-label": "Type" }, el("span", { class: "badge badge--muted" }, a.type)),
+      el("td", { "data-label": "Date" }, a.date ? formatDate(a.date) : "N/A"),
+      el("td", { class: "numeric", "data-label": "Out Of" }, Object.keys(a.subjectMaxScores || {}).length
           ? el("span", { title: Object.entries(a.subjectMaxScores).map(([code, v]) => `${subjectName(code)}: ${v}`).join(", ") }, `${a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE} (varies)`)
           : (a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE)
       ),
-      el("td", {}, el("span", { class: `badge badge--${(a.contributionMode || "weighted") === "direct" ? "gold" : "muted"}` }, (a.contributionMode || "weighted") === "direct" ? "Direct add" : "Weighted")),
-      el("td", {}, (a.grades || []).length
+      el("td", { "data-label": "Mode" }, el("span", { class: `badge badge--${(a.contributionMode || "weighted") === "direct" ? "gold" : "muted"}` }, (a.contributionMode || "weighted") === "direct" ? "Direct add" : "Weighted")),
+      el("td", { "data-label": "Classes" }, (a.grades || []).length
           ? el("div", { class: "chip-list" }, a.grades.map((g) => el("span", { class: "chip" }, g)))
           : el("span", { class: "text-muted" }, "All")
       ),
-      el("td", {}, (a.subjects || []).length
+      el("td", { "data-label": "Subjects" }, (a.subjects || []).length
           ? el("div", { class: "chip-list" }, a.subjects.map((code) => el("span", { class: "chip" }, subjectName(code))))
           : el("span", { class: "text-muted" }, "All")
       ),
-      el("td", {}, el("span", { class: `badge badge--${a.status === "locked" ? "danger" : "success"}` }, a.status || "open")),
+      el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${a.status === "locked" ? "danger" : "success"}` }, a.status || "open")),
     ];
 
     // 3. Slim actions cell: the one thing everyone needs (Results) stays
     // visible; anything more advanced (edit/duplicate/lock/delete) lives
     // behind a single "More" button that opens an action-list modal.
-    const actionsCell = el("td", { class: "row-actions" }, [
+    const actionsCell = el("td", { class: "row-actions", "data-label": "Actions" }, [
       el("button", { class: "btn btn--tonal btn--sm", title: "View Results", onClick: () => openResultsModal(a) }, [
         el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, "analytics"),
         " Results"
@@ -708,17 +708,17 @@ function renderResultsBody(body, s) {
       const g = gradeFor(r.mean, settings.gradingScale);
       tbody.append(
         el("tr", {}, [
-          el("td", {}, r.name),
-          el("td", { class: "numeric" }, String(r.count)),
-          el("td", { class: "numeric" }, `${r.mean.toFixed(1)}%`),
-          el("td", { class: "numeric" }, `${r.max.toFixed(1)}%`),
-          el("td", { class: "numeric" }, `${r.min.toFixed(1)}%`),
-          el("td", {}, el("span", { class: "badge badge--muted" }, g?.grade || "N/A")),
+          el("td", { "data-label": "Subject" }, r.name),
+          el("td", { class: "numeric", "data-label": "Entries" }, String(r.count)),
+          el("td", { class: "numeric", "data-label": "Mean %" }, `${r.mean.toFixed(1)}%`),
+          el("td", { class: "numeric", "data-label": "Highest" }, `${r.max.toFixed(1)}%`),
+          el("td", { class: "numeric", "data-label": "Lowest" }, `${r.min.toFixed(1)}%`),
+          el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--muted" }, g?.grade || "N/A")),
         ])
       );
     }
     table.append(tbody);
-    body.append(el("div", { class: "table-wrap", style: "margin-bottom:16px;" }, table));
+    body.append(el("div", { class: "table-wrap table-wrap--responsive", style: "margin-bottom:16px;" }, table));
   }
 
   body.append(

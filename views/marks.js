@@ -220,12 +220,14 @@ function renderRoster(container, profile) {
     return;
   }
 
-  const tableWrap = el("div", { class: "table-wrap" });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Adm No."), el("th", {}, "Name"), el("th", {}, `Score (out of ${maxScore})`), el("th", {}, isDirect ? "Added" : "%"), el("th", {}, "Status"),
     ])),
   ]);
+  const scoreLabel = `Score /${maxScore}`;
+  const pctLabel = isDirect ? "Added" : "%";
   const tbody = el("tbody", {});
   for (const student of roster) {
     const existing = marksByStudent[student.id];
@@ -250,11 +252,11 @@ function renderRoster(container, profile) {
     });
 
     tbody.append(el("tr", {}, [
-      el("td", {}, student.admissionNumber || "N/A"),
-      el("td", {}, student.fullName),
-      el("td", {}, input),
-      el("td", {}, pctCell),
-      el("td", {}, statusCell),
+      el("td", { "data-label": "Adm No." }, student.admissionNumber || "N/A"),
+      el("td", { "data-label": "Name" }, student.fullName),
+      el("td", { "data-label": scoreLabel }, input),
+      el("td", { "data-label": pctLabel }, pctCell),
+      el("td", { "data-label": "Status" }, statusCell),
     ]));
   }
   table.append(tbody);

@@ -59,7 +59,9 @@ function renderPicker(container, bodyMount, profile) {
   );
   container.append(row);
   container.append(
-    el("button", { class: "btn btn--primary", style: "margin-top:16px;", onClick: () => loadModes(bodyMount, profile) }, [icon("visibility"), "Load saved results"])
+    el("div", { class: "filter-actions" }, [
+      el("button", { class: "btn btn--primary", onClick: () => loadModes(bodyMount, profile) }, [icon("visibility"), "Load saved results"]),
+    ])
   );
 }
 

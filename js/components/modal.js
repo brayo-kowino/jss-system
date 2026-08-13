@@ -4,10 +4,11 @@ import { el, icon } from "../utils.js";
  * Opens a modal with arbitrary content. Returns a close() function.
  * @param {string} title
  * @param {HTMLElement} bodyNode
+ * @param {string} [extraClass] - e.g. "modal--wide" for a wider desktop cap.
  */
-export function openModal(title, bodyNode) {
+export function openModal(title, bodyNode, extraClass = "") {
   const backdrop = el("div", { class: "modal-backdrop" });
-  const modal = el("div", { class: "modal" });
+  const modal = el("div", { class: `modal${extraClass ? ` ${extraClass}` : ""}` });
   const header = el("div", { class: "modal__header" }, [
     el("h3", { style: "margin:0;" }, title),
     el("button", { class: "modal__close", "aria-label": "Close", onClick: close }, [icon("close")]),

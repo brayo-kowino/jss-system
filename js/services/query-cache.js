@@ -36,7 +36,25 @@ export async function cached(key, ttlMs, fetchFn) {
 // the tab's been open, purely as a fallback when a fetch fails outright
 // (e.g. offline, or a server-only aggregate query like getCountFromServer/
 // getAggregateFromServer that has no cache of its own to fall back to).
-const lastKnown = new Map();
+//
+// Persisted to localStorage (not just kept in memory) specifically for the
+// service worker's app-shell caching: with the app able to boot fully
+// offline now (see /sw.js), someone can open a *fresh* session - no
+// in-memory lastKnown yet - with no connection at all. Without persistence
+// that first aggregate fetch has nothing to fall back to and silently
+// returns `fallback` (0) looking exactly like real data, no stale banner.
+// Persisting across reloads means it instead shows the school's actual
+// last-known revenue/headcount figures, correctly labeled stale.
+const LAST_KNOWN_KEY = "jss_last_known_aggregates";
+function readLastKnown() {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(LAST_KNOWN_KEY) || "{}"))); }
+  catch { return new Map(); }
+}
+function writeLastKnown(map) {
+  try { localStorage.setItem(LAST_KNOWN_KEY, JSON.stringify(Object.fromEntries(map))); }
+  catch { /* storage full/blocked - falls back to in-memory-only for this session, non-fatal */ }
+}
+const lastKnown = readLastKnown();
 
 /**
  * Calls `fetchFn`. On success, remembers the result under `key` (for future
@@ -51,6 +69,7 @@ export async function cachedWithFallback(key, fetchFn, fallback) {
   try {
     const data = await fetchFn();
     lastKnown.set(key, data);
+    writeLastKnown(lastKnown);
     return { value: data, stale: false };
   } catch (err) {
     if (lastKnown.has(key)) return { value: lastKnown.get(key), stale: true };
@@ -73,4 +92,9 @@ export function invalidatePrefix(prefix) {
 /** Wipe the whole cache - call on logout/school switch. */
 export function clearAll() {
   store.clear();
+  // lastKnown intentionally left alone: its entries are already scoped by
+  // schoolId (see the `scopedId(...)` calls building each key in
+  // fee.service.js/dashboard.js), so a different account never sees another
+  // school's stale figures - wiping it here would only lose the "last known"
+  // fallback that logging back in offline later relies on.
 }

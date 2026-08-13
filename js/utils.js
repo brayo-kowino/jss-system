@@ -36,6 +36,21 @@ export function icon(name, extraClass = "") {
   return el("span", { class: `material-symbols-rounded icon${extraClass ? ` ${extraClass}` : ""}` }, name);
 }
 
+// Honest heads-up for views whose layout (wide grids, side-by-side charts,
+// multi-column pickers) genuinely doesn't work well on a phone. Only shown
+// on small screens (see .mobile-only-notice in css/components.css) - on
+// desktop this renders nothing visible. Doesn't block or hide the content
+// underneath, it just sets expectations before the person scrolls into it.
+export function mobileOnlyNotice(body = "This screen is built for a larger display. It'll still work, but for the full layout it's best on a tablet or desktop.") {
+  return el("div", { class: "alert alert--info mobile-only-notice" }, [
+    icon("desktop_windows"),
+    el("div", {}, [
+      el("div", { class: "alert__title" }, "Best on a bigger screen"),
+      el("div", { class: "alert__body" }, body),
+    ]),
+  ]);
+}
+
 // Inline loading spinner. size: "sm" | "md" | "lg". tone: "light" (for use on
 // colored/filled buttons) or "dark" (for use on light backgrounds).
 export function spinner(size = "sm", tone = "light") {
