@@ -1,10 +1,15 @@
 // Platform-level Schools registry - super_admin only.
 // Create new schools (each gets its own admin login), see every school on
-// the platform, and suspend/reactivate one (suspended schools' users are
-// still logged in status-wise, but you'd typically also suspend their
-// admin account - full lockout on suspend is a good follow-up).
+// the platform, and suspend/reactivate one. Suspend is a hard lock,
+// enforced the same way an expired subscription is - see
+// firestore.rules' isSubscriptionActive() (server-side, the real
+// boundary) and subscription.service.js's getSubscriptionState() (client
+// mirror, used by router.js's lock gate and views/subscription-locked.js).
+// An already-open session for a school that gets suspended is kicked to
+// the lock screen within moments via auth.service.js's live listener on
+// the school doc, not just on that tab's next sign-in.
 import { listSchools, createSchool, setSchoolStatus } from "../js/services/school.service.js";
-import { issueSubscriptionToken, listSubscriptionTokens, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS } from "../js/services/subscription.service.js";
+import { issueSubscriptionToken, listSubscriptionTokens, revokeSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, formatDate, formatDateTime, busyButton } from "../js/utils.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -56,6 +61,12 @@ export async function render({ profile }) {
             class: "btn btn--sm btn--ghost",
             onClick: () => openTokenHistoryModal(s),
           }, [icon("history"), "Token history"]),
+          ...(s.subscriptionStatus === "active" ? [
+            el("button", {
+              class: "btn btn--sm btn--danger",
+              onClick: () => openRevokeModal(s),
+            }, [icon("money_off"), "Revoke subscription"]),
+          ] : []),
           el("button", {
             class: "btn btn--sm btn--ghost",
             onClick: (e) => toggleStatus(profile, s, e.currentTarget),
@@ -72,12 +83,19 @@ export async function render({ profile }) {
 }
 
 // Renders a school's subscription state as a badge + "N days left"/"expired
-// N days ago" caption. Pure display - getSubscriptionState() is the single
-// shared definition of "active" (also used by school-settings.js's
-// activation panel and the router's lock gate).
+// N days ago"/"revoked" caption. Pure display - getSubscriptionState() is
+// the single shared definition of "active" (also used by
+// school-settings.js's activation panel and the router's lock gate).
 function subscriptionBadge(school) {
-  const { active, daysRemaining } = getSubscriptionState(school);
+  const { active, daysRemaining, revoked, revokeReason } = getSubscriptionState(school);
   const wrapEl = el("div", {});
+  if (revoked) {
+    wrapEl.append(
+      el("span", { class: "badge badge--danger" }, "Revoked"),
+      el("div", { class: "text-sm text-muted" }, REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "Unspecified reason")
+    );
+    return wrapEl;
+  }
   if (school.subscriptionStatus === "inactive" || !school.subscriptionExpiresAt) {
     wrapEl.append(el("span", { class: "badge badge--muted" }, "Not activated"));
     return wrapEl;
@@ -231,6 +249,50 @@ async function toggleStatus(profile, school, button) {
     toast(err.message || "Couldn't update school status.", "error");
     restore();
   }
+}
+
+// Cuts an already-active, not-yet-expired subscription short - distinct
+// from Suspend (see the file header): this is billing-family (non-payment,
+// chargeback, fraud, contract default, or correcting a mis-issued token),
+// requires a reason, and is lifted by issuing a fresh token rather than
+// clicking Reactivate. Only offered in the row actions while
+// subscriptionStatus === "active" - nothing to revoke otherwise.
+function openRevokeModal(school) {
+  const reasonSelect = el("select", { id: "revoke-reason" },
+    REVOKE_REASONS.map((r) => el("option", { value: r.value }, r.label))
+  );
+  const noteField = el("div", { class: "field field--full" }, [
+    el("label", { for: "revoke-note" }, "Note (required for \u201cOther\u201d)"),
+    el("textarea", { id: "revoke-note", rows: "3", placeholder: "Internal note - not shown to the school's staff/parents, only kept in the audit trail.", maxlength: "500" }),
+  ]);
+
+  const form = el("form", {}, [
+    el("p", { class: "text-sm text-muted" }, `This immediately cuts off ${school.schoolName || "this school"}'s access, even with time left on their current term. They'll see \u201cSubscription revoked\u201d and need a fresh token from you to come back.`),
+    el("div", { class: "field" }, [el("label", { for: "revoke-reason" }, "Reason"), reasonSelect]),
+    noteField,
+    el("button", { type: "submit", class: "btn btn--danger", style: "margin-top:8px;" }, [icon("money_off"), "Revoke subscription"]),
+  ]);
+
+  const close = openModal(`Revoke subscription \u2014 ${school.schoolName || "School"}`, form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Revoking\u2026");
+    try {
+      await revokeSubscription({
+        schoolId: school.id,
+        reason: document.getElementById("revoke-reason").value,
+        note: document.getElementById("revoke-note").value.trim(),
+      });
+      toast(`${school.schoolName || "School"}'s subscription revoked.`, "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Couldn't revoke the subscription.", "error");
+      restore();
+    }
+  });
 }
 
 // Resolves a uid to a display name for the token-history modal below.

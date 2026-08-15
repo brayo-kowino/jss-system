@@ -38,6 +38,19 @@ export const SUBSCRIPTION_DURATIONS = [
   { value: "custom", label: "Custom date" },
 ];
 
+// Mirrors VALID_REVOKE_REASONS in netlify/edge-functions/subscription-revoke.ts
+// - that's the list actually enforced server-side, this one only drives
+// the Schools page's dropdown. "other" requires a note (enforced both
+// client- and server-side).
+export const REVOKE_REASONS = [
+  { value: "non_payment", label: "Non-payment on an active term" },
+  { value: "chargeback", label: "Chargeback / payment reversal" },
+  { value: "fraudulent_payment", label: "Fraudulent payment" },
+  { value: "contract_default", label: "Contract default" },
+  { value: "issued_in_error", label: "Issued in error" },
+  { value: "other", label: "Other" },
+];
+
 function toDate(value) {
   if (!value) return null;
   if (value instanceof Date) return value;
@@ -48,17 +61,47 @@ function toDate(value) {
 
 // Single shared definition of "active" on the client - a school doc (or
 // the settings.service.js merge-over-DEFAULT_SETTINGS shape, which is the
-// same doc) in, { active, daysRemaining } out. daysRemaining is negative
-// once lapsed (so callers can show "expired 3 days ago").
+// same doc) in, { active, daysRemaining, suspended, revoked } out.
+// daysRemaining is negative once lapsed (so callers can show "expired 3
+// days ago").
+//
+// Checked in this order, each an independent way to be locked out:
+//  1. `status: "suspended"` (Platform Admin's Suspend button) - an
+//     operational hold, unrelated to payment. Only lifted by the platform
+//     admin reactivating; see subscription-locked.js, which hides the
+//     token form for this case.
+//  2. `subscriptionStatus: "revoked"` (Platform Admin's Revoke subscription
+//     action, subscription-revoke.ts) - a billing-family cutoff of an
+//     already-active term (non-payment, chargeback, fraud, etc. - see
+//     REVOKE_REASONS above). Lifted the same way an expired subscription
+//     is: the platform admin issues a fresh token. Reported distinctly
+//     from plain "expired" so the lock screen can name the reason, but
+//     subscriptionExpiresAt/subscriptionPlan are deliberately left alone
+//     by the revoke action, so daysRemaining below would otherwise report
+//     a misleading "still time left" - this branch short-circuits before
+//     that math runs.
+//  3. Plain expiry - subscriptionExpiresAt has simply passed, or a
+//     subscription was never activated at all.
+// This mirrors firestore.rules' isSubscriptionActive(), which is the real
+// enforcement - this is only ever a same-tick UI reflection of it, never
+// more permissive.
 export function getSubscriptionState(school) {
+  if (school?.status === "suspended") {
+    return { active: false, daysRemaining: null, suspended: true, revoked: false };
+  }
+  if (school?.subscriptionStatus === "revoked") {
+    return { active: false, daysRemaining: null, suspended: false, revoked: true, revokeReason: school.subscriptionRevokeReason || null, revokeNote: school.subscriptionRevokeNote || null };
+  }
   const expiresAt = toDate(school?.subscriptionExpiresAt);
   if (!expiresAt || school?.subscriptionStatus !== "active") {
-    return { active: false, daysRemaining: null };
+    return { active: false, daysRemaining: null, suspended: false, revoked: false };
   }
   const msRemaining = expiresAt.getTime() - Date.now();
   return {
     active: msRemaining > 0,
     daysRemaining: Math.ceil(msRemaining / 86_400_000),
+    suspended: false,
+    revoked: false,
   };
 }
 
@@ -101,6 +144,15 @@ export function issueSubscriptionToken({ schoolId, plan, duration, customExpires
 // { subscriptionStatus, subscriptionPlan, subscriptionExpiresAt }.
 export function activateSubscription(token) {
   return callFunction("/subscription-activate", { payload: { token } });
+}
+
+// super_admin only (enforced server-side by subscription-revoke.ts) - cuts
+// an already-active, not-yet-expired subscription short. `reason` must be
+// one of REVOKE_REASONS' values; `note` is required when reason is
+// "other" and optional (max 500 chars, enforced server-side) otherwise.
+// Returns { subscriptionStatus: "revoked", subscriptionRevokeReason }.
+export function revokeSubscription({ schoolId, reason, note }) {
+  return callFunction("/subscription-revoke", { payload: { schoolId, reason, note } });
 }
 
 // super_admin only (enforced server-side by subscription-tokens-list.ts) -

@@ -85,28 +85,35 @@
 # ==========================================================================
 # ==========================================================================
 # Subscription system.
-# Two same-origin edge functions - netlify/edge-functions/subscription-issue.ts
-# (super_admin mints a token from the Schools page) and
+# Three same-origin edge functions - netlify/edge-functions/subscription-issue.ts
+# (super_admin mints a token from the Schools page),
 # netlify/edge-functions/subscription-activate.ts (a school admin redeems
-# one from Settings, or from the subscription-expired lock screen) - plus
-# one standard Netlify Function, netlify/functions/subscription-expiry-check.mjs,
-# which is a scheduled function (cron) rather than an edge function only
-# because Netlify's scheduler doesn't support edge functions. All three
-# talk to Firestore with a Google service-account credential that bypasses
+# one from Settings, or from the subscription-expired lock screen), and
+# netlify/edge-functions/subscription-revoke.ts (super_admin cuts an
+# already-active term short for non-payment/chargeback/fraud/error - see
+# that file's header for how it differs from suspend/reactivate on
+# schools/{id}'s separate `status` field) - plus one standard Netlify
+# Function, netlify/functions/subscription-expiry-check.mjs, which is a
+# scheduled function (cron) rather than an edge function only because
+# Netlify's scheduler doesn't support edge functions. All four talk to
+# Firestore with a Google service-account credential that bypasses
 # firestore.rules entirely, same pattern as results-lookup.ts. Their paths
-# ("/subscription-issue", "/subscription-activate") are declared inline via
-# each file's own `export const config`, so nothing needs registering here
-# - same as media-upload.ts/results-lookup.ts. Already covered by
-# connect-src 'self' below, so no CSP change was needed either.
+# ("/subscription-issue", "/subscription-activate", "/subscription-revoke")
+# are declared inline via each file's own `export const config`, so
+# nothing needs registering here - same as media-upload.ts/results-lookup.ts.
+# Already covered by connect-src 'self' below, so no CSP change was needed
+# either.
 #
 # REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
 # variables - secrets, never commit them):
 #   GOOGLE_SERVICE_ACCOUNT_KEY - if already set for results-lookup.ts,
-#                                nothing new to add; all three subscription
+#                                nothing new to add; all four subscription
 #                                functions reuse it.
-#   SUBSCRIPTION_TOKEN_SECRET  - a new one, only for these three functions:
-#                                any long random string (e.g.
-#                                `openssl rand -hex 32`), used to
+#   SUBSCRIPTION_TOKEN_SECRET  - only needed by subscription-issue.ts and
+#                                subscription-activate.ts (subscription-revoke.ts
+#                                doesn't mint/verify a token, it's a direct
+#                                privileged write): any long random string
+#                                (e.g. `openssl rand -hex 32`), used to
 #                                sign/verify subscription tokens. Rotating
 #                                it just invalidates any tokens issued but
 #                                not yet activated - nothing else.
@@ -124,6 +131,29 @@
 # in its exported `config`, same pattern as security.ts, so nothing needs
 # to be registered here.
 # ==========================================================================
+
+# ==========================================================================
+# Edge function ordering.
+# security.ts and subscription-gate.ts both declare their own `path` via
+# `export const config`, so neither strictly needs an entry here to be
+# picked up - but when more than one edge function matches the same
+# request, Netlify runs explicitly-declared ones (below) before
+# implicitly-declared ones, in the order listed. That order matters here:
+# site-wide maintenance mode (security.ts) must win over a single school's
+# suspension screen (subscription-gate.ts) - a school shouldn't see "we
+# suspended you" during a maintenance window that has nothing to do with
+# them, and subscription-gate.ts's cookie check is meaningless anyway
+# while the whole site is down for everyone. Listing security.ts first
+# guarantees that: if it 503s (maintenance on, no bypass cookie), it never
+# calls context.next(), so subscription-gate.ts never runs at all.
+# ==========================================================================
+[[edge_functions]]
+  path = "/*"
+  function = "security"
+
+[[edge_functions]]
+  path = "/app/*"
+  function = "subscription-gate"
 
 [[headers]]
   for = "/*"

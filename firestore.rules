@@ -157,9 +157,22 @@ service cloud.firestore {
     // (not gated by any single school's subscription), so it's exempt.
     // Anyone with no resolvable schoolId is already denied everywhere else
     // in this file, so exempting them here isn't an opening.
+    // NOTE: this also gates on schools/{id}'s `status` field ("active" |
+    // "suspended"), which is what the Platform Admin's Schools page
+    // Suspend/Reactivate button writes. Previously that button only ever
+    // updated `status` for display purposes - it was never wired into the
+    // actual access check, so a "suspended" school's staff could still
+    // read/write everything. Folding it in here (the single choke point
+    // every operational collection already depends on via ownsExisting/
+    // ownsIncoming) means Suspend now revokes access the same way an
+    // expired subscription does, with no per-collection changes needed.
+    // Unlike the subscription fields, `status` IS writable by a normal
+    // client SDK call (super_admin only, per the schools/{schoolId} rule
+    // below) - it isn't part of touchesSubscriptionFields()'s carve-out.
     function isSubscriptionActive() {
       return mySchoolId() == null || (
         exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.status != 'suspended' &&
         get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionStatus == 'active' &&
         get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt is timestamp &&
         get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time

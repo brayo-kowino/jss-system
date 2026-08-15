@@ -1,8 +1,7 @@
 // ==========================================================================
 // Minimal hash router.
 // Each route declares which roles may view it. `allRoles: true` = any
-// authenticated user. Unbuilt modules point at the `comingSoon` stub so the
-// full nav is navigable from day one; swap in real views as they're built.
+// authenticated user.
 //
 // Resilience notes:
 //  - currentPath() never trusts location.hash as-is: it's decoded and
@@ -19,58 +18,70 @@ import { renderShell } from "./components/shell.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
 
-import * as analyticsView from "../views/analytics.js";
+// These three are the only views that can be reached *before* we know a
+// visitor is on an active subscription (login, forced password change, and
+// the lock screen itself), so they're loaded eagerly like before - they're
+// small, and lazy-loading them would just add a network round trip to a
+// path everyone hits. Every other view below is loaded on demand (see
+// loadView()) so a signed-in-but-locked visitor's browser never has to
+// download reports.js/marks.js/fees.js/etc. just to be shown the lock
+// screen - only the handful of modules the route they land on actually
+// needs. This is also what makes the edge-side gating in
+// netlify/edge-functions/subscription-gate.ts worth doing: without this
+// split, one big eagerly-imported bundle would ship the whole app to a
+// suspended/expired school regardless of what the edge function blocks.
 import * as loginView from "../views/login.js";
 import * as changePasswordView from "../views/change-password.js";
 import * as subscriptionLockedView from "../views/subscription-locked.js";
-import * as dashboardView from "../views/dashboard.js";
-import * as settingsView from "../views/school-settings.js";
-import * as studentsView from "../views/students.js";
-import * as parentsView from "../views/parents.js";
-import * as teachersView from "../views/teachers.js";
-import * as academicsView from "../views/academics.js";
-import * as subjectsView from "../views/subjects.js";
-import * as assessmentsView from "../views/assessments.js";
-import * as marksView from "../views/marks.js";
-import * as gradingView from "../views/grading.js";
-import * as reportsView from "../views/reports.js";
-import * as releaseResultsView from "../views/release-results.js";
-import * as attendanceView from "../views/attendance.js";
-import * as feesView from "../views/fees.js";
-import * as timetableView from "../views/timetable.js";
-import * as schoolsView from "../views/schools.js";
-import * as auditView from "../views/audit.js";
-import * as notificationsView from "../views/notifications.js";
-import * as comingSoon from "../views/coming-soon.js";
 
+// path -> () => import("../views/x.js"). Each entry is a *function*, not
+// the module itself - calling it kicks off the dynamic import, which Vite
+// splits into its own content-hashed chunk at build time (see
+// vite.config.js / netlify.toml's build-step comment). loadView() below
+// resolves and caches these on first visit to a route so navigating back
+// to an already-visited page doesn't re-fetch its chunk.
 export const routes = {
-  "/login": { view: loginView, public: true },
-  "/dashboard": { view: dashboardView, allRoles: true },
-  "/settings": { view: settingsView, roles: ["admin"] },
+  "/login": { view: () => Promise.resolve(loginView), public: true },
+  "/dashboard": { view: () => import("../views/dashboard.js"), allRoles: true },
+  "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"] },
 
-  "/students": { view: studentsView, roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
-  "/parents": { view: parentsView, roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
-  "/teachers": { view: teachersView, roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module" },
+  "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
+  "/parents": { view: () => import("../views/parents.js"), roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
+  "/teachers": { view: () => import("../views/teachers.js"), roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module" },
 
-  "/academics": { view: academicsView, roles: ["admin", "deputy_principal", "principal", "academic_master"], title: "Classes & Streams" },
-  "/subjects": { view: subjectsView, roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"], title: "Subject Management" },
+  "/academics": { view: () => import("../views/academics.js"), roles: ["admin", "deputy_principal", "principal", "academic_master"], title: "Classes & Streams" },
+  "/subjects": { view: () => import("../views/subjects.js"), roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"], title: "Subject Management" },
 
-  "/assessments": { view: assessmentsView, roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"], title: "Assessment Management" },
-  "/marks": { view: marksView, roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry" },
+  "/assessments": { view: () => import("../views/assessments.js"), roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"], title: "Assessment Management" },
+  "/marks": { view: () => import("../views/marks.js"), roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry" },
 
-  "/grading": { view: gradingView, roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
+  "/grading": { view: () => import("../views/grading.js"), roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
 
-  "/attendance": { view: attendanceView, roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
-  "/reports": { view: reportsView, allRoles: true, title: "Report Cards & Reports" },
-  "/release-results": { view: releaseResultsView, roles: ["admin", "academic_master"], title: "Release Results" },
-  "/fees": { view: feesView, roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
+  "/attendance": { view: () => import("../views/attendance.js"), roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
+  "/reports": { view: () => import("../views/reports.js"), allRoles: true, title: "Report Cards & Reports" },
+  "/release-results": { view: () => import("../views/release-results.js"), roles: ["admin", "academic_master"], title: "Release Results" },
+  "/fees": { view: () => import("../views/fees.js"), roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
 
-  "/timetable": { view: timetableView, allRoles: true, title: "Timetable" },
-  "/schools": { view: schoolsView, roles: ["super_admin"], title: "Schools" },
-  "/notifications": { view: notificationsView, allRoles: true, title: "Notifications" },
-  "/audit": { view: auditView, roles: ["admin"], title: "Audit Trail" },
-  "/analytics": { view: analyticsView, roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
+  "/timetable": { view: () => import("../views/timetable.js"), allRoles: true, title: "Timetable" },
+  "/schools": { view: () => import("../views/schools.js"), roles: ["super_admin"], title: "Schools" },
+  "/notifications": { view: () => import("../views/notifications.js"), allRoles: true, title: "Notifications" },
+  "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
+  "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
 };
+
+// Cache of resolved modules keyed by path, so revisiting a route already
+// seen this session reuses the same module object instead of re-running
+// the dynamic import() (which itself is cached by the browser/Vite runtime
+// too, but skipping straight to the resolved module avoids even that
+// microtask overhead on every navigation).
+const resolvedViewCache = new Map();
+
+async function loadView(path, route) {
+  if (resolvedViewCache.has(path)) return resolvedViewCache.get(path);
+  const mod = await route.view();
+  resolvedViewCache.set(path, mod);
+  return mod;
+}
 
 const MAX_PATH_LENGTH = 200;
 // Route paths only ever contain letters, digits, dashes and slashes - so
@@ -180,11 +191,13 @@ export async function renderRoute() {
   try {
     if (route.public) {
       if (profile) return navigate("/dashboard");
-      const content = await route.view.render();
+      const view = await loadView(path, route);
+      if (isStale()) return;
+      const content = await view.render();
       if (isStale()) return;
       app.innerHTML = "";
       app.appendChild(content);
-      await route.view.init?.();
+      await view.init?.();
       return;
     }
 
@@ -216,9 +229,11 @@ export async function renderRoute() {
     // failed reads/writes). super_admin is exempt (no schoolId, manages the
     // Schools registry itself, not gated by any single school's subscription).
     // Every other role - including the school's own admin - lands here the
-    // instant subscriptionExpiresAt lapses; the lock screen itself is the
-    // one place an admin can still paste a fresh token (see
-    // views/subscription-locked.js), so this never fully strands a school.
+    // instant subscriptionExpiresAt lapses OR the school is suspended by the
+    // platform admin (see getSubscriptionState()); the lock screen itself is
+    // the one place an admin can still paste a fresh token for the expiry
+    // case (see views/subscription-locked.js) - a suspension can only be
+    // lifted by the platform admin, not a token.
     if (profile.role !== "super_admin") {
       const school = getCurrentSchool();
       const { active } = getSubscriptionState(school || {});
@@ -255,11 +270,17 @@ export async function renderRoute() {
     main.innerHTML = "";
     main.appendChild(skeletonPage());
     try {
-      const content = await withTimeout(route.view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
+      // The dynamic import() itself is covered by the same timeout as the
+      // render call below - a slow/flaky connection fetching a route's
+      // chunk for the first time should fail the same way a slow
+      // Firestore read does, not hang the skeleton indefinitely.
+      const view = await withTimeout(loadView(path, route), RENDER_TIMEOUT_MS);
+      if (isStale()) return;
+      const content = await withTimeout(view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
-      await route.view.init?.({ profile });
+      await view.init?.({ profile });
     } catch (viewErr) {
       if (isStale()) return;
       renderInlineError(main, viewErr, {
@@ -270,11 +291,13 @@ export async function renderRoute() {
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(skeletonPage());
-          const content = await withTimeout(route.view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
+          const view = await withTimeout(loadView(path, route), RENDER_TIMEOUT_MS);
+          if (retryToken !== currentRenderToken) return;
+          const content = await withTimeout(view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(content);
-          await route.view.init?.({ profile });
+          await view.init?.({ profile });
         },
       });
     }

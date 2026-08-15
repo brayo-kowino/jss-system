@@ -1,5 +1,5 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
-import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS } from "../js/services/subscription.service.js";
+import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { invalidateSchoolSettingsCache, refreshSchoolChrome } from "../js/components/shell.js";
 import { getCurrentSchoolId, refreshCurrentSchool } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
@@ -480,23 +480,32 @@ function buildSubscriptionTab() {
   const card = el("div", { class: "card settings-card" });
   card.append(el("h3", {}, "Subscription"));
 
-  const { active, daysRemaining } = getSubscriptionState(settings);
+  const { active, daysRemaining, revoked, revokeReason } = getSubscriptionState(settings);
   const planLabel = SUBSCRIPTION_PLANS.find((p) => p.value === settings.subscriptionPlan)?.label || settings.subscriptionPlan;
 
+  // In practice this whole tab is normally unreachable while inactive -
+  // router.js's hard lock gate sends every non-super_admin role to
+  // views/subscription-locked.js first (see that file). This banner only
+  // matters for the brief window where a session was active when the page
+  // loaded and then lapsed/was revoked/was suspended before the next
+  // render, so it's worth keeping accurate rather than assuming it's dead.
   const statusBanner = el("div", { class: `notice-banner${active ? "" : " notice-banner--warning"}` });
-  if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
-    statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact the platform administrator to get a subscription token, then paste it below."));
+  if (revoked) {
+    const reasonLabel = REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "unspecified reason";
+    statusBanner.append(icon("error"), el("span", {}, `Your subscription was revoked (${reasonLabel}). The system is locked until we issue a new token.`));
+  } else if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
+    statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact us at support@iskify360.com to get a subscription token, then paste it below."));
   } else if (active) {
     statusBanner.append(icon("check_circle"), el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`));
   } else {
-    statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact the platform administrator for a new token.`));
+    statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact us at support@iskify360.com for a new token.`));
   }
   card.append(statusBanner);
 
   const form = el("form", { id: "subscription-form", class: "settings-form-grid", style: "margin-top:16px;" }, [
     el("div", { class: "field field--full" }, [
       el("label", { for: "sub-token" }, "Subscription token"),
-      el("textarea", { id: "sub-token", rows: "3", placeholder: "Paste the token from the platform administrator here", style: "font-family:monospace;font-size:0.85rem;" }),
+      el("textarea", { id: "sub-token", rows: "3", placeholder: "Paste the token we gave you here", style: "font-family:monospace;font-size:0.85rem;" }),
     ]),
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("key"), "Activate subscription"]),

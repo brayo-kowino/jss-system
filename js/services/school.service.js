@@ -111,6 +111,14 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
   return schoolId;
 }
 
+// Setting status to "suspended" is a hard lock, not just a registry label
+// - firestore.rules' isSubscriptionActive() (the actual enforcement) and
+// subscription.service.js's getSubscriptionState() (client mirror) both
+// check this field, so every operational read/write for the school's
+// staff/students/parents is denied server-side the instant this write
+// lands, and any already-open session gets kicked to the lock screen via
+// auth.service.js's live listener on this doc - no separate "revoke"
+// action needed.
 export async function setSchoolStatus(superAdminUserId, schoolId, status) {
   await updateDoc(doc(db, "schools", schoolId), { status, updatedAt: serverTimestamp() });
   // Keep the public login-branding doc's status in step, so a suspended
@@ -122,4 +130,4 @@ export async function setSchoolStatus(superAdminUserId, schoolId, status) {
     await setDoc(doc(db, "school_public", slug), { status }, { merge: true }).catch(() => {});
   }
   await logAction(superAdminUserId, status === "suspended" ? "suspend_school" : "activate_school", "schools", schoolId);
-}
+}

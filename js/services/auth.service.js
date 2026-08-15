@@ -34,10 +34,58 @@ import {
   query,
   where,
   getDocs,
+  onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { auth, db, firebaseApp } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
+import { getSubscriptionState } from "./subscription.service.js";
+
+// ==========================================================================
+// Subscription-status cookie
+// ==========================================================================
+// A small, readable-by-JS (not HttpOnly - it's a routing hint, not a
+// credential) cookie mirroring getSubscriptionState()'s verdict for the
+// signed-in user's own school. It exists for exactly one consumer:
+// netlify/edge-functions/subscription-gate.ts, which reads it on the next
+// page load/reload to decide whether to serve the app shell at all.
+//
+// This is a UI/perf optimization, never a security boundary - same as
+// currentSchool/getCurrentSchool() itself (see that function's comment).
+// The real enforcement stays exactly where it already was:
+//   - firestore.rules' isSubscriptionActive(), live, server-side
+//   - router.js's own lock gate, which still runs client-side on every
+//     render regardless of what this cookie says
+// A stale, missing, or tampered cookie can only ever cause the edge
+// function to serve the *normal* app shell (fail-open) - see that file's
+// header for why the "suspended" case is the only one it hard-blocks on,
+// and why it treats anything else as "let it through, let the client-side
+// checks above handle it."
+//
+// Kept deliberately short-lived (1 hour) and re-synced on every school
+// snapshot change, sign-in, and manual refresh - it only ever needs to be
+// roughly right by the next full page load, not instantly authoritative.
+// ==========================================================================
+const SUB_STATUS_COOKIE = "jss_sub_status";
+const SUB_STATUS_MAX_AGE_SECONDS = 60 * 60; // 1 hour
+
+function syncSubscriptionCookie(school) {
+  if (typeof document === "undefined") return; // defensive - no-op outside a browser
+  if (!school) {
+    // Signed out, or a super_admin (no schoolId/school doc) - nothing to
+    // gate on, so make sure no stale value lingers from a previous session
+    // in the same browser.
+    document.cookie = `${SUB_STATUS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+    return;
+  }
+  const { active, suspended } = getSubscriptionState(school);
+  // Only three values the edge function needs to distinguish: "active"
+  // (serve normally), "suspended" (hard-block, see the edge function),
+  // and "locked" (expired/revoked - let it through so the admin's
+  // self-reactivation token form on the lock screen still loads).
+  const value = active ? "active" : suspended ? "suspended" : "locked";
+  document.cookie = `${SUB_STATUS_COOKIE}=${value}; Path=/; Max-Age=${SUB_STATUS_MAX_AGE_SECONDS}; SameSite=Lax`;
+}
 
 let currentProfile = null; // cached { uid, ...firestore user doc }
 // Cached schools/{schoolId} doc for the logged-in user's own school - kept
@@ -46,16 +94,51 @@ let currentProfile = null; // cached { uid, ...firestore user doc }
 // extra fetch. Null for super_admin (no schoolId) and while signed out.
 let currentSchool = null;
 
+// Live listener on the signed-in user's own schools/{id} doc, so a
+// platform admin hitting Suspend (or issuing/expiring a subscription) locks
+// out an already-open session within moments, instead of only taking
+// effect on that tab's next full sign-in or the next "online" reconnect.
+// Firestore rules still allow this read while suspended/expired (see
+// firestore.rules' schools/{schoolId} rule - it deliberately isn't gated
+// by isSubscriptionActive() itself, or the app could never learn *why* it
+// got locked out). Torn down on sign-out/account switch so it never leaks
+// a listener onto the next session in the same tab.
+let unsubscribeSchoolListener = null;
+
+function watchCurrentSchool(schoolId, onChange) {
+  unsubscribeSchoolListener?.();
+  unsubscribeSchoolListener = onSnapshot(
+    doc(db, "schools", schoolId),
+    (snap) => {
+      currentSchool = snap.exists() ? { id: schoolId, ...snap.data() } : null;
+      syncSubscriptionCookie(currentSchool);
+      onChange();
+    },
+    () => {} // best-effort - a real problem here still surfaces normally on next navigation/read
+  );
+}
+
 export function onAuthChange(callback) {
   return onAuthStateChanged(auth, async (fbUser) => {
+    unsubscribeSchoolListener?.();
+    unsubscribeSchoolListener = null;
     if (!fbUser) {
       currentProfile = null;
       currentSchool = null;
+      syncSubscriptionCookie(null);
       callback(null);
       return;
     }
     currentProfile = await fetchProfile(fbUser.uid);
     currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
+    syncSubscriptionCookie(currentSchool);
+    if (currentProfile?.schoolId) {
+      // Re-render on every subsequent change so a suspension/expiry (or a
+      // reactivation/renewal) shows up immediately without a page reload.
+      // The callback itself does the routing work (see app.js's
+      // onAuthChange wiring), so re-invoking it is what re-runs the router.
+      watchCurrentSchool(currentProfile.schoolId, () => callback(currentProfile));
+    }
     callback(currentProfile);
   });
 }
@@ -90,6 +173,7 @@ export function getCurrentSchool() {
 export async function refreshCurrentSchool() {
   if (!currentProfile?.schoolId) return null;
   currentSchool = await fetchSchool(currentProfile.schoolId);
+  syncSubscriptionCookie(currentSchool);
   return currentSchool;
 }
 
@@ -121,6 +205,7 @@ export async function login(email, password) {
 export async function logout() {
   if (currentProfile) await logAction(currentProfile.uid, "logout", "auth", null);
   await signOut(auth);
+  syncSubscriptionCookie(null);
   // So the next sign-in (possibly a different account/school in the same
   // tab) never reads another account's cached data out of query-cache.js.
   clearReadCache();

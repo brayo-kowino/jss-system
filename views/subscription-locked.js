@@ -1,4 +1,4 @@
-import { activateSubscription, getSubscriptionState } from "../js/services/subscription.service.js";
+import { activateSubscription, getSubscriptionState, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { refreshCurrentSchool, logout } from "../js/services/auth.service.js";
 import { navigate, renderRoute } from "../js/router.js";
 import { el, icon, toast, busyButton } from "../js/utils.js";
@@ -21,24 +21,39 @@ import { el, icon, toast, busyButton } from "../js/utils.js";
 
 export async function render({ profile, school } = {}) {
   const wrap = el("div", { class: "not-found-page" });
-  const { daysRemaining } = getSubscriptionState(school || {});
+  const { daysRemaining, suspended, revoked, revokeReason } = getSubscriptionState(school || {});
   const neverActivated = !school?.subscriptionExpiresAt;
+  const revokeReasonLabel = revoked ? REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "Unspecified" : null;
 
   wrap.append(
-    el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "lock_clock"),
-    el("h2", {}, "Subscription expired"),
+    el("span", { class: "material-symbols-rounded icon empty-state__icon" }, suspended ? "block" : revoked ? "money_off" : "lock_clock"),
+    el("h2", {}, suspended ? "Access suspended" : revoked ? "Subscription revoked" : "Subscription expired"),
     el(
       "p",
       { class: "text-muted", style: "max-width:480px;margin:0 auto;" },
-      neverActivated
+      suspended
+        ? "We've suspended this school's access. This isn't a subscription/token issue - only we can restore it."
+        : revoked
+        ? `This school's subscription was revoked (${revokeReasonLabel}). A new subscription token is needed to restore access.`
+        : neverActivated
         ? "This school doesn't have an active subscription yet."
         : `This school's subscription expired ${Math.abs(daysRemaining ?? 0)} day${Math.abs(daysRemaining ?? 0) === 1 ? "" : "s"} ago.`
     )
   );
 
-  if (profile?.role === "admin") {
+  // A suspension is a platform-admin override, not something a
+  // subscription token can lift - so unlike the revoked/expired cases
+  // below, no admin (including the school's own) gets the token-paste
+  // form here. Only the Schools page's Reactivate button clears it.
+  // Revoked and plain-expired both share the same way out - a fresh
+  // token - so both fall through to the same admin form below.
+  if (suspended) {
+    wrap.append(
+      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at support@iskify360.com to have access restored.")
+    );
+  } else if (profile?.role === "admin") {
     const card = el("div", { class: "card", style: "max-width:420px;margin:20px auto 0;text-align:left;" }, [
-      el("p", { class: "text-sm text-muted" }, "Paste the token your platform administrator gave you to restore access."),
+      el("p", { class: "text-sm text-muted" }, "Paste the token we gave you to restore access."),
       el("form", { id: "lock-activate-form" }, [
         el("div", { class: "field field--full" }, [
           el("label", { for: "lock-sub-token" }, "Subscription token"),
@@ -50,7 +65,7 @@ export async function render({ profile, school } = {}) {
     wrap.append(card);
   } else {
     wrap.append(
-      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact your platform administrator to renew access.")
+      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at support@iskify360.com to renew access.")
     );
   }
 
