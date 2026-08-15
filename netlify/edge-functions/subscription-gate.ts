@@ -192,9 +192,8 @@ export default async (request: Request, context: Context) => {
   <div class="card">
     <div class="icon">&#128683;</div>
     <h1>Access suspended</h1>
-    <p>We've suspended this school's access. This isn't a subscription/token issue - only we can restore it.</p>
+    <p>We've suspended this school's access. This isn't a subscription/token issue.</p>
     <p>Contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> for more information and to inquire about restoring your access.</p>
-    <div class="fine">Just been reactivated? You can refresh the page to load the application.</div>
   </div>
 </body>
 </html>`;
