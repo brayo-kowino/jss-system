@@ -136,8 +136,28 @@ export function onAuthChange(callback) {
       callback(null);
       return;
     }
-    currentProfile = await fetchProfile(fbUser.uid);
-    currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
+    try {
+      currentProfile = await fetchProfile(fbUser.uid);
+      currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
+    } catch (err) {
+      // getDoc() throws (rather than hanging) when offline and this doc was
+      // never cached in Firestore's persistentLocalCache on this device -
+      // previously this rejected inside onAuthStateChanged's async callback
+      // with nothing awaiting it, so `callback(...)` below was never
+      // reached, boot never completed, and the splash spun forever. Fail
+      // this sign-in attempt explicitly instead: clear state and let the
+      // caller's callback(null) path run so the router/boot sequence still
+      // completes and the person sees the normal signed-out/login screen
+      // (with a toast) rather than a silent hang. A genuinely unexpected
+      // error still bubbles up via window.onunhandledrejection as before.
+      currentProfile = null;
+      currentSchool = null;
+      syncSchoolIdCookie(null);
+      const { errorToast } = await import("../error-handler.js");
+      errorToast(err, { where: "auth.onAuthChange.fetchProfile" });
+      callback(null);
+      return;
+    }
     // Set once here, not re-synced on every school snapshot change below -
     // schoolId itself doesn't change while signed in, unlike the old
     // status cookie this replaced (see the comment above

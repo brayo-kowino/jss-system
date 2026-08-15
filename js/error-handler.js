@@ -216,6 +216,11 @@ function codeRow(code) {
  * can't be trusted (failed boot, router/shell crash). Replaces #app.
  */
 export function showFatalError(err, context = {}) {
+  // A fatal error means boot is never going to complete normally, so
+  // __jssBootOk will never fire to hide the splash on its own - do it
+  // here, or this card renders invisibly underneath the splash overlay.
+  window.__jssHideSplash?.();
+
   const code = reportError(err, { ...context, severity: "fatal" });
   const info = classifyError(err);
   const root = document.getElementById("app") || document.body;
