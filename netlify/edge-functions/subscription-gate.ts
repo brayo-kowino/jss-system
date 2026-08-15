@@ -124,15 +124,6 @@ function getCookie(request: Request, name: string): string | null {
 }
 
 export default async (request: Request, context: Context) => {
-  // Only the HTML navigation itself is worth intercepting - if this ever
-  // matched a JS/CSS chunk request directly (it shouldn't, given the
-  // "/app/*" scope + Vite's /assets/* output path), let it through rather
-  // than risk serving HTML in place of a script and breaking module
-  // parsing with a confusing error.
-  if (request.headers.get("sec-fetch-dest") && request.headers.get("sec-fetch-dest") !== "document") {
-    return context.next();
-  }
-
   const status = getCookie(request, SUB_STATUS_COOKIE);
   if (status !== "suspended") {
     return context.next();
@@ -153,7 +144,7 @@ export default async (request: Request, context: Context) => {
     <div class="icon">&#128683;</div>
     <h1>Access suspended</h1>
     <p>We've suspended this school's access. This isn't a subscription/token issue.</p>
-    <p>Please contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> for more information on how to resolve this.</p>
+    <p>Please contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> for more information and to have your access restored.</p>
     <div class="fine"></div>
   </div>
 </body>
