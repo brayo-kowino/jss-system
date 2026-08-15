@@ -67,7 +67,14 @@ import { getSubscriptionState } from "./subscription.service.js";
 // roughly right by the next full page load, not instantly authoritative.
 // ==========================================================================
 const SUB_STATUS_COOKIE = "jss_sub_status";
-const SUB_STATUS_MAX_AGE_SECONDS = 60 * 60; // 1 hour
+// Short on purpose - see subscription-gate.ts's header for why a stale
+// "suspended" value has no other way to self-correct once the edge
+// function is blocking the app from ever reloading it. 5 minutes bounds
+// how long a just-reactivated school stays locked out by an old cookie,
+// without giving up the bandwidth/probing savings the gate exists for -
+// a school actually left suspended just gets blocked again on the very
+// next request after this expires, cookie or no cookie.
+const SUB_STATUS_MAX_AGE_SECONDS = 60 * 5; // 5 minutes
 
 function syncSubscriptionCookie(school) {
   if (typeof document === "undefined") return; // defensive - no-op outside a browser

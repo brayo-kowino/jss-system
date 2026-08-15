@@ -31,7 +31,7 @@
 //   boundary - see the comment above syncSubscriptionCookie() in
 //   auth.service.js for the full reasoning. A missing cookie (first-ever
 //   visit, cookies cleared, a non-browser client hitting the URL
-//   directly), a stale one (up to its 1-hour Max-Age, e.g. a platform
+//   directly), a stale one (up to its 5-minute Max-Age, e.g. a platform
 //   admin suspends a school and the affected browser hasn't reloaded
 //   since), or a tampered one set by hand can only ever result in this
 //   function doing nothing and letting the request through - never in it
@@ -100,6 +100,17 @@ const STYLE = `
       font-size: 15px;
     }
     a { color: #14538A; }
+    .recheck {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 20px;
+      border: 1px solid #DCE3E8;
+      border-radius: 6px;
+      color: #14538A;
+      text-decoration: none;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
+    }
     .fine {
       margin-top: 18px;
       font-size: 12px;
@@ -124,6 +135,35 @@ function getCookie(request: Request, name: string): string | null {
 }
 
 export default async (request: Request, context: Context) => {
+  const url = new URL(request.url);
+
+  // "Recheck access" link on the blocked page below. Visiting /app/?recheck=1
+  // clears the cookie server-side and redirects to the clean URL - the very
+  // next request then has no cookie at all, which is treated as "let it
+  // through" (see the fail-open reasoning above), so the real app loads
+  // once, auth.service.js runs its actual Firestore-backed check, and
+  // syncSubscriptionCookie() re-syncs the cookie to whatever's really true
+  // now. This is what makes a reactivation take effect immediately instead
+  // of waiting out the cookie's 5-minute TTL - a stale "suspended" cookie
+  // was otherwise unrecoverable by the browser that holds it, since the
+  // only code that ever updates it only runs *after* the app has loaded,
+  // and this function was the thing stopping that load in the first
+  // place. If the school genuinely is still suspended, this costs nothing
+  // more than one ordinary page load before the freshly-set "suspended"
+  // cookie starts blocking again on the next request - it's a manual,
+  // rate-limited-by-hand version of the same 5-minute self-heal, not a way
+  // to keep the app loading on demand.
+  if (url.searchParams.get("recheck")) {
+    url.searchParams.delete("recheck");
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url.toString(),
+        "Set-Cookie": `${SUB_STATUS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`,
+      },
+    });
+  }
+
   const status = getCookie(request, SUB_STATUS_COOKIE);
   if (status !== "suspended") {
     return context.next();
@@ -143,9 +183,10 @@ export default async (request: Request, context: Context) => {
   <div class="card">
     <div class="icon">&#128683;</div>
     <h1>Access suspended</h1>
-    <p>We've suspended this school's access. This isn't a subscription/token issue.</p>
-    <p>Please contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> for more information and to have your access restored.</p>
-    <div class="fine"></div>
+    <p>We've suspended this school's access. This isn't a subscription/token issue - only we can restore it.</p>
+    <p>Contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> to have access restored.</p>
+    <p><a class="recheck" href="?recheck=1">Recheck access</a></p>
+    <div class="fine">Just been reactivated? Tap "Recheck access" instead of waiting - this page can't know that on its own until you do.</div>
   </div>
 </body>
 </html>`;
