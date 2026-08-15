@@ -39,59 +39,60 @@ import {
 import { auth, db, firebaseApp } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
-import { getSubscriptionState } from "./subscription.service.js";
 
 // ==========================================================================
-// Subscription-status cookie
+// School-id cookie
 // ==========================================================================
 // A small, readable-by-JS (not HttpOnly - it's a routing hint, not a
-// credential) cookie mirroring getSubscriptionState()'s verdict for the
-// signed-in user's own school. It exists for exactly one consumer:
-// netlify/edge-functions/subscription-gate.ts, which reads it on the next
-// page load/reload to decide whether to serve the app shell at all.
+// credential, and schoolId isn't sensitive - it's the same value visible
+// in every Firestore doc path this session already reads) cookie carrying
+// only the signed-in user's own schoolId. It exists for exactly one
+// consumer: netlify/edge-functions/subscription-gate.ts, which uses it to
+// look up that school's live status directly from Firestore (via the same
+// service-account credential the subscription-issue/-activate edge
+// functions already use) before deciding whether to serve the app shell
+// at all.
 //
-// This is a UI/perf optimization, never a security boundary - same as
-// currentSchool/getCurrentSchool() itself (see that function's comment).
-// The real enforcement stays exactly where it already was:
-//   - firestore.rules' isSubscriptionActive(), live, server-side
-//   - router.js's own lock gate, which still runs client-side on every
-//     render regardless of what this cookie says
-// A stale, missing, or tampered cookie can only ever cause the edge
-// function to serve the *normal* app shell (fail-open) - see that file's
-// header for why the "suspended" case is the only one it hard-blocks on,
-// and why it treats anything else as "let it through, let the client-side
-// checks above handle it."
+// Earlier versions of this cookie carried the *computed* subscription
+// status itself (active/suspended/locked), synced from getSubscriptionState()
+// on every school snapshot change. That worked but had a real gap: the
+// only code that could ever refresh that value ran *after* the app had
+// loaded, so a stale "suspended" value had no way to self-correct once
+// the edge function was the thing blocking that load. Carrying just the
+// schoolId instead - a stable value that basically never changes for a
+// signed-in user - and having the edge function ask Firestore directly
+// removes that problem entirely: there's no computed status to go stale,
+// so a reactivation takes effect on the school's very next request rather
+// than waiting out a cookie TTL.
 //
-// Kept deliberately short-lived (1 hour) and re-synced on every school
-// snapshot change, sign-in, and manual refresh - it only ever needs to be
-// roughly right by the next full page load, not instantly authoritative.
+// Still purely a UI/perf optimization, never a security boundary - a
+// stale, missing, or tampered schoolId can only ever cause the edge
+// function to look up the wrong (or no) school, which falls through to
+// serving the normal app shell (fail-open, see that file's header). The
+// real enforcement stays exactly where it already was: firestore.rules'
+// isSubscriptionActive(), live, server-side, and router.js's own lock
+// gate, which still runs client-side on every render regardless of what
+// this cookie says.
+//
+// Set once schoolId is known (sign-in) and cleared on sign-out - it
+// doesn't need re-syncing on every school snapshot change like the old
+// status cookie did, since the schoolId itself doesn't change while
+// signed in. Kept for 30 days for the same reason - there's nothing
+// time-sensitive being cached here anymore, just an identifier.
 // ==========================================================================
-const SUB_STATUS_COOKIE = "jss_sub_status";
-// Short on purpose - see subscription-gate.ts's header for why a stale
-// "suspended" value has no other way to self-correct once the edge
-// function is blocking the app from ever reloading it. 5 minutes bounds
-// how long a just-reactivated school stays locked out by an old cookie,
-// without giving up the bandwidth/probing savings the gate exists for -
-// a school actually left suspended just gets blocked again on the very
-// next request after this expires, cookie or no cookie.
-const SUB_STATUS_MAX_AGE_SECONDS = 60 * 5; // 5 minutes
+const SCHOOL_ID_COOKIE = "jss_school_id";
+const SCHOOL_ID_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
-function syncSubscriptionCookie(school) {
+function syncSchoolIdCookie(schoolId) {
   if (typeof document === "undefined") return; // defensive - no-op outside a browser
-  if (!school) {
-    // Signed out, or a super_admin (no schoolId/school doc) - nothing to
-    // gate on, so make sure no stale value lingers from a previous session
-    // in the same browser.
-    document.cookie = `${SUB_STATUS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+  if (!schoolId) {
+    // Signed out, or a super_admin (no schoolId) - nothing to gate on, so
+    // make sure no stale value lingers from a previous session in the
+    // same browser.
+    document.cookie = `${SCHOOL_ID_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
     return;
   }
-  const { active, suspended } = getSubscriptionState(school);
-  // Only three values the edge function needs to distinguish: "active"
-  // (serve normally), "suspended" (hard-block, see the edge function),
-  // and "locked" (expired/revoked - let it through so the admin's
-  // self-reactivation token form on the lock screen still loads).
-  const value = active ? "active" : suspended ? "suspended" : "locked";
-  document.cookie = `${SUB_STATUS_COOKIE}=${value}; Path=/; Max-Age=${SUB_STATUS_MAX_AGE_SECONDS}; SameSite=Lax`;
+  document.cookie = `${SCHOOL_ID_COOKIE}=${schoolId}; Path=/; Max-Age=${SCHOOL_ID_MAX_AGE_SECONDS}; SameSite=Lax`;
 }
 
 let currentProfile = null; // cached { uid, ...firestore user doc }
@@ -118,7 +119,6 @@ function watchCurrentSchool(schoolId, onChange) {
     doc(db, "schools", schoolId),
     (snap) => {
       currentSchool = snap.exists() ? { id: schoolId, ...snap.data() } : null;
-      syncSubscriptionCookie(currentSchool);
       onChange();
     },
     () => {} // best-effort - a real problem here still surfaces normally on next navigation/read
@@ -132,13 +132,17 @@ export function onAuthChange(callback) {
     if (!fbUser) {
       currentProfile = null;
       currentSchool = null;
-      syncSubscriptionCookie(null);
+      syncSchoolIdCookie(null);
       callback(null);
       return;
     }
     currentProfile = await fetchProfile(fbUser.uid);
     currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
-    syncSubscriptionCookie(currentSchool);
+    // Set once here, not re-synced on every school snapshot change below -
+    // schoolId itself doesn't change while signed in, unlike the old
+    // status cookie this replaced (see the comment above
+    // syncSchoolIdCookie() for why that distinction matters).
+    syncSchoolIdCookie(currentProfile?.schoolId || null);
     if (currentProfile?.schoolId) {
       // Re-render on every subsequent change so a suspension/expiry (or a
       // reactivation/renewal) shows up immediately without a page reload.
@@ -176,11 +180,13 @@ export function getCurrentSchool() {
 
 // Called right after activateSubscription() succeeds (school-settings.js)
 // so the just-activated status is reflected immediately, without waiting
-// for the next full sign-in.
+// for the next full sign-in. Doesn't touch the schoolId cookie - schoolId
+// itself hasn't changed, only the school doc's subscription fields have,
+// and subscription-gate.ts reads those live from Firestore rather than
+// from anything cached client-side.
 export async function refreshCurrentSchool() {
   if (!currentProfile?.schoolId) return null;
   currentSchool = await fetchSchool(currentProfile.schoolId);
-  syncSubscriptionCookie(currentSchool);
   return currentSchool;
 }
 
@@ -212,7 +218,7 @@ export async function login(email, password) {
 export async function logout() {
   if (currentProfile) await logAction(currentProfile.uid, "logout", "auth", null);
   await signOut(auth);
-  syncSubscriptionCookie(null);
+  syncSchoolIdCookie(null);
   // So the next sign-in (possibly a different account/school in the same
   // tab) never reads another account's cached data out of query-cache.js.
   clearReadCache();

@@ -4,8 +4,35 @@
 // Scoped to "/app/*" (see `config` below) - never touches the marketing
 // site at "/" or the /subscription-* edge functions. Runs before
 // security.ts's CSP/nonce pass (see netlify.toml's edge-function ordering
-// comment), reading the jss_sub_status cookie that auth.service.js's
-// syncSubscriptionCookie() keeps in sync client-side.
+// comment).
+//
+// This checks schools/{id}.status LIVE against Firestore on every request,
+// using the same service-account credential subscription-issue.ts and
+// subscription-activate.ts already use (see lib/firestore-rest.ts) - not a
+// client-supplied cookie. That was this file's first design (a
+// jss_sub_status cookie synced by auth.service.js), and it worked, but it
+// had a real problem: the only code that could ever *update* that cookie
+// only ran after the app had already loaded - so a stale "suspended" value
+// had no way to self-correct once this function was the thing blocking
+// that load in the first place. Reactivating a school server-side did
+// nothing for a browser that already had the old cookie until it expired
+// or the person found a manual "recheck" escape hatch. Asking Firestore
+// directly here removes that whole class of problem: there's no cookie to
+// go stale, so a reactivation takes effect on the very next request, no
+// waiting and no workaround link needed.
+//
+// WHAT THIS COSTS: one Firestore REST read added to every /app/* page
+// navigation (not on every asset - see the schoolId cookie note below), for
+// every signed-in user, not just suspended ones - this function can't know
+// who's suspended without checking. IN_MEMORY_CACHE below keeps that from
+// meaning a fresh network round trip on literally every reload: a result
+// is reused for CACHE_TTL_MS after the first check for a given school, on
+// whichever warm edge instance handles the request. That bounds the
+// worst-case staleness (a school suspended mid-window keeps loading for up
+// to CACHE_TTL_MS longer) without paying full latency on every hit. Tune
+// CACHE_TTL_MS down if that window ever feels too long for how fast a
+// suspension needs to bite - down to 0 makes every request fully live,
+// at the cost of full latency on every one of them.
 //
 // WHY ONLY "suspended", NOT "locked" (expired/revoked) TOO
 //   A suspension has exactly one way out for every role, including the
@@ -19,38 +46,62 @@
 //   see its own header comment). That form needs auth.service.js,
 //   subscription.service.js, and the lock screen's own view module to
 //   actually work. Blocking those at the edge would break the one thing
-//   that lets a school get itself unstuck without waiting on us. So a
-//   "locked" cookie value (or "active", or no cookie at all) just falls
-//   through to context.next() - the app loads normally, and router.js's
-//   own lock gate (still the real UI-layer decision-maker) shows the
-//   right screen once it re-derives the same verdict from the live
-//   Firestore doc, same as it always has.
+//   that lets a school get itself unstuck without waiting on us. So
+//   anything other than a live "suspended" read - active, expired,
+//   revoked, or no schoolId cookie at all - falls through to
+//   context.next(): the app loads normally, and router.js's own lock gate
+//   (still the real UI-layer decision-maker) shows the right screen once
+//   it re-derives the same verdict from the live Firestore doc, same as
+//   it always has.
 //
-// WHY THIS IS FAIL-OPEN BY DESIGN
-//   This cookie is a routing hint, not a credential or a security
-//   boundary - see the comment above syncSubscriptionCookie() in
-//   auth.service.js for the full reasoning. A missing cookie (first-ever
-//   visit, cookies cleared, a non-browser client hitting the URL
-//   directly), a stale one (up to its 5-minute Max-Age, e.g. a platform
-//   admin suspends a school and the affected browser hasn't reloaded
-//   since), or a tampered one set by hand can only ever result in this
-//   function doing nothing and letting the request through - never in it
-//   wrongly blocking someone. firestore.rules' isSubscriptionActive() is
-//   what actually stops a suspended school's reads/writes from
-//   succeeding regardless of what any client-side value claims; this
-//   function only ever saves a legitimately-suspended visitor a wasted
-//   download, it never grants or removes real access.
-//
-// A genuinely offline attacker who knows this can simply not carry a
-// stale "active" cookie and load the app normally, straight into
-// router.js's own lock gate - which is exactly what happens for anyone
-// who never had the cookie in the first place, so nothing is lost by
-// this function's fail-open behaviour.
+// WHY THIS IS STILL FAIL-OPEN
+//   No schoolId cookie (first-ever visit, cookies cleared, a non-browser
+//   client, a super_admin who has no schoolId at all) skips the Firestore
+//   read entirely and lets the request through - there's nothing to check
+//   yet. A Firestore/token-exchange failure (network hiccup, an expired
+//   GOOGLE_SERVICE_ACCOUNT_KEY, Firestore itself being briefly down) is
+//   caught and also falls through to context.next() rather than blocking
+//   - an infra problem in this function should never be able to lock
+//   every signed-in user out of the whole app. firestore.rules'
+//   isSubscriptionActive() remains the actual enforcement in every case;
+//   this function only ever saves a *genuinely* suspended visitor a
+//   wasted download, it never grants or removes real access, and a bug or
+//   outage here can only ever result in the old (pre-gate) behaviour of
+//   loading the app and letting router.js's own check catch it.
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
+import { getAccessToken, getFsDoc } from "./lib/firestore-rest.ts";
 
-const SUB_STATUS_COOKIE = "jss_sub_status";
+const SCHOOL_ID_COOKIE = "jss_school_id";
+
+// Warm-instance-only, best-effort cache - see the header comment above for
+// the latency/staleness tradeoff this controls. Not shared across edge
+// locations or cold starts; that's fine, it only ever needs to save
+// *repeat* reads on an instance that's already warm, not be globally
+// consistent.
+const CACHE_TTL_MS = 20_000;
+const statusCache = new Map<string, { suspended: boolean; expiresAt: number }>();
+
+async function isSuspended(schoolId: string): Promise<boolean> {
+  const cached = statusCache.get(schoolId);
+  if (cached && cached.expiresAt > Date.now()) return cached.suspended;
+
+  const token = await getAccessToken();
+  const school = await getFsDoc(token, `schools/${schoolId}`);
+  const suspended = school?.status === "suspended";
+  statusCache.set(schoolId, { suspended, expiresAt: Date.now() + CACHE_TTL_MS });
+  return suspended;
+}
+
+function getCookie(request: Request, name: string): string | null {
+  const header = request.headers.get("cookie") || "";
+  for (const part of header.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return v.join("=");
+  }
+  return null;
+}
 
 const STYLE = `
     :root { color-scheme: light; }
@@ -100,17 +151,6 @@ const STYLE = `
       font-size: 15px;
     }
     a { color: #14538A; }
-    .recheck {
-      display: inline-block;
-      margin-top: 20px;
-      padding: 10px 20px;
-      border: 1px solid #DCE3E8;
-      border-radius: 6px;
-      color: #14538A;
-      text-decoration: none;
-      font-family: Arial, Helvetica, sans-serif;
-      font-size: 14px;
-    }
     .fine {
       margin-top: 18px;
       font-size: 12px;
@@ -125,49 +165,18 @@ async function sha256Base64(input: string): Promise<string> {
   return btoa(String.fromCharCode(...new Uint8Array(digest)));
 }
 
-function getCookie(request: Request, name: string): string | null {
-  const header = request.headers.get("cookie") || "";
-  for (const part of header.split(";")) {
-    const [k, ...v] = part.trim().split("=");
-    if (k === name) return v.join("=");
-  }
-  return null;
-}
-
 export default async (request: Request, context: Context) => {
-  const url = new URL(request.url);
+  const schoolId = getCookie(request, SCHOOL_ID_COOKIE);
+  if (!schoolId) return context.next();
 
-  // "Recheck access" link on the blocked page below. Visiting /app/?recheck=1
-  // clears the cookie server-side and redirects to the clean URL - the very
-  // next request then has no cookie at all, which is treated as "let it
-  // through" (see the fail-open reasoning above), so the real app loads
-  // once, auth.service.js runs its actual Firestore-backed check, and
-  // syncSubscriptionCookie() re-syncs the cookie to whatever's really true
-  // now. This is what makes a reactivation take effect immediately instead
-  // of waiting out the cookie's 5-minute TTL - a stale "suspended" cookie
-  // was otherwise unrecoverable by the browser that holds it, since the
-  // only code that ever updates it only runs *after* the app has loaded,
-  // and this function was the thing stopping that load in the first
-  // place. If the school genuinely is still suspended, this costs nothing
-  // more than one ordinary page load before the freshly-set "suspended"
-  // cookie starts blocking again on the next request - it's a manual,
-  // rate-limited-by-hand version of the same 5-minute self-heal, not a way
-  // to keep the app loading on demand.
-  if (url.searchParams.get("recheck")) {
-    url.searchParams.delete("recheck");
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: url.toString(),
-        "Set-Cookie": `${SUB_STATUS_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`,
-      },
-    });
-  }
-
-  const status = getCookie(request, SUB_STATUS_COOKIE);
-  if (status !== "suspended") {
+  let suspended = false;
+  try {
+    suspended = await isSuspended(schoolId);
+  } catch {
+    // Firestore/token exchange failed - fail open, see header comment.
     return context.next();
   }
+  if (!suspended) return context.next();
 
   const styleHash = await sha256Base64(STYLE);
 
@@ -184,9 +193,8 @@ export default async (request: Request, context: Context) => {
     <div class="icon">&#128683;</div>
     <h1>Access suspended</h1>
     <p>We've suspended this school's access. This isn't a subscription/token issue - only we can restore it.</p>
-    <p>Contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> to have access restored.</p>
-    <p><a class="recheck" href="?recheck=1">Recheck access</a></p>
-    <div class="fine">Just been reactivated? Tap "Recheck access" instead of waiting - this page can't know that on its own until you do.</div>
+    <p>Contact us at <a href="mailto:support@iskify360.com">support@iskify360.com</a> for more information and to inquire about restoring your access.</p>
+    <div class="fine">Just been reactivated? You can refresh the page to load the application.</div>
   </div>
 </body>
 </html>`;
