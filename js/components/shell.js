@@ -6,6 +6,7 @@ import { getSchoolSettings } from "../services/settings.service.js";
 import { startTour } from "./tour.js";
 import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
+import { mountAnnouncementBanner } from "./announcement-banner.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -114,7 +115,10 @@ const NAV = [
   },
   {
     label: "Platform",
-    links: [{ path: "/schools", icon: "corporate_fare", text: "Schools", roles: ["super_admin"] }],
+    links: [
+      { path: "/schools", icon: "corporate_fare", text: "Schools", roles: ["super_admin"] },
+      { path: "/platform-announcements", icon: "campaign", text: "Announcements", roles: ["super_admin"] },
+    ],
   },
 ];
 
@@ -630,6 +634,14 @@ export function renderShell(app, profile, activePath) {
   ]);
   topbar.append(userBox);
   shell.append(topbar);
+
+  // Platform-wide status banner (maintenance/degraded-service/survey
+  // notices from the super_admin) - sits above every page's content, not
+  // just the dashboard, so it's visible no matter where someone lands.
+  // See js/components/announcement-banner.js's header for why this is
+  // safe to mount unconditionally (empty until/unless there's something
+  // live, never blocks the rest of the shell from rendering).
+  shell.append(mountAnnouncementBanner());
 
   // Main content mount point
   const main = el("main", { class: "main" });

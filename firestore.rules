@@ -453,6 +453,23 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Platform-wide status announcements (maintenance windows, degraded-
+    // service notices, surveys, etc.) - authored by the super_admin from
+    // /platform-announcements and surfaced as a dismissible banner in every
+    // signed-in staff member's app shell (js/components/announcement-banner.js),
+    // regardless of which school they belong to. Deliberately NOT scoped by
+    // schoolId/ownsExisting()/ownsIncoming() - unlike every collection
+    // above, this isn't tenant data, it's the platform operator talking to
+    // every tenant at once, so every signed-in staff role needs read access
+    // and a lapsed/suspended school must still be able to see e.g. "we're
+    // aware of the outage" on whatever screen isSubscriptionActive() left
+    // them on. Write stays super_admin-only - no school's own admin can
+    // post into every other school's dashboard.
+    match /platform_announcements/{docId} {
+      allow read: if isSignedIn() && (isStaff() || isSuperAdmin());
+      allow create, update, delete: if isSuperAdmin();
+    }
+
     // school_settings was never actually used by the app (settings.service.js
     // reads/writes the schools/{id} doc above instead) - dropped rather than
     // left open as unused attack surface. Add it back with the same

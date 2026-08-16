@@ -672,6 +672,32 @@ tbody tr:hover { background: var(--color-primary-100); }
 .notice-banner--warning { background: #FBE7E5; border-color: rgba(179, 38, 30, 0.2); color: #6B1F1A; }
 .notice-banner--warning .material-symbols-rounded { color: var(--color-red); }
 
+/* Caution variant - same yellow palette as .badge--warning. Sits between
+   the neutral default (info) and --warning above (critical/red) for the
+   platform announcement banner's "warning" severity - a scheduled
+   maintenance window or a feature going away, not a live outage. */
+.notice-banner--caution { background: #FFF3CD; border-color: rgba(122, 91, 0, 0.25); color: #7A5B00; }
+.notice-banner--caution .material-symbols-rounded { color: #7A5B00; }
+
+/* Platform announcement banner - stacked above <main> in the app shell
+   (js/components/announcement-banner.js), so it needs square corners on
+   the sides that touch the topbar/content instead of .notice-banner's
+   usual all-round radius + bottom margin, plus a dismiss button docked to
+   the end of the row. Multiple live announcements stack directly on top
+   of each other with no gap, each keeping its own severity color. */
+.announcement-banner-stack { display: flex; flex-direction: column; }
+.announcement-banner-stack .notice-banner {
+  border-radius: 0; border-left: none; border-right: none; margin-bottom: 0;
+  align-items: center;
+}
+.announcement-banner-stack .notice-banner + .notice-banner { border-top: none; }
+.announcement-banner__title { font-weight: 600; margin-right: var(--sp-2); }
+.announcement-banner__dismiss {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: inherit; opacity: 0.7; padding: var(--sp-1); display: flex; flex-shrink: 0;
+}
+.announcement-banner__dismiss:hover { opacity: 1; }
+
 /* Page-level tabs (Notifications / Newsletters, etc.) - same visual
    language as .profile-tabs but usable outside a modal. */
 .page-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--color-line); margin-bottom: var(--sp-5); }
