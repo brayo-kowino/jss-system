@@ -440,17 +440,31 @@
 .shell {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: var(--topbar-h) auto 1fr;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar banner"
-    "sidebar main";
-}
-
-.announcement-banner-stack {
-  grid-area: banner;
+  grid-template-rows: 1fr;
+  grid-template-areas: "sidebar content";
+  height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns var(--transition);
 }
 .shell--collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
+
+/* Everything to the right of the sidebar - topbar, the optional platform
+   announcement banner, and the scrollable page content - lives in its own
+   flex column instead of being separate grid cells. This is what lets the
+   banner slot in between the topbar and main without needing a dedicated
+   grid row: flex just stacks it in DOM order, sized to its own content,
+   and .main below still gets whatever space is left over to scroll in.
+   min-height: 0 is required here (grid/flex items default to
+   min-height: auto, i.e. "as tall as my content wants to be") so this
+   column - and .main's overflow-y inside it - actually respects the
+   100vh ceiling instead of growing past it. */
+.shell__content {
+  grid-area: content;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
 
 .sidebar {
   grid-area: sidebar;
@@ -618,7 +632,7 @@
 .sidebar__footer b { color: rgba(250, 246, 240, 0.85); letter-spacing: 0.05em; }
 
 .topbar {
-  grid-area: topbar;
+  flex-shrink: 0;
   background: var(--color-white);
   border-bottom: 1px solid var(--color-line);
   display: flex;
@@ -697,7 +711,8 @@
 }
 
 .main {
-  grid-area: main;
+  flex: 1;
+  min-height: 0;
   padding: clamp(var(--sp-3), 2vh, var(--sp-5)) var(--sp-6) var(--sp-6);
   overflow-y: auto;
 }

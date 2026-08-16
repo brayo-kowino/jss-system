@@ -685,7 +685,7 @@ tbody tr:hover { background: var(--color-primary-100); }
    usual all-round radius + bottom margin, plus a dismiss button docked to
    the end of the row. Multiple live announcements stack directly on top
    of each other with no gap, each keeping its own severity color. */
-.announcement-banner-stack { display: flex; flex-direction: column; }
+.announcement-banner-stack { display: flex; flex-direction: column; flex-shrink: 0; }
 .announcement-banner-stack .notice-banner {
   border-radius: 0; border-left: none; border-right: none; margin-bottom: 0;
   align-items: center;

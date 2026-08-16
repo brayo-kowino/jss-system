@@ -633,19 +633,23 @@ export function renderShell(app, profile, activePath) {
     el("button", { class: "btn btn--ghost btn--sm", onClick: handleLogout }, [icon("logout"), "Sign out"]),
   ]);
   topbar.append(userBox);
-  shell.append(topbar);
-
-  // Platform-wide status banner (maintenance/degraded-service/survey
-  // notices from the super_admin) - sits above every page's content, not
-  // just the dashboard, so it's visible no matter where someone lands.
-  // See js/components/announcement-banner.js's header for why this is
-  // safe to mount unconditionally (empty until/unless there's something
-  // live, never blocks the rest of the shell from rendering).
-  shell.append(mountAnnouncementBanner());
 
   // Main content mount point
   const main = el("main", { class: "main" });
-  shell.append(main);
+
+  // Topbar, the platform-wide status banner, and the scrollable page
+  // content are grouped into one flex column (.shell__content) that fills
+  // the grid's non-sidebar cell. This is what lets the banner - which is
+  // only sometimes present (see announcement-banner.js's header) - slot in
+  // between the topbar and main without disturbing the sidebar's own grid
+  // placement or main's independent scroll, the way giving it its own
+  // grid row previously did.
+  const content = el("div", { class: "shell__content" }, [
+    topbar,
+    mountAnnouncementBanner(),
+    main,
+  ]);
+  shell.append(content);
 
   app.append(shell);
   sidebar.scrollTop = savedScrollTop;
