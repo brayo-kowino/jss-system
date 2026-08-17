@@ -95,12 +95,31 @@ function syncSchoolIdCookie(schoolId) {
   document.cookie = `${SCHOOL_ID_COOKIE}=${schoolId}; Path=/; Max-Age=${SCHOOL_ID_MAX_AGE_SECONDS}; SameSite=Lax`;
 }
 
-let currentProfile = null; // cached { uid, ...firestore user doc }
-// Cached schools/{schoolId} doc for the logged-in user's own school - kept
-// alongside currentProfile so the router can check subscription status
-// (subscriptionStatus/subscriptionExpiresAt) on every render without an
-// extra fetch. Null for super_admin (no schoolId) and while signed out.
-let currentSchool = null;
+const PROFILE_STORAGE_KEY = "jss_cached_profile";
+const SCHOOL_STORAGE_KEY = "jss_cached_school";
+
+function readCachedProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || "null"); } catch { return null; }
+}
+function writeCachedProfile(profile) {
+  try {
+    if (profile) localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    else localStorage.removeItem(PROFILE_STORAGE_KEY);
+  } catch {}
+}
+
+function readCachedSchool() {
+  try { return JSON.parse(localStorage.getItem(SCHOOL_STORAGE_KEY) || "null"); } catch { return null; }
+}
+function writeCachedSchool(school) {
+  try {
+    if (school) localStorage.setItem(SCHOOL_STORAGE_KEY, JSON.stringify(school));
+    else localStorage.removeItem(SCHOOL_STORAGE_KEY);
+  } catch {}
+}
+
+let currentProfile = readCachedProfile(); // cached { uid, ...firestore user doc }
+let currentSchool = readCachedSchool();
 
 // Live listener on the signed-in user's own schools/{id} doc, so a
 // platform admin hitting Suspend (or issuing/expiring a subscription) locks
@@ -118,7 +137,10 @@ function watchCurrentSchool(schoolId, onChange) {
   unsubscribeSchoolListener = onSnapshot(
     doc(db, "schools", schoolId),
     (snap) => {
-      currentSchool = snap.exists() ? { id: schoolId, ...snap.data() } : null;
+      if (snap.exists()) {
+        currentSchool = { id: schoolId, ...snap.data() };
+        writeCachedSchool(currentSchool);
+      }
       onChange();
     },
     () => {} // best-effort - a real problem here still surfaces normally on next navigation/read
@@ -132,38 +154,62 @@ export function onAuthChange(callback) {
     if (!fbUser) {
       currentProfile = null;
       currentSchool = null;
+      writeCachedProfile(null);
+      writeCachedSchool(null);
       syncSchoolIdCookie(null);
       callback(null);
       return;
     }
     try {
-      currentProfile = await fetchProfile(fbUser.uid);
-      currentSchool = currentProfile?.schoolId ? await fetchSchool(currentProfile.schoolId) : null;
+      const liveProfile = await fetchProfile(fbUser.uid);
+      if (liveProfile) {
+        currentProfile = liveProfile;
+        writeCachedProfile(currentProfile);
+      } else if (!currentProfile || currentProfile.uid !== fbUser.uid) {
+        currentProfile = readCachedProfile();
+      }
+
+      if (currentProfile?.schoolId) {
+        const liveSchool = await fetchSchool(currentProfile.schoolId);
+        if (liveSchool) {
+          currentSchool = liveSchool;
+          writeCachedSchool(currentSchool);
+        } else if (!currentSchool) {
+          currentSchool = readCachedSchool();
+        }
+      } else {
+        currentSchool = null;
+      }
     } catch (err) {
-      // getDoc() throws (rather than hanging) when offline and this doc was
-      // never cached in Firestore's persistentLocalCache on this device -
-      // previously this rejected inside onAuthStateChanged's async callback
-      // with nothing awaiting it, so `callback(...)` below was never
-      // reached, boot never completed, and the splash spun forever. Fail
-      // this sign-in attempt explicitly instead: clear state and let the
-      // caller's callback(null) path run so the router/boot sequence still
-      // completes and the person sees the normal signed-out/login screen
-      // (with a toast) rather than a silent hang. A genuinely unexpected
-      // error still bubbles up via window.onunhandledrejection as before.
-      currentProfile = null;
-      currentSchool = null;
-      syncSchoolIdCookie(null);
-      const { errorToast } = await import("../error-handler.js");
-      errorToast(err, { where: "auth.onAuthChange.fetchProfile" });
+      // Offline fallback: if Firestore reads fail, fall back to cached profile/school in localStorage
+      const cachedProf = readCachedProfile();
+      if (cachedProf && cachedProf.uid === fbUser.uid) {
+        currentProfile = cachedProf;
+        currentSchool = readCachedSchool();
+      } else {
+        currentProfile = null;
+        currentSchool = null;
+        writeCachedProfile(null);
+        writeCachedSchool(null);
+        syncSchoolIdCookie(null);
+        const { errorToast } = await import("../error-handler.js");
+        errorToast(err, { where: "auth.onAuthChange.fetchProfile" });
+        callback(null);
+        return;
+      }
+    }
+
+    if (!currentProfile) {
       callback(null);
       return;
     }
+
     // Set once here, not re-synced on every school snapshot change below -
     // schoolId itself doesn't change while signed in, unlike the old
     // status cookie this replaced (see the comment above
     // syncSchoolIdCookie() for why that distinction matters).
     syncSchoolIdCookie(currentProfile?.schoolId || null);
-    if (currentProfile?.schoolId) {
+    if (currentProfile?.schoolId && navigator.onLine) {
       // Re-render on every subsequent change so a suspension/expiry (or a
       // reactivation/renewal) shows up immediately without a page reload.
       // The callback itself does the routing work (see app.js's
@@ -182,7 +228,8 @@ async function fetchProfile(uid) {
 
 async function fetchSchool(schoolId) {
   const snap = await getDoc(doc(db, "schools", schoolId));
-  return snap.exists() ? { id: schoolId, ...snap.data() } : null;
+  if (!snap.exists()) return null;
+  return { id: schoolId, ...snap.data() };
 }
 
 export function getCurrentProfile() {
@@ -198,15 +245,13 @@ export function getCurrentSchool() {
   return currentSchool;
 }
 
-// Called right after activateSubscription() succeeds (school-settings.js)
-// so the just-activated status is reflected immediately, without waiting
-// for the next full sign-in. Doesn't touch the schoolId cookie - schoolId
-// itself hasn't changed, only the school doc's subscription fields have,
-// and subscription-gate.ts reads those live from Firestore rather than
-// from anything cached client-side.
+// And on explicit sign-in/switch: refresh currentSchool if we have one.
+// Called right after fetchProfile() inside login() below and after any
+// direct schoolId assignment.
 export async function refreshCurrentSchool() {
   if (!currentProfile?.schoolId) return null;
   currentSchool = await fetchSchool(currentProfile.schoolId);
+  if (currentSchool) writeCachedSchool(currentSchool);
   return currentSchool;
 }
 
@@ -231,12 +276,24 @@ export async function login(email, password) {
     throw new Error("This account has been suspended.");
   }
   currentProfile = profile;
+  writeCachedProfile(profile);
+  if (profile.schoolId) {
+    const school = await fetchSchool(profile.schoolId);
+    if (school) {
+      currentSchool = school;
+      writeCachedSchool(school);
+    }
+  }
   await logAction(profile.uid, "login", "auth", null);
   return profile;
 }
 
 export async function logout() {
   if (currentProfile) await logAction(currentProfile.uid, "logout", "auth", null);
+  currentProfile = null;
+  currentSchool = null;
+  writeCachedProfile(null);
+  writeCachedSchool(null);
   await signOut(auth);
   syncSchoolIdCookie(null);
   // So the next sign-in (possibly a different account/school in the same
