@@ -105,7 +105,12 @@ export async function recordPayment(userId, { studentId, studentName, grade, str
   await logAction(userId, "record_payment", "fee_payments", ref_.id);
   // Keep the balances summary current for this one student - the cheap,
   // common-case path (a single payment) vs. the grade-wide resync below.
-  await syncStudentFeeStatus({ studentId, grade: grade || "", academicYear, term });
+  // Non-fatal: if summary sync fails, payment is already safely recorded.
+  try {
+    await syncStudentFeeStatus({ studentId, grade: grade || "", academicYear, term });
+  } catch (syncErr) {
+    console.warn("Derived fee status sync skipped:", syncErr);
+  }
   return ref_.id;
 }
 

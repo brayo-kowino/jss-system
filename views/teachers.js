@@ -413,9 +413,13 @@ function renderRosterTab(container, profile) {
 
 async function toggleTeacherStatus(profile, teacher) {
   const next = teacher.status === "active" ? "suspended" : "active";
-  await setTeacherStatus(profile.uid, teacher.id, next);
-  toast(`${teacher.fullName} marked ${next}.`, "success");
-  await refreshAll(profile);
+  try {
+    await setTeacherStatus(profile.uid, teacher.id, next);
+    toast(`${teacher.fullName} marked ${next}.`, "success");
+    await refreshAll(profile);
+  } catch (err) {
+    toast(err.message || "Could not update teacher status.", "error");
+  }
 }
 
 function openTeacherForm(profile, existing = null) {

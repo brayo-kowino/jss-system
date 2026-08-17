@@ -324,8 +324,9 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Recording…");
+    let paymentId;
     try {
-      const paymentId = await recordPayment(profile.uid, {
+      paymentId = await recordPayment(profile.uid, {
         studentId: student.id,
         studentName: student.fullName,
         grade, stream, academicYear, term,
@@ -334,14 +335,21 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
         reference: referenceInput.value.trim(),
         date: dateInput.value,
       });
-      toast("Payment recorded.", "success");
-      close();
-      await loadBalances(profile, balancesContainer, paymentsMount, receiptMount);
-      const payment = (await listPaymentsForClassPeriod(grade, stream, academicYear, term)).find((p) => p.id === paymentId);
-      if (payment) renderReceipt(receiptMount, payment);
     } catch (err) {
       toast(err.message || "Could not record payment.", "error");
       restore();
+      return;
+    }
+
+    toast("Payment recorded.", "success");
+    close();
+
+    try {
+      await loadBalances(profile, balancesContainer, paymentsMount, receiptMount);
+      const payment = (await listPaymentsForClassPeriod(grade, stream, academicYear, term)).find((p) => p.id === paymentId);
+      if (payment) renderReceipt(receiptMount, payment);
+    } catch (refreshErr) {
+      console.warn("Post-payment view refresh skipped:", refreshErr);
     }
   });
 }

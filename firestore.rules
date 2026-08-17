@@ -275,7 +275,8 @@ service cloud.firestore {
     // edit controls to.
     match /students/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsIncoming() && ownsExisting();
       allow delete: if false; // app never deletes students, only archives/transfers via update
     }
 
@@ -285,7 +286,8 @@ service cloud.firestore {
     // save. Read stays staff-wide (report cards, contact lookups, etc).
     match /parents/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsIncoming() && ownsExisting();
       allow delete: if false; // app never deletes parents
     }
 
@@ -293,7 +295,8 @@ service cloud.firestore {
     // only from the Students page, so same group as students.
     match /student_issues/{docId} {
       allow read: if canManageStudents() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming() && ownsExisting();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsIncoming() && ownsExisting();
       allow delete: if false;
     }
 
@@ -308,7 +311,8 @@ service cloud.firestore {
         isAdmin() || isPrincipal() || myRole() == 'academic_master' ||
         resource.data.userId == request.auth.uid
       );
-      allow create, update: if canManageTeachers() && ownsIncoming() && ownsExisting();
+      allow create: if canManageTeachers() && ownsIncoming();
+      allow update: if canManageTeachers() && ownsIncoming() && ownsExisting();
       allow delete: if false; // app only deactivates teachers via status update
     }
 
@@ -316,24 +320,28 @@ service cloud.firestore {
     // everywhere), write restricted to whoever manages term structure.
     match /classes/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /subjects/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
 
     // Timetable periods + slots - same group as above.
     match /periods/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /timetable_slots/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsIncoming() && ownsExisting();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
 
@@ -342,7 +350,8 @@ service cloud.firestore {
     // academic_master, including locking/reopening and deleting.
     match /assessments/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAssessments() && ownsIncoming() && ownsExisting();
+      allow create: if canManageAssessments() && ownsIncoming();
+      allow update: if canManageAssessments() && ownsIncoming() && ownsExisting();
       allow delete: if canManageAssessments() && ownsExisting();
     }
 
@@ -353,7 +362,9 @@ service cloud.firestore {
     // instead of going through marks.service.js.
     match /marks/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canEnterMarks() && ownsIncoming() && ownsExisting()
+      allow create: if canEnterMarks() && ownsIncoming()
+        && !assessmentIsLocked(request.resource.data.assessmentId);
+      allow update: if canEnterMarks() && ownsIncoming() && ownsExisting()
         && !assessmentIsLocked(request.resource.data.assessmentId);
       allow delete: if false; // app never deletes marks
     }
@@ -369,7 +380,8 @@ service cloud.firestore {
     // the natural next step after Save Results.
     match /result_releases/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canComputeResults() && ownsIncoming() && ownsExisting();
+      allow create: if canComputeResults() && ownsIncoming();
+      allow update: if canComputeResults() && ownsIncoming() && ownsExisting();
       allow delete: if false;
     }
 
@@ -396,7 +408,8 @@ service cloud.firestore {
     // which roster they're shown) and admin/principal (any class).
     match /attendance/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canMarkAttendance() && ownsIncoming() && ownsExisting();
+      allow create: if canMarkAttendance() && ownsIncoming();
+      allow update: if canMarkAttendance() && ownsIncoming() && ownsExisting();
       allow delete: if false;
     }
 
@@ -404,7 +417,8 @@ service cloud.firestore {
     // for every role that can print one), write admin/bursar only.
     match /fees/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageFees() && ownsIncoming() && ownsExisting();
+      allow create: if canManageFees() && ownsIncoming();
+      allow update: if canManageFees() && ownsIncoming() && ownsExisting();
       allow delete: if canManageFees() && ownsExisting();
     }
 
@@ -415,7 +429,8 @@ service cloud.firestore {
     // the same data and gated by the same actions.
     match /student_fee_status/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageFees() && ownsIncoming() && ownsExisting();
+      allow create: if canManageFees() && ownsIncoming();
+      allow update: if canManageFees() && ownsIncoming() && ownsExisting();
       allow delete: if canManageFees() && ownsExisting();
     }
 
@@ -434,12 +449,14 @@ service cloud.firestore {
     // subject_teacher).
     match /notifications/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageComms() && ownsIncoming() && ownsExisting();
+      allow create: if canManageComms() && ownsIncoming();
+      allow update: if canManageComms() && ownsIncoming() && ownsExisting();
       allow delete: if canManageComms() && ownsExisting();
     }
     match /newsletters/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageComms() && ownsIncoming() && ownsExisting();
+      allow create: if canManageComms() && ownsIncoming();
+      allow update: if canManageComms() && ownsIncoming() && ownsExisting();
       allow delete: if canManageComms() && ownsExisting();
     }
 

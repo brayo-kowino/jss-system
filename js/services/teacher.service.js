@@ -71,25 +71,25 @@ export async function createTeacher(userId, data) {
 }
 
 export async function updateTeacher(userId, id, data) {
-  await updateDoc(doc(db, "teachers", id), data);
+  await updateDoc(doc(db, "teachers", id), { ...data, schoolId: getCurrentSchoolId() });
   invalidate(teachersCacheKey());
   await logAction(userId, "edit_teacher", "teachers", id);
 }
 
 export async function assignSubjects(userId, id, subjectCodes) {
-  await updateDoc(doc(db, "teachers", id), { subjectCodes });
+  await updateDoc(doc(db, "teachers", id), { subjectCodes, schoolId: getCurrentSchoolId() });
   invalidate(teachersCacheKey());
   await logAction(userId, "assign_subjects", "teachers", id);
 }
 
 export async function assignClasses(userId, id, classAssignments) {
-  await updateDoc(doc(db, "teachers", id), { classAssignments });
+  await updateDoc(doc(db, "teachers", id), { classAssignments, schoolId: getCurrentSchoolId() });
   invalidate(teachersCacheKey());
   await logAction(userId, "assign_classes", "teachers", id);
 }
 
 export async function setTeacherStatus(userId, id, status) {
-  await updateDoc(doc(db, "teachers", id), { status });
+  await updateDoc(doc(db, "teachers", id), { status, schoolId: getCurrentSchoolId() });
   invalidate(teachersCacheKey());
   await logAction(userId, `${status}_teacher`, "teachers", id);
 }
