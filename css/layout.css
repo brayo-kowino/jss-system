@@ -443,6 +443,7 @@
   grid-template-rows: 1fr;
   grid-template-areas: "sidebar content";
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   transition: grid-template-columns var(--transition);
 }
@@ -638,7 +639,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--sp-6);
+  padding: 8px var(--sp-6);
 }
 .topbar__left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
 .topbar__collapse-btn {
@@ -756,9 +757,7 @@
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "topbar"
-      "main";
+    grid-template-areas: "content";
   }
   /* Icon-collapse doesn't apply once the sidebar is off-canvas - the
      hamburger (open/close) replaces it as the only mobile nav control. */
