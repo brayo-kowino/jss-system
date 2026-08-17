@@ -53,7 +53,7 @@ export async function listPeriods(forceRefresh = false) {
   // period editor - same cache-with-forceRefresh pattern as
   // listClasses()/listSubjects() in academic.service.js.
   if (forceRefresh) invalidate(periodsCacheKey());
-  return cached(periodsCacheKey(), 5 * 60_000, async () => {
+  return cached(periodsCacheKey(), 60 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
   });
@@ -129,7 +129,7 @@ function teacherTimetableCacheKey(teacherId) {
 export async function getClassTimetable(grade, stream, forceRefresh = false) {
   const key = classTimetableCacheKey(grade, stream);
   if (forceRefresh) invalidate(key);
-  return cached(key, 5 * 60_000, async () => {
+  return cached(key, 60 * 60_000, async () => {
     const snap = await getDocs(
       query(
         collection(db, "timetable_slots"),
@@ -150,7 +150,7 @@ export async function getClassTimetable(grade, stream, forceRefresh = false) {
 export async function getTeacherTimetable(teacherId, forceRefresh = false) {
   const key = teacherTimetableCacheKey(teacherId);
   if (forceRefresh) invalidate(key);
-  return cached(key, 5 * 60_000, async () => {
+  return cached(key, 60 * 60_000, async () => {
     const snap = await getDocs(
       query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("teacherId", "==", teacherId))
     );

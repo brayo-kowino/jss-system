@@ -18,7 +18,7 @@ import {
   getDocs,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, firebaseApp } from "../firebase-config.js";
+import { db, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { DEFAULT_SETTINGS, slugify, isSlugAvailable, publishSchoolBranding } from "./settings.service.js";
 
@@ -73,6 +73,7 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
   const schoolId = schoolRef.id;
 
   const secondary = initializeApp(firebaseApp.options, `secondary-${Date.now()}`);
+  attachAppCheck(secondary);
   const secondaryAuth = getAuth(secondary);
   try {
     const cred = await createUserWithEmailAndPassword(secondaryAuth, adminEmail, tempPassword);

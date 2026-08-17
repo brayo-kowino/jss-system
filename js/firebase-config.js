@@ -37,10 +37,20 @@ if (isLocalDev) {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
 
-initializeAppCheck(firebaseApp, {
-  provider: new ReCaptchaV3Provider("6LcEUX0tAAAAAA_U1HH-0ci7DiVoND7z-pzdEz4J"),
-  isTokenAutoRefreshEnabled: true,
-});
+export const RECAPTCHA_SITE_KEY = "6LcEUX0tAAAAAA_U1HH-0ci7DiVoND7z-pzdEz4J";
+
+export function attachAppCheck(app) {
+  try {
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (err) {
+    return null;
+  }
+}
+
+attachAppCheck(firebaseApp);
 
 export const auth = getAuth(firebaseApp);
 

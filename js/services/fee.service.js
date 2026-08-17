@@ -45,15 +45,20 @@ function feeStatusId(schoolId, studentId, academicYear, term) {
   return scopedId(schoolId, studentId, slugify(academicYear), slugify(term));
 }
 
-// ---------------------------------------------------------- Fee Structure --
+function feeStructuresCacheKey() {
+  return `fees:${getCurrentSchoolId()}`;
+}
 
-export async function listFeeStructures() {
-  const snap = await getDocs(query(collection(db, "fees"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
-    .sort((a, b) =>
-      (a.academicYear + a.term + a.grade).localeCompare(b.academicYear + b.term + b.grade)
-    );
+export async function listFeeStructures(forceRefresh = false) {
+  if (forceRefresh) invalidate(feeStructuresCacheKey());
+  return cached(feeStructuresCacheKey(), 30 * 60_000, async () => {
+    const snap = await getDocs(query(collection(db, "fees"), where("schoolId", "==", getCurrentSchoolId())));
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .sort((a, b) =>
+        (a.academicYear + a.term + a.grade).localeCompare(b.academicYear + b.term + b.grade)
+      );
+  });
 }
 
 export async function saveFeeStructure(userId, { grade, academicYear, term, amount }) {
@@ -68,6 +73,7 @@ export async function saveFeeStructure(userId, { grade, academicYear, term, amou
     { schoolId, grade, academicYear, term, amount: n, updatedAt: serverTimestamp() },
     { merge: true }
   );
+  invalidate(feeStructuresCacheKey());
   await logAction(userId, "set_fee_structure", "fees", id);
   // The fee structure changing means "expected" (and therefore balance) for
   // every student in this grade/term just moved - resync student_fee_status
@@ -79,6 +85,7 @@ export async function saveFeeStructure(userId, { grade, academicYear, term, amou
 
 export async function deleteFeeStructure(userId, id) {
   await deleteDoc(doc(db, "fees", id));
+  invalidate(feeStructuresCacheKey());
   await logAction(userId, "delete_fee_structure", "fees", id);
 }
 

@@ -79,7 +79,7 @@ export async function getSchoolSettings(schoolId, forceRefresh = false) {
   // rather than re-fetching it on every navigation. forceRefresh lets a
   // caller that just saved settings skip past a still-fresh cache entry.
   if (forceRefresh) invalidate(`school_settings:${id}`);
-  return cached(`school_settings:${id}`, 5 * 60_000, async () => {
+  return cached(`school_settings:${id}`, 60 * 60_000, async () => {
     const snap = await getDoc(schoolDocRef(id));
     // Merge over the defaults so any field never actually saved to Firestore
     // still comes back populated, instead of silently returning as undefined.

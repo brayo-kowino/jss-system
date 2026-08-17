@@ -36,7 +36,7 @@ import {
   getDocs,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { auth, db, firebaseApp } from "../firebase-config.js";
+import { auth, db, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
 
@@ -338,6 +338,7 @@ export async function completeForcedPasswordChange(newPassword) {
  */
 export async function createUserAccount({ fullName, email, role, tempPassword, schoolId }) {
   const secondary = initializeApp(firebaseApp.options, `secondary-${Date.now()}`);
+  attachAppCheck(secondary);
   const secondaryAuth = getAuth(secondary);
   try {
     const cred = await createUserWithEmailAndPassword(secondaryAuth, email, tempPassword);

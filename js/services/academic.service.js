@@ -72,7 +72,7 @@ export async function listClasses(forceRefresh = false) {
   // skip straight past a still-fresh cache entry instead of waiting out
   // the TTL.
   if (forceRefresh) invalidate(classesCacheKey());
-  return cached(classesCacheKey(), 5 * 60_000, async () => {
+  return cached(classesCacheKey(), 60 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "classes"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.grade || "").localeCompare(b.grade || ""));
   });
@@ -191,7 +191,7 @@ export async function listSubjects(forceRefresh = false) {
   // Same reasoning as listClasses() above - read everywhere, written only
   // from the Subjects page.
   if (forceRefresh) invalidate(subjectsCacheKey());
-  return cached(subjectsCacheKey(), 5 * 60_000, async () => {
+  return cached(subjectsCacheKey(), 60 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "subjects"), where("schoolId", "==", getCurrentSchoolId())));
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
   });
