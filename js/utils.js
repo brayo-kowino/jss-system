@@ -165,7 +165,10 @@ export function formatDateTime(date) {
 // business key (e.g. both have a "Grade 7" or a "MATH" subject) never
 // collide on the same Firestore doc.
 export function scopedId(schoolId, ...parts) {
-  return [schoolId, ...parts].filter((p) => p !== undefined && p !== null && p !== "").join("__");
+  return [schoolId, ...parts]
+    .filter((p) => p !== undefined && p !== null && p !== "")
+    .map((p) => String(p).replace(/[\/\\]+/g, "-"))
+    .join("__");
 }
 
 // Simple client-side guard against XSS when interpolating user text into
