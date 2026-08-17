@@ -999,7 +999,6 @@
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(-25px, 25px) scale(1.1); }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .splash-logo, .splash-title, .splash-subtitle, .splash-loader,
   .seal--splash, .splash-glow, .splash-ring, .splash-dots span,
