@@ -26,7 +26,7 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { listStudents } from "./student.service.js";
-import { cachedWithFallback } from "./query-cache.js";
+import { cached, cachedWithFallback, invalidate } from "./query-cache.js";
 
 export const PAYMENT_METHODS = ["Cash", "M-Pesa", "Bank Transfer", "Cheque"];
 
