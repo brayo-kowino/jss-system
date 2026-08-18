@@ -22,31 +22,33 @@ function loadZipLib() {
   return zipLibPromise;
 }
 
-// Renders one DOM node to a PDF Blob. `quality` (0-1) controls JPEG
-// compression of the rasterized page - the old version embedded a
-// lossless PNG screenshot of the whole card, which is why these PDFs were
-// coming out huge (a full-page PNG at 2x scale easily runs several MB even
-// for a page that's 95% white space and plain text). JPEG at 0.95 still
-// cuts file size roughly 2-4x versus that PNG (less dramatic than a lower
-// quality setting, but a lower setting introduced visible softening/
-// blockiness around text edges - "smoky" - which matters more here than
-// squeezing out every extra KB). `compress: true` also turns on jsPDF's
-// own internal stream compression for the PDF container itself.
-export async function renderElementToPdfBlob(node, { scale = 2, quality = 0.95 } = {}) {
+// Renders one DOM node to a PDF Blob. Uses lossless PNG encoding with
+// jsPDF's built-in Flate stream compression (`compress: true`, "SLOW"
+// compression). Lossy JPEG previously introduced "smoky"/cloudy DCT ringing
+// and mosquito noise around high-contrast typography and table borders;
+// PNG ensures 100% pixel-perfect text clarity while compressing white space
+// and table structures efficiently.
+export async function renderElementToPdfBlob(node, { scale = 2 } = {}) {
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
   const canvas = await html2canvas(node, {
     scale,
     backgroundColor: "#ffffff",
     useCORS: true,
+    logging: false,
     // .no-print elements (Save Remarks button, Back/Print/Download bar,
     // etc.) are only hidden via a @media print rule, which html2canvas
     // doesn't apply since it renders the live on-screen DOM - so they'd
     // otherwise show up baked into the downloaded PDF. Skip them here too.
     ignoreElements: (el) => el.classList?.contains("no-print"),
   });
-  const imgData = canvas.toDataURL("image/jpeg", quality);
-  const pdf = new jsPDF({ unit: "px", format: [canvas.width, canvas.height], compress: true });
-  pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height, undefined, "FAST");
+  const imgData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({
+    unit: "px",
+    format: [canvas.width, canvas.height],
+    compress: true,
+    hotfixes: ["px_scaling"],
+  });
+  pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height, undefined, "SLOW");
   return pdf.output("blob");
 }
 
@@ -101,7 +103,7 @@ export async function downloadElementAsPdf(node, filename, opts) {
 // `items`: array of { filename, build } where build() returns (or
 // resolves to) the DOM node to render for that entry.
 // `onProgress(done, total, currentFilename)` fires after each item.
-export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 2, quality = 0.95 } = {}) {
+export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 2 } = {}) {
   const JSZip = await loadZipLib();
   const zip = new JSZip();
   const usedNames = new Set(); // guards against two students flattening to the same name (e.g. "019/25" and "019-25" both becoming "019-25")
@@ -109,7 +111,7 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
     const { filename, build } = items[i];
     const node = await build();
     try {
-      const blob = await renderElementToPdfBlob(node, { scale, quality });
+      const blob = await renderElementToPdfBlob(node, { scale });
       let flatName = flattenFilename(filename);
       if (usedNames.has(flatName)) {
         const dot = flatName.lastIndexOf(".");
