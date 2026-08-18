@@ -64,7 +64,7 @@ function obfuscatorPlugin() {
           compact: true,
           controlFlowFlattening: true,
           controlFlowFlatteningThreshold: 0.6,
-          deadCodeInjection: true,
+          deadCodeInjection: false,
           deadCodeInjectionThreshold: 0.3,
           stringArray: true,
           stringArrayEncoding: ["base64"],
