@@ -214,23 +214,51 @@ async function loadClassGrid(profile, gridMount) {
   });
 }
 
-function openAssignModal(profile, day, period, gridMount) {
+async function openAssignModal(profile, day, period, gridMount) {
   if (!CAN_MANAGE.includes(profile.role)) return;
+  if (CAN_SEE_ALL_TEACHERS.includes(profile.role)) {
+    try {
+      teachers = await listTeachers();
+    } catch {}
+  }
   const existing = classSlots[`${day}_${period.id}`];
   const body = el("form", {});
   const subjectSelect = el("select", {}, [
     el("option", { value: "" }, "Select subject"),
     ...subjects.map((s) => el("option", { value: s.code, ...(s.code === existing?.subjectCode ? { selected: "true" } : {}) }, s.name)),
   ]);
-  const teacherSelect = el("select", {}, [el("option", { value: "" }, "Select teacher")]);
+  const teacherSelect = el("select", {}, [el("option", { value: "" }, "Select teacher (optional)")]);
   const roomInput = el("input", { type: "text", value: existing?.room || "", placeholder: "e.g. Room 12, Lab 1" });
 
   function refreshTeachers() {
     const code = subjectSelect.value;
+    const currentVal = teacherSelect.value || existing?.teacherId || "";
     teacherSelect.innerHTML = "";
-    teacherSelect.append(el("option", { value: "" }, "Select teacher"));
-    for (const t of teachers.filter((t) => !code || (t.subjectCodes || []).includes(code))) {
-      teacherSelect.append(el("option", { value: t.id, ...(t.id === existing?.teacherId ? { selected: "true" } : {}) }, t.fullName));
+    teacherSelect.append(el("option", { value: "" }, "Select teacher (optional)"));
+
+    const qualified = teachers.filter((t) => code && (t.subjectCodes || []).includes(code));
+    const others = teachers.filter((t) => !code || !(t.subjectCodes || []).includes(code));
+
+    if (code && qualified.length > 0) {
+      const groupQ = el("optgroup", { label: "Subject Teachers" });
+      for (const t of qualified) {
+        groupQ.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
+      }
+      teacherSelect.append(groupQ);
+      if (others.length > 0) {
+        const groupO = el("optgroup", { label: "Other Teachers" });
+        for (const t of others) {
+          groupO.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
+        }
+        teacherSelect.append(groupO);
+      }
+    } else {
+      for (const t of teachers) {
+        teacherSelect.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
+      }
+    }
+    if (currentVal) {
+      teacherSelect.value = currentVal;
     }
   }
   refreshTeachers();
