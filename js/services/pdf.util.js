@@ -42,49 +42,13 @@ export async function renderElementToPdfBlob(node, { scale = 2 } = {}) {
     ignoreElements: (el) => el.classList?.contains("no-print"),
   });
   const imgData = canvas.toDataURL("image/png");
-
-  // Compact cards (like fee receipts) use their own natural card size
-  const isReceipt = node.classList?.contains("receipt") || canvas.width < 500 * scale;
-  if (isReceipt) {
-    const pdf = new jsPDF({
-      unit: "px",
-      format: [canvas.width / scale, canvas.height / scale],
-      compress: true,
-      hotfixes: ["px_scaling"],
-    });
-    pdf.addImage(imgData, "PNG", 0, 0, canvas.width / scale, canvas.height / scale, undefined, "SLOW");
-    return pdf.output("blob");
-  }
-
-  // Standard A4 portrait for Report Cards and School Documents (210mm x 297mm)
   const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: "a4",
+    unit: "px",
+    format: [canvas.width, canvas.height],
     compress: true,
+    hotfixes: ["px_scaling"],
   });
-
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 6; // 6mm margin around page
-  const maxW = pageWidth - (margin * 2);
-  const maxH = pageHeight - (margin * 2);
-
-  const imgW = maxW;
-  const imgH = (canvas.height * maxW) / canvas.width;
-
-  if (imgH <= maxH) {
-    // Fits cleanly on 1 page
-    pdf.addImage(imgData, "PNG", margin, margin, imgW, imgH, undefined, "SLOW");
-  } else {
-    // Proportional fit to exactly 1 single A4 page so nothing overflows
-    const scaleRatio = maxH / imgH;
-    const scaledW = imgW * scaleRatio;
-    const scaledH = maxH;
-    const xOffset = margin + (maxW - scaledW) / 2;
-    pdf.addImage(imgData, "PNG", xOffset, margin, scaledW, scaledH, undefined, "SLOW");
-  }
-
+  pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height, undefined, "SLOW");
   return pdf.output("blob");
 }
 
