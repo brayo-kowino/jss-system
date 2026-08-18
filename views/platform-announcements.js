@@ -18,7 +18,7 @@ import {
   SEVERITIES,
 } from "../js/services/platform-announcement.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, formatDateTime, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils.js";
 
 let announcements = [];
 
@@ -199,7 +199,8 @@ function openComposeModal(profile, existing = null) {
 }
 
 function toDatetimeLocalValue(timestamp) {
-  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const d = toDate(timestamp);
+  if (!d) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

@@ -146,15 +146,29 @@ export function el(tag, attrs = {}, children = []) {
   return node;
 }
 
+export function toDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value.toDate === "function") return value.toDate(); // Firestore Timestamp instance
+  if (typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000 + (value.nanoseconds ? Math.floor(value.nanoseconds / 1e6) : 0));
+  }
+  if (typeof value._seconds === "number") {
+    return new Date(value._seconds * 1000 + (value._nanoseconds ? Math.floor(value._nanoseconds / 1e6) : 0));
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export function formatDate(date) {
-  if (!date) return "N/A";
-  const d = date instanceof Date ? date : date.toDate ? date.toDate() : new Date(date);
+  const d = toDate(date);
+  if (!d) return "N/A";
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function formatDateTime(date) {
-  if (!date) return "N/A";
-  const d = date instanceof Date ? date : date.toDate ? date.toDate() : new Date(date);
+  const d = toDate(date);
+  if (!d) return "N/A";
   const day = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
   const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
   return `${day}, ${time}`;

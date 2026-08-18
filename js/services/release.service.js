@@ -22,7 +22,7 @@ import {
 import { db } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { slugify } from "./academic.service.js";
-import { scopedId } from "../utils.js";
+import { scopedId, toDate } from "../utils.js";
 import { logAction } from "./audit.service.js";
 
 function releaseId(academicYear, term, grade, reportMode = "average") {
@@ -73,8 +73,8 @@ export async function setRelease(
 
 export function isExpired(release) {
   if (!release?.expiresAt) return false;
-  const ms = release.expiresAt.toDate ? release.expiresAt.toDate().getTime() : new Date(release.expiresAt).getTime();
-  return ms < Date.now();
+  const d = toDate(release.expiresAt);
+  return d ? d.getTime() < Date.now() : false;
 }
 
 export function releaseStatusLabel(release) {

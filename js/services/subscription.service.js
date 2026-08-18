@@ -53,8 +53,14 @@ export const REVOKE_REASONS = [
 
 function toDate(value) {
   if (!value) return null;
-  if (value instanceof Date) return value;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value.toDate === "function") return value.toDate(); // Firestore Timestamp
+  if (typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000 + (value.nanoseconds ? Math.floor(value.nanoseconds / 1e6) : 0));
+  }
+  if (typeof value._seconds === "number") {
+    return new Date(value._seconds * 1000 + (value._nanoseconds ? Math.floor(value._nanoseconds / 1e6) : 0));
+  }
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d;
 }

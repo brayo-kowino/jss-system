@@ -2,7 +2,7 @@ import { listClasses } from "../js/services/academic.service.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import { listSavedModesForPeriod, reportModeLabel } from "../js/services/grading.service.js";
 import { getRelease, setRelease, isExpired, releaseStatusLabel } from "../js/services/release.service.js";
-import { el, icon, toast, formatDateTime, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils.js";
 
 let classes = [];
 let settings = null;
@@ -173,7 +173,8 @@ function renderModeCard(profile, key, mode, release) {
 // for display only; setRelease() re-interprets whatever the input holds as
 // local time on save via `new Date(expiresAtLocal)`.
 function toLocalInputValue(timestamp) {
-  const d = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const d = toDate(timestamp);
+  if (!d) return "";
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

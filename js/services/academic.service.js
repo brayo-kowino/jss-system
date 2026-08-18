@@ -26,6 +26,8 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { cached, invalidate } from "./query-cache.js";
+import { listStudents } from "./student.service.js";
+import { listTeachers } from "./teacher.service.js";
 
 export const PATHWAYS = ["STEM", "Social Sciences", "Arts & Sports Science"];
 
@@ -158,27 +160,18 @@ export async function deleteClass(userId, classId) {
 }
 
 async function countStudentsInGrade(grade) {
-  const snap = await getDocs(
-    query(collection(db, "students"), where("schoolId", "==", getCurrentSchoolId()), where("grade", "==", grade))
-  );
-  return snap.size;
+  const students = await listStudents();
+  return students.filter((s) => s.grade === grade && s.status === "active").length;
 }
 
 async function countStudentsInStream(grade, stream) {
-  const snap = await getDocs(
-    query(
-      collection(db, "students"),
-      where("schoolId", "==", getCurrentSchoolId()),
-      where("grade", "==", grade),
-      where("stream", "==", stream)
-    )
-  );
-  return snap.size;
+  const students = await listStudents();
+  return students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active").length;
 }
 
 async function countTeachersInGrade(grade) {
-  const snap = await getDocs(query(collection(db, "teachers"), where("schoolId", "==", getCurrentSchoolId())));
-  return snap.docs.filter((d) => (d.data().classAssignments || []).some((a) => a.grade === grade)).length;
+  const teachers = await listTeachers();
+  return teachers.filter((t) => (t.classAssignments || []).some((a) => a.grade === grade)).length;
 }
 
 // --------------------------------------------------------------- Subjects --

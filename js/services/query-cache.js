@@ -22,13 +22,35 @@ const store = new Map(); // key -> { data, expiresAt }
 /**
  * Returns the cached value for `key` if it hasn't expired yet; otherwise
  * calls `fetchFn`, caches the result for `ttlMs`, and returns it.
+ * If fetchFn fails (or returns empty while offline), falls back to the
+ * persisted lastKnown entry from localStorage so the app functions offline.
  */
 export async function cached(key, ttlMs, fetchFn) {
   const hit = store.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.data;
-  const data = await fetchFn();
-  store.set(key, { data, expiresAt: Date.now() + ttlMs });
-  return data;
+  try {
+    const data = await fetchFn();
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    if (isOffline && Array.isArray(data) && data.length === 0 && lastKnown.has(key)) {
+      const fallback = lastKnown.get(key);
+      store.set(key, { data: fallback, expiresAt: Date.now() + ttlMs });
+      return fallback;
+    }
+    store.set(key, { data, expiresAt: Date.now() + ttlMs });
+    if (data !== undefined && data !== null) {
+      if (!Array.isArray(data) || data.length > 0 || !lastKnown.has(key)) {
+        setLastKnown(key, data);
+      }
+    }
+    return data;
+  } catch (err) {
+    if (lastKnown.has(key)) {
+      const fallback = lastKnown.get(key);
+      store.set(key, { data: fallback, expiresAt: Date.now() + ttlMs });
+      return fallback;
+    }
+    throw err;
+  }
 }
 
 // Separate from the TTL cache above, and never consulted to skip a fetch -
@@ -97,4 +119,13 @@ export function clearAll() {
   // fee.service.js/dashboard.js), so a different account never sees another
   // school's stale figures - wiping it here would only lose the "last known"
   // fallback that logging back in offline later relies on.
+}
+
+export function getLastKnown(key) {
+  return lastKnown.get(key);
+}
+
+export function setLastKnown(key, data) {
+  lastKnown.set(key, data);
+  writeLastKnown(lastKnown);
 }

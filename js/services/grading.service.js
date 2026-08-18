@@ -32,7 +32,7 @@ import { listMarksByAssessment } from "./marks.service.js";
 import { listStudents } from "./student.service.js";
 import { DEFAULT_GRADING_SCALE } from "./settings.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
-import { scopedId } from "../utils.js";
+import { scopedId, toDate } from "../utils.js";
 
 // ---------------------------------------------------------------- Grading --
 
@@ -578,7 +578,7 @@ export async function listSavedModesForPeriod({ grade, academicYear, term }) {
       computedBy: "",
     });
     g.count += 1;
-    const ts = r.computedAt?.toDate ? r.computedAt.toDate() : null;
+    const ts = toDate(r.computedAt);
     if (ts && (!g.latestComputedAt || ts > g.latestComputedAt)) {
       g.latestComputedAt = ts;
       g.computedBy = r.computedBy || g.computedBy;
