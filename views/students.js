@@ -46,6 +46,8 @@ let openIssueCounts = new Map(); // studentId -> count of open issues
 let filterText = "";
 let filterGrade = "";
 let filterStatus = "";
+let currentPage = 1;
+const PAGE_SIZE = 50;
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred" };
 
@@ -104,14 +106,17 @@ export async function render({ profile }) {
 
   searchInput.addEventListener("input", (e) => {
     filterText = e.target.value.toLowerCase();
+    currentPage = 1;
     renderTable(tableWrap, profile);
   });
   gradeSelect.addEventListener("change", (e) => {
     filterGrade = e.target.value;
+    currentPage = 1;
     renderTable(tableWrap, profile);
   });
   statusSelect.addEventListener("change", (e) => {
     filterStatus = e.target.value;
+    currentPage = 1;
     renderTable(tableWrap, profile);
   });
 
@@ -152,6 +157,16 @@ function renderTable(container, profile) {
     return;
   }
 
+  // Filtering runs on the full in-memory list (already fetched via
+  // listStudents()), so this is just capping how many rows we build DOM
+  // nodes for at once - keeps large rosters from turning the table render
+  // into the slow part. Clamp in case a filter change shrank the result
+  // set below the page currentPage was pointing at.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Adm. No."), el("th", {}, "Name"), el("th", {}, "Class"),
@@ -159,7 +174,7 @@ function renderTable(container, profile) {
     ])),
   ]);
   const tbody = el("tbody", {});
-  for (const s of filtered) {
+  for (const s of pageItems) {
     const openCount = openIssueCounts.get(s.id) || 0;
     const nameCell = el("td", { "data-label": "Name" }, [
       el("a", {
@@ -184,6 +199,40 @@ function renderTable(container, profile) {
   table.append(tbody);
   container.innerHTML = "";
   container.append(table);
+  if (filtered.length > PAGE_SIZE) {
+    container.append(renderPagination(filtered.length, totalPages, container, profile));
+  }
+}
+
+function renderPagination(totalItems, totalPages, tableWrap, profile) {
+  const rangeStart = (currentPage - 1) * PAGE_SIZE + 1;
+  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalItems);
+
+  const goTo = (page) => {
+    currentPage = Math.min(Math.max(page, 1), totalPages);
+    renderTable(tableWrap, profile);
+  };
+
+  const bar = el("div", {
+    style: "display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px; flex-wrap:wrap;",
+  }, [
+    el("span", { style: "color:var(--color-muted, #666); font-size:0.9em;" },
+      `Showing ${rangeStart}–${rangeEnd} of ${totalItems}`),
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      el("button", {
+        class: "btn btn--ghost btn--sm",
+        disabled: currentPage === 1 ? "true" : undefined,
+        onClick: () => goTo(currentPage - 1),
+      }, [icon("chevron_left"), "Prev"]),
+      el("span", { style: "font-size:0.9em;" }, `Page ${currentPage} of ${totalPages}`),
+      el("button", {
+        class: "btn btn--ghost btn--sm",
+        disabled: currentPage === totalPages ? "true" : undefined,
+        onClick: () => goTo(currentPage + 1),
+      }, ["Next", icon("chevron_right")]),
+    ]),
+  ]);
+  return bar;
 }
 
 function statusBadge(status) {
