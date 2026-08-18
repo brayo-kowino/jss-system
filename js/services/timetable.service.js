@@ -55,17 +55,68 @@ export async function listPeriods(forceRefresh = false) {
   if (forceRefresh) invalidate(periodsCacheKey());
   return cached(periodsCacheKey(), 60 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+    
+    // Deduplicate periods that have identical name, start and end times
+    const seen = new Set();
+    const unique = [];
+    for (const p of all) {
+      const key = `${p.name || ""}_${p.startTime || ""}_${p.endTime || ""}_${!!p.isBreak}`.toLowerCase().trim();
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(p);
+      }
+    }
+    return unique;
   });
 }
 
 export async function seedDefaultPeriodsIfEmpty() {
-  const existing = await listPeriods();
-  if (existing.length) return;
   const schoolId = getCurrentSchoolId();
+  if (!schoolId) return;
+  const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", schoolId)));
+  const existingDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+  // If duplicate periods exist from a previous concurrent seed, clean up unassigned duplicates
+  if (existingDocs.length > DEFAULT_PERIODS.length) {
+    const slotsSnap = await getDocs(query(collection(db, "timetable_slots"), where("schoolId", "==", schoolId)));
+    const usedPeriodIds = new Set(slotsSnap.docs.map((d) => d.data().periodId));
+    
+    const seen = new Map();
+    const duplicateIdsToDelete = [];
+    for (const p of existingDocs) {
+      const key = `${p.name || ""}_${p.startTime || ""}_${p.endTime || ""}_${!!p.isBreak}`.toLowerCase().trim();
+      if (seen.has(key)) {
+        // If this duplicate is not used by any slot, queue for deletion
+        if (!usedPeriodIds.has(p.id)) {
+          duplicateIdsToDelete.push(p.id);
+        } else if (!usedPeriodIds.has(seen.get(key).id)) {
+          // If the previous one wasn't used, delete the previous one instead
+          duplicateIdsToDelete.push(seen.get(key).id);
+          seen.set(key, p);
+        }
+      } else {
+        seen.set(key, p);
+      }
+    }
+
+    if (duplicateIdsToDelete.length > 0) {
+      const batch = writeBatch(db);
+      for (const id of duplicateIdsToDelete) {
+        batch.delete(doc(db, "periods", id));
+      }
+      await batch.commit();
+      invalidate(periodsCacheKey());
+    }
+    return;
+  }
+
+  if (existingDocs.length) return;
+
   const batch = writeBatch(db);
   for (const p of DEFAULT_PERIODS) {
-    batch.set(doc(collection(db, "periods")), { ...p, schoolId, createdAt: serverTimestamp() });
+    const periodId = scopedId(schoolId, slugify(p.name), slugify(p.startTime));
+    batch.set(doc(db, "periods", periodId), { ...p, schoolId, createdAt: serverTimestamp() }, { merge: true });
   }
   await batch.commit();
   invalidate(periodsCacheKey());
