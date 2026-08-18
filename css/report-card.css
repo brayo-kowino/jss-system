@@ -6,58 +6,52 @@
   background: var(--color-white);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
-  padding: var(--sp-6);
-  max-width: 860px;
+  padding: var(--sp-4);
+  max-width: 800px;
   margin: 0 auto;
   box-shadow: var(--shadow-sm);
-  /* Standard, widely-available system font for the whole document - no
-     decorative/display serif in the report itself. */
   font-family: var(--font-body);
 }
 
 .report-card__header {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
-  padding-bottom: var(--sp-4);
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
   border-bottom: 2px solid var(--color-primary-100);
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-2);
 }
-.report-card__logo { width: 56px; height: 56px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; background: var(--color-white); }
-.report-card__school-name { font-family: var(--font-body); font-size: var(--fs-lg); font-weight: 700; color: var(--color-primary-900); margin: 0; }
-.report-card__motto { font-size: var(--fs-xs); color: var(--color-ink-soft); text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
-.report-card__address { font-size: var(--fs-xs); color: var(--color-ink-soft); margin: 2px 0 0; margin-left: auto; text-align: right; }
+.report-card__logo { width: 50px; height: 50px; border-radius: var(--radius-seal); object-fit: cover; flex-shrink: 0; background: var(--color-white); }
+.report-card__school-name { font-family: var(--font-body); font-size: var(--fs-md); font-weight: 700; color: var(--color-primary-900); margin: 0; }
+.report-card__motto { font-size: 11px; color: var(--color-ink-soft); text-transform: uppercase; letter-spacing: 0.05em; margin: 0; }
+.report-card__address { font-size: 11px; color: var(--color-ink-soft); margin: 2px 0 0; margin-left: auto; text-align: right; }
 
-/* Softer than a solid navy fill - a light tint of the theme color with
-   dark text keeps the brand color without the heavy block of ink. */
 .report-card__banner {
   background: var(--color-primary-100);
   color: var(--color-primary-900);
   text-align: center;
-  padding: var(--sp-2);
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-sm);
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-2);
 }
 
 .report-card__student {
   display: flex;
   align-items: flex-start;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-4);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
 }
-.report-card__photo { width: 90px; height: 90px; border-radius: var(--radius-md); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); flex-shrink: 0; }
+.report-card__photo { width: 72px; height: 72px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); flex-shrink: 0; }
 
-/* Student identity table: even label/value columns across the full width.
-   No fill on the label cells - a bold weight is enough to set them apart
-   from the value cells, so the table stays plain black-and-white ruling. */
-.report-card__info-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.report-card__info-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); }
 .report-card__info-table th,
 .report-card__info-table td {
   border: 1px solid var(--color-line);
-  padding: 7px 10px;
+  padding: 4px 8px;
   text-align: left;
 }
 .report-card__info-table th {
@@ -69,80 +63,78 @@
 .report-card__info-table td { width: 33%; }
 
 .report-card__section-title {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-sm);
+  margin: var(--sp-2) 0 4px;
+  font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--color-primary-900);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
   border-bottom: 1px solid var(--color-line);
 }
 
-/* Performance summary: labels as a header row, values as a data row,
-   ruled like every other table in the report - no shaded cells. */
-.report-card__summary-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); margin-bottom: var(--sp-4); }
+.report-card__summary-table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); margin-bottom: var(--sp-2); }
 .report-card__summary-table th,
 .report-card__summary-table td {
   border: 1px solid var(--color-line);
-  padding: 8px 10px;
+  padding: 5px 8px;
   text-align: center;
 }
 .report-card__summary-table th {
   color: var(--color-primary-900);
   font-weight: 700;
   text-transform: uppercase;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   letter-spacing: 0.03em;
 }
-.report-card__summary-table td { font-size: var(--fs-sm); font-weight: 600; color: var(--color-ink); }
+.report-card__summary-table td { font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink); }
 
 .report-card__pathways {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
 }
 .report-card__pathway {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
-  padding: var(--sp-3);
+  padding: 4px 8px;
   text-align: center;
 }
-.report-card__pathway-name { font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink-soft); text-transform: uppercase; }
-.report-card__pathway-value { font-family: var(--font-body); font-weight: 700; font-size: var(--fs-md); color: var(--color-primary-900); }
+.report-card__pathway-name { font-size: 10px; font-weight: 600; color: var(--color-ink-soft); text-transform: uppercase; }
+.report-card__pathway-value { font-family: var(--font-body); font-weight: 700; font-size: var(--fs-sm); color: var(--color-primary-900); }
 
 .report-card__remarks {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--sp-4);
-  margin: var(--sp-4) 0;
+  gap: var(--sp-3);
+  margin: var(--sp-2) 0;
 }
 .report-card__remark-box {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-sm);
-  padding: var(--sp-3);
+  padding: var(--sp-2);
 }
-.report-card__remark-box h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--color-primary-900); }
-.report-card__remark-box textarea { width: 100%; min-height: 56px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: var(--sp-2); font-family: inherit; }
-.report-card__sign-line { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--color-ink-soft); }
-.report-card__signer { margin-top: 2px; font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink); }
+.report-card__remark-box h4 { margin: 0 0 4px; font-size: var(--fs-xs); color: var(--color-primary-900); }
+.report-card__remark-box textarea { width: 100%; min-height: 40px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: 4px; font-family: inherit; font-size: var(--fs-xs); }
+.report-card__sign-line { margin-top: 4px; font-size: 10px; color: var(--color-ink-soft); }
+.report-card__signer { margin-top: 2px; font-size: 10px; font-weight: 600; color: var(--color-ink); }
 
 .report-card__signatures {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--sp-5);
-  margin: var(--sp-4) 0;
-  padding-top: var(--sp-2);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-4);
+  margin: var(--sp-2) 0;
+  padding-top: 0;
 }
 .report-card__signature { text-align: center; }
 .report-card__signature-line {
   border-bottom: 1px solid var(--color-ink-soft);
-  height: 28px;
-  margin: 0 var(--sp-4) var(--sp-1);
+  height: 20px;
+  margin: 0 var(--sp-4) 2px;
 }
-.report-card__signature-name { font-size: var(--fs-sm); font-weight: 700; color: var(--color-primary-900); }
-.report-card__signature-title { font-size: var(--fs-xs); color: var(--color-ink-soft); }
+.report-card__signature-name { font-size: var(--fs-xs); font-weight: 700; color: var(--color-primary-900); }
+.report-card__signature-title { font-size: 10px; color: var(--color-ink-soft); }
 
 .report-card__fee-balance {
   text-align: center;
@@ -151,85 +143,70 @@
   background: var(--color-primary-100);
   border: 1px solid var(--color-primary-100);
   border-radius: var(--radius-sm);
-  padding: var(--sp-3);
-  margin: var(--sp-4) 0;
+  padding: 5px;
+  margin: var(--sp-2) 0;
+  font-size: var(--fs-xs);
 }
 
 .report-card__dates {
   display: flex;
   justify-content: space-between;
-  font-size: var(--fs-xs);
+  font-size: 10px;
   color: var(--color-ink-soft);
   border-top: 1px solid var(--color-line);
-  padding-top: var(--sp-3);
+  padding-top: 4px;
 }
 
 .report-card__actions {
   display: flex;
   gap: var(--sp-2);
   justify-content: flex-end;
-  margin-bottom: var(--sp-4);
+  margin-top: var(--sp-3);
 }
 
-/* Table cells inside the report card stay plain - badges elsewhere in the
-   app use a filled background, but inside the printed record that reads
-   as a stray splash of color, so cell content here is just text. */
 .report-card .badge {
-  background: none;
-  padding: 0;
-  border-radius: 0;
-  font-weight: 700;
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
 }
 
-/* Turn off the app-wide zebra striping and row-hover fill for tables
-   inside the report card - a printed record reads cleaner as plain
-   ruled rows with no color in the cells. */
 .report-card tbody tr:nth-child(even),
 .report-card tbody tr:hover {
-  background: none;
+  background: transparent !important;
 }
 
-/* Every table in the report (Subject Performance, Performance History,
-   etc.) gets full grid ruling - a border on every cell, not just a line
-   under each row - so it reads as rows AND columns like the summary and
-   info tables above, not a borderless list. The card's own border
-   already frames the table, so drop the wrapper's box to avoid a
-   double border. */
 .report-card .table-wrap {
-  border: none;
   border-radius: 0;
-  /* Was `overflow: visible` - fine on a wide screen where every table fits,
-     but on a phone the subject/summary tables are wider than the card and
-     had nothing to contain them, so they spilled out and pushed the whole
-     page sideways (see the cut-off headers in the mobile screenshot). Auto
-     scoping the scroll to the table itself, instead of the page, fixes
-     that without changing anything for print or desktop. */
-  overflow-x: auto;
+  overflow: visible;
   max-width: 100%;
-  -webkit-overflow-scrolling: touch;
 }
 .report-card table thead th,
 .report-card table tbody td {
   border: 1px solid var(--color-line);
+  padding: 4px 6px;
+  font-size: var(--fs-xs);
 }
 .report-card table thead th {
   background: var(--color-primary-100);
   color: var(--color-primary-900);
+  font-size: 11px;
 }
 
-/* Subject Performance table - let the browser size every column to fit
-   its own content (header label or widest data cell, whichever is
-   bigger). No column gets a hardcoded width or percentage, so it stays
-   balanced automatically as data changes - a long subject name, a wide
-   remark, a narrower one - rather than fighting a fixed split. Nothing
-   wraps, so a column only ever grows to fit what's actually in it;
-   Remarks isn't forced to fill leftover space, it just takes what its
-   own text needs. */
-.report-card__subject-table { table-layout: auto; width: 100%; }
-.report-card__subject-table th,
-.report-card__subject-table td {
-  white-space: nowrap;
-}
+.report-card__subject-table { table-layout: fixed; width: 100%; border-collapse: collapse; }
+.report-card__subject-table th:nth-child(1),
+.report-card__subject-table td:nth-child(1) { width: 30%; text-align: left; }
+.report-card__subject-table th:nth-child(2),
+.report-card__subject-table td:nth-child(2) { width: 11%; text-align: center; }
+.report-card__subject-table th:nth-child(3),
+.report-card__subject-table td:nth-child(3) { width: 11%; text-align: center; }
+.report-card__subject-table th:nth-child(4),
+.report-card__subject-table td:nth-child(4) { width: 11%; text-align: center; }
+.report-card__subject-table th:nth-child(5),
+.report-card__subject-table td:nth-child(5) { width: 11%; text-align: center; }
+.report-card__subject-table th:nth-child(6),
+.report-card__subject-table td:nth-child(6) { width: 26%; text-align: left; white-space: normal; }
 /* Safety net for a row wider than the card (a very long subject name or
    remark, or just a phone screen): the wrapping .table-wrap above already
    scrolls horizontally instead of overflowing the page - see that rule. */
