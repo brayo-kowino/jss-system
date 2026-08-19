@@ -1,6 +1,6 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, REVOKE_REASONS } from "../js/services/subscription.service.js";
-import { invalidateSchoolSettingsCache, refreshSchoolChrome } from "../js/components/shell.js";
+import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor } from "../js/components/shell.js";
 import { getCurrentSchoolId, refreshCurrentSchool } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
@@ -339,6 +339,7 @@ function applyThemePreset(t) {
     status.append(...(active ? [icon("check_circle")] : []), active ? "Installed" : "Apply");
   }
   updateThemePreview(t.primary, t.secondary);
+  updateThemeColor(t.primary);
   toast(`${t.name} theme ready to save.`, "info", 2500);
 }
 
@@ -582,6 +583,17 @@ export function init({ profile }) {
       restore();
     }
   });
+
+  const themeInput = document.getElementById("themeColor");
+  const secondaryInput = document.getElementById("secondaryColor");
+  if (themeInput && secondaryInput) {
+    const onColorChange = () => {
+      updateThemePreview(themeInput.value, secondaryInput.value);
+      updateThemeColor(themeInput.value);
+    };
+    themeInput.addEventListener("input", onColorChange);
+    secondaryInput.addEventListener("input", onColorChange);
+  }
 
   document.getElementById("branding-form").addEventListener("submit", async (e) => {
     e.preventDefault();

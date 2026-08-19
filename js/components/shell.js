@@ -46,8 +46,21 @@ function shade(hex, amt) {
 // resolved school (e.g. super_admin/Platform Admin).
 const DEFAULT_TITLE = document.title;
 
+export function updateThemeColor(color) {
+  if (!color || typeof document === "undefined") return;
+  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  if (!metas.length) {
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    meta.content = color;
+    document.head.appendChild(meta);
+  } else {
+    metas.forEach((m) => m.setAttribute("content", color));
+  }
+}
+
 // Re-themes the whole app (sidebar, buttons, letterhead accents, browser
-// tab title) to a school's chosen brand - colors from CSS custom properties
+// tab title, PWA status bar / window title bar) to a school's chosen brand - colors from CSS custom properties
 // every stylesheet already keys off of, plus the tab title so a user with
 // several schools open in different tabs can tell them apart at a glance.
 export function applyBranding(settings) {
@@ -61,6 +74,7 @@ export function applyBranding(settings) {
   root.setProperty("--color-gold-soft", shade(accent, 60));
   document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;
   setFavicon(settings?.logoUrl || "/assets/logo.png");
+  updateThemeColor(primary);
 }
 
 const NAV = [
