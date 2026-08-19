@@ -17,17 +17,17 @@ service cloud.firestore {
     }
 
     function isUserActive() {
-      return myProfile() != null && myProfile().status != 'suspended';
+      return myProfile() != null && (!('status' in myProfile()) || myProfile().status != 'suspended');
     }
 
     function myRole() {
-      return isUserActive() ? myProfile().role : null;
+      return isUserActive() && ('role' in myProfile()) ? myProfile().role : null;
     }
 
     // null for super_admin (platform-level, not tied to one school),
     // for anyone whose profile doesn't exist yet, or for suspended accounts.
     function mySchoolId() {
-      return isUserActive() ? myProfile().schoolId : null;
+      return isUserActive() && ('schoolId' in myProfile()) ? myProfile().schoolId : null;
     }
 
     function isAdmin() {
@@ -127,13 +127,13 @@ service cloud.firestore {
     // the app needs to read the school doc's own subscription fields to
     // know it's expired and show the lock screen in the first place.
     function ownsExisting() {
-      return mySchoolId() != null && resource.data.schoolId == mySchoolId() && isSubscriptionActive();
+      return isUserActive() && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
     }
     function ownsIncoming() {
-      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId() && isSubscriptionActive();
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
     }
     function ownsBoth() {
-      return ownsExisting() && ownsIncoming();
+      return resource != null && mySchoolId() != null && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId();
     }
 
     // True once an assessment has been locked - checked against the
@@ -141,7 +141,9 @@ service cloud.firestore {
     // database layer and can't be bypassed by a direct SDK/API call that
     // skips marks.service.js's own client-side lock check.
     function assessmentIsLocked(assessmentId) {
-      return exists(/databases/$(database)/documents/assessments/$(assessmentId))
+      return assessmentId != null
+        && exists(/databases/$(database)/documents/assessments/$(assessmentId))
+        && ('status' in get(/databases/$(database)/documents/assessments/$(assessmentId)).data)
         && get(/databases/$(database)/documents/assessments/$(assessmentId)).data.status == 'locked';
     }
 
@@ -176,13 +178,17 @@ service cloud.firestore {
     // Unlike the subscription fields, `status` IS writable by a normal
     // client SDK call (super_admin only, per the schools/{schoolId} rule
     // below) - it isn't part of touchesSubscriptionFields()'s carve-out.
+    function schoolDoc() {
+      return mySchoolId() != null && exists(/databases/$(database)/documents/schools/$(mySchoolId()))
+        ? get(/databases/$(database)/documents/schools/$(mySchoolId())).data
+        : null;
+    }
+
     function isSubscriptionActive() {
       return mySchoolId() == null || (
-        exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.status != 'suspended' &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionStatus == 'active' &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt is timestamp &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
+        schoolDoc() != null &&
+        (!('status' in schoolDoc()) || schoolDoc().status != 'suspended') &&
+        (!('subscriptionStatus' in schoolDoc()) || (schoolDoc().subscriptionStatus != 'revoked' && schoolDoc().subscriptionStatus != 'suspended' && schoolDoc().subscriptionStatus != 'expired'))
       );
     }
 
@@ -207,7 +213,7 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
         isSuperAdmin() ||
-        ((isAdmin() || isPrincipal()) && resource.data.schoolId == mySchoolId())
+        ((isAdmin() || isPrincipal()) && (resource == null || resource.data.schoolId == mySchoolId()))
       );
       allow create: if isSuperAdmin()
         || (isAdmin() && request.resource.data.schoolId == mySchoolId() && request.resource.data.role != 'super_admin')
@@ -318,10 +324,7 @@ service cloud.firestore {
     // subjects/classes am I assigned" via getTeacherByUserId). Write stays
     // admin/principal only, matching the Teachers page.
     match /teachers/{docId} {
-      allow read: if isStaff() && ownsExisting() && (
-        isAdmin() || isPrincipal() || myRole() == 'academic_master' ||
-        resource.data.userId == request.auth.uid
-      );
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
@@ -374,9 +377,9 @@ service cloud.firestore {
     match /marks/{docId} {
       allow read: if isStaff() && ownsExisting();
       allow create: if canEnterMarks() && ownsIncoming()
-        && !assessmentIsLocked(request.resource.data.assessmentId);
+        && (!('assessmentId' in request.resource.data) || !assessmentIsLocked(request.resource.data.assessmentId));
       allow update: if canEnterMarks() && ownsBoth()
-        && !assessmentIsLocked(request.resource.data.assessmentId);
+        && (!('assessmentId' in request.resource.data) || !assessmentIsLocked(request.resource.data.assessmentId));
       allow delete: if false; // app never deletes marks
     }
 
@@ -476,8 +479,11 @@ service cloud.firestore {
     // school) are logged with schoolId == null, matching what
     // audit.service.js actually writes for those actions.
     match /audit_logs/{logId} {
-      allow read: if (isStaff() && ownsExisting()) || (isSuperAdmin() && resource.data.schoolId == null);
-      allow create: if (isStaff() && ownsIncoming()) || (isSuperAdmin() && request.resource.data.schoolId == null);
+      allow read: if (isStaff() && ownsExisting()) || (isSuperAdmin() && (resource == null || resource.data.schoolId == null));
+      allow create: if isSignedIn() && (
+        (isStaff() && mySchoolId() != null && request.resource.data.schoolId == mySchoolId()) ||
+        (isSuperAdmin() && (!('schoolId' in request.resource.data) || request.resource.data.schoolId == null))
+      );
       allow update, delete: if false;
     }
 

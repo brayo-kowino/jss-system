@@ -3,8 +3,8 @@ import { getSchoolSettings } from "../js/services/settings.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { listTeachers } from "../js/services/teacher.service.js";
 import { listResultsByPeriod } from "../js/services/grading.service.js";
-import { listFeeStatusesForPeriod, formatKES } from "../js/services/fee.service.js";
-import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice } from "../js/utils.js";
+import { listFeeStatusesForPeriod, backfillAllFeeStatuses, formatKES } from "../js/services/fee.service.js";
+import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice, busyButton } from "../js/utils.js";
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 
 Chart.register(...registerables);
@@ -318,8 +318,25 @@ async function renderFeeReport(container) {
   table.append(tbody);
   tableWrap.append(table);
   
-  container.innerHTML = `<h3>Fee Status Report</h3>`;
-  container.append(grid, balances.length ? tableWrap : el("p", { class: "text-muted" }, "No pending balances for the selected criteria."));
+  container.innerHTML = "";
+  const headerRow = el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:16px;" }, [
+    el("h3", { style: "margin:0;" }, `Fee Status Report: ${escapeHtml(selection.grade || "All Grades")} (${escapeHtml(selection.term)} ${escapeHtml(selection.academicYear)})`),
+    el("button", {
+      class: "btn btn--ghost btn--sm",
+      onClick: async (e) => {
+        const restore = busyButton(e.currentTarget, "Syncing…");
+        try {
+          const count = await backfillAllFeeStatuses(selection.academicYear, selection.term);
+          toast(`Synced fee balances for ${count} student(s).`, "success");
+          await renderFeeReport(container);
+        } catch (err) {
+          toast(err.message || "Could not sync balances.", "error");
+          restore();
+        }
+      },
+    }, [icon("sync"), "Sync Balances"]),
+  ]);
+  container.append(headerRow, grid, balances.length ? tableWrap : el("p", { class: "text-muted" }, "No pending balances for the selected criteria."));
 
   const ctx = document.getElementById("analyticsChart");
   activeChart = new Chart(ctx, {
