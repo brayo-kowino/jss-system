@@ -791,7 +791,7 @@
   }
   .sidebar-backdrop.open { opacity: 1; pointer-events: auto; }
 
-  .topbar { padding: 0 var(--sp-3); }
+  .topbar { padding: 8px var(--sp-3); }
   .topbar__school-name { font-size: var(--fs-base); }
   .topbar__title { display: none; }
   .topbar__user > div:first-child { display: none; }
