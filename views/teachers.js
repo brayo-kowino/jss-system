@@ -130,7 +130,8 @@ function renderLoginsTab(container, profile) {
       // Only admin can write to another user's login doc (firestore.rules
       // restricts users/{uid} update to admin, not principal) - hiding this
       // for principal avoids an action that would just fail on click.
-      if (profile.role === "admin") {
+      // An admin also cannot suspend their own logged-in account.
+      if (profile.role === "admin" && u.uid !== profile.uid) {
         actions.push(el("button", {
           class: "btn btn--ghost btn--sm",
           onClick: () => toggleLoginStatus(profile, u),

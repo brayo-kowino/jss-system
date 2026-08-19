@@ -194,21 +194,22 @@ export function validateStudentRows(rawRows, { classes = [], existingStudents = 
     if (!data.fullName) issues.push({ field: "fullName", level: "blocked", message: "Full name is required." });
 
     // --- Gender (required, must map to Male/Female) ---
-    const genderKey = raw.gender.trim().toLowerCase();
+    const genderKey = (raw.gender || "").trim().toLowerCase();
     data.gender = GENDER_MAP[genderKey] || "";
     if (!data.gender) issues.push({ field: "gender", level: "blocked", message: `Gender must be Male or Female (got "${raw.gender || "blank"}").` });
 
     // --- Grade (required, must match a real class) ---
-    const cls = classes.find((c) => c.grade.toLowerCase() === raw.grade.trim().toLowerCase());
+    const rawGrade = (raw.grade || "").trim();
+    const cls = classes.find((c) => c.grade.toLowerCase() === rawGrade.toLowerCase());
     data.grade = cls?.grade || "";
-    if (!raw.grade.trim()) {
+    if (!rawGrade) {
       issues.push({ field: "grade", level: "blocked", message: "Grade is required." });
     } else if (!cls) {
-      issues.push({ field: "grade", level: "blocked", message: `"${raw.grade}" doesn't match any class set up under Classes & Streams.` });
+      issues.push({ field: "grade", level: "blocked", message: `"${rawGrade}" doesn't match any class set up under Classes & Streams.` });
     }
 
     // --- Stream (required only if the matched grade has streams defined) ---
-    data.stream = raw.stream.trim();
+    data.stream = (raw.stream || "").trim();
     if (cls?.streams?.length) {
       const streamMatch = cls.streams.find((s) => s.toLowerCase() === data.stream.toLowerCase());
       if (streamMatch) {
@@ -226,12 +227,12 @@ export function validateStudentRows(rawRows, { classes = [], existingStudents = 
     // --- Date of birth (optional, best-effort parse) ---
     const dob = parseDob(raw.dob);
     data.dob = dob.value;
-    if (raw.dob.trim() && !dob.ok) {
+    if ((raw.dob || "").trim() && !dob.ok) {
       issues.push({ field: "dob", level: "warning", message: `Couldn't read date "${raw.dob}" - left blank, expected YYYY-MM-DD.` });
     }
 
     // --- Admission number (optional, but flagged + placeholder if missing; duplicates flagged) ---
-    data.admissionNumber = raw.admissionNumber.trim();
+    data.admissionNumber = (raw.admissionNumber || "").trim();
     let duplicateOf = null;
     let autoAssigned = false;
     if (!data.admissionNumber) {

@@ -44,7 +44,7 @@ export default async (request: Request, context: Context) => {
     console.error("subscription-tokens-list: caller lookup failed", err);
     return jsonResponse({ error: "Subscription service is temporarily unavailable." }, 500);
   }
-  if (!caller || caller.role !== "super_admin") {
+  if (!caller || caller.status === "suspended" || caller.role !== "super_admin") {
     return jsonResponse({ error: "Only the platform administrator can view token history." }, 403);
   }
 

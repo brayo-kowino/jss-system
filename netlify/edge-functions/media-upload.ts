@@ -32,7 +32,7 @@
 
 import type { Context } from "https://edge.netlify.com";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
-import { verifyFirebaseIdToken } from "./lib/firestore-rest.ts";
+import { verifyFirebaseIdToken, getAccessToken, getFsDoc } from "./lib/firestore-rest.ts";
 
 const CLOUDINARY_CLOUD_NAME = "xtselsxh"; 
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
@@ -94,7 +94,8 @@ export default async (request: Request, context: Context) => {
 
   const authHeader = request.headers.get("authorization") || "";
   const idToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!idToken || !(await verifyFirebaseIdToken(idToken))) {
+  const uid = await verifyFirebaseIdToken(idToken);
+  if (!idToken || !uid) {
     return jsonResponse({ error: "You must be signed in to upload files." }, 401);
   }
 
@@ -105,6 +106,25 @@ export default async (request: Request, context: Context) => {
     // server-side so it shows up in Netlify's function logs.
     console.error("media-upload: CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET not set");
     return jsonResponse({ error: "Upload service is temporarily unavailable." }, 500);
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await getAccessToken();
+  } catch (err) {
+    console.error("media-upload: service account auth failed", err);
+    return jsonResponse({ error: "Upload service is temporarily unavailable." }, 500);
+  }
+
+  let caller: Record<string, any> | null;
+  try {
+    caller = await getFsDoc(accessToken, `users/${uid}`);
+  } catch (err) {
+    console.error("media-upload: caller lookup failed", err);
+    return jsonResponse({ error: "Upload service is temporarily unavailable." }, 500);
+  }
+  if (!caller || caller.status === "suspended") {
+    return jsonResponse({ error: "Your account is suspended." }, 403);
   }
 
   let incomingForm: FormData;

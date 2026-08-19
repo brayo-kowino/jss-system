@@ -78,8 +78,8 @@ export default async (request: Request, context: Context) => {
     console.error("subscription-activate: caller lookup failed", err);
     return jsonResponse({ error: "Subscription service is temporarily unavailable." }, 500);
   }
-  if (!caller || caller.role !== "admin" || !caller.schoolId) {
-    return jsonResponse({ error: "Only a school administrator can activate a subscription." }, 403);
+  if (!caller || caller.status === "suspended" || caller.role !== "admin" || !caller.schoolId) {
+    return jsonResponse({ error: "Only an active school administrator can activate a subscription." }, 403);
   }
   if (caller.schoolId !== payload.sid) {
     return jsonResponse({ error: "This token was issued for a different school." }, 403);

@@ -6,13 +6,20 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:rules": "vitest run tests/rules/",
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "@netlify/blobs": "^8.2.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "firebase-admin": "^14.2.0",
+    "happy-dom": "^20.11.2",
     "javascript-obfuscator": "^4.1.1",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^4.1.11"
   }
 }

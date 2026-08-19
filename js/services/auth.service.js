@@ -131,6 +131,39 @@ let currentSchool = readCachedSchool();
 // got locked out). Torn down on sign-out/account switch so it never leaks
 // a listener onto the next session in the same tab.
 let unsubscribeSchoolListener = null;
+let unsubscribeProfileListener = null;
+
+function watchCurrentUser(uid, onChange) {
+  unsubscribeProfileListener?.();
+  unsubscribeProfileListener = onSnapshot(
+    doc(db, "users", uid),
+    async (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.status === "suspended") {
+          currentProfile = null;
+          currentSchool = null;
+          writeCachedProfile(null);
+          writeCachedSchool(null);
+          syncSchoolIdCookie(null);
+          unsubscribeProfileListener?.();
+          unsubscribeProfileListener = null;
+          unsubscribeSchoolListener?.();
+          unsubscribeSchoolListener = null;
+          await signOut(auth);
+          const { toast } = await import("../utils.js");
+          toast("Your account has been suspended.", "error");
+          onChange(null);
+          return;
+        }
+        currentProfile = { uid, ...data };
+        writeCachedProfile(currentProfile);
+      }
+      onChange(currentProfile);
+    },
+    () => {}
+  );
+}
 
 function watchCurrentSchool(schoolId, onChange) {
   unsubscribeSchoolListener?.();
@@ -151,6 +184,8 @@ export function onAuthChange(callback) {
   return onAuthStateChanged(auth, async (fbUser) => {
     unsubscribeSchoolListener?.();
     unsubscribeSchoolListener = null;
+    unsubscribeProfileListener?.();
+    unsubscribeProfileListener = null;
     if (!fbUser) {
       currentProfile = null;
       currentSchool = null;
@@ -162,6 +197,18 @@ export function onAuthChange(callback) {
     }
     try {
       const liveProfile = await fetchProfile(fbUser.uid);
+      if (liveProfile?.status === "suspended") {
+        currentProfile = null;
+        currentSchool = null;
+        writeCachedProfile(null);
+        writeCachedSchool(null);
+        syncSchoolIdCookie(null);
+        await signOut(auth);
+        const { toast } = await import("../utils.js");
+        toast("This account has been suspended.", "error");
+        callback(null);
+        return;
+      }
       if (liveProfile) {
         currentProfile = liveProfile;
         writeCachedProfile(currentProfile);
@@ -199,7 +246,7 @@ export function onAuthChange(callback) {
       }
     }
 
-    if (!currentProfile) {
+    if (!currentProfile || currentProfile.status === "suspended") {
       callback(null);
       return;
     }
@@ -209,12 +256,14 @@ export function onAuthChange(callback) {
     // status cookie this replaced (see the comment above
     // syncSchoolIdCookie() for why that distinction matters).
     syncSchoolIdCookie(currentProfile?.schoolId || null);
-    if (currentProfile?.schoolId && navigator.onLine) {
-      // Re-render on every subsequent change so a suspension/expiry (or a
-      // reactivation/renewal) shows up immediately without a page reload.
-      // The callback itself does the routing work (see app.js's
-      // onAuthChange wiring), so re-invoking it is what re-runs the router.
-      watchCurrentSchool(currentProfile.schoolId, () => callback(currentProfile));
+    if (navigator.onLine) {
+      // Real-time account status watcher: instantly signs out if suspended by admin
+      watchCurrentUser(fbUser.uid, (p) => callback(p));
+      if (currentProfile?.schoolId) {
+        // Re-render on every subsequent change so a suspension/expiry (or a
+        // reactivation/renewal) shows up immediately without a page reload.
+        watchCurrentSchool(currentProfile.schoolId, () => callback(currentProfile));
+      }
     }
     callback(currentProfile);
   });
@@ -379,6 +428,9 @@ export async function listSchoolUsers(forceRefresh = false) {
 }
 
 export async function setUserStatus(actingUserId, uid, status) {
+  if (uid === actingUserId && status === "suspended") {
+    throw new Error("You cannot suspend your own account.");
+  }
   await setDoc(doc(db, "users", uid), { status }, { merge: true });
   invalidate(schoolUsersCacheKey(getCurrentSchoolId()));
   await logAction(actingUserId, `${status}_user`, "users", uid);

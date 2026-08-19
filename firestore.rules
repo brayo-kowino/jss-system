@@ -16,14 +16,18 @@ service cloud.firestore {
         : null;
     }
 
-    function myRole() {
-      return myProfile() != null ? myProfile().role : null;
+    function isUserActive() {
+      return myProfile() != null && myProfile().status != 'suspended';
     }
 
-    // null for super_admin (platform-level, not tied to one school) and
-    // for anyone whose profile doesn't exist yet.
+    function myRole() {
+      return isUserActive() ? myProfile().role : null;
+    }
+
+    // null for super_admin (platform-level, not tied to one school),
+    // for anyone whose profile doesn't exist yet, or for suspended accounts.
     function mySchoolId() {
-      return myProfile() != null ? myProfile().schoolId : null;
+      return isUserActive() ? myProfile().schoolId : null;
     }
 
     function isAdmin() {
@@ -123,10 +127,13 @@ service cloud.firestore {
     // the app needs to read the school doc's own subscription fields to
     // know it's expired and show the lock screen in the first place.
     function ownsExisting() {
-      return resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId() && isSubscriptionActive());
+      return mySchoolId() != null && resource.data.schoolId == mySchoolId() && isSubscriptionActive();
     }
     function ownsIncoming() {
       return mySchoolId() != null && request.resource.data.schoolId == mySchoolId() && isSubscriptionActive();
+    }
+    function ownsBoth() {
+      return ownsExisting() && ownsIncoming();
     }
 
     // True once an assessment has been locked - checked against the
@@ -203,14 +210,17 @@ service cloud.firestore {
         ((isAdmin() || isPrincipal()) && resource.data.schoolId == mySchoolId())
       );
       allow create: if isSuperAdmin()
-        || (isAdmin() && request.resource.data.schoolId == mySchoolId())
+        || (isAdmin() && request.resource.data.schoolId == mySchoolId() && request.resource.data.role != 'super_admin')
         || (isPrincipal() && request.resource.data.schoolId == mySchoolId()
             && request.resource.data.role in ['class_teacher', 'subject_teacher']);
       allow update: if isSuperAdmin()
-        || (isAdmin() && resource.data.schoolId == mySchoolId())
-        || (request.auth.uid == uid
+        || (isAdmin() && resource.data.schoolId == mySchoolId()
+            && resource.data.role != 'super_admin'
+            && request.resource.data.role != 'super_admin'
+            && request.resource.data.schoolId == mySchoolId())
+        || (isUserActive() && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt']));
-      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
+      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && resource.data.role != 'super_admin');
     }
 
     // School registry + per-school settings/branding doc (schools/{id} -
@@ -253,7 +263,8 @@ service cloud.firestore {
     // are only ever made from settings.service.js/school.service.js.
     match /school_public/{slug} {
       allow read: if true;
-      allow create, update: if isSuperAdmin() || (isAdmin() && request.resource.data.schoolId == mySchoolId());
+      allow create: if isSuperAdmin() || (isAdmin() && request.resource.data.schoolId == mySchoolId());
+      allow update: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId());
       allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId());
     }
 
@@ -275,7 +286,8 @@ service cloud.firestore {
     // edit controls to.
     match /students/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsBoth();
       allow delete: if false; // app never deletes students, only archives/transfers via update
     }
 
@@ -285,7 +297,8 @@ service cloud.firestore {
     // save. Read stays staff-wide (report cards, contact lookups, etc).
     match /parents/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsBoth();
       allow delete: if false; // app never deletes parents
     }
 
@@ -293,7 +306,8 @@ service cloud.firestore {
     // only from the Students page, so same group as students.
     match /student_issues/{docId} {
       allow read: if canManageStudents() && ownsExisting();
-      allow create, update: if canManageStudents() && ownsIncoming();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if canManageStudents() && ownsBoth();
       allow delete: if false;
     }
 
@@ -308,7 +322,8 @@ service cloud.firestore {
         isAdmin() || isPrincipal() || myRole() == 'academic_master' ||
         resource.data.userId == request.auth.uid
       );
-      allow create, update: if canManageTeachers() && ownsIncoming();
+      allow create: if canManageTeachers() && ownsIncoming();
+      allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
     }
 
@@ -316,24 +331,28 @@ service cloud.firestore {
     // everywhere), write restricted to whoever manages term structure.
     match /classes/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /subjects/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
 
     // Timetable periods + slots - same group as above.
     match /periods/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /timetable_slots/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAcademicStructure() && ownsIncoming();
+      allow create: if canManageAcademicStructure() && ownsIncoming();
+      allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
 
@@ -342,7 +361,8 @@ service cloud.firestore {
     // academic_master, including locking/reopening and deleting.
     match /assessments/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageAssessments() && ownsIncoming();
+      allow create: if canManageAssessments() && ownsIncoming();
+      allow update: if canManageAssessments() && ownsBoth();
       allow delete: if canManageAssessments() && ownsExisting();
     }
 
@@ -353,7 +373,9 @@ service cloud.firestore {
     // instead of going through marks.service.js.
     match /marks/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canEnterMarks() && ownsIncoming()
+      allow create: if canEnterMarks() && ownsIncoming()
+        && !assessmentIsLocked(request.resource.data.assessmentId);
+      allow update: if canEnterMarks() && ownsBoth()
         && !assessmentIsLocked(request.resource.data.assessmentId);
       allow delete: if false; // app never deletes marks
     }
@@ -369,7 +391,8 @@ service cloud.firestore {
     // the natural next step after Save Results.
     match /result_releases/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canComputeResults() && ownsIncoming();
+      allow create: if canComputeResults() && ownsIncoming();
+      allow update: if canComputeResults() && ownsBoth();
       allow delete: if false;
     }
 
@@ -381,7 +404,7 @@ service cloud.firestore {
     match /results/{docId} {
       allow read: if isStaff() && ownsExisting();
       allow create: if canComputeResults() && ownsIncoming();
-      allow update: if ownsIncoming() && (
+      allow update: if ownsBoth() && (
         canComputeResults() ||
         (myRole() == 'class_teacher' &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['teacherRemark', 'updatedAt'])) ||
@@ -396,7 +419,8 @@ service cloud.firestore {
     // which roster they're shown) and admin/principal (any class).
     match /attendance/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canMarkAttendance() && ownsIncoming();
+      allow create: if canMarkAttendance() && ownsIncoming();
+      allow update: if canMarkAttendance() && ownsBoth();
       allow delete: if false;
     }
 
@@ -404,7 +428,8 @@ service cloud.firestore {
     // for every role that can print one), write admin/bursar only.
     match /fees/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageFees() && ownsIncoming();
+      allow create: if canManageFees() && ownsIncoming();
+      allow update: if canManageFees() && ownsBoth();
       allow delete: if canManageFees() && ownsExisting();
     }
 
@@ -415,7 +440,8 @@ service cloud.firestore {
     // the same data and gated by the same actions.
     match /student_fee_status/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageFees() && ownsIncoming();
+      allow create: if canManageFees() && ownsIncoming();
+      allow update: if canManageFees() && ownsBoth();
       allow delete: if canManageFees() && ownsExisting();
     }
 
@@ -434,12 +460,14 @@ service cloud.firestore {
     // subject_teacher).
     match /notifications/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageComms() && ownsIncoming();
+      allow create: if canManageComms() && ownsIncoming();
+      allow update: if canManageComms() && ownsBoth();
       allow delete: if canManageComms() && ownsExisting();
     }
     match /newsletters/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create, update: if canManageComms() && ownsIncoming();
+      allow create: if canManageComms() && ownsIncoming();
+      allow update: if canManageComms() && ownsBoth();
       allow delete: if canManageComms() && ownsExisting();
     }
 
