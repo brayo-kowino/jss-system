@@ -687,6 +687,7 @@
   align-items: center;
   gap: var(--sp-3);
   font-size: var(--fs-sm);
+  flex-shrink: 0;
 }
 .topbar__user-role {
   font-size: var(--fs-xs);
@@ -702,11 +703,164 @@
 .topbar__offline-pill .icon {
   font-size: 14px;
 }
+
+/* User profile avatar & dropdown */
+.topbar__profile-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.topbar__profile-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: 3px 6px;
+  cursor: pointer;
+  color: var(--color-ink);
+  transition: background var(--transition), border-color var(--transition);
+  text-align: left;
+}
+.topbar__profile-btn:hover {
+  background: var(--color-primary-50, rgba(0, 0, 0, 0.04));
+  border-color: var(--color-line);
+}
+.topbar__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-primary-800);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+.topbar__avatar--lg {
+  width: 44px;
+  height: 44px;
+  font-size: var(--fs-sm);
+}
+.topbar__user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  max-width: 140px;
+}
+.topbar__user-name {
+  font-weight: 600;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-ink);
+}
+.topbar__profile-chevron {
+  font-size: 18px !important;
+  color: var(--color-ink-soft);
+  transition: transform var(--transition);
+}
+.topbar__profile-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 250px;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--sp-2) 0;
+  z-index: 1000;
+  animation: fadeIn 0.15s ease-out;
+}
+.topbar__profile-dropdown.open {
+  display: block;
+}
+.topbar__profile-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+}
+.topbar__profile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.topbar__profile-name {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar__profile-email {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar__profile-role-badge {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.topbar__profile-divider {
+  height: 1px;
+  background: var(--color-line);
+  margin: var(--sp-1) 0;
+}
+.topbar__profile-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 8px var(--sp-4);
+  background: none;
+  border: none;
+  color: var(--color-ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition);
+}
+.topbar__profile-item:hover {
+  background: var(--color-cream-dim);
+}
+.topbar__profile-item--danger {
+  color: var(--color-red);
+}
+.topbar__profile-item--danger:hover {
+  background: #FDECEA;
+}
+.topbar__signout-btn {
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1150px) {
+  /* On medium/narrow screens, collapse user text to just the avatar circle */
+  .topbar__user-info {
+    display: none;
+  }
+}
+@media (max-width: 900px) {
+  /* Hide the label on the topbar signout button to prevent wrapping */
+  .topbar__signout-btn .topbar__btn-label {
+    display: none;
+  }
+}
 @media (max-width: 860px) {
-  /* Name/role already hide at this width (see the rule above targeting
-     .topbar__user > div:first-child) - the pill's text would otherwise be
-     the widest thing left in a cramped topbar, so it collapses to just the
-     icon here too. */
   .topbar__offline-pill span:not(.icon) {
     display: none;
   }
@@ -797,8 +951,6 @@
   .topbar { padding: 8px var(--sp-3); }
   .topbar__school-name { font-size: var(--fs-base); }
   .topbar__title { display: none; }
-  .topbar__user > div:first-child { display: none; }
-  .topbar__user .btn span:not(.icon) { display: none; }
   /* Tour walks through sidebar/search targets that are awkward to reach
      on a phone (off-canvas sidebar, no hover states) - hide the trigger
      rather than ship a tour that doesn't work well on the surface it's on.

@@ -636,15 +636,94 @@ export function renderShell(app, profile, activePath) {
     },
     [icon("help")]
   );
+  function getInitials(nameOrEmail) {
+    if (!nameOrEmail) return "U";
+    const parts = nameOrEmail.trim().split(/[\s._-]+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return nameOrEmail.slice(0, 2).toUpperCase();
+  }
+
+  function renderUserProfileMenu() {
+    const initials = getInitials(profile.fullName || profile.email);
+    const wrap = el("div", { class: "topbar__profile-wrap" });
+
+    const trigger = el(
+      "button",
+      {
+        type: "button",
+        class: "topbar__profile-btn",
+        "aria-label": "User profile menu",
+        title: `${profile.fullName || profile.email} (${roleLabel(profile.role)})`,
+      },
+      [
+        el("span", { class: "topbar__avatar" }, initials),
+        el("div", { class: "topbar__user-info" }, [
+          el("div", { class: "topbar__user-name" }, profile.fullName || profile.email),
+          el("div", { class: "topbar__user-role" }, roleLabel(profile.role)),
+        ]),
+        el("span", { class: "material-symbols-rounded topbar__profile-chevron" }, "expand_more"),
+      ]
+    );
+
+    const dropdown = el("div", { class: "topbar__profile-dropdown" }, [
+      el("div", { class: "topbar__profile-header" }, [
+        el("div", { class: "topbar__avatar topbar__avatar--lg" }, initials),
+        el("div", { class: "topbar__profile-meta" }, [
+          el("div", { class: "topbar__profile-name" }, profile.fullName || profile.email),
+          el("div", { class: "topbar__profile-email" }, profile.email || ""),
+          el("span", { class: "badge badge--gold topbar__profile-role-badge" }, roleLabel(profile.role)),
+        ]),
+      ]),
+      el("div", { class: "topbar__profile-divider" }),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            location.hash = "/change-password";
+          },
+        },
+        [icon("lock_reset"), "Change password"]
+      ),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item topbar__profile-item--danger",
+          onClick: handleLogout,
+        },
+        [icon("logout"), "Sign out"]
+      ),
+    ]);
+
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dropdown.classList.toggle("open");
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!wrap.contains(e.target)) {
+        dropdown.classList.remove("open");
+      }
+    });
+
+    wrap.append(trigger, dropdown);
+    return wrap;
+  }
+
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     offlineStatusPill(),
-    el("div", {}, [
-      el("div", {}, profile.fullName || profile.email),
-      el("div", { class: "topbar__user-role" }, roleLabel(profile.role)),
-    ]),
+    renderUserProfileMenu(),
     installButton(),
     tourButton,
-    el("button", { class: "btn btn--ghost btn--sm", onClick: handleLogout }, [icon("logout"), "Sign out"]),
+    el("button", { class: "btn btn--ghost btn--sm topbar__signout-btn", title: "Sign out", onClick: handleLogout }, [
+      icon("logout"),
+      el("span", { class: "topbar__btn-label" }, "Sign out"),
+    ]),
   ]);
   topbar.append(userBox);
 
