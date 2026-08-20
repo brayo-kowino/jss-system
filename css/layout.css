@@ -728,23 +728,27 @@
   border-color: var(--color-line);
 }
 .topbar__avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--color-primary-800);
-  color: var(--color-white);
-  display: flex;
+  background: var(--color-primary-700, #14538A);
+  color: #FFFFFF !important;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--fs-xs);
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 800;
   letter-spacing: 0.05em;
   flex-shrink: 0;
+  border: 2px solid var(--color-gold, #C9A227);
+  box-shadow: 0 1px 4px rgba(11, 37, 69, 0.18);
+  user-select: none;
 }
 .topbar__avatar--lg {
-  width: 44px;
-  height: 44px;
-  font-size: var(--fs-sm);
+  width: 48px;
+  height: 48px;
+  font-size: 1rem;
+  border-width: 2.5px;
 }
 .topbar__user-info {
   display: flex;
@@ -765,6 +769,9 @@
   font-size: 18px !important;
   color: var(--color-ink-soft);
   transition: transform var(--transition);
+}
+.topbar__profile-btn:hover .topbar__profile-chevron {
+  color: var(--color-primary-700);
 }
 .topbar__profile-dropdown {
   display: none;
@@ -843,20 +850,10 @@
 .topbar__profile-item--danger:hover {
   background: #FDECEA;
 }
-.topbar__signout-btn {
-  white-space: nowrap !important;
-  flex-shrink: 0;
-}
 
 @media (max-width: 1150px) {
   /* On medium/narrow screens, collapse user text to just the avatar circle */
   .topbar__user-info {
-    display: none;
-  }
-}
-@media (max-width: 900px) {
-  /* Hide the label on the topbar signout button to prevent wrapping */
-  .topbar__signout-btn .topbar__btn-label {
     display: none;
   }
 }

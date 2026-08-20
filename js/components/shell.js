@@ -717,13 +717,9 @@ export function renderShell(app, profile, activePath) {
 
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     offlineStatusPill(),
-    renderUserProfileMenu(),
     installButton(),
     tourButton,
-    el("button", { class: "btn btn--ghost btn--sm topbar__signout-btn", title: "Sign out", onClick: handleLogout }, [
-      icon("logout"),
-      el("span", { class: "topbar__btn-label" }, "Sign out"),
-    ]),
+    renderUserProfileMenu(),
   ]);
   topbar.append(userBox);
 
