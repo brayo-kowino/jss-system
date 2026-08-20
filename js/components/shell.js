@@ -613,18 +613,11 @@ export function renderShell(app, profile, activePath) {
   const tourButton = el(
     "button",
     {
-      class: "btn btn--ghost btn--sm btn--icon-only",
+      class: "topbar__icon-btn",
       "data-tour": "tour-trigger",
-      title: "Take a tour of this system",
-      "aria-label": "Take a tour of this system",
+      title: "Take a guided tour",
+      "aria-label": "Take a guided tour",
       onClick: () => {
-        // The tour points at sidebar text/search that only exist in
-        // expanded mode, so make sure it's expanded before it starts. The
-        // expand itself is animated (.shell's grid-template-columns
-        // transition, see --transition in variables.css), so the tour has
-        // to wait for that to actually finish before measuring anything -
-        // starting it immediately would spotlight wherever the sidebar
-        // was mid-animation, not its final expanded position/width.
         if (sidebar.classList.contains("sidebar--collapsed")) {
           saveSidebarCollapsed(false);
           applyCollapsedState(false);
@@ -634,7 +627,7 @@ export function renderShell(app, profile, activePath) {
         }
       },
     },
-    [icon("help")]
+    [icon("tour")]
   );
   function getInitials(nameOrEmail) {
     if (!nameOrEmail) return "U";
