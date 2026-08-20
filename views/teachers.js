@@ -123,27 +123,18 @@ function renderLoginsTab(container, profile) {
     const tbody = el("tbody", {});
     for (const u of logins) {
       const linkedTeacher = TEACHING_ROLES.includes(u.role) ? teachers.find((t) => t.userId === u.uid) : null;
-      const actions = [];
-      if (TEACHING_ROLES.includes(u.role) && linkedTeacher) {
-        actions.push(el("button", { class: "btn btn--ghost btn--sm", onClick: () => openAssignmentModal(profile, linkedTeacher) }, [icon("edit"), "Edit assignment"]));
-      }
-      // Only admin can write to another user's login doc (firestore.rules
-      // restricts users/{uid} update to admin, not principal) - hiding this
-      // for principal avoids an action that would just fail on click.
-      // An admin also cannot suspend their own logged-in account.
-      if (profile.role === "admin" && u.uid !== profile.uid) {
-        actions.push(el("button", {
-          class: "btn btn--ghost btn--sm",
-          onClick: () => toggleLoginStatus(profile, u),
-        }, [icon(u.status === "suspended" ? "restart_alt" : "pause_circle"), u.status === "suspended" ? "Reinstate" : "Suspend"]));
-      }
       tbody.append(el("tr", {}, [
         el("td", { "data-label": "Name" }, u.fullName || "—"),
         el("td", { "data-label": "Email" }, u.email || "—"),
         el("td", { "data-label": "Role" }, roleLabel(u.role)),
         el("td", { "data-label": "Teaching Record" }, linkedTeacher ? linkedTeacher.fullName : (TEACHING_ROLES.includes(u.role) ? el("span", { class: "text-muted" }, "Not linked") : el("span", { class: "text-muted" }, "—"))),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${u.status === "suspended" ? "muted" : "success"}` }, u.status === "suspended" ? "Suspended" : "Active")),
-        el("td", { class: "row-actions", "data-label": "Actions" }, actions),
+        el("td", { class: "row-actions", "data-label": "Actions" }, [
+          el("button", {
+            class: "btn btn--ghost btn--sm",
+            onClick: () => openLoginActionsModal(profile, u, linkedTeacher),
+          }, [icon("more_vert"), "Actions"]),
+        ]),
       ]));
     }
     table.append(tbody);
@@ -397,9 +388,10 @@ function renderRosterTab(container, profile) {
         el("td", { "data-label": "Classes" }, classNames || el("span", { class: "text-muted" }, "None")),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active")),
         el("td", { class: "row-actions", "data-label": "Actions" }, [
-          el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTeacherForm(profile, t) }, [icon("edit"), "Edit"]),
-          el("button", { class: "btn btn--ghost btn--sm", onClick: () => toggleTeacherStatus(profile, t) }, [icon(t.status === "active" ? "pause_circle" : "restart_alt"), t.status === "active" ? "Suspend" : "Reinstate"]),
-          el("button", { class: "btn btn--ghost btn--sm", onClick: () => openCreateLoginModal(profile, t) }, [icon("badge"), "Create Login"]),
+          el("button", {
+            class: "btn btn--ghost btn--sm",
+            onClick: () => openTeacherActionsModal(profile, t),
+          }, [icon("more_vert"), "Actions"]),
         ]),
       ]));
     }
@@ -410,6 +402,73 @@ function renderRosterTab(container, profile) {
   setTimeout(() => {
     document.getElementById("new-teacher-btn")?.addEventListener("click", () => openTeacherForm(profile));
   });
+}
+
+function openTeacherActionsModal(profile, teacher) {
+  const isSuspended = teacher.status === "suspended";
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+  
+  body.append(
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+      onClick: () => {
+        close();
+        openTeacherForm(profile, teacher);
+      }
+    }, [icon("edit"), "Edit Teacher Info & Assignments"]),
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
+      onClick: async () => {
+        close();
+        await toggleTeacherStatus(profile, teacher);
+      }
+    }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"]),
+    el("button", {
+      class: "btn btn--primary btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+      onClick: () => {
+        close();
+        openCreateLoginModal(profile, teacher);
+      }
+    }, [icon("badge"), "Create Staff System Login"])
+  );
+
+  const close = openModal(`Teacher Actions: ${teacher.fullName}`, body);
+}
+
+function openLoginActionsModal(profile, user, linkedTeacher) {
+  const isSuspended = user.status === "suspended";
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+  
+  if (TEACHING_ROLES.includes(user.role) && linkedTeacher) {
+    body.append(
+      el("button", {
+        class: "btn btn--ghost btn--block",
+        style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+        onClick: () => {
+          close();
+          openAssignmentModal(profile, linkedTeacher);
+        }
+      }, [icon("edit"), "Edit Teaching Assignments"])
+    );
+  }
+
+  if (profile.role === "admin" && user.uid !== profile.uid) {
+    body.append(
+      el("button", {
+        class: "btn btn--ghost btn--block",
+        style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
+        onClick: async () => {
+          close();
+          await toggleLoginStatus(profile, user);
+        }
+      }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Login Account" : "Suspend Login Account"])
+    );
+  }
+
+  const close = openModal(`Login Actions: ${user.fullName || user.email}`, body);
 }
 
 async function toggleTeacherStatus(profile, teacher) {
