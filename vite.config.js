@@ -62,20 +62,18 @@ function obfuscatorPlugin() {
         if (asset.type !== "chunk" || !fileName.endsWith(".js")) continue;
         const result = JavaScriptObfuscator.obfuscate(asset.code, {
           compact: true,
-          controlFlowFlattening: true,
-          controlFlowFlatteningThreshold: 0.6,
+          controlFlowFlattening: false,
           deadCodeInjection: false,
-          deadCodeInjectionThreshold: 0.3,
           stringArray: true,
-          stringArrayEncoding: ["base64"],
+          stringArrayEncoding: ["none"],
           stringArrayThreshold: 0.75,
-          rotateStringArray: true,
-          shuffleStringArray: true,
+          rotateStringArray: false,
+          shuffleStringArray: false,
           splitStrings: false,
           selfDefending: false, // needs 'unsafe-eval' — CSP doesn't allow it
           debugProtection: false, // same reason
           disableConsoleOutput: false, // app relies on console for its own error/audit paths
-          numbersToExpressions: true,
+          numbersToExpressions: false,
           simplify: true,
           identifierNamesGenerator: "hexadecimal",
           renameGlobals: false,

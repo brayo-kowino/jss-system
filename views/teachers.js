@@ -405,6 +405,7 @@ function renderRosterTab(container, profile) {
 }
 
 function openTeacherActionsModal(profile, teacher) {
+  let close;
   const isSuspended = teacher.status === "suspended";
   const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
   
@@ -413,7 +414,7 @@ function openTeacherActionsModal(profile, teacher) {
       class: "btn btn--ghost btn--block",
       style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
       onClick: () => {
-        close();
+        if (close) close();
         openTeacherForm(profile, teacher);
       }
     }, [icon("edit"), "Edit Teacher Info & Assignments"]),
@@ -421,7 +422,7 @@ function openTeacherActionsModal(profile, teacher) {
       class: "btn btn--ghost btn--block",
       style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
       onClick: async () => {
-        close();
+        if (close) close();
         await toggleTeacherStatus(profile, teacher);
       }
     }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"]),
@@ -429,16 +430,17 @@ function openTeacherActionsModal(profile, teacher) {
       class: "btn btn--primary btn--block",
       style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
       onClick: () => {
-        close();
+        if (close) close();
         openCreateLoginModal(profile, teacher);
       }
     }, [icon("badge"), "Create Staff System Login"])
   );
 
-  const close = openModal(`Teacher Actions: ${teacher.fullName}`, body);
+  close = openModal(`Teacher Actions: ${teacher.fullName}`, body);
 }
 
 function openLoginActionsModal(profile, user, linkedTeacher) {
+  let close;
   const isSuspended = user.status === "suspended";
   const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
   
@@ -448,7 +450,7 @@ function openLoginActionsModal(profile, user, linkedTeacher) {
         class: "btn btn--ghost btn--block",
         style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
         onClick: () => {
-          close();
+          if (close) close();
           openAssignmentModal(profile, linkedTeacher);
         }
       }, [icon("edit"), "Edit Teaching Assignments"])
@@ -461,14 +463,14 @@ function openLoginActionsModal(profile, user, linkedTeacher) {
         class: "btn btn--ghost btn--block",
         style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
         onClick: async () => {
-          close();
+          if (close) close();
           await toggleLoginStatus(profile, user);
         }
       }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Login Account" : "Suspend Login Account"])
     );
   }
 
-  const close = openModal(`Login Actions: ${user.fullName || user.email}`, body);
+  close = openModal(`Login Actions: ${user.fullName || user.email}`, body);
 }
 
 async function toggleTeacherStatus(profile, teacher) {
