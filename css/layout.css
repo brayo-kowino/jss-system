@@ -947,16 +947,11 @@
   .topbar { padding: 8px var(--sp-3); }
   .topbar__school-name { font-size: var(--fs-base); }
   .topbar__title { display: none; }
-  /* Tour walks through sidebar/search targets that are awkward to reach
-     on a phone (off-canvas sidebar, no hover states) - hide the trigger
-     rather than ship a tour that doesn't work well on the surface it's on.
-     Selector is `.btn[data-tour=...]` rather than the bare attribute: the
-     button's own `.btn { display: inline-flex }` in components.css (which
-     loads after this file) has equal specificity to a plain attribute
-     selector, so it was winning the cascade and the button stayed visible
-     despite this rule. Adding `.btn` here brings the specificity up to
-     0,2,0, which beats `.btn` (0,1,0) regardless of file order. */
-  .btn[data-tour="tour-trigger"] { display: none; }
+  [data-tour="tour-trigger"],
+  .topbar__icon-btn[data-tour="tour-trigger"],
+  .btn[data-tour="tour-trigger"] {
+    display: none !important;
+  }
 
   .main { padding: var(--sp-3); }
   .page-header h1, .page-header h2 { font-size: var(--fs-lg); }
