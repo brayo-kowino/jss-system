@@ -87,9 +87,14 @@ const lastKnown = readLastKnown();
  * either, returns { value: fallback, stale: false } - there's nothing
  * stale to show, so this isn't mislabeled as "stale."
  */
-export async function cachedWithFallback(key, fetchFn, fallback) {
+export async function cachedWithFallback(key, fetchFn, fallback, timeoutMs = 4000) {
   try {
-    const data = await fetchFn();
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Query timeout - using fallback")), timeoutMs);
+    });
+    const fetchPromise = Promise.resolve().then(fetchFn);
+    const data = await Promise.race([fetchPromise, timeoutPromise]).finally(() => clearTimeout(timer));
     lastKnown.set(key, data);
     writeLastKnown(lastKnown);
     return { value: data, stale: false };

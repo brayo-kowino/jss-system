@@ -148,7 +148,7 @@ let currentRenderToken = 0;
 // the original render() call - if it resolves later in the background,
 // its result is simply never used - so a real (just slow) connection that
 // comes through after the timeout doesn't leave anything half-applied.
-const RENDER_TIMEOUT_MS = 12_000;
+const RENDER_TIMEOUT_MS = 25_000;
 function withTimeout(promise, ms) {
   let timer;
   const timeout = new Promise((_, reject) => {
