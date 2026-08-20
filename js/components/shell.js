@@ -544,7 +544,7 @@ export function renderShell(app, profile, activePath) {
   // shift position as nav groups expand/collapse.
   const collapseBtn = el(
     "button",
-    { type: "button", class: "topbar__collapse-btn" },
+    { type: "button", class: "topbar__collapse-btn topbar__icon-btn" },
     [el("span", { class: "material-symbols-rounded icon" }, "left_panel_close")]
   );
   const applyCollapsedState = (collapsed) => {
@@ -567,7 +567,7 @@ export function renderShell(app, profile, activePath) {
   const backdrop = el("div", { class: "sidebar-backdrop", onClick: () => closeMobileNav() });
   const mobileMenuBtn = el(
     "button",
-    { type: "button", class: "topbar__mobile-menu-btn", "aria-label": "Open menu", title: "Open menu" },
+    { type: "button", class: "topbar__mobile-menu-btn topbar__icon-btn", "aria-label": "Open menu", title: "Open menu" },
     [el("span", { class: "material-symbols-rounded icon" }, "menu")]
   );
   function openMobileNav() {
@@ -615,8 +615,8 @@ export function renderShell(app, profile, activePath) {
     {
       class: "topbar__icon-btn",
       "data-tour": "tour-trigger",
-      title: "Take a guided tour",
-      "aria-label": "Take a guided tour",
+      title: "Guided system tour",
+      "aria-label": "Guided system tour",
       onClick: () => {
         if (sidebar.classList.contains("sidebar--collapsed")) {
           saveSidebarCollapsed(false);
@@ -627,7 +627,7 @@ export function renderShell(app, profile, activePath) {
         }
       },
     },
-    [icon("tour")]
+    [icon("smart_toy")]
   );
   function getInitials(nameOrEmail) {
     if (!nameOrEmail) return "U";
