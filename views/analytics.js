@@ -4,7 +4,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listTeachers } from "../js/services/teacher.service.js";
 import { listResultsByPeriod } from "../js/services/grading.service.js";
 import { listFeeStatusesForPeriod, backfillAllFeeStatuses, formatKES } from "../js/services/fee.service.js";
-import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice, busyButton } from "../js/utils.js";
+import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice, busyButton, getBrandColors, hexToRgba } from "../js/utils.js";
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 
 Chart.register(...registerables);
@@ -226,6 +226,7 @@ async function renderTopStudents(container) {
   container.append(chartCard, tableWrap);
 
   // Render Chart
+  const { primary, accent } = getBrandColors();
   const ctx = document.getElementById("analyticsChart");
   activeChart = new Chart(ctx, {
     type: 'bar',
@@ -234,7 +235,7 @@ async function renderTopStudents(container) {
       datasets: [{
         label: 'Number of Students',
         data: Object.values(gradeCounts),
-        backgroundColor: '#14538A',
+        backgroundColor: primary,
         borderRadius: 4
       }]
     },
@@ -398,6 +399,7 @@ async function renderTeacherWorkload(container) {
   container.innerHTML = `<h3>Teacher Workload Distribution</h3>`;
   container.append(chartCard, tableWrap);
 
+  const { primary, accent } = getBrandColors();
   const ctx = document.getElementById("analyticsChart");
   activeChart = new Chart(ctx, {
     type: 'bar',
@@ -406,7 +408,7 @@ async function renderTeacherWorkload(container) {
       datasets: [{
         label: 'Classes Assigned',
         data: workloadData,
-        backgroundColor: '#C9A227',
+        backgroundColor: accent,
         borderRadius: 4
       }]
     },
@@ -480,6 +482,7 @@ async function renderClassAnalysis(container) {
   container.innerHTML = `<h3>Subject Analysis: ${escapeHtml(selection.grade || "School Wide")}</h3>`;
   container.append(chartCard, tableWrap);
 
+  const { primary: linePrimary, accent: lineAccent } = getBrandColors();
   const ctx = document.getElementById("analyticsChart");
   activeChart = new Chart(ctx, {
     type: 'line',
@@ -488,12 +491,12 @@ async function renderClassAnalysis(container) {
       datasets: [{
         label: 'Average %',
         data: chartData,
-        borderColor: '#14538A',
-        backgroundColor: 'rgba(20, 83, 138, 0.1)',
+        borderColor: linePrimary,
+        backgroundColor: hexToRgba(linePrimary, 0.15),
         borderWidth: 3,
         fill: true,
         tension: 0.3,
-        pointBackgroundColor: '#C9A227',
+        pointBackgroundColor: lineAccent,
         pointRadius: 5
       }]
     },

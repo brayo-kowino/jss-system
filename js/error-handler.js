@@ -248,8 +248,37 @@ export function showFatalError(err, context = {}) {
  * user isn't fully locked out - they can navigate elsewhere.
  */
 export function renderInlineError(container, err, { onRetry, context = {} } = {}) {
-  const code = reportError(err, { ...context, severity: "inline" });
   const info = classifyError(err);
+
+  // The app is designed for full offline use. When the device is offline
+  // and the error is simply "no network", don't show the full error card
+  // with reference codes and a report button — the top bar's offline pill
+  // already tells the person they're offline, and the inline error would
+  // just make it look like something is broken when it isn't. Show a calm
+  // placeholder instead, with a retry button to refresh once back online.
+  if ((info.kind === "offline" || info.kind === "network") && typeof navigator !== "undefined" && !navigator.onLine) {
+    reportError(err, { ...context, severity: "inline-offline-suppressed" });
+    const actions = [];
+    if (onRetry) {
+      actions.push(el("button", { class: "btn btn--primary btn--sm", onClick: async () => {
+        container.innerHTML = "";
+        container.append(loadingRetryNode());
+        try { await onRetry(); }
+        catch (retryErr) { renderInlineError(container, retryErr, { onRetry, context }); }
+      } }, [icon("refresh"), "Retry"]));
+    }
+    actions.push(el("button", { class: "btn btn--ghost btn--sm", onClick: () => { location.hash = "/dashboard"; } }, [icon("home"), "Go to dashboard"]));
+    container.innerHTML = "";
+    container.append(el("div", { class: "empty-state" }, [
+      icon("cloud_off", "empty-state__icon"),
+      el("h3", {}, "This page's data hasn't been cached yet"),
+      el("p", { class: "text-muted" }, "Visit this page once while online so it's available offline next time."),
+      el("div", { class: "error-card__actions" }, actions),
+    ]));
+    return;
+  }
+
+  const code = reportError(err, { ...context, severity: "inline" });
 
   const actions = [];
   if (onRetry) {
@@ -345,6 +374,19 @@ function handleUncaught(err, context) {
   if (sig === lastSig && now - lastAt < 4000) return;
   lastSig = sig;
   lastAt = now;
+
+  // Suppress offline/network noise entirely when the device is genuinely
+  // offline — the shell's persistent offline pill already communicates
+  // the state clearly; flooding the screen with toasts or fatal overlays
+  // for expected network failures makes the app feel broken.
+  const offlineNow = typeof navigator !== "undefined" && !navigator.onLine;
+  if (offlineNow) {
+    const kind = classifyError(err).kind;
+    if (kind === "offline" || kind === "network" || kind === "timeout") {
+      reportError(err, { ...context, severity: "suppressed-offline" });
+      return;
+    }
+  }
 
   // If the app shell has mounted successfully, prefer a toast so a stray
   // error in a background task doesn't nuke the whole screen. Only take

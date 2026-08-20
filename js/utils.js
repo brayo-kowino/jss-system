@@ -208,3 +208,32 @@ export function sanitizeInput(str = "", { maxLength = 500 } = {}) {
     .trim()
     .slice(0, maxLength);
 }
+
+export function getBrandColors() {
+  if (typeof document === "undefined") {
+    return { primary: "#14538A", accent: "#C9A227" };
+  }
+  const styles = getComputedStyle(document.documentElement);
+  const primary = styles.getPropertyValue("--color-primary-700").trim() || "#14538A";
+  const accent = styles.getPropertyValue("--color-gold").trim() || "#C9A227";
+  return { primary, accent };
+}
+
+export function hexToRgba(hex = "#14538A", alpha = 0.1) {
+  const clean = hex.replace("#", "").trim();
+  const n = parseInt(clean, 16);
+  if (isNaN(n) || (clean.length !== 6 && clean.length !== 3)) {
+    return `rgba(20, 83, 138, ${alpha})`;
+  }
+  let r, g, b;
+  if (clean.length === 3) {
+    r = parseInt(clean[0] + clean[0], 16);
+    g = parseInt(clean[1] + clean[1], 16);
+    b = parseInt(clean[2] + clean[2], 16);
+  } else {
+    r = (n >> 16) & 255;
+    g = (n >> 8) & 255;
+    b = n & 255;
+  }
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}

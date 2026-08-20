@@ -1,0 +1,32 @@
+{
+  "name": "Eeskia",
+  "short_name": "Eeskia",
+  "description": "One dashboard for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance and timetables.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#FAF6F0",
+  "theme_color": "#14538A",
+  "icons": [
+    {
+      "src": "assets/learning-journey-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/learning-journey.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/learning-journey-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

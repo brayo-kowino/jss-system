@@ -276,9 +276,17 @@ export async function renderRoute() {
       // render call below - a slow/flaky connection fetching a route's
       // chunk for the first time should fail the same way a slow
       // Firestore read does, not hang the skeleton indefinitely.
-      const view = await withTimeout(loadView(path, route), RENDER_TIMEOUT_MS);
+      // When offline, Firestore reads come straight from persistentLocalCache
+      // (disableNetwork() is called in firebase-config.js the moment the
+      // browser goes offline) so there's no server round-trip to time out
+      // on — skipping the timeout avoids a false "deadline-exceeded" error
+      // that would show the scary inline error card for a view that would
+      // have rendered just fine from cache a moment later.
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      const maybeTimeout = (p) => offline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
+      const view = await maybeTimeout(loadView(path, route));
       if (isStale()) return;
-      const content = await withTimeout(view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
+      const content = await maybeTimeout(view.render({ profile, title: route.title }));
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
@@ -293,9 +301,11 @@ export async function renderRoute() {
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(skeletonPage());
-          const view = await withTimeout(loadView(path, route), RENDER_TIMEOUT_MS);
+          const retryOffline = typeof navigator !== "undefined" && !navigator.onLine;
+          const retryMaybeTimeout = (p) => retryOffline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
+          const view = await retryMaybeTimeout(loadView(path, route));
           if (retryToken !== currentRenderToken) return;
-          const content = await withTimeout(view.render({ profile, title: route.title }), RENDER_TIMEOUT_MS);
+          const content = await retryMaybeTimeout(view.render({ profile, title: route.title }));
           if (retryToken !== currentRenderToken) return;
           retryMain.innerHTML = "";
           retryMain.appendChild(content);

@@ -9,7 +9,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
-import { el, formatDate } from "../js/utils.js";
+import { el, formatDate, getBrandColors, hexToRgba } from "../js/utils.js";
 
 import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
 Chart.register(...registerables);
@@ -345,6 +345,8 @@ export async function render({ profile }) {
 }
 
 export function init() {
+  const { primary, accent } = getBrandColors();
+
   // 1. Initialize Real Revenue Line Chart
   const revCtx = document.getElementById('revenueChart');
   if (revCtx) {
@@ -355,12 +357,12 @@ export function init() {
         datasets: [{
           label: 'Fees (KES)',
           data: chartDataCache.revenueData, 
-          borderColor: '#14538A',
-          backgroundColor: 'rgba(20, 83, 138, 0.1)',
+          borderColor: primary,
+          backgroundColor: hexToRgba(primary, 0.15),
           borderWidth: 3,
           fill: true,
           tension: 0.4,
-          pointBackgroundColor: '#C9A227',
+          pointBackgroundColor: accent,
           pointRadius: 4,
           pointHoverRadius: 6
         }]
@@ -387,7 +389,12 @@ export function init() {
         datasets: [{
           data: chartDataCache.gradeCounts,
           backgroundColor: [
-            '#14538A', '#1E6FB5', '#C9A227', '#E9D9A0', '#2E7D46', '#1565C0'
+            primary,
+            hexToRgba(primary, 0.75),
+            accent,
+            hexToRgba(accent, 0.65),
+            hexToRgba(primary, 0.45),
+            '#2E7D46',
           ],
           borderWidth: 0,
           hoverOffset: 4
