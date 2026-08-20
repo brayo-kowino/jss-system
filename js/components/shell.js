@@ -659,10 +659,6 @@ export function renderShell(app, profile, activePath) {
       },
       [
         el("span", { class: "topbar__avatar" }, initials),
-        el("div", { class: "topbar__user-info" }, [
-          el("div", { class: "topbar__user-name" }, profile.fullName || profile.email),
-          el("div", { class: "topbar__user-role" }, roleLabel(profile.role)),
-        ]),
         el("span", { class: "material-symbols-rounded topbar__profile-chevron" }, "expand_more"),
       ]
     );
