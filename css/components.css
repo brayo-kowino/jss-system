@@ -446,14 +446,17 @@ tbody tr:hover { background: var(--color-primary-100); }
    Used by Attendance today; safe to reuse on Fees/Marks/etc. */
 @media (max-width: 640px) {
   .table-wrap.table-wrap--responsive { border: none; background: none; overflow: visible; }
-  .table-wrap--responsive table { border-collapse: separate; border-spacing: 0 var(--sp-3); }
+  .table-wrap--responsive table { border-collapse: separate; border-spacing: 0 var(--sp-3); min-width: 0 !important; width: 100% !important; max-width: 100% !important; }
   .table-wrap--responsive thead { display: none; }
   .table-wrap--responsive tbody tr {
     display: block;
     background: var(--color-white);
     border: 1px solid var(--color-line);
     border-radius: var(--radius-md);
-    padding: var(--sp-2) var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    box-sizing: border-box;
+    width: 100%;
+    margin-bottom: var(--sp-3);
   }
   .table-wrap--responsive tbody tr:nth-child(even) { background: var(--color-white); }
   .table-wrap--responsive tbody td {
@@ -464,6 +467,10 @@ tbody tr:hover { background: var(--color-primary-100); }
     padding: var(--sp-2) 0;
     border-top: 1px solid var(--color-line);
     text-align: right;
+    white-space: normal !important;
+    word-break: break-word;
+    box-sizing: border-box;
+    width: 100%;
   }
   .table-wrap--responsive tbody td:first-child { border-top: none; }
   .table-wrap--responsive tbody td::before {
@@ -475,6 +482,7 @@ tbody tr:hover { background: var(--color-primary-100); }
     color: var(--color-ink-soft);
     text-align: left;
     flex-shrink: 0;
+    margin-right: var(--sp-2);
   }
   .table-wrap--responsive .status-cell { justify-content: flex-end; }
   .table-wrap--responsive .status-options { justify-content: flex-end; }
