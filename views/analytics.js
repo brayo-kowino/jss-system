@@ -276,16 +276,34 @@ async function renderFeeReport(container) {
   const statsCol = el("div", { class: "md3-col" }, [
     el("div", { class: "md3-kpi-chip md3-kpi-chip--blue" }, [
       el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, "account_balance")]),
-      el("div", {}, [el("div", { class: "md3-kpi-chip__label" }, "Expected Revenue"), el("div", { class: "md3-kpi-chip__value numeric text-sm" }, formatKES(totalExpected))])
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, "Expected Revenue"),
+        el("div", { class: "md3-kpi-chip__val-wrap" }, [
+          el("span", { class: "md3-kpi-chip__currency" }, "KES"),
+          el("span", { class: "md3-kpi-chip__value numeric" }, Number(totalExpected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+        ]),
+      ]),
     ]),
     el("div", { class: "md3-kpi-chip md3-kpi-chip--green" }, [
       el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, "payments")]),
-      el("div", {}, [el("div", { class: "md3-kpi-chip__label" }, "Total Collected"), el("div", { class: "md3-kpi-chip__value numeric text-sm" }, formatKES(totalPaid))])
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, "Total Collected"),
+        el("div", { class: "md3-kpi-chip__val-wrap" }, [
+          el("span", { class: "md3-kpi-chip__currency" }, "KES"),
+          el("span", { class: "md3-kpi-chip__value numeric" }, Number(totalPaid || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+        ]),
+      ]),
     ]),
     el("div", { class: "md3-kpi-chip md3-kpi-chip--red" }, [
       el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, "money_off")]),
-      el("div", {}, [el("div", { class: "md3-kpi-chip__label" }, "Pending Balances"), el("div", { class: "md3-kpi-chip__value numeric text-sm" }, formatKES(totalDeficit))])
-    ])
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, "Pending Balances"),
+        el("div", { class: "md3-kpi-chip__val-wrap" }, [
+          el("span", { class: "md3-kpi-chip__currency" }, "KES"),
+          el("span", { class: "md3-kpi-chip__value numeric" }, Number(totalDeficit || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })),
+        ]),
+      ]),
+    ]),
   ]);
 
   const chartCard = el("div", { class: "card md3-col" }, [

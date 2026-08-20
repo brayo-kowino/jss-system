@@ -170,7 +170,13 @@ export async function render({ profile }) {
     { label: "Active Students", value: studentsCount, icon: "school", color: "blue" },
     { label: "Active Staff", value: teachers, icon: "badge", color: "gold" },
     { label: "Attendance Today", value: attendanceToday || "0%", icon: "how_to_reg", color: "green" },
-    { label: "Term Revenue", value: formatKES(feesCollected), icon: "account_balance_wallet", color: "gold" }
+    {
+      label: "Term Revenue",
+      currency: "KES",
+      value: Number(feesCollected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      icon: "account_balance_wallet",
+      color: "gold",
+    },
   ];
 
   for (const kpi of kpis) {
@@ -181,7 +187,12 @@ export async function render({ profile }) {
         ]),
         el("div", { class: "md3-kpi-chip__data" }, [
           el("div", { class: "md3-kpi-chip__label" }, kpi.label),
-          el("div", { class: "md3-kpi-chip__value numeric" }, String(kpi.value))
+          kpi.currency
+            ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
+                el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
+                el("span", { class: "md3-kpi-chip__value numeric" }, kpi.value),
+              ])
+            : el("div", { class: "md3-kpi-chip__value numeric" }, String(kpi.value)),
         ])
       ])
     );

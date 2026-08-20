@@ -51,7 +51,8 @@
   border: 1px solid var(--color-line);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   min-width: 0;
-  overflow: hidden;
+  height: 100%;
+  box-sizing: border-box;
 }
 .md3-kpi-chip:hover {
   transform: translateY(-2px);
@@ -60,37 +61,50 @@
 .md3-kpi-chip__icon {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   flex-shrink: 0;
 }
-.md3-kpi-chip__icon span { font-size: 22px; }
+.md3-kpi-chip__icon span { font-size: 24px; }
 .md3-kpi-chip__data,
 .md3-kpi-chip > div:last-child {
   min-width: 0;
   flex: 1;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
 }
 .md3-kpi-chip__label {
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-ink-soft);
-  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.md3-kpi-chip__val-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.md3-kpi-chip__currency {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  line-height: 1;
+}
 .md3-kpi-chip__value {
   font-family: var(--font-display);
-  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  font-size: clamp(1.2rem, 1.8vw, var(--fs-xl));
   font-weight: 700;
   color: var(--color-ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
+  line-height: 1.15;
+  word-break: break-word;
 }
 
 /* KPI Color Variations */
