@@ -398,10 +398,7 @@
   cursor: pointer;
 }
 .auth-row input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
   margin: 0;
-  accent-color: var(--color-primary-700);
   cursor: pointer;
 }
 .auth-row a { font-weight: 600; }
