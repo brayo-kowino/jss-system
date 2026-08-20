@@ -37,7 +37,7 @@ function gradeOptions() {
 
 function renderPicker(container, bodyMount, profile) {
   container.innerHTML = "";
-  const row = el("div", { style: "display:grid; grid-template-columns: repeat(3, 1fr); gap:16px; align-items:end;" });
+  const row = el("div", { class: "filter-grid" });
 
   const gradeSelect = el("select", {}, [
     el("option", { value: "" }, "Select grade"),

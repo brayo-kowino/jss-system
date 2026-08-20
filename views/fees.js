@@ -181,7 +181,7 @@ function streamOptions(grade) {
 function renderPicker(container, profile, balancesMount, paymentsMount, receiptMount) {
   container.innerHTML = "";
   container.append(el("h3", { style: "margin:0 0 16px;" }, "Class Fee Balances"));
-  const row = el("div", { style: "display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; align-items:end;" });
+  const row = el("div", { class: "filter-grid" });
 
   const gradeSelect = el("select", {}, [
     el("option", { value: "" }, "Select grade"),

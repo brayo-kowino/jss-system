@@ -79,7 +79,7 @@ function classOptions() {
 
 function renderPicker(container, profile, bodyMount) {
   container.innerHTML = "";
-  const row = el("div", { style: "display:grid; grid-template-columns: repeat(3, 1fr); gap:16px;" });
+  const row = el("div", { class: "filter-grid" });
 
   const classSelect = el("select", { id: "m-class" }, [
     el("option", { value: "" }, "Select class"),

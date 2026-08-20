@@ -71,9 +71,9 @@ function renderGrid(container, profile) {
     }
     card.append(chipList);
 
-    const addStreamRow = el("form", { style: "display:flex; gap:8px; margin-top:12px;" });
-    const input = el("input", { placeholder: "New stream e.g. Yellow", style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:6px;" });
-    addStreamRow.append(input, el("button", { type: "submit", class: "btn btn--ghost btn--sm" }, [icon("add"), "Stream"]));
+    const addStreamRow = el("form", { style: "display:flex; gap:8px; margin-top:12px; min-width:0;" });
+    const input = el("input", { placeholder: "New stream e.g. Yellow", style: "flex:1; min-width:0; padding:8px; border:1px solid var(--color-line); border-radius:6px;" });
+    addStreamRow.append(input, el("button", { type: "submit", class: "btn btn--ghost btn--sm", style: "flex-shrink:0;" }, [icon("add"), "Stream"]));
     addStreamRow.addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = input.value.trim();

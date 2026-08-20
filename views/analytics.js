@@ -51,7 +51,7 @@ export async function render({ profile }) {
 function renderControls(container, reportMount, profile) {
   container.innerHTML = "";
   
-  const row = el("div", { style: "display:grid; grid-template-columns: repeat(4, 1fr); gap:16px; align-items:end;" });
+  const row = el("div", { class: "filter-grid" });
   
   const typeSelect = el("select", {}, [
     el("option", { value: "top-students", selected: currentReportType === "top-students" ? "true" : undefined }, "Top Students (Exam Report)"),
