@@ -16,7 +16,7 @@
   font-family: 'Material Symbols Rounded';
   font-style: normal;
   font-weight: 100 700;
-  font-display: swap;
+  font-display: block;
   src: url(/fonts/material-symbols-rounded.woff2) format('woff2');
 }
 
@@ -28,7 +28,14 @@
   line-height: 1;
   letter-spacing: normal;
   text-transform: none;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: middle;
+  user-select: none;
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
