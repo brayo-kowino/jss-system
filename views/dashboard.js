@@ -265,13 +265,34 @@ export async function render({ profile }) {
   ]);
   leftCol.append(alertsCard);
 
-  const chartCard = el("div", { class: "md3-card" }, [
-    el("h3", { class: "md3-card__title" }, "Revenue Trend"),
-    el("div", { class: "md3-chart-container" }, [
-      el("canvas", { id: "revenueChart" })
-    ])
+  const activityCard = el("div", { class: "md3-card" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center;" }, [
+      el("h3", { class: "md3-card__title", style: "margin:0;" }, "Live Activity"),
+      profile.role === "admin"
+        ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => navigate("/audit") }, "View all")
+        : "",
+    ]),
   ]);
-  leftCol.append(chartCard);
+
+  if (recentLogs.length) {
+    const timeline = el("div", { class: "md3-timeline" });
+    for (const log of recentLogs) {
+      const actionData = describeLog(log);
+      timeline.append(el("div", { class: "md3-timeline-item" }, [
+        el("div", { class: "md3-timeline-icon" }, [
+          el("span", { class: `material-symbols-rounded text-${actionData.color}` }, actionData.icon)
+        ]),
+        el("div", { class: "md3-timeline-content" }, [
+          el("div", { class: "text" }, actionData.label),
+          el("div", { class: "time text-xs text-muted" }, log.timestamp ? formatDate(log.timestamp) : "Just now")
+        ])
+      ]));
+    }
+    activityCard.append(timeline);
+  } else {
+    activityCard.append(el("p", { class: "text-muted" }, "No recent activity found."));
+  }
+  leftCol.append(activityCard);
 
   // --- Center Column ---
   const centerCol = el("div", { class: "md3-col" });
@@ -310,34 +331,14 @@ export async function render({ profile }) {
 
   // --- Right Column ---
   const rightCol = el("div", { class: "md3-col" });
-  const activityCard = el("div", { class: "md3-card" }, [
-    el("div", { style: "display:flex; justify-content:space-between; align-items:center;" }, [
-      el("h3", { class: "md3-card__title", style: "margin:0;" }, "Live Activity"),
-      profile.role === "admin"
-        ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => navigate("/audit") }, "View all")
-        : "",
-    ]),
-  ]);
 
-  if (recentLogs.length) {
-    const timeline = el("div", { class: "md3-timeline" });
-    for (const log of recentLogs) {
-      const actionData = describeLog(log);
-      timeline.append(el("div", { class: "md3-timeline-item" }, [
-        el("div", { class: "md3-timeline-icon" }, [
-          el("span", { class: `material-symbols-rounded text-${actionData.color}` }, actionData.icon)
-        ]),
-        el("div", { class: "md3-timeline-content" }, [
-          el("div", { class: "text" }, actionData.label),
-          el("div", { class: "time text-xs text-muted" }, log.timestamp ? formatDate(log.timestamp) : "Just now")
-        ])
-      ]));
-    }
-    activityCard.append(timeline);
-  } else {
-    activityCard.append(el("p", { class: "text-muted" }, "No recent activity found."));
-  }
-  rightCol.append(activityCard);
+  const chartCard = el("div", { class: "md3-card" }, [
+    el("h3", { class: "md3-card__title" }, "Revenue Trend"),
+    el("div", { class: "md3-chart-container" }, [
+      el("canvas", { id: "revenueChart" })
+    ])
+  ]);
+  rightCol.append(chartCard);
 
   mainGrid.append(leftCol, centerCol, rightCol);
   wrap.append(mainGrid);
