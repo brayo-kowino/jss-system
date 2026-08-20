@@ -49,8 +49,9 @@ try {
   startRouter();
 
   let firstLoad = true;
-  onAuthChange((profile) => {
+  onAuthChange(async (profile) => {
     try {
+      window.__jssBootPing?.();
       if (firstLoad) {
         firstLoad = false;
         if (!location.hash) {
@@ -58,7 +59,7 @@ try {
           navigate(home);
         }
       }
-      renderRoute();
+      await renderRoute();
       window.__jssBootOk?.();
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });
