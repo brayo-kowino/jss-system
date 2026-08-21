@@ -120,6 +120,8 @@ const ENTITY_ICON = {
   timetable_slots: "calendar_view_week",
   notifications: "notifications",
   newsletters: "newspaper",
+  login_approvals: "verified_user",
+  trusted_devices: "devices",
 };
 
 // Icon overrides for specific actions where the entity-level icon isn't
@@ -148,6 +150,16 @@ const ACTION_ICON = {
   requeue_notification: "undo",
   publish_newsletter: "publish",
   unpublish_newsletter: "unpublish",
+  // Admin account protection
+  register_device: "devices",
+  remove_device: "device_reset",
+  reset_all_devices: "delete_sweep",
+  create_login_approval: "new_window",
+  approve_login: "check_circle",
+  deny_login: "block",
+  enable_2fa: "lock",
+  disable_2fa: "lock_open",
+  use_2fa_backup_code: "vpn_key",
 };
 
 export function describeLog(log) {

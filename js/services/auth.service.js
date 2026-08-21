@@ -39,6 +39,9 @@ import {
 import { auth, db, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
+import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice } from "./device.service.js";
+import { createLoginApproval, cleanupOldApprovals } from "./login-approval.service.js";
+import { is2FAEnabled } from "./two-factor.service.js";
 
 // ==========================================================================
 // School-id cookie
@@ -334,6 +337,54 @@ export async function login(email, password) {
     }
   }
   await logAction(profile.uid, "login", "auth", null);
+
+  // -----------------------------------------------------------------------
+  // Admin account protection: device trust + 2FA.
+  // Only admin and super_admin roles go through these additional gates.
+  // Regular staff/teachers/parents sign in normally - this protection is
+  // for the accounts that can create/modify/suspend other accounts and
+  // manage school-wide settings, i.e. the high-value targets.
+  // -----------------------------------------------------------------------
+  const isProtectedRole = profile.role === "admin" || profile.role === "super_admin";
+
+  if (isProtectedRole && !profile.mustChangePassword) {
+    const fingerprint = generateDeviceFingerprint();
+    const deviceInfo = getDeviceInfo();
+    const trusted = await isDeviceTrusted(profile.uid, fingerprint);
+
+    if (trusted) {
+      // Known device - update last-seen timestamp (fire-and-forget)
+      updateLastSeen(profile.uid, fingerprint).catch(() => {});
+      // Cleanup old approval docs in the background (non-blocking)
+      cleanupOldApprovals(profile.uid).catch(() => {});
+
+      // Check if 2FA is enabled - if so, the login view needs to prompt
+      // for a code before allowing navigation to the dashboard.
+      const has2FA = await is2FAEnabled(profile.uid);
+      if (has2FA) {
+        return { ...profile, needs2FA: true };
+      }
+      return profile;
+    }
+
+    // Unknown device: check if this user has ANY trusted devices registered.
+    // If they have none (e.g. brand-new account that hasn't gone through
+    // forced password change yet, or all devices were reset), skip the
+    // approval gate - otherwise they'd be locked out with nobody to approve.
+    const primaryDevice = await getPrimaryDevice(profile.uid);
+    if (primaryDevice) {
+      // They have a primary device - trigger the approval workflow.
+      const approvalId = await createLoginApproval(profile.uid, deviceInfo);
+      return { ...profile, needsApproval: true, approvalId, deviceInfo, fingerprint };
+    }
+
+    // No primary device registered yet - this is a fresh account that's
+    // already been through mustChangePassword (or was manually cleared).
+    // Register this device as the primary automatically.
+    await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
+    return profile;
+  }
+
   return profile;
 }
 
@@ -375,6 +426,21 @@ export async function completeForcedPasswordChange(newPassword) {
   await updatePassword(auth.currentUser, newPassword);
   await setDoc(doc(db, "users", currentProfile.uid), { mustChangePassword: false }, { merge: true });
   currentProfile = { ...currentProfile, mustChangePassword: false };
+  
+  // Register this device as the primary trusted device. This is the first
+  // device to know the real password, so it's the natural choice for the
+  // "primary" that approves future logins from unknown devices.
+  try {
+    const fingerprint = generateDeviceFingerprint();
+    const deviceInfo = getDeviceInfo();
+    await registerTrustedDevice(currentProfile.uid, fingerprint, deviceInfo, true);
+  } catch (deviceErr) {
+    // Non-fatal: if device registration fails (e.g. Firestore hiccup),
+    // the user still gets in - they'll just be asked to approve their own
+    // device on the next login, which self-heals the situation.
+    console.error("Primary device registration failed:", deviceErr);
+  }
+
   await logAction(currentProfile.uid, "forced_password_change", "auth", null);
   return currentProfile;
 }

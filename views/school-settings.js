@@ -1,9 +1,12 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor } from "../js/components/shell.js";
-import { getCurrentSchoolId, refreshCurrentSchool } from "../js/services/auth.service.js";
+import { getCurrentSchoolId, refreshCurrentSchool, getCurrentProfile } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
+import { listTrustedDevices, removeTrustedDevice, resetAllTrustedDevices } from "../js/services/device.service.js";
+import { listRecentApprovals } from "../js/services/login-approval.service.js";
+import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled, verify2FACode, generateBackupCodes } from "../js/services/two-factor.service.js";
 
 let settings = null;
 let activeThemeId = "custom";
@@ -15,6 +18,7 @@ const TABS = [
   { id: "leadership", label: "Leadership", icon: "badge" },
   { id: "calendar", label: "Academic Calendar", icon: "event" },
   { id: "grading", label: "Grading Scale", icon: "grading" },
+  { id: "security", label: "Security", icon: "shield" },
   { id: "subscription", label: "Subscription", icon: "workspace_premium" },
 ];
 
@@ -58,6 +62,12 @@ export async function render({ profile }) {
   panels.leadership.append(buildLeadershipTab());
   panels.calendar.append(buildCalendarTab());
   panels.grading.append(buildGradingTab());
+  
+  // Security tab - only for admin/super_admin
+  if (profile.role === "admin" || profile.role === "super_admin") {
+    panels["security"].append(buildSecurityPanel(profile));
+  }
+  
   panels.subscription.append(buildSubscriptionTab());
 
   wrap.append(tabsNav);
@@ -718,4 +728,250 @@ export function init({ profile }) {
 
 function val(id) {
   return document.getElementById(id).value.trim();
+}
+
+// ===========================================================================
+// Security tab: 2FA, trusted devices, login activity
+// ===========================================================================
+function buildSecurityPanel(profile) {
+  const wrap = el("div", { class: "settings-section" });
+
+  // --- 2FA Section ---
+  const tfaSection = el("div", { style: "margin-bottom:32px;" });
+  tfaSection.append(
+    el("h3", {}, [icon("lock"), " Two-Factor Authentication"]),
+    el("p", { class: "text-muted text-sm" }, "Add an extra layer of security to your account by requiring a code from your authenticator app on every login."),
+  );
+
+  const tfaContent = el("div", { id: "tfa-content" });
+  tfaSection.append(tfaContent);
+  wrap.append(tfaSection);
+
+  // Load 2FA state
+  (async () => {
+    const enabled = await is2FAEnabled(profile.uid).catch(() => false);
+    if (enabled) {
+      tfaContent.innerHTML = "";
+      const badge = el("div", { class: "badge badge--success", style: "margin-bottom:12px;display:inline-flex;align-items:center;gap:6px;" }, [
+        icon("verified_user"), "2FA is enabled",
+      ]);
+      const disableBtn = el("button", { class: "btn btn--outline btn--sm", style: "margin-left:12px;" }, "Disable 2FA");
+      disableBtn.addEventListener("click", () => {
+        const codeInput = el("input", { type: "text", placeholder: "Enter authenticator code", maxlength: "6", style: "width:160px;text-align:center;font-family:monospace;font-size:16px;" });
+        const confirmBtn = el("button", { class: "btn btn--danger btn--sm" }, "Confirm Disable");
+        const row = el("div", { style: "display:flex;gap:8px;align-items:center;margin-top:12px;" }, [codeInput, confirmBtn]);
+        tfaContent.append(row);
+        codeInput.focus();
+        confirmBtn.addEventListener("click", async () => {
+          const code = codeInput.value.trim();
+          if (!code) return;
+          const restore = busyButton(confirmBtn, "Disabling…");
+          try {
+            await disable2FA(profile.uid, code);
+            toast("Two-factor authentication disabled.", "success");
+            tfaContent.innerHTML = "";
+            renderSetup2FA(tfaContent, profile);
+          } catch (err) {
+            toast(err.message || "Invalid code.", "error");
+            restore();
+          }
+        });
+      });
+      tfaContent.append(badge, disableBtn);
+    } else {
+      renderSetup2FA(tfaContent, profile);
+    }
+  })();
+
+  // --- Trusted Devices Section ---
+  const devicesSection = el("div", { style: "margin-bottom:32px;" });
+  devicesSection.append(
+    el("h3", {}, [icon("devices"), " Trusted Devices"]),
+    el("p", { class: "text-muted text-sm" }, "Devices that can access your account without requiring additional approval."),
+  );
+  const devicesList = el("div", { class: "device-list", id: "devices-list" });
+  devicesSection.append(devicesList);
+
+  const resetAllBtn = el("button", { class: "btn btn--outline btn--sm", style: "margin-top:12px;" }, [icon("delete_sweep"), " Remove All Devices"]);
+  resetAllBtn.addEventListener("click", async () => {
+    if (!confirm("Remove all trusted devices? You will need to re-approve your next login.")) return;
+    const restore = busyButton(resetAllBtn, "Removing…");
+    try {
+      await resetAllTrustedDevices(profile.uid);
+      toast("All trusted devices removed.", "success");
+      loadDevices();
+    } catch (err) {
+      toast("Failed to remove devices.", "error");
+    }
+    restore();
+  });
+  devicesSection.append(resetAllBtn);
+  wrap.append(devicesSection);
+
+  async function loadDevices() {
+    devicesList.innerHTML = "";
+    try {
+      const devices = await listTrustedDevices(profile.uid);
+      if (devices.length === 0) {
+        devicesList.append(el("p", { class: "text-muted" }, "No trusted devices registered."));
+        return;
+      }
+      for (const d of devices) {
+        const lastSeen = d.lastSeenAt?.toDate ? d.lastSeenAt.toDate().toLocaleDateString() : "—";
+        const registered = d.registeredAt?.toDate ? d.registeredAt.toDate().toLocaleDateString() : "—";
+        const card = el("div", { class: "device-card" }, [
+          el("span", { class: "material-symbols-rounded device-card__icon" }, d.isPrimary ? "smartphone" : "computer"),
+          el("div", { class: "device-card__info" }, [
+            el("div", { class: "device-card__name" }, [
+              d.deviceName || "Unknown device",
+              d.isPrimary ? el("span", { class: "device-card__badge", style: "margin-left:8px;" }, "Primary") : "",
+            ]),
+            el("div", { class: "device-card__detail" }, `${d.screenRes || ""} · ${d.timezone || ""} · Last seen: ${lastSeen} · Registered: ${registered}`),
+          ]),
+          el("div", { class: "device-card__actions" }, [
+            el("button", {
+              class: "btn btn--outline btn--sm",
+              onClick: async () => {
+                if (!confirm(`Remove device "${d.deviceName}"?`)) return;
+                await removeTrustedDevice(profile.uid, d.id);
+                toast("Device removed.", "success");
+                loadDevices();
+              },
+            }, [icon("delete")]),
+          ]),
+        ]);
+        devicesList.append(card);
+      }
+    } catch (err) {
+      devicesList.append(el("p", { class: "text-muted" }, "Failed to load devices."));
+    }
+  }
+  loadDevices();
+
+  // --- Login Activity Section ---
+  const activitySection = el("div", {});
+  activitySection.append(
+    el("h3", {}, [icon("history"), " Recent Login Activity"]),
+    el("p", { class: "text-muted text-sm" }, "Recent login approval requests and their outcomes."),
+  );
+  const activityTable = el("div", { id: "login-activity" });
+  activitySection.append(activityTable);
+  wrap.append(activitySection);
+
+  (async () => {
+    try {
+      const approvals = await listRecentApprovals(profile.uid);
+      if (approvals.length === 0) {
+        activityTable.append(el("p", { class: "text-muted" }, "No login activity recorded yet."));
+        return;
+      }
+      const table = el("table", { class: "login-activity" });
+      table.append(
+        el("thead", {}, [
+          el("tr", {}, [
+            el("th", {}, "Device"),
+            el("th", {}, "Time"),
+            el("th", {}, "Status"),
+          ]),
+        ])
+      );
+      const tbody = el("tbody", {});
+      for (const a of approvals) {
+        const time = a.requestedAt?.toDate ? a.requestedAt.toDate().toLocaleString() : "—";
+        const statusClass = a.status === "approved" ? "status-badge--approved" : a.status === "denied" ? "status-badge--denied" : "status-badge--pending";
+        tbody.append(
+          el("tr", {}, [
+            el("td", {}, a.deviceName || "Unknown"),
+            el("td", {}, time),
+            el("td", {}, [el("span", { class: `status-badge ${statusClass}` }, a.status || "unknown")]),
+          ])
+        );
+      }
+      table.append(tbody);
+      activityTable.append(table);
+    } catch (err) {
+      activityTable.append(el("p", { class: "text-muted" }, "Failed to load activity."));
+    }
+  })();
+
+  return wrap;
+}
+
+// Renders the 2FA setup flow (QR code + verification)
+function renderSetup2FA(container, profile) {
+  const setupBtn = el("button", { class: "btn btn--primary btn--sm" }, [icon("lock"), " Enable 2FA"]);
+  container.append(setupBtn);
+
+  setupBtn.addEventListener("click", async () => {
+    const restore = busyButton(setupBtn, "Generating…");
+    try {
+      const email = profile.email || "admin";
+      const setup = await generate2FASetup(profile.uid, email);
+
+      container.innerHTML = "";
+      const setupDiv = el("div", { class: "totp-setup" });
+
+      // QR code section - show the otpauth URI for manual entry and a QR code
+      const qrDiv = el("div", { class: "totp-setup__qr" });
+
+      // Generate QR code using a free API (no dependency needed)
+      const qrImg = el("img", {
+        src: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(setup.otpauthUri)}`,
+        alt: "Scan this QR code with your authenticator app",
+        style: "width:180px;height:180px;",
+      });
+      qrDiv.append(
+        el("p", { class: "text-sm text-muted", style: "margin-bottom:12px;" }, "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.):"),
+        qrImg,
+        el("p", { class: "text-sm text-muted", style: "margin-top:12px;" }, "Or enter this secret manually:"),
+        el("div", { class: "totp-setup__secret" }, setup.secret),
+      );
+
+      const verifyInput = el("input", { type: "text", placeholder: "6-digit code", maxlength: "6", style: "width:140px;text-align:center;font-family:monospace;font-size:18px;letter-spacing:4px;" });
+      const verifyBtn = el("button", { class: "btn btn--primary btn--sm" }, "Verify & Enable");
+      const verifyError = el("div", { class: "field-error", style: "margin-top:6px;" });
+      const cancelBtn = el("button", { class: "btn btn--outline btn--sm" }, "Cancel");
+
+      const verifyRow = el("div", { class: "totp-setup__verify" }, [verifyInput, verifyBtn, cancelBtn]);
+
+      setupDiv.append(qrDiv, el("p", { class: "text-sm", style: "margin:12px 0;" }, "Enter the 6-digit code shown in your app to confirm setup:"), verifyRow, verifyError);
+      container.append(setupDiv);
+
+      verifyInput.focus();
+
+      verifyBtn.addEventListener("click", async () => {
+        verifyError.textContent = "";
+        const code = verifyInput.value.trim();
+        if (code.length < 6) {
+          verifyError.textContent = "Enter the full 6-digit code.";
+          return;
+        }
+        const r = busyButton(verifyBtn, "Verifying…");
+        try {
+          const backupCodes = await enable2FA(profile.uid, setup.secret, code);
+          container.innerHTML = "";
+          container.append(
+            el("div", { class: "badge badge--success", style: "margin-bottom:12px;display:inline-flex;align-items:center;gap:6px;" }, [
+              icon("verified_user"), "2FA has been enabled!",
+            ]),
+            el("p", { class: "text-sm" }, "Save these backup codes in a safe place. Each code can only be used once:"),
+            el("div", { class: "backup-codes" }, backupCodes.map(c => el("div", { class: "backup-codes__code" }, c))),
+            el("p", { class: "backup-codes__warning" }, "⚠ These codes will not be shown again. Save them now."),
+          );
+          toast("Two-factor authentication enabled!", "success");
+        } catch (err) {
+          verifyError.textContent = err.message || "Invalid code. Try again.";
+          r();
+        }
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        container.innerHTML = "";
+        renderSetup2FA(container, profile);
+      });
+    } catch (err) {
+      toast("Failed to generate 2FA setup. Try again.", "error");
+      restore();
+    }
+  });
 }

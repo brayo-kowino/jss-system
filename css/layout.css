@@ -1179,3 +1179,395 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* ===========================================================================
+   Admin Account Protection — Device Approval & 2FA
+   =========================================================================== */
+
+/* Awaiting-approval gate (full-page, same structure as .auth-screen) */
+.approval-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px;
+  text-align: center;
+  background: var(--bg, #f7f8fa);
+}
+.approval-wait__icon {
+  font-size: 64px;
+  color: var(--primary, #14538a);
+  margin-bottom: 16px;
+  animation: approval-pulse 2s ease-in-out infinite;
+}
+@keyframes approval-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .6; transform: scale(1.08); }
+}
+.approval-wait__title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text, #1a1a2e);
+}
+.approval-wait__sub {
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 24px;
+  max-width: 420px;
+  line-height: 1.6;
+}
+.approval-wait__device-card {
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px 28px;
+  text-align: left;
+  max-width: 380px;
+  width: 100%;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.approval-wait__device-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 14px;
+  color: var(--text, #1a1a2e);
+}
+.approval-wait__device-row .icon {
+  color: var(--primary, #14538a);
+  font-size: 18px;
+}
+.approval-wait__device-label {
+  color: var(--text-muted, #6b7280);
+  min-width: 80px;
+}
+.approval-wait__spinner {
+  margin-top: 8px;
+}
+.approval-wait__denied {
+  color: var(--danger, #dc2626);
+  font-weight: 600;
+}
+.approval-wait__cancel {
+  margin-top: 12px;
+}
+
+/* 2FA code entry screen */
+.twofa-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 32px;
+  text-align: center;
+  background: var(--bg, #f7f8fa);
+}
+.twofa-gate__card {
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-lg, 12px);
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+}
+.twofa-gate__icon {
+  font-size: 48px;
+  color: var(--primary, #14538a);
+  margin-bottom: 12px;
+}
+.twofa-gate__title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.twofa-gate__sub {
+  color: var(--text-muted, #6b7280);
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+.twofa-gate__input {
+  width: 100%;
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 8px;
+  padding: 12px;
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 16px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  transition: border-color .2s;
+}
+.twofa-gate__input:focus {
+  border-color: var(--primary, #14538a);
+}
+.twofa-gate__error {
+  color: var(--danger, #dc2626);
+  font-size: 13px;
+  margin-bottom: 12px;
+  min-height: 18px;
+}
+.twofa-gate__backup-link {
+  font-size: 13px;
+  color: var(--primary, #14538a);
+  cursor: pointer;
+  margin-top: 12px;
+  display: inline-block;
+}
+
+/* Approval notification modal (shown on primary device) */
+.approval-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: approval-fade-in .25s ease;
+}
+@keyframes approval-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.approval-modal {
+  background: #fff;
+  border-radius: var(--radius-lg, 12px);
+  padding: 28px 32px;
+  max-width: 440px;
+  width: 92%;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  animation: approval-slide-up .3s ease;
+}
+@keyframes approval-slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.approval-modal__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.approval-modal__header .icon {
+  font-size: 32px;
+  color: var(--warning, #f59e0b);
+}
+.approval-modal__title {
+  font-size: 18px;
+  font-weight: 700;
+}
+.approval-modal__subtitle {
+  font-size: 13px;
+  color: var(--text-muted, #6b7280);
+}
+.approval-modal__device-info {
+  background: var(--bg, #f7f8fa);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.approval-modal__device-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 14px;
+}
+.approval-modal__device-row .icon {
+  font-size: 18px;
+  color: var(--primary, #14538a);
+}
+.approval-modal__device-label {
+  color: var(--text-muted, #6b7280);
+  min-width: 80px;
+  font-size: 13px;
+}
+.approval-modal__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+.approval-modal__actions .btn--danger {
+  background: var(--danger, #dc2626);
+  color: #fff;
+  border: none;
+}
+.approval-modal__actions .btn--danger:hover {
+  background: #b91c1c;
+}
+.approval-modal__timestamp {
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  margin-top: 8px;
+}
+
+/* Security settings tab — Trusted devices list */
+.device-list {
+  display: grid;
+  gap: 12px;
+}
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 18px;
+  transition: box-shadow .2s;
+}
+.device-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.device-card__icon {
+  font-size: 28px;
+  color: var(--primary, #14538a);
+}
+.device-card__info {
+  flex: 1;
+}
+.device-card__name {
+  font-weight: 600;
+  font-size: 14px;
+}
+.device-card__detail {
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+}
+.device-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: var(--primary-light, #e0ecf8);
+  color: var(--primary, #14538a);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.device-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 2FA setup section in security settings */
+.totp-setup {
+  max-width: 480px;
+}
+.totp-setup__qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 16px;
+}
+.totp-setup__qr img,
+.totp-setup__qr canvas {
+  width: 180px;
+  height: 180px;
+  margin-bottom: 12px;
+}
+.totp-setup__secret {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  background: var(--bg, #f7f8fa);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm, 6px);
+  letter-spacing: 2px;
+  word-break: break-all;
+  text-align: center;
+}
+.totp-setup__verify {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+.totp-setup__verify input {
+  flex: 1;
+  text-align: center;
+  font-size: 20px;
+  letter-spacing: 4px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Backup codes display */
+.backup-codes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 16px;
+  background: var(--bg, #f7f8fa);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  margin: 12px 0;
+}
+.backup-codes__code {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-sm, 6px);
+  text-align: center;
+  letter-spacing: 1px;
+}
+.backup-codes__warning {
+  font-size: 13px;
+  color: var(--danger, #dc2626);
+  margin-top: 8px;
+}
+
+/* Login activity table in security settings */
+.login-activity {
+  width: 100%;
+  border-collapse: collapse;
+}
+.login-activity th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted, #6b7280);
+  padding: 8px 12px;
+  border-bottom: 2px solid var(--border, #e5e7eb);
+}
+.login-activity td {
+  padding: 10px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.login-activity .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+  text-transform: uppercase;
+}
+.login-activity .status-badge--approved {
+  background: #dcfce7;
+  color: #166534;
+}
+.login-activity .status-badge--denied {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.login-activity .status-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}

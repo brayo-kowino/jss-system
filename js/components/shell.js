@@ -7,6 +7,8 @@ import { startTour } from "./tour.js";
 import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 import { mountAnnouncementBanner } from "./announcement-banner.js";
+import { watchPendingApprovals, approveLogin, denyLogin } from "../services/login-approval.service.js";
+import { registerTrustedDevice } from "../services/device.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -381,6 +383,103 @@ export async function refreshSchoolChrome() {
   return settings;
 }
 
+// Shows the new-device login approval modal on the primary (admin) device.
+// Non-dismissible: the admin must explicitly approve or deny.
+function showApprovalModal(approval, profile) {
+  // Don't stack duplicate modals for the same approval
+  if (document.getElementById("jss-approval-modal")) return;
+
+  const requestedAt = approval.requestedAt?.toDate
+    ? approval.requestedAt.toDate().toLocaleString()
+    : new Date().toLocaleString();
+
+  const overlay = el("div", { class: "approval-modal-overlay", id: "jss-approval-modal" });
+  const modal = el("div", { class: "approval-modal" });
+
+  modal.append(
+    el("div", { class: "approval-modal__header" }, [
+      icon("security"),
+      el("div", {}, [
+        el("div", { class: "approval-modal__title" }, "New Device Login Detected"),
+        el("div", { class: "approval-modal__subtitle" }, "Someone is trying to sign in to your account from a new device."),
+      ]),
+    ]),
+    el("div", { class: "approval-modal__device-info" }, [
+      el("div", { class: "approval-modal__device-row" }, [
+        icon("computer"),
+        el("span", { class: "approval-modal__device-label" }, "Device:"),
+        el("span", {}, approval.deviceName || "Unknown"),
+      ]),
+      el("div", { class: "approval-modal__device-row" }, [
+        icon("aspect_ratio"),
+        el("span", { class: "approval-modal__device-label" }, "Screen:"),
+        el("span", {}, approval.screenRes || "Unknown"),
+      ]),
+      el("div", { class: "approval-modal__device-row" }, [
+        icon("public"),
+        el("span", { class: "approval-modal__device-label" }, "Timezone:"),
+        el("span", {}, approval.timezone || "Unknown"),
+      ]),
+      el("div", { class: "approval-modal__device-row" }, [
+        icon("schedule"),
+        el("span", { class: "approval-modal__device-label" }, "Time:"),
+        el("span", {}, requestedAt),
+      ]),
+    ]),
+  );
+
+  const approveBtn = el("button", { class: "btn btn--primary" }, [icon("check"), " Approve"]);
+  const denyBtn = el("button", { class: "btn btn--danger" }, [icon("block"), " Deny"]);
+  const actions = el("div", { class: "approval-modal__actions" }, [denyBtn, approveBtn]);
+  modal.append(actions);
+
+  approveBtn.addEventListener("click", async () => {
+    approveBtn.disabled = true;
+    denyBtn.disabled = true;
+    approveBtn.textContent = "Approving…";
+    try {
+      await approveLogin(profile.uid, approval.id, profile.uid);
+      // Register the new device as trusted (non-primary)
+      try {
+        await registerTrustedDevice(
+          profile.uid,
+          approval.deviceFingerprint,
+          { deviceName: approval.deviceName, screenRes: approval.screenRes, timezone: approval.timezone },
+          false
+        );
+      } catch (e) {
+        console.error("Failed to register approved device:", e);
+      }
+      toast("Login approved. The new device can now access the account.", "success");
+    } catch (err) {
+      toast("Failed to approve login. Try again.", "error");
+      approveBtn.disabled = false;
+      denyBtn.disabled = false;
+      return;
+    }
+    overlay.remove();
+  });
+
+  denyBtn.addEventListener("click", async () => {
+    approveBtn.disabled = true;
+    denyBtn.disabled = true;
+    denyBtn.textContent = "Denying…";
+    try {
+      await denyLogin(profile.uid, approval.id, profile.uid);
+      toast("Login denied. The device has been blocked.", "info");
+    } catch (err) {
+      toast("Failed to deny login. Try again.", "error");
+      approveBtn.disabled = false;
+      denyBtn.disabled = false;
+      return;
+    }
+    overlay.remove();
+  });
+
+  overlay.append(modal);
+  document.body.appendChild(overlay);
+}
+
 export function renderShell(app, profile, activePath) {
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
@@ -749,6 +848,31 @@ export function renderShell(app, profile, activePath) {
       applyCollapsedState(false);
     }
     setTimeout(() => startTour(TOUR_STEPS), 400);
+  }
+
+  // -----------------------------------------------------------------------
+  // Admin account protection: watch for new-device login approval requests.
+  // Only runs for admin/super_admin roles. Uses a real-time Firestore
+  // listener to detect when someone (possibly the account holder from a
+  // new browser/device) is waiting for approval to complete their login.
+  // Shows a non-dismissible modal with device details and Approve/Deny.
+  // -----------------------------------------------------------------------
+  if (profile.role === "admin" || profile.role === "super_admin") {
+    // Tear down any previous listener (e.g. from a re-render of the shell
+    // on the same page without a full reload).
+    if (window.__jssApprovalUnsub) {
+      window.__jssApprovalUnsub();
+      window.__jssApprovalUnsub = null;
+    }
+    window.__jssApprovalUnsub = watchPendingApprovals(profile.uid, (pending) => {
+      // Remove any existing approval modal before potentially showing a new one
+      document.getElementById("jss-approval-modal")?.remove();
+      if (!pending || pending.length === 0) return;
+
+      // Show the most recent pending approval
+      const req = pending[0];
+      showApprovalModal(req, profile);
+    });
   }
 
   return main;

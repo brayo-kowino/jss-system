@@ -225,8 +225,44 @@ service cloud.firestore {
             && request.resource.data.role != 'super_admin'
             && request.resource.data.schoolId == mySchoolId())
         || (isUserActive() && request.auth.uid == uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt']));
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt', 'twoFactorEnabled', 'twoFactorSecret', 'twoFactorBackupCodes', 'twoFactorEnabledAt']));
       allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && resource.data.role != 'super_admin');
+    }
+
+    // Trusted devices for admin account protection. Each admin's browser
+    // registers itself here after the first forced password change;
+    // subsequent logins from unrecognized devices trigger an approval
+    // workflow. Users can manage their own devices; an admin or super_admin
+    // can reset another user's devices (e.g. if they lose access to their
+    // primary device and can't approve a new login).
+    match /users/{uid}/trusted_devices/{deviceId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
+         get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+      );
+      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if isSignedIn() && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
+         get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+      );
+    }
+
+    // Login approval requests for admin accounts. Created when an admin
+    // logs in from an unrecognized device; the primary device watches for
+    // pending approvals via onSnapshot and can approve or deny them.
+    // Only the user themselves can read/write their own approvals -
+    // the "approve" action comes from the same uid's primary device session.
+    match /users/{uid}/login_approvals/{approvalId} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if isSignedIn() && (
+        request.auth.uid == uid || isSuperAdmin()
+      );
     }
 
     // School registry + per-school settings/branding doc (schools/{id} -
