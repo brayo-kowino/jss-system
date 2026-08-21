@@ -65,6 +65,12 @@ try {
         }
       }
       await renderRoute();
+      if (typeof document !== "undefined" && document.fonts) {
+        try {
+          await document.fonts.ready;
+        } catch {}
+      }
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       window.__jssBootOk?.();
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });

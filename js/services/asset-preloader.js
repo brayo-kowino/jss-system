@@ -19,16 +19,31 @@ function timeoutPromise(promise, ms, fallbackValue = null) {
 async function preloadFonts() {
   if (typeof document === "undefined" || !document.fonts) return;
   try {
-    // Wait for the font set to be ready
-    await timeoutPromise(document.fonts.ready, 4000);
-    // Explicitly prime key typography and icon sets
+    // 1. Explicitly load font faces with icon ligature text
+    const sampleIcons = "dashboard attendance school notifications group schedule calendar_today payments receipt download print search menu edit delete add check close arrow_back person bar_chart description";
     const fontLoads = [
-      document.fonts.load('24px "Material Symbols Rounded"'),
+      document.fonts.load('24px "Material Symbols Rounded"', sampleIcons),
+      document.fonts.load('500 14px "Manrope"'),
       document.fonts.load('600 14px "Manrope"'),
       document.fonts.load('700 16px "Manrope"'),
+      document.fonts.load('600 18px "Lora"'),
       document.fonts.load('700 18px "Lora"'),
     ];
-    await timeoutPromise(Promise.allSettled(fontLoads), 4000);
+    await timeoutPromise(Promise.allSettled(fontLoads), 5000);
+    await timeoutPromise(document.fonts.ready, 4000);
+
+    // 2. Offscreen rendering warm-up to force browser text rasterizer to compile ligatures into GPU cache
+    const testWrap = document.createElement("div");
+    testWrap.style.cssText = "position:fixed;top:-9999px;left:-9999px;opacity:0;pointer-events:none;display:flex;";
+    for (const iconName of sampleIcons.split(" ")) {
+      const span = document.createElement("span");
+      span.className = "material-symbols-rounded";
+      span.textContent = iconName;
+      testWrap.appendChild(span);
+    }
+    document.body.appendChild(testWrap);
+    void testWrap.offsetWidth;
+    testWrap.remove();
   } catch {
     // Non-fatal: system fallbacks apply
   }

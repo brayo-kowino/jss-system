@@ -209,8 +209,7 @@
     if (origBootOk) {
       origBootOk();
     }
-    var wait = Math.max( 0, MIN_SPLASH_MS - (Date.now() - shownAt) );
-    setTimeout(hideSplash, wait);
+    setTimeout(hideSplash, 300);
   };
 })();
 </script>
