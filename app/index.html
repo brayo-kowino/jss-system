@@ -30,9 +30,6 @@
 <meta name="theme-color" content="#14538A" />
 
 <link rel="manifest" href="/site.webmanifest" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,600;0,700;1,600&family=Manrope:wght@500;600;700;800&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
 <link rel="stylesheet" href="../css/variables.css" />
 <link rel="stylesheet" href="../css/base.css" />
 <link rel="stylesheet" href="../css/layout.css" />
@@ -143,6 +140,10 @@
     var t = e.target;
     if (settled || !t || t === window) return;
     if (t.tagName === "SCRIPT" || t.tagName === "LINK") {
+      var src = t.src || t.href || "";
+      if (src.indexOf("recaptcha") !== -1 || src.indexOf("google.com") !== -1 || src.indexOf("googleapis.com") !== -1) {
+        return;
+      }
       clearTimeout(timer);
       showBootFallback(
         "A required file failed to load. This is usually a connection issue."

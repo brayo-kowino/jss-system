@@ -348,7 +348,14 @@ export function initErrorHandling() {
     const target = event.target;
     if (target && target !== window && (target.tagName === "SCRIPT" || target.tagName === "LINK" || target.tagName === "IMG")) {
       if (target.tagName === "IMG") return; // a missing photo isn't app-breaking; let it show a broken-image icon quietly
-      showFatalError(new Error(`Failed to load ${target.tagName.toLowerCase()}: ${target.src || target.href || "unknown resource"}`), { where: "resource-load" });
+      const src = target.src || target.href || "";
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      // Third-party scripts (reCAPTCHA, CDNs) or non-essential assets failing offline must not crash the app
+      if (src.includes("recaptcha") || src.includes("google.com") || isOffline) {
+        reportError(new Error(`Failed to load ${target.tagName.toLowerCase()}: ${src || "unknown resource"}`), { where: "resource-load", severity: "suppressed-resource-load" });
+        return;
+      }
+      showFatalError(new Error(`Failed to load ${target.tagName.toLowerCase()}: ${src || "unknown resource"}`), { where: "resource-load" });
       return;
     }
     if (event.error || event.message) {

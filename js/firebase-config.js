@@ -32,25 +32,44 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = initializeApp(firebaseConfig);
-const isLocalDev = ["localhost", "127.0.0.1"].includes(location.hostname);
-if (isLocalDev) {
+const isLocalDev = typeof location !== "undefined" && ["localhost", "127.0.0.1"].includes(location.hostname);
+if (isLocalDev && typeof self !== "undefined") {
   self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
 }
 
 export const RECAPTCHA_SITE_KEY = "6LcEUX0tAAAAAA_U1HH-0ci7DiVoND7z-pzdEz4J";
 
+let mainAppCheck = null;
+
 export function attachAppCheck(app) {
+  if (typeof window === "undefined" || (typeof navigator !== "undefined" && !navigator.onLine)) {
+    return null;
+  }
+  if (app === firebaseApp && mainAppCheck) {
+    return mainAppCheck;
+  }
   try {
-    return initializeAppCheck(app, {
+    const instance = initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
       isTokenAutoRefreshEnabled: true,
     });
+    if (app === firebaseApp) {
+      mainAppCheck = instance;
+    }
+    return instance;
   } catch (err) {
     return null;
   }
 }
 
-attachAppCheck(firebaseApp);
+if (typeof window !== "undefined") {
+  if (navigator.onLine) {
+    attachAppCheck(firebaseApp);
+  }
+  window.addEventListener("online", () => {
+    attachAppCheck(firebaseApp);
+  });
+}
 
 export const auth = getAuth(firebaseApp);
 

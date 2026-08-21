@@ -203,13 +203,23 @@ export async function render() {
   ]);
 
   // Right: form panel
+  const offlineBanner = el("div", {
+    id: "login-offline-banner",
+    class: "badge badge--warning",
+    style: `${typeof navigator !== "undefined" && navigator.onLine ? "display:none;" : "display:inline-flex;"}align-items:center;gap:6px;padding:8px 12px;margin-bottom:16px;width:100%;justify-content:center;border-radius:var(--radius-md);box-sizing:border-box;`,
+  }, [
+    icon("wifi_off"),
+    el("span", {}, "You are offline. An internet connection is required to sign in."),
+  ]);
+
   const card = el("div", { class: "auth-card" });
   card.append(
     el("div", { class: "auth-card__header" }, [
       el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: logoSrc, alt: `${brandName} logo` })]),
       el("h1", {}, "Hi, welcome back"),
       el("p", { class: "text-muted" }, school ? `Sign in to your ${school.schoolName} account` : "Please sign in with your account details"),
-    ])
+    ]),
+    offlineBanner
   );
 
   const form = el("form", { id: "login-form" });
@@ -431,12 +441,25 @@ export function init() {
       restore();
     }
   });
+
+  const offlineBannerEl = document.getElementById("login-offline-banner");
+  const updateOnlineState = () => {
+    if (offlineBannerEl) {
+      offlineBannerEl.style.display = navigator.onLine ? "none" : "inline-flex";
+    }
+  };
+  window.addEventListener("online", updateOnlineState);
+  window.addEventListener("offline", updateOnlineState);
 }
 
 function friendlyError(err) {
   const code = err?.code || "";
+  const msg = err?.message || "";
   if (code.includes("user-not-found") || code.includes("invalid-credential") || code.includes("wrong-password")) {
     return "Incorrect email or password.";
+  }
+  if (code.includes("network-request-failed") || code.includes("unavailable") || /network|internet/i.test(msg) || (typeof navigator !== "undefined" && !navigator.onLine)) {
+    return "No internet connection. Please connect to the internet to sign in.";
   }
   if (code.includes("too-many-requests")) return "Too many attempts. Try again later.";
   return err.message || "Something went wrong. Please try again.";
