@@ -468,26 +468,6 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     );
   }
 
-  // Approved-by signatures - only show a block for whichever of the
-  // principal/deputy principal actually has a name set in School Settings
-  // (Settings -> Leadership), so an unfilled field doesn't print a blank
-  // "Principal: " line on a card that goes home to a parent.
-  const signers = [
-    settings.principalName ? { name: settings.principalName, title: settings.principalTitle || "Principal" } : null,
-    settings.deputyPrincipalName ? { name: settings.deputyPrincipalName, title: settings.deputyPrincipalTitle || "Deputy Principal" } : null,
-  ].filter(Boolean);
-  if (signers.length) {
-    card.append(
-      el("div", { class: "report-card__signatures" }, signers.map((s) =>
-        el("div", { class: "report-card__signature" }, [
-          el("div", { class: "report-card__signature-line" }),
-          el("div", { class: "report-card__signature-name" }, s.name),
-          el("div", { class: "report-card__signature-title" }, s.title),
-        ])
-      ))
-    );
-  }
-
   // Fee balance
   card.append(el("div", { class: "report-card__fee-balance" }, `Fee Balance: ${formatKES(feeSummary.balance)}`));
 
