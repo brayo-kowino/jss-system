@@ -1108,6 +1108,25 @@
   animation: loadingSwipe 1.5s infinite ease-in-out;
 }
 
+.splash-loader-bar--progress {
+  animation: none;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 5%;
+}
+
+.splash-status {
+  font-size: var(--fs-xs);
+  color: var(--color-ink);
+  font-weight: 600;
+  margin-top: var(--sp-4);
+  text-align: center;
+  min-height: 20px;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+  animation: slideUp 0.7s 0.45s ease-out both;
+}
+
 @keyframes floatBounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }

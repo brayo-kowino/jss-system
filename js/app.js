@@ -43,6 +43,11 @@ if ("serviceWorker" in navigator) {
 window.__jssBootPing?.();
 
 try {
+  const { preloadAllAppAssets } = await import("./services/asset-preloader.js");
+  await preloadAllAppAssets((percent, text) => {
+    window.__jssUpdateSplashProgress?.(percent, text);
+  });
+
   const { onAuthChange, refreshCurrentSchool, getCurrentProfile } = await import("./services/auth.service.js");
   const { startRouter, renderRoute, navigate } = await import("./router.js");
 
@@ -61,12 +66,6 @@ try {
       }
       await renderRoute();
       window.__jssBootOk?.();
-      // Prewarm PDF generation and heavy modules in idle time so actions happen instantly
-      if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
-        window.requestIdleCallback(() => {
-          import("./services/pdf.util.js").then((m) => m.prewarmPdfLibs()).catch(() => {});
-        });
-      }
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });
     }
