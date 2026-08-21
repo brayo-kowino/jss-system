@@ -10,7 +10,7 @@ import {
   positionScopeTag,
 } from "../js/services/grading.service.js";
 import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
-import { downloadElementAsPdf, downloadPdfsAsZip } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
 
@@ -297,10 +297,15 @@ async function handleDownload(button, result) {
   const card = document.querySelector(".report-card");
   if (!card) return;
   const original = button.textContent;
-  button.textContent = "Preparing…";
+  button.textContent = "Loading tools…";
   button.disabled = true;
   try {
-    await downloadElementAsPdf(card, `${result.fullName.replace(/\s+/g, "_")}_${result.term}_${result.academicYear}.pdf`);
+    await downloadElementAsPdf(card, `${result.fullName.replace(/\s+/g, "_")}_${result.term}_${result.academicYear}.pdf`, {
+      onStatus: (status) => {
+        if (status === "rendering_canvas") button.textContent = "Rendering…";
+        else if (status === "building_pdf") button.textContent = "Building PDF…";
+      },
+    });
   } catch (err) {
     toast("Could not generate PDF - check your connection and try again.", "error");
   } finally {
@@ -544,4 +549,6 @@ function remarkBox(title, value, editable, signer) {
   return { node: box, getValue: () => (editable ? control.value.trim() : value || "") };
 }
 
-export function init() {}
+export function init() {
+  prewarmPdfLibs();
+}

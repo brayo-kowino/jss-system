@@ -14,6 +14,14 @@ function loadLibs() {
   return libsPromise;
 }
 
+export function prewarmPdfLibs() {
+  if (typeof window === "undefined") return;
+  const schedule = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : (cb) => setTimeout(cb, 1000);
+  schedule(() => {
+    loadLibs().catch(() => {});
+  });
+}
+
 let zipLibPromise = null;
 function loadZipLib() {
   if (!zipLibPromise) {
@@ -28,12 +36,16 @@ function loadZipLib() {
 // and mosquito noise around high-contrast typography and table borders;
 // PNG ensures 100% pixel-perfect text clarity while compressing white space
 // and table structures efficiently.
-export async function renderElementToPdfBlob(node, { scale = 2 } = {}) {
+export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout = 7000, onStatus } = {}) {
+  onStatus?.("loading_libs");
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
+  onStatus?.("rendering_canvas");
   const canvas = await html2canvas(node, {
     scale,
     backgroundColor: "#ffffff",
     useCORS: true,
+    allowTaint: false,
+    imageTimeout,
     logging: false,
     // .no-print elements (Save Remarks button, Back/Print/Download bar,
     // etc.) are only hidden via a @media print rule, which html2canvas
@@ -41,6 +53,7 @@ export async function renderElementToPdfBlob(node, { scale = 2 } = {}) {
     // otherwise show up baked into the downloaded PDF. Skip them here too.
     ignoreElements: (el) => el.classList?.contains("no-print"),
   });
+  onStatus?.("building_pdf");
   const imgData = canvas.toDataURL("image/png");
   const pdf = new jsPDF({
     unit: "px",
@@ -103,7 +116,7 @@ export async function downloadElementAsPdf(node, filename, opts) {
 // `items`: array of { filename, build } where build() returns (or
 // resolves to) the DOM node to render for that entry.
 // `onProgress(done, total, currentFilename)` fires after each item.
-export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 2 } = {}) {
+export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 1.5 } = {}) {
   const JSZip = await loadZipLib();
   const zip = new JSZip();
   const usedNames = new Set(); // guards against two students flattening to the same name (e.g. "019/25" and "019-25" both becoming "019-25")

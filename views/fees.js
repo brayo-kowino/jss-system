@@ -13,7 +13,7 @@ import {
   backfillAllFeeStatuses,
   formatKES,
 } from "../js/services/fee.service.js";
-import { downloadElementAsPdf, downloadPdfsAsZip } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
 
@@ -482,4 +482,6 @@ async function handleDownload(button, node, payment) {
   }
 }
 
-export function init() {}
+export function init() {
+  prewarmPdfLibs();
+}

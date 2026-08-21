@@ -22,7 +22,7 @@ import { listClasses } from "../js/services/academic.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { listParents } from "../js/services/parent.service.js";
 import { getFeeSummary } from "../js/services/fee.service.js";
-import { downloadElementAsPdf } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
 
@@ -62,7 +62,9 @@ export async function render({ profile }) {
   return wrap;
 }
 
-export function init() {}
+export function init() {
+  prewarmPdfLibs();
+}
 
 function tabButton(id, iconName, label, profile) {
   const btn = el(
