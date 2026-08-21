@@ -183,8 +183,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Content-hashed build output - immutable, safe to cache forever.
-  if (url.pathname.startsWith("/assets/") && /-[a-f0-9]{6,}\.(js|css)$/i.test(url.pathname)) {
+  // Content-hashed build output and local fonts - immutable, served cache-first forever.
+  if (
+    (url.pathname.startsWith("/assets/") && /-[a-f0-9]{6,}\.(js|css|png|woff2)$/i.test(url.pathname)) ||
+    url.pathname.startsWith("/fonts/")
+  ) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
     return;
   }
