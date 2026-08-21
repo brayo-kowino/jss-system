@@ -5,7 +5,7 @@ import { listTeachers } from "../js/services/teacher.service.js";
 import { listResultsByPeriod } from "../js/services/grading.service.js";
 import { listFeeStatusesForPeriod, backfillAllFeeStatuses, formatKES } from "../js/services/fee.service.js";
 import { el, icon, toast, spinner, escapeHtml, mobileOnlyNotice, busyButton, getBrandColors, hexToRgba } from "../js/utils.js";
-import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
+import { Chart, registerables } from "chart.js";
 
 Chart.register(...registerables);
 

@@ -12,7 +12,11 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.2.0"
+    "@netlify/blobs": "^8.2.0",
+    "chart.js": "^4.5.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.1",

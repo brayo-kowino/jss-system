@@ -1,14 +1,10 @@
-// On-demand PDF export for a DOM node (used by the report card's "Download
-// PDF" button, fee receipts, and now bulk ZIP export). Both libraries are
-// pulled from a CDN only when needed, so the app has zero extra weight
-// until someone actually downloads something.
 let libsPromise = null;
 
 function loadLibs() {
   if (!libsPromise) {
     libsPromise = Promise.all([
-      import("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm"),
-      import("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm"),
+      import("html2canvas"),
+      import("jspdf"),
     ]);
   }
   return libsPromise;
@@ -16,7 +12,7 @@ function loadLibs() {
 
 export function prewarmPdfLibs() {
   if (typeof window === "undefined") return;
-  const schedule = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : (cb) => setTimeout(cb, 1000);
+  const schedule = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : (cb) => setTimeout(cb, 500);
   schedule(() => {
     loadLibs().catch(() => {});
   });
@@ -25,7 +21,7 @@ export function prewarmPdfLibs() {
 let zipLibPromise = null;
 function loadZipLib() {
   if (!zipLibPromise) {
-    zipLibPromise = import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm").then((m) => m.default || m);
+    zipLibPromise = import("jszip").then((m) => m.default || m);
   }
   return zipLibPromise;
 }

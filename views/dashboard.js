@@ -11,7 +11,7 @@ import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
 import { el, formatDate, getBrandColors, hexToRgba } from "../js/utils.js";
 
-import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/+esm";
+import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
 
 // getCountFromServer is server-only - no offline cache of its own - so a

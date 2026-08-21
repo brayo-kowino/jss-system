@@ -61,6 +61,12 @@ try {
       }
       await renderRoute();
       window.__jssBootOk?.();
+      // Prewarm PDF generation and heavy modules in idle time so actions happen instantly
+      if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(() => {
+          import("./services/pdf.util.js").then((m) => m.prewarmPdfLibs()).catch(() => {});
+        });
+      }
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });
     }
