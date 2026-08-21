@@ -30,16 +30,18 @@ function loadZipLib() {
   return zipLibPromise;
 }
 
-// Renders one DOM node to a PDF Blob. Uses lossless PNG encoding with
-// jsPDF's built-in Flate stream compression (`compress: true`, "SLOW"
-// compression). Lossy JPEG previously introduced "smoky"/cloudy DCT ringing
-// and mosquito noise around high-contrast typography and table borders;
-// PNG ensures 100% pixel-perfect text clarity while compressing white space
-// and table structures efficiently.
-export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout = 7000, onStatus } = {}) {
+// Renders one DOM node to a PDF Blob. Uses high-DPI rasterization (scale: 3,
+// ~300 DPI equivalent) and an onclone normalization hook to ensure tables
+// are never clipped by mobile/narrow scroll containers, producing crystal-clear
+// and complete PDFs regardless of the user's screen size or device.
+export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 7000, onStatus } = {}) {
   onStatus?.("loading_libs");
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
   onStatus?.("rendering_canvas");
+
+  const isReceipt = node.classList?.contains("receipt");
+  const targetWidth = isReceipt ? 440 : 840;
+
   const canvas = await html2canvas(node, {
     scale,
     backgroundColor: "#ffffff",
@@ -52,16 +54,53 @@ export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout =
     // doesn't apply since it renders the live on-screen DOM - so they'd
     // otherwise show up baked into the downloaded PDF. Skip them here too.
     ignoreElements: (el) => el.classList?.contains("no-print"),
+    onclone: (clonedDoc, clonedElement) => {
+      // 1. Force a clean, unconstrained print width so tables never wrap or clip
+      clonedElement.style.width = `${targetWidth}px`;
+      clonedElement.style.maxWidth = `${targetWidth}px`;
+      clonedElement.style.minWidth = `${targetWidth}px`;
+      clonedElement.style.boxShadow = "none";
+      clonedElement.style.margin = "0";
+      clonedElement.style.padding = isReceipt ? "16px" : "24px";
+      clonedElement.style.transform = "none";
+
+      // 2. Expand all table containers to be fully visible (no horizontal scrollbar clipping)
+      const wraps = clonedElement.querySelectorAll(".table-wrap, table, .report-card__student, .report-card__header");
+      wraps.forEach((el) => {
+        el.style.overflow = "visible";
+        el.style.maxWidth = "none";
+        el.style.width = "100%";
+      });
+
+      // 3. Ensure all textareas display their full content as readable text
+      const textareas = clonedElement.querySelectorAll("textarea");
+      textareas.forEach((ta) => {
+        const div = clonedDoc.createElement("div");
+        div.className = ta.className;
+        div.style.cssText = ta.style.cssText;
+        div.style.minHeight = "48px";
+        div.style.whiteSpace = "pre-wrap";
+        div.style.wordBreak = "break-word";
+        div.textContent = ta.value || ta.placeholder || "";
+        ta.parentNode.replaceChild(div, ta);
+      });
+    },
   });
+
   onStatus?.("building_pdf");
   const imgData = canvas.toDataURL("image/png");
+
+  // Standard PDF sizing in points (1px at 96 DPI = 0.75 pt at 72 DPI)
+  const ptWidth = (canvas.width / scale) * 0.75;
+  const ptHeight = (canvas.height / scale) * 0.75;
+
   const pdf = new jsPDF({
-    unit: "px",
-    format: [canvas.width, canvas.height],
+    unit: "pt",
+    format: [ptWidth, ptHeight],
     compress: true,
-    hotfixes: ["px_scaling"],
   });
-  pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height, undefined, "SLOW");
+
+  pdf.addImage(imgData, "PNG", 0, 0, ptWidth, ptHeight, undefined, "SLOW");
   return pdf.output("blob");
 }
 
