@@ -113,25 +113,22 @@
     settled = true;
     if (timer) clearTimeout(timer);
   }
-  function armTimer() {
+  function armTimer(customMs) {
+    if (settled) return;
     if (timer) clearTimeout(timer);
+    var timeoutMs = typeof customMs === "number" ? customMs : 90000;
     timer = setTimeout(function () {
       if (settled) return;
       showBootFallback(
-        "This is taking longer than expected to load."
+        "This is taking longer than expected to load. The internet connection may be slow."
       );
-    }, 35000);
+    }, timeoutMs);
   }
 
-  // __jssBootPing only means "the JS started executing" - it must NOT
-  // satisfy the watchdog, or a hang anywhere after this point (auth,
-  // Firestore, router) would never surface any fallback UI. It just
-  // re-arms the timer, so a script that's alive but still working gets
-  // a fresh 15s rather than the countdown having started at parse time.
-  // __jssBootOk is the only thing allowed to mark the boot as settled.
+  // __jssBootPing re-arms the watchdog timer whenever progress occurs
   window.__jssBootPing = armTimer;
   window.__jssBootOk = settle;
-  armTimer();
+  armTimer(90000);
 
   window.addEventListener("error", function (e) {
     var t = e.target;

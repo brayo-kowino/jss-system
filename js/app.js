@@ -56,7 +56,7 @@ try {
   let firstLoad = true;
   onAuthChange(async (profile) => {
     try {
-      window.__jssBootPing?.();
+      window.__jssUpdateSplashProgress?.(85, "Authenticating session…");
       if (firstLoad) {
         firstLoad = false;
         if (!location.hash) {
@@ -64,6 +64,7 @@ try {
           navigate(home);
         }
       }
+      window.__jssUpdateSplashProgress?.(95, "Rendering view…");
       await renderRoute();
       if (typeof document !== "undefined" && document.fonts) {
         try {
@@ -71,6 +72,7 @@ try {
         } catch {}
       }
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.__jssUpdateSplashProgress?.(100, "Ready!");
       window.__jssBootOk?.();
     } catch (err) {
       showFatalError(err, { where: "app.onAuthChange" });
