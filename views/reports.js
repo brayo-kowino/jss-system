@@ -287,29 +287,33 @@ function buildActionBar(bodyMount, result, profile) {
     el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back"), "Back to list"]),
     el("div", { style: "display:flex; gap:8px;" }, [
       el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
-      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, result) }, [icon("download"), "Download PDF"]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.currentTarget, result) }, [icon("download"), "Download PDF"]),
     ])
   );
   return bar;
 }
 
-async function handleDownload(button, result) {
+async function handleDownload(btn, result) {
+  const button = btn?.closest?.("button") || btn;
   const card = document.querySelector(".report-card");
-  if (!card) return;
-  const original = button.textContent;
-  button.textContent = "Loading tools…";
+  if (!card || !button) return;
+  const originalHTML = button.innerHTML;
   button.disabled = true;
+  button.innerHTML = "";
+  const statusSpan = document.createElement("span");
+  statusSpan.textContent = " Loading…";
+  button.append(spinner("sm", "light"), statusSpan);
   try {
     await downloadElementAsPdf(card, `${result.fullName.replace(/\s+/g, "_")}_${result.term}_${result.academicYear}.pdf`, {
       onStatus: (status) => {
-        if (status === "rendering_canvas") button.textContent = "Rendering…";
-        else if (status === "building_pdf") button.textContent = "Building PDF…";
+        if (status === "rendering_canvas") statusSpan.textContent = " Rendering…";
+        else if (status === "building_pdf") statusSpan.textContent = " Building PDF…";
       },
     });
   } catch (err) {
     toast("Could not generate PDF - check your connection and try again.", "error");
   } finally {
-    button.textContent = original;
+    button.innerHTML = originalHTML;
     button.disabled = false;
   }
 }

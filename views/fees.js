@@ -462,23 +462,23 @@ function renderReceipt(container, payment) {
 
   const actions = el("div", { class: "no-print", style: "display:flex; gap:8px; justify-content:center; margin-top:12px;" }, [
     el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
-    el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.target, card, payment) }, [icon("download"), "Download PDF"]),
+    el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.currentTarget, card, payment) }, [icon("download"), "Download PDF"]),
   ]);
 
   container.append(card, actions);
   card.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-async function handleDownload(button, node, payment) {
-  button.disabled = true;
-  button.textContent = "Preparing…";
+async function handleDownload(btn, node, payment) {
+  const button = btn?.closest?.("button") || btn;
+  if (!button) return;
+  const restore = busyButton(button, "Preparing…");
   try {
     await downloadElementAsPdf(node, `receipt_${(payment.studentName || "student").replace(/\s+/g, "_")}_${payment.date}.pdf`);
   } catch {
     toast("Could not generate the PDF.", "error");
   } finally {
-    button.disabled = false;
-    button.textContent = "Download PDF";
+    restore();
   }
 }
 
