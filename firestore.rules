@@ -341,7 +341,7 @@ service cloud.firestore {
       allow read: if isStaff() && ownsExisting();
       allow create: if canManageStudents() && ownsIncoming();
       allow update: if canManageStudents() && ownsBoth();
-      allow delete: if false; // app never deletes parents
+      allow delete: if canManageStudents() && ownsExisting();
     }
 
     // Front-desk issue tickets against a student record - raised/resolved
