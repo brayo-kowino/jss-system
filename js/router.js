@@ -192,7 +192,12 @@ export async function renderRoute() {
 
   try {
     if (route.public) {
-      if (profile) return navigate("/dashboard");
+      if (profile) {
+        if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
+          return;
+        }
+        return navigate("/dashboard");
+      }
       const view = await loadView(path, route);
       if (isStale()) return;
       const content = await view.render();

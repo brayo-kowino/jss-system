@@ -8,7 +8,7 @@ import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 import { mountAnnouncementBanner } from "./announcement-banner.js";
 import { watchPendingApprovals, approveLogin, denyLogin } from "../services/login-approval.service.js";
-import { registerTrustedDevice } from "../services/device.service.js";
+import { registerTrustedDevice, generateDeviceFingerprint } from "../services/device.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -388,6 +388,13 @@ export async function refreshSchoolChrome() {
 function showApprovalModal(approval, profile) {
   // Don't stack duplicate modals for the same approval
   if (document.getElementById("jss-approval-modal")) return;
+
+  // Do NOT show approval modal on the device that originated the login request.
+  // The requesting device should only display the waiting screen.
+  const currentFingerprint = generateDeviceFingerprint();
+  if (approval.deviceFingerprint && approval.deviceFingerprint === currentFingerprint) {
+    return;
+  }
 
   const requestedAt = approval.requestedAt?.toDate
     ? approval.requestedAt.toDate().toLocaleString()
@@ -869,8 +876,12 @@ export function renderShell(app, profile, activePath) {
       document.getElementById("jss-approval-modal")?.remove();
       if (!pending || pending.length === 0) return;
 
-      // Show the most recent pending approval
-      const req = pending[0];
+      const currentFingerprint = generateDeviceFingerprint();
+      const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint);
+      if (incoming.length === 0) return;
+
+      // Show the most recent pending approval from another device
+      const req = incoming[0];
       showApprovalModal(req, profile);
     });
   }
