@@ -42,6 +42,7 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 // to an already-visited page doesn't re-fetch its chunk.
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
+  "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), allRoles: true },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"] },
 
@@ -211,11 +212,11 @@ export async function renderRoute() {
     // standing credential once someone else has read it off a shared link,
     // a chat message, or a sticky note.
     if (profile.mustChangePassword) {
-      const content = await changePasswordView.render({ profile });
+      const content = await changePasswordView.render({ profile, forced: true });
       if (isStale()) return;
       app.innerHTML = "";
       app.appendChild(content);
-      await changePasswordView.init?.({ profile });
+      await changePasswordView.init?.({ profile, forced: true });
       return;
     }
 

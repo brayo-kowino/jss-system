@@ -28,12 +28,16 @@ function fnv1a(str) {
 }
 
 function getOrGenerateSalt() {
-  let salt = localStorage.getItem(DEVICE_SALT_KEY);
-  if (!salt) {
-    salt = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem(DEVICE_SALT_KEY, salt);
+  try {
+    let salt = localStorage.getItem(DEVICE_SALT_KEY);
+    if (!salt) {
+      salt = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem(DEVICE_SALT_KEY, salt);
+    }
+    return salt;
+  } catch {
+    return "jss_default_salt";
   }
-  return salt;
 }
 
 /**
@@ -43,18 +47,23 @@ function getOrGenerateSalt() {
  */
 export function generateDeviceFingerprint() {
   const salt = getOrGenerateSalt();
-  const screenRes = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const platform = navigator.platform || 'unknown';
-  const language = navigator.language || 'unknown';
-  const ua = navigator.userAgent;
+  const screenRes = (typeof window !== "undefined" && window.screen)
+    ? `${window.screen.width || 0}x${window.screen.height || 0}x${window.screen.colorDepth || 0}`
+    : "screen";
+  let tz = "UTC";
+  try {
+    tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {}
+  const platform = (typeof navigator !== "undefined" && navigator.platform) || "unknown";
+  const language = (typeof navigator !== "undefined" && navigator.language) || "unknown";
+  const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "unknown";
 
-  const raw = [salt, screenRes, tz, platform, language, ua].join('|');
+  const raw = [salt, screenRes, tz, platform, language, ua].join("|");
   return fnv1a(raw);
 }
 
 // Basic user-agent parsing for human-readable device info
-function parseUserAgent(ua) {
+function parseUserAgent(ua = "") {
   let browser = "Unknown Browser";
   let os = "Unknown OS";
 
@@ -74,12 +83,19 @@ function parseUserAgent(ua) {
 
 /**
  * Returns human-readable details about the current device.
+ * Guarantees clean string fields so Firestore writes never fail with undefined values.
  * @returns {Object} Device info object
  */
 export function getDeviceInfo() {
-  const { browser, os } = parseUserAgent(navigator.userAgent);
-  const screenRes = `${window.screen.width}x${window.screen.height}`;
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+  const { browser = "Unknown Browser", os = "Unknown OS" } = parseUserAgent(ua);
+  const screenRes = (typeof window !== "undefined" && window.screen)
+    ? `${window.screen.width || 0}x${window.screen.height || 0}`
+    : "Unknown";
+  let timezone = "UTC";
+  try {
+    timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {}
   return {
     deviceName: `${browser} on ${os}`,
     screenRes,
@@ -92,27 +108,37 @@ export function getDeviceInfo() {
 /**
  * Registers a device as trusted for a given user.
  */
-export async function registerTrustedDevice(uid, fingerprint, deviceInfo, isPrimary = false) {
-  const docRef = doc(db, "users", uid, "trusted_devices", fingerprint);
-  await setDoc(docRef, {
-    fingerprint,
-    deviceName: deviceInfo.deviceName,
-    screenRes: deviceInfo.screenRes,
-    timezone: deviceInfo.timezone,
-    isPrimary,
+export async function registerTrustedDevice(uid, fingerprint, deviceInfo = {}, isPrimary = false) {
+  if (!uid || !fingerprint) return;
+  const docRef = doc(db, "users", uid, "trusted_devices", String(fingerprint));
+  const data = {
+    fingerprint: String(fingerprint),
+    deviceName: String(deviceInfo.deviceName || "Unknown Device"),
+    screenRes: String(deviceInfo.screenRes || "Unknown"),
+    timezone: String(deviceInfo.timezone || "UTC"),
+    browser: String(deviceInfo.browser || "Unknown Browser"),
+    os: String(deviceInfo.os || "Unknown OS"),
+    isPrimary: Boolean(isPrimary),
     registeredAt: serverTimestamp(),
-    lastSeenAt: serverTimestamp()
-  });
-  await logAction(uid, "register_device", "users", fingerprint);
+    lastSeenAt: serverTimestamp(),
+  };
+  await setDoc(docRef, data, { merge: true });
+  await logAction(uid, "register_device", "users", String(fingerprint));
 }
 
 /**
  * Checks if a specific device fingerprint is registered as trusted for the user.
  */
 export async function isDeviceTrusted(uid, fingerprint) {
-  const docRef = doc(db, "users", uid, "trusted_devices", fingerprint);
-  const snap = await getDoc(docRef);
-  return snap.exists();
+  if (!uid || !fingerprint) return false;
+  try {
+    const docRef = doc(db, "users", uid, "trusted_devices", String(fingerprint));
+    const snap = await getDoc(docRef);
+    return snap.exists();
+  } catch (err) {
+    console.error("isDeviceTrusted check failed:", err);
+    return false;
+  }
 }
 
 /**

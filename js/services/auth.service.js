@@ -405,8 +405,30 @@ export function requestPasswordReset(email) {
   return sendPasswordResetEmail(auth, email);
 }
 
-export function changeOwnPassword(newPassword) {
-  return updatePassword(auth.currentUser, newPassword);
+export async function changeOwnPassword(newPassword) {
+  if (!auth.currentUser || !currentProfile) throw new Error("Not signed in.");
+  await auth.currentUser.getIdToken(true);
+  await updatePassword(auth.currentUser, newPassword);
+
+  if (currentProfile.mustChangePassword) {
+    await setDoc(doc(db, "users", currentProfile.uid), { mustChangePassword: false }, { merge: true });
+    currentProfile = { ...currentProfile, mustChangePassword: false };
+    writeCachedProfile(currentProfile);
+  }
+
+  // Register this device as trusted upon changing password
+  try {
+    const fingerprint = generateDeviceFingerprint();
+    const deviceInfo = getDeviceInfo();
+    const primaryDevice = await getPrimaryDevice(currentProfile.uid);
+    const isPrimary = !primaryDevice || primaryDevice.id === fingerprint;
+    await registerTrustedDevice(currentProfile.uid, fingerprint, deviceInfo, isPrimary);
+  } catch (deviceErr) {
+    console.error("Trusted device registration failed during password change:", deviceErr);
+  }
+
+  await logAction(currentProfile.uid, "change_password", "auth", null);
+  return currentProfile;
 }
 
 // Used by the forced "you must set a new password" screen every fresh
@@ -426,6 +448,7 @@ export async function completeForcedPasswordChange(newPassword) {
   await updatePassword(auth.currentUser, newPassword);
   await setDoc(doc(db, "users", currentProfile.uid), { mustChangePassword: false }, { merge: true });
   currentProfile = { ...currentProfile, mustChangePassword: false };
+  writeCachedProfile(currentProfile);
   
   // Register this device as the primary trusted device. This is the first
   // device to know the real password, so it's the natural choice for the
