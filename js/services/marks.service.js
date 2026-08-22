@@ -34,15 +34,17 @@ function marksByAssessmentCacheKey(assessmentId) {
 }
 
 export async function listMarks(assessmentId, subjectCode) {
-  const snap = await getDocs(
-    query(
-      collection(db, "marks"),
-      where("schoolId", "==", getCurrentSchoolId()),
-      where("assessmentId", "==", assessmentId),
-      where("subjectCode", "==", subjectCode)
-    )
-  );
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return cached(`marks:${getCurrentSchoolId()}:${assessmentId}:${subjectCode}`, 5 * 60_000, async () => {
+    const snap = await getDocs(
+      query(
+        collection(db, "marks"),
+        where("schoolId", "==", getCurrentSchoolId()),
+        where("assessmentId", "==", assessmentId),
+        where("subjectCode", "==", subjectCode)
+      )
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  });
 }
 
 // All marks (every subject) for a single assessment - the read the
@@ -103,6 +105,7 @@ export async function upsertMark(userId, { assessmentId, subjectCode, studentId,
     { merge: true }
   );
   invalidate(marksByAssessmentCacheKey(assessmentId));
+  invalidate(`marks:${getCurrentSchoolId()}:${assessmentId}:${subjectCode}`);
 }
 
 export async function bulkUpsertMarks(userId, assessmentId, subjectCode, entries) {
@@ -161,6 +164,7 @@ export async function bulkUpsertMarks(userId, assessmentId, subjectCode, entries
   }
 
   invalidate(marksByAssessmentCacheKey(assessmentId));
+  invalidate(`marks:${schoolId}:${assessmentId}:${subjectCode}`);
   await logAction(userId, "bulk_enter_marks", "marks", `${assessmentId}_${subjectCode}`);
   return results;
 }

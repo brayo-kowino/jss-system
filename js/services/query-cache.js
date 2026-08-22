@@ -29,9 +29,17 @@ export async function cached(key, ttlMs, fetchFn) {
   const hit = store.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.data;
   try {
-    const data = await fetchFn();
+    let timer;
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Query timeout - using fallback")), 4000);
+    });
+    const fetchPromise = Promise.resolve().then(fetchFn);
+    const data = await Promise.race([fetchPromise, timeoutPromise]).finally(() => clearTimeout(timer));
+    
     const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
-    if (isOffline && Array.isArray(data) && data.length === 0 && lastKnown.has(key)) {
+    const isEmptyArray = Array.isArray(data) && data.length === 0;
+    const isNull = data === null;
+    if (isOffline && (isEmptyArray || isNull) && lastKnown.has(key)) {
       const fallback = lastKnown.get(key);
       store.set(key, { data: fallback, expiresAt: Date.now() + ttlMs });
       return fallback;

@@ -23,6 +23,7 @@ import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
+import { cached, invalidate } from "./query-cache.js";
 
 export const STATUSES = [
   { value: "present", label: "Present" },
@@ -40,8 +41,10 @@ function attendanceId(schoolId, grade, stream, date) {
 }
 
 export async function getAttendanceForClassDate(grade, stream, date) {
-  const snap = await getDoc(doc(db, "attendance", attendanceId(getCurrentSchoolId(), grade, stream, date)));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  return cached(`attendance:${getCurrentSchoolId()}:${grade}:${stream}:${date}`, 5 * 60_000, async () => {
+    const snap = await getDoc(doc(db, "attendance", attendanceId(getCurrentSchoolId(), grade, stream, date)));
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+  });
 }
 
 /**
@@ -66,6 +69,7 @@ export async function saveAttendance(userId, { grade, stream, date, academicYear
     },
     { merge: true }
   );
+  invalidate(`attendance:${schoolId}:${grade}:${stream}:${date}`);
   await logAction(userId, "mark_attendance", "attendance", id);
   return id;
 }
