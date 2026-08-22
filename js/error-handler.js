@@ -375,7 +375,7 @@ export function initErrorHandling() {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch("/manifest.json", { method: "HEAD", cache: "no-store", signal: controller.signal });
+      const res = await fetch("/robots.txt", { method: "HEAD", cache: "no-store", signal: controller.signal });
       clearTimeout(id);
       if (res.ok) {
         if (!actualOnlineStatus) {
