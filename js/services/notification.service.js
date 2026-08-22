@@ -84,16 +84,23 @@ export async function createNotification(userId, data) {
   await logAction(userId, "send_notification", "notifications", ref.id);
   
   if (data.channel === "email" || data.channel === "sms") {
-    auth.currentUser?.getIdToken().then(idToken => {
-      fetch("/.netlify/functions/dispatch-notifications", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${idToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ notificationId: ref.id, schoolId })
-      }).catch(err => console.error("Failed to trigger notification dispatch:", err));
-    }).catch(err => console.error("Failed to get auth token:", err));
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      if (idToken) {
+        await fetch("/.netlify/functions/dispatch-notifications", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${idToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ notificationId: ref.id, schoolId })
+        });
+        // Invalidate again now that the status has flipped to 'delivered'
+        invalidate(notificationsCacheKey(schoolId));
+      }
+    } catch (err) {
+      console.error("Failed to trigger notification dispatch:", err);
+    }
   }
   
   return ref.id;

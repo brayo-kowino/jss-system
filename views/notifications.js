@@ -407,7 +407,7 @@ async function openComposeModal(profile, opts = {}) {
     gradeField,
     recipientPreview,
     el("div", { class: "field" }, [el("label", {}, "Intended channel"), channelSelect]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("send"), "Record & Queue"])
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("send"), "Send Notification"])
   );
 
   refreshPreview();
