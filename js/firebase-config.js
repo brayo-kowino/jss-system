@@ -66,7 +66,7 @@ if (typeof window !== "undefined") {
   if (navigator.onLine) {
     attachAppCheck(firebaseApp);
   }
-  window.addEventListener("online", () => {
+  window.addEventListener("actually-online", () => {
     attachAppCheck(firebaseApp);
   });
 }
@@ -105,7 +105,7 @@ if (typeof window !== "undefined") {
     const op = navigator.onLine ? enableNetwork(db) : disableNetwork(db);
     op.catch(() => {}); 
   };
-  window.addEventListener("online", syncNetworkState);
+  window.addEventListener("actually-online", syncNetworkState);
   window.addEventListener("offline", syncNetworkState);
   syncNetworkState();
 }

@@ -368,7 +368,42 @@ export function initErrorHandling() {
   });
 
   window.addEventListener("offline", () => toast("You're offline - some actions may not save until you're back online.", "error", 6000));
-  window.addEventListener("online", () => toast("Back online.", "success", 3000));
+  
+  let actualOnlineStatus = true; // assume true initially if no offline event
+  const verifyLoop = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch("/manifest.json", { method: "HEAD", cache: "no-store", signal: controller.signal });
+      clearTimeout(id);
+      if (res.ok) {
+        if (!actualOnlineStatus) {
+          actualOnlineStatus = true;
+          toast("Back online.", "success", 3000);
+          window.dispatchEvent(new Event("actually-online"));
+        }
+        return; // we are online, stop polling
+      }
+    } catch (e) {} // ignore fetch error
+    
+    // If we reach here, we are on a network but no actual internet
+    if (actualOnlineStatus) {
+      actualOnlineStatus = false;
+      window.dispatchEvent(new Event("offline"));
+    }
+    setTimeout(verifyLoop, 5000); // poll every 5s until real internet is found
+  };
+  
+  window.addEventListener("online", () => {
+    actualOnlineStatus = false; // reset flag
+    verifyLoop();
+  });
+  
+  // Also verify on initial load if the browser claims we are online
+  if (typeof navigator !== "undefined" && navigator.onLine) {
+    verifyLoop();
+  }
 }
 
 // A crashed render loop can throw the same error repeatedly; avoid spamming

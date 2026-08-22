@@ -274,7 +274,7 @@ function offlineStatusPill() {
 
   const onOnline = () => applyState(true);
   const onOffline = () => applyState(false);
-  window.addEventListener("online", onOnline);
+  window.addEventListener("actually-online", onOnline);
   window.addEventListener("offline", onOffline);
   applyState(navigator.onLine);
 

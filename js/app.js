@@ -101,7 +101,7 @@ try {
   // reflects reality within seconds of reconnecting, rather than however
   // long it takes for the person to happen to navigate somewhere next.
   // ------------------------------------------------------------------
-  window.addEventListener("online", () => {
+  window.addEventListener("actually-online", () => {
     if (!getCurrentProfile()) return; // signed out - nothing to refresh, avoid a needless read
     refreshCurrentSchool()
       .then(() => renderRoute())
