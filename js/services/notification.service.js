@@ -17,7 +17,7 @@ import {
   where,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate } from "./query-cache.js";
@@ -34,10 +34,6 @@ export const CHANNELS = [
   { value: "sms", label: "SMS" },
   { value: "email", label: "Email" },
   { value: "whatsapp", label: "WhatsApp" },
-  // Not offered in the compose modal - only ever written by
-  // netlify/functions/subscription-expiry-check.mjs for the daily
-  // subscription-expiry reminder, which has no phone/email audience to
-  // dispatch to, just a banner for the school's own admin to see in-app.
   { value: "app", label: "In-App" },
 ];
 
@@ -60,11 +56,6 @@ function notificationsCacheKey(schoolId) {
 export async function listNotifications(forceRefresh = false) {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return [];
-  // Same cache-with-forceRefresh pattern as listClasses()/listSubjects() in
-  // academic.service.js. Shorter TTL than the mostly-static lookups (2 min
-  // vs 5) since status flips queued -> delivered fairly often, but every
-  // write below still invalidates immediately so that's just a ceiling on
-  // staleness for a tab left open, not something callers need to think about.
   if (forceRefresh) invalidate(notificationsCacheKey(schoolId));
   return cached(notificationsCacheKey(schoolId), 2 * 60_000, async () => {
     const snap = await getDocs(
@@ -91,6 +82,20 @@ export async function createNotification(userId, data) {
   });
   invalidate(notificationsCacheKey(schoolId));
   await logAction(userId, "send_notification", "notifications", ref.id);
+  
+  if (data.channel === "email" || data.channel === "sms") {
+    auth.currentUser?.getIdToken().then(idToken => {
+      fetch("/.netlify/functions/dispatch-notifications", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${idToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ notificationId: ref.id, schoolId })
+      }).catch(err => console.error("Failed to trigger notification dispatch:", err));
+    }).catch(err => console.error("Failed to get auth token:", err));
+  }
+  
   return ref.id;
 }
 

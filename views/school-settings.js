@@ -18,6 +18,7 @@ const TABS = [
   { id: "leadership", label: "Leadership", icon: "badge" },
   { id: "calendar", label: "Academic Calendar", icon: "event" },
   { id: "grading", label: "Grading Scale", icon: "grading" },
+  { id: "notifications", label: "Notification Providers", icon: "notifications_active" },
   { id: "security", label: "Security", icon: "shield" },
   { id: "subscription", label: "Subscription", icon: "workspace_premium" },
 ];
@@ -62,6 +63,7 @@ export async function render({ profile }) {
   panels.leadership.append(buildLeadershipTab());
   panels.calendar.append(buildCalendarTab());
   panels.grading.append(buildGradingTab());
+  panels.notifications.append(buildNotificationsTab());
   
   // Security tab - only for admin/super_admin
   if (profile.role === "admin" || profile.role === "super_admin") {
@@ -479,6 +481,44 @@ function buildGradingTab() {
 }
 
 // ===========================================================================
+// Notification Providers tab
+// ===========================================================================
+
+function buildNotificationsTab() {
+  const card = el("div", { class: "card settings-card" });
+  card.append(
+    el("h3", {}, "Notification Providers"),
+    el("p", { class: "text-sm text-muted" }, "Configure the services used to send emails and SMS messages to parents.")
+  );
+  
+  const form = el("form", { id: "notifications-form", class: "settings-form-grid" });
+  
+  const p = settings.notificationProviders || { gmail: {}, africasTalking: {} };
+
+  const emailGroup = el("div", { class: "leadership-group" }, [
+    el("div", { class: "leadership-group__title" }, [icon("mail"), "Gmail (Email)"]),
+    field("gmail-address", "Gmail Address", p.gmail?.address, "email"),
+    field("gmail-app-password", "App Password (16 chars)", p.gmail?.appPassword, "password"),
+  ]);
+
+  const smsGroup = el("div", { class: "leadership-group" }, [
+    el("div", { class: "leadership-group__title" }, [icon("sms"), "Africa's Talking (SMS)"]),
+    field("at-username", "Username", p.africasTalking?.username),
+    field("at-apikey", "API Key", p.africasTalking?.apiKey, "password"),
+    field("at-senderid", "Sender ID (Optional)", p.africasTalking?.senderId),
+  ]);
+
+  form.append(emailGroup, smsGroup);
+  form.append(
+    el("div", { class: "settings-form-actions" }, [
+      el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save providers"]),
+    ])
+  );
+  card.append(form);
+  return card;
+}
+
+// ===========================================================================
 // Subscription tab
 // ===========================================================================
 // Shows the school's current subscription state (read-only - it can only
@@ -703,6 +743,32 @@ export function init({ profile }) {
       restore();
     }
   });
+  document.getElementById("notifications-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
+    try {
+      const notificationProviders = {
+        gmail: {
+          address: val("gmail-address"),
+          appPassword: val("gmail-app-password")
+        },
+        africasTalking: {
+          username: val("at-username"),
+          apiKey: val("at-apikey"),
+          senderId: val("at-senderid")
+        }
+      };
+      await saveSchoolSettings(profile.uid, { notificationProviders });
+      settings.notificationProviders = notificationProviders;
+      invalidateSchoolSettingsCache();
+      toast("Notification providers saved.", "success");
+    } catch (err) {
+      toast(err.message || "Could not save notification providers.", "error");
+    } finally {
+      restore();
+    }
+  });
+
 
   document.getElementById("subscription-form").addEventListener("submit", async (e) => {
     e.preventDefault();
