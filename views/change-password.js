@@ -123,6 +123,13 @@ function renderInShellScreen(profile) {
 
   const form = el("form", { id: "change-password-form", "data-mode": "voluntary" });
 
+  const curPwInput = el("input", { id: "cp-current-password", type: "password", placeholder: "Enter your current password", required: "true", autocomplete: "current-password" });
+  const curPwToggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password" }, [icon("visibility")]);
+  const curPwField = el("div", { class: "field" }, [
+    el("label", { for: "cp-current-password" }, "Current Password"),
+    el("div", { class: "field--password" }, [curPwInput, curPwToggle]),
+  ]);
+
   const pw1Input = el("input", { id: "cp-password", type: "password", placeholder: `At least ${MIN_LENGTH} characters`, required: "true", autocomplete: "new-password" });
   const pw1Toggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password" }, [icon("visibility")]);
   const pw1Field = el("div", { class: "field" }, [
@@ -144,10 +151,14 @@ function renderInShellScreen(profile) {
     el("button", { type: "submit", class: "btn btn--primary" }, [icon("lock_reset"), " Update Password"]),
   ]);
 
-  form.append(pw1Field, pw2Field, actions);
+  form.append(curPwField, pw1Field, pw2Field, actions);
   card.append(infoBox, form);
 
-  setupPasswordToggles([[pw1Toggle, pw1Input], [pw2Toggle, pw2Input]]);
+  setupPasswordToggles([
+    [curPwToggle, curPwInput],
+    [pw1Toggle, pw1Input],
+    [pw2Toggle, pw2Input],
+  ]);
 
   container.append(header, card);
   return container;
@@ -175,9 +186,14 @@ export function init({ profile } = {}) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (errorEl) errorEl.textContent = "";
+    const curPw = document.getElementById("cp-current-password")?.value || "";
     const pw1 = document.getElementById("cp-password")?.value || "";
     const pw2 = document.getElementById("cp-password-confirm")?.value || "";
 
+    if (mode === "voluntary" && !curPw) {
+      if (errorEl) errorEl.textContent = "Please enter your current password.";
+      return;
+    }
     if (pw1.length < MIN_LENGTH) {
       if (errorEl) errorEl.textContent = `Password must be at least ${MIN_LENGTH} characters.`;
       return;
@@ -200,7 +216,7 @@ export function init({ profile } = {}) {
         navigate("/dashboard");
         await renderRoute();
       } else {
-        await Promise.race([changeOwnPassword(pw1), timeout]);
+        await Promise.race([changeOwnPassword(curPw, pw1), timeout]);
         toast("Password changed successfully! This device is registered as trusted.", "success");
         navigate("/dashboard");
       }
@@ -225,14 +241,17 @@ function friendlyError(err) {
   if (err?.message === "TIMEOUT") {
     return "This is taking too long - check your connection, or sign out and back in and try again.";
   }
+  if (code.includes("wrong-password") || code.includes("invalid-credential") || code.includes("invalid-password")) {
+    return "Your current password is incorrect. Please check and try again.";
+  }
   if (code.includes("requires-recent-login") || code.includes("invalid-user-token") || code.includes("user-token-expired")) {
-    return "Your sign-in session isn't fresh enough for this. Please sign out and sign back in, then try again.";
+    return "Please enter your current password to confirm this change.";
   }
   if (code.includes("weak-password")) {
-    return "Please choose a stronger password.";
+    return "Please choose a stronger password (at least 8 characters).";
   }
   if (code.includes("network-request-failed")) {
     return "Network problem - check your connection and try again.";
   }
-  return err.message || "Couldn't update your password. Please sign out, sign back in, and try again.";
+  return err.message || "Couldn't update your password. Please check your details and try again.";
 }

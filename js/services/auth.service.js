@@ -24,6 +24,8 @@ import {
   updatePassword,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc,
@@ -405,9 +407,18 @@ export function requestPasswordReset(email) {
   return sendPasswordResetEmail(auth, email);
 }
 
-export async function changeOwnPassword(newPassword) {
+export async function changeOwnPassword(currentPassword, newPassword) {
   if (!auth.currentUser || !currentProfile) throw new Error("Not signed in.");
-  await auth.currentUser.getIdToken(true);
+
+  // If a current password is provided, re-authenticate to satisfy Firebase's
+  // requires-recent-login security requirement without needing to log out.
+  if (currentPassword && auth.currentUser.email) {
+    const cred = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+    await reauthenticateWithCredential(auth.currentUser, cred);
+  } else {
+    await auth.currentUser.getIdToken(true);
+  }
+
   await updatePassword(auth.currentUser, newPassword);
 
   if (currentProfile.mustChangePassword) {
