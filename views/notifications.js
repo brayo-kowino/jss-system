@@ -114,16 +114,20 @@ async function refresh(profile) {
 function renderNotificationsTab(panel, profile) {
   const canManage = CAN_MANAGE.includes(profile.role);
 
-  panel.append(
-    el("div", { class: "notice-banner" }, [
-      el("span", { class: "material-symbols-rounded" }, "info"),
-      el(
-        "span",
-        {},
-        "No SMS/email/WhatsApp provider is connected yet, so sending here records the message and its audience for tracking. It'll dispatch automatically as soon as a delivery provider is chosen - mark items delivered in the meantime if you send them another way."
-      ),
-    ])
-  );
+  const hasProvider = settings.notificationProviders?.gmail?.appPassword || settings.notificationProviders?.africasTalking?.apiKey;
+
+  if (!hasProvider) {
+    panel.append(
+      el("div", { class: "notice-banner" }, [
+        el("span", { class: "material-symbols-rounded" }, "info"),
+        el(
+          "span",
+          {},
+          "No SMS or email provider is connected yet! Go to Settings -> Notification Providers to configure one, otherwise your messages will stay queued indefinitely."
+        ),
+      ])
+    );
+  }
 
   if (canManage) {
     const templateGrid = el("div", { class: "template-grid" });
