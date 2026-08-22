@@ -164,16 +164,27 @@ async function maybeLoad(profile, bodyMount) {
     skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
   ]));
 
-  const [students, marks] = await Promise.all([listStudents(), listMarks(assessmentId, subjectCode)]);
-  roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
-    .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
-  marksByStudent = {};
-  for (const m of marks) marksByStudent[m.studentId] = m;
-  dirty.clear();
-  pendingValues = {};
-  loadedSelection = { classKey, subjectCode, assessmentId };
+  try {
+    const [students, marks] = await Promise.all([listStudents(), listMarks(assessmentId, subjectCode)]);
+    roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+    marksByStudent = {};
+    for (const m of marks) marksByStudent[m.studentId] = m;
+    dirty.clear();
+    pendingValues = {};
+    loadedSelection = { classKey, subjectCode, assessmentId };
 
-  renderRoster(bodyMount, profile);
+    renderRoster(bodyMount, profile);
+  } catch (err) {
+    bodyMount.innerHTML = "";
+    bodyMount.append(el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        icon("wifi_off"),
+        el("h3", {}, "Could not load data"),
+        el("p", { class: "text-muted" }, err.message || "Please check your internet connection and try again.")
+      ])
+    ]));
+  }
 }
 
 function renderRoster(container, profile) {

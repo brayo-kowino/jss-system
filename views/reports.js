@@ -109,25 +109,36 @@ async function loadList(bodyMount, profile) {
   bodyMount.append(el("div", { class: "skeleton-rows" }, [
     skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
   ]));
-  const savedModes = await listSavedModesForPeriod(selection);
-  if (!savedModes.length) {
+  try {
+    const savedModes = await listSavedModesForPeriod(selection);
+    if (!savedModes.length) {
+      bodyMount.innerHTML = "";
+      bodyMount.append(el("div", { class: "empty-state" }, [
+        icon("description", "empty-state__icon"),
+        el("h3", {}, "No saved results for this period"),
+        el("p", {}, "Compute and save results for this class under Grading & Positions first, then come back here."),
+      ]));
+      return;
+    }
+    // Keep whichever mode is already selected if it's still valid (e.g.
+    // returning here after viewing a card); otherwise default to Average
+    // (the closest thing to a "final" report), falling back to whichever
+    // mode was most recently saved.
+    if (!activeMode || !savedModes.some((m) => m.reportMode === activeMode)) {
+      activeMode = savedModes.find((m) => m.reportMode === "average")?.reportMode
+        || [...savedModes].sort((a, b) => (b.latestComputedAt || 0) - (a.latestComputedAt || 0))[0].reportMode;
+    }
+    renderPeriodBody(bodyMount, profile, savedModes);
+  } catch (err) {
     bodyMount.innerHTML = "";
-    bodyMount.append(el("div", { class: "empty-state" }, [
-      icon("description", "empty-state__icon"),
-      el("h3", {}, "No saved results for this period"),
-      el("p", {}, "Compute and save results for this class under Grading & Positions first, then come back here."),
+    bodyMount.append(el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        icon("wifi_off"),
+        el("h3", {}, "Could not load data"),
+        el("p", { class: "text-muted" }, err.message || "Please check your internet connection and try again.")
+      ])
     ]));
-    return;
   }
-  // Keep whichever mode is already selected if it's still valid (e.g.
-  // returning here after viewing a card); otherwise default to Average
-  // (the closest thing to a "final" report), falling back to whichever
-  // mode was most recently saved.
-  if (!activeMode || !savedModes.some((m) => m.reportMode === activeMode)) {
-    activeMode = savedModes.find((m) => m.reportMode === "average")?.reportMode
-      || [...savedModes].sort((a, b) => (b.latestComputedAt || 0) - (a.latestComputedAt || 0))[0].reportMode;
-  }
-  renderPeriodBody(bodyMount, profile, savedModes);
 }
 
 // Renders the "saved so far" chip row for this grade/stream/year/term

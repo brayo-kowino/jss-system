@@ -236,17 +236,29 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
   paymentsMount.innerHTML = "";
   receiptMount.innerHTML = "";
 
-  const students = (await listStudents()).filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
-    .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+  try {
+    const students = (await listStudents()).filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
-  balanceRows = (
-    await Promise.all(
-      students.map(async (student) => ({
-        student,
-        ...(await getFeeSummary({ studentId: student.id, grade, academicYear, term })),
-      }))
-    )
-  );
+    balanceRows = (
+      await Promise.all(
+        students.map(async (student) => ({
+          student,
+          ...(await getFeeSummary({ studentId: student.id, grade, academicYear, term })),
+        }))
+      )
+    );
+  } catch (err) {
+    balancesMount.innerHTML = "";
+    balancesMount.append(el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        icon("wifi_off"),
+        el("h3", {}, "Could not load data"),
+        el("p", { class: "text-muted" }, err.message || "Please check your internet connection and try again.")
+      ])
+    ]));
+    return;
+  }
   // Piggyback the balances collection sync on a page view that's already
   // paying for these reads - keeps student_fee_status fresh for whichever
   // classes staff actually look at, on top of the explicit "Sync Balances

@@ -108,16 +108,27 @@ async function maybeLoad(profile, bodyMount, summaryMount) {
   ]));
   summaryMount.innerHTML = "";
 
-  const [students, existing] = await Promise.all([
-    listStudents(),
-    getAttendanceForClassDate(grade, stream, selection.date),
-  ]);
-  roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
-    .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
-  currentStatuses = { ...(existing?.records || {}) };
+  try {
+    const [students, existing] = await Promise.all([
+      listStudents(),
+      getAttendanceForClassDate(grade, stream, selection.date),
+    ]);
+    roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+      .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+    currentStatuses = { ...(existing?.records || {}) };
 
-  renderRoster(bodyMount, profile);
-  renderSummary(summaryMount, grade, stream);
+    renderRoster(bodyMount, profile);
+    renderSummary(summaryMount, grade, stream);
+  } catch (err) {
+    bodyMount.innerHTML = "";
+    bodyMount.append(el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        icon("wifi_off"),
+        el("h3", {}, "Could not load data"),
+        el("p", { class: "text-muted" }, err.message || "Please check your internet connection and try again.")
+      ])
+    ]));
+  }
 }
 
 function renderRoster(container, profile) {

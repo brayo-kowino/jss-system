@@ -17,6 +17,8 @@
 // known to be out of date.
 // ==========================================================================
 
+import { toast } from "../utils.js";
+
 const store = new Map(); // key -> { data, expiresAt }
 
 /**
@@ -31,7 +33,7 @@ export async function cached(key, ttlMs, fetchFn) {
   try {
     let timer;
     const timeoutPromise = new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error("Query timeout - using fallback")), 4000);
+      timer = setTimeout(() => reject(new Error("offline_no_cache")), 4000);
     });
     const fetchPromise = Promise.resolve().then(fetchFn);
     const data = await Promise.race([fetchPromise, timeoutPromise]).finally(() => clearTimeout(timer));
@@ -43,6 +45,9 @@ export async function cached(key, ttlMs, fetchFn) {
       const fallback = lastKnown.get(key);
       store.set(key, { data: fallback, expiresAt: Date.now() + ttlMs });
       return fallback;
+    }
+    if ((isOffline && (isEmptyArray || isNull)) && !lastKnown.has(key)) {
+       throw new Error("offline_no_cache");
     }
     store.set(key, { data, expiresAt: Date.now() + ttlMs });
     if (data !== undefined && data !== null) {
@@ -56,6 +61,10 @@ export async function cached(key, ttlMs, fetchFn) {
       const fallback = lastKnown.get(key);
       store.set(key, { data: fallback, expiresAt: Date.now() + ttlMs });
       return fallback;
+    }
+    if (err.message === "offline_no_cache" || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      toast("We genuinely need an internet connection for this.", "error");
+      throw new Error("We genuinely need an internet connection to load this data.");
     }
     throw err;
   }
