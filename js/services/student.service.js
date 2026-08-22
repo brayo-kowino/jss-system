@@ -77,7 +77,12 @@ export async function registerStudent(userId, data, photoFile) {
 export async function updateStudent(userId, id, data, photoFile, previousParentIds = []) {
   let photoUrl = data.photoUrl;
   if (photoFile) photoUrl = await uploadStudentPhoto(id, photoFile);
-  await updateDoc(doc(db, "students", id), { ...data, photoUrl });
+  
+  const payload = { ...data };
+  if (photoUrl !== undefined) {
+    payload.photoUrl = photoUrl;
+  }
+  await updateDoc(doc(db, "students", id), payload);
 
   const nextParentIds = data.parentIds || [];
   const added = nextParentIds.filter((p) => !previousParentIds.includes(p));
