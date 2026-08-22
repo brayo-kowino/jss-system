@@ -1,6 +1,6 @@
 import { login, requestPasswordReset } from "../js/services/auth.service.js";
 import { watchLoginApproval } from "../js/services/login-approval.service.js";
-import { validate2FALogin } from "../js/services/two-factor.service.js";
+import { validate2FALogin, is2FAEnabled } from "../js/services/two-factor.service.js";
 import { registerTrustedDevice, generateDeviceFingerprint, getDeviceInfo } from "../js/services/device.service.js";
 import { auth } from "../js/firebase-config.js";
 import {
@@ -519,6 +519,10 @@ function renderApprovalWaitScreen(result) {
         await registerTrustedDevice(result.uid, fingerprint, deviceInfo, false);
       } catch (e) {
         console.error("Failed to register approved device:", e);
+      }
+      if (await is2FAEnabled(result.uid)) {
+        render2FAScreen(result);
+        return;
       }
       toast("Login approved! Welcome in.", "success");
       navigate("/dashboard");
