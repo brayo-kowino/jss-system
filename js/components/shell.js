@@ -242,9 +242,9 @@ function markOnlineNow() {
 function offlineStatusPill() {
   const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;", title: "" }, [
     icon("wifi_off"),
-    el("span", {}, "Offline - will sync"),
+    el("span", { class: "offline-pill-text" }, "Offline - will sync"),
   ]);
-  const label = pill.querySelector("span");
+  const label = pill.querySelector(".offline-pill-text");
   let nudgeTimer = null;
 
   function applyState(online) {
