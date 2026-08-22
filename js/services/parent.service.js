@@ -6,6 +6,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDoc,
   getDocs,
   query,
@@ -55,6 +56,12 @@ export async function updateParent(userId, id, data) {
   await updateDoc(doc(db, "parents", id), data);
   invalidate(parentsCacheKey());
   await logAction(userId, "edit_parent", "parents", id);
+}
+
+export async function deleteParent(userId, id) {
+  await deleteDoc(doc(db, "parents", id));
+  invalidate(parentsCacheKey());
+  await logAction(userId, "delete_parent", "parents", id);
 }
 
 export async function linkStudentToParent(parentId, studentId) {

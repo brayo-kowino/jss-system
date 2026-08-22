@@ -1,7 +1,7 @@
-import { listParents, createParent, updateParent } from "../js/services/parent.service.js";
+import { listParents, createParent, updateParent, deleteParent } from "../js/services/parent.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast } from "../js/utils.js";
+import { el, icon, toast, busyButton } from "../js/utils.js";
 
 let parents = [];
 let students = [];
@@ -55,7 +55,21 @@ function renderTable(container, profile) {
       el("td", { "data-label": "Email" }, p.email || "N/A"),
       el("td", { "data-label": "Relationship" }, p.relationship || "N/A"),
       el("td", { "data-label": "Linked Students" }, linkedNames.length ? linkedNames.join(", ") : el("span", { class: "text-muted" }, "None")),
-      el("td", { class: "row-actions", "data-label": "Actions" }, el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, [icon("edit"), "Edit"])),
+      el("td", { class: "row-actions", "data-label": "Actions" }, [
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openParentForm(profile, p) }, [icon("edit"), "Edit"]),
+        el("button", { class: "btn btn--ghost btn--sm text-danger", style: "color:var(--color-red);", onClick: async (e) => {
+          if (!confirm(`Are you sure you want to delete ${p.fullName}?`)) return;
+          const restore = busyButton(e.currentTarget, "Deleting...");
+          try {
+            await deleteParent(profile.uid, p.id);
+            toast("Parent deleted.", "success");
+            await refresh(profile);
+          } catch (err) {
+            toast(err.message, "error");
+            restore();
+          }
+        }}, [icon("delete"), "Delete"])
+      ]),
     ]));
   }
   table.append(tbody);
@@ -85,6 +99,7 @@ function openParentForm(profile, existing = null) {
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const restore = busyButton(e.submitter, isEdit ? "Saving..." : "Adding...");
     const data = {
       fullName: val("p-fullName"),
       phone: val("p-phone"),
@@ -104,6 +119,8 @@ function openParentForm(profile, existing = null) {
       await refresh(profile);
     } catch (err) {
       toast(err.message || "Could not save parent.", "error");
+    } finally {
+      restore();
     }
   });
 }
