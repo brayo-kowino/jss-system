@@ -66,10 +66,15 @@ async function callFunction(path, payload) {
  * @returns {Promise<string>} approvalId
  */
 export async function findOrCreatePendingApproval(uid, fingerprint, deviceInfo) {
-  const approvalsRef = collection(db, "users", uid, "login_approvals");
-  const q = query(approvalsRef, where("status", "==", "pending"), where("deviceFingerprint", "==", fingerprint));
-  const snap = await getDocs(q);
-  if (!snap.empty) return snap.docs[0].id;
+  try {
+    const approvalsRef = collection(db, "users", uid, "login_approvals");
+    const q = query(approvalsRef, where("status", "==", "pending"));
+    const snap = await getDocs(q);
+    const existing = snap.docs.find((d) => d.data().deviceFingerprint === fingerprint);
+    if (existing) return existing.id;
+  } catch (e) {
+    console.warn("findOrCreatePendingApproval lookup failed:", e);
+  }
   return createLoginApproval(uid, { ...deviceInfo, deviceFingerprint: fingerprint });
 }
 

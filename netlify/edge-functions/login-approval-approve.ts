@@ -23,7 +23,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, listFsDocs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { verifyStepUpToken } from "./lib/step-up-token.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
@@ -91,12 +91,25 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "This request has already been resolved." }, 409);
   }
 
-  try {
     await patchFsDoc(accessToken, `users/${uid}/login_approvals/${approvalId}`, {
       status: decision,
       resolvedAt: new Date(),
       resolvedBy: uid,
     });
+    try {
+      const allApprovals = await listFsDocs(accessToken, `users/${uid}/login_approvals`);
+      for (const item of allApprovals) {
+        if (item.status === "pending" && item.id !== approvalId) {
+          await patchFsDoc(accessToken, `users/${uid}/login_approvals/${item.id}`, {
+            status: decision,
+            resolvedAt: new Date(),
+            resolvedBy: uid,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("login-approval-approve: cleanup of other pending requests failed:", e);
+    }
     await addFsDoc(accessToken, "audit_logs", {
       userId: uid,
       action: decision === "approved" ? "approve_login" : "deny_login",

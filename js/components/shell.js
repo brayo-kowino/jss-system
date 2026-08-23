@@ -918,6 +918,13 @@ export function renderShell(app, profile, activePath) {
       const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint);
       if (incoming.length === 0) return;
 
+      // Sort incoming by requestedAt descending so the newest request is always shown first
+      incoming.sort((a, b) => {
+        const tA = a.requestedAt?.toDate ? a.requestedAt.toDate().getTime() : (a.requestedAt?.seconds ? a.requestedAt.seconds * 1000 : (typeof a.requestedAt === "string" ? new Date(a.requestedAt).getTime() : 0));
+        const tB = b.requestedAt?.toDate ? b.requestedAt.toDate().getTime() : (b.requestedAt?.seconds ? b.requestedAt.seconds * 1000 : (typeof b.requestedAt === "string" ? new Date(b.requestedAt).getTime() : 0));
+        return tB - tA;
+      });
+
       // Show the most recent pending approval from another device
       const req = incoming[0];
       showApprovalModal(req, profile);
