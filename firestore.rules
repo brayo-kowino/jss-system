@@ -225,7 +225,18 @@ service cloud.firestore {
             && request.resource.data.role != 'super_admin'
             && request.resource.data.schoolId == mySchoolId())
         || (isUserActive() && request.auth.uid == uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt', 'twoFactorEnabled', 'twoFactorSecret', 'twoFactorBackupCodes', 'twoFactorEnabledAt']));
+            // twoFactorEnabled/twoFactorSecret/twoFactorBackupCodes/
+            // twoFactorEnabledAt used to be in this list. A client write
+            // to those fields was gated on nothing but "is this your own
+            // uid" - no code check, no server verification - so a
+            // compromised session could flip twoFactorEnabled on/off (or
+            // swap the secret) with zero proof of possessing an
+            // authenticator. Those fields are now only ever written by
+            // netlify/edge-functions/two-factor-enable.ts and
+            // two-factor-disable.ts, using the service-account credential
+            // that bypasses these rules entirely - same pattern as
+            // touchesSubscriptionFields() below for schools/{id}.
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt']));
       allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && resource.data.role != 'super_admin');
     }
 
@@ -242,7 +253,24 @@ service cloud.firestore {
         (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
          get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
       );
-      allow create, update: if isSignedIn() && request.auth.uid == uid;
+      // create used to be "if isSignedIn() && request.auth.uid == uid" -
+      // meaning any session for this account, however it was obtained,
+      // could mark itself as trusted with no proof of a recent password
+      // entry or an approved login. Trusted-device creation now only ever
+      // comes from netlify/edge-functions/device-register.ts (requires a
+      // fresh auth_time, i.e. a real password entry, or genuine
+      // first-device bootstrap) and login-approval-redeem.ts (requires an
+      // already-approved request) - both via the service-account
+      // credential, which bypasses these rules entirely. No client create
+      // is allowed here anymore.
+      allow create: if false;
+      // Narrow carve-out: the device's own session may still bump its own
+      // lastSeenAt timestamp (device.service.js's updateLastSeen()) - that's
+      // a cosmetic "last seen" display value, not a trust grant, so it's
+      // safe to leave self-writable. Nothing else on the doc (isPrimary,
+      // fingerprint, etc.) can be touched this way.
+      allow update: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt']);
       allow delete: if isSignedIn() && (
         request.auth.uid == uid ||
         isSuperAdmin() ||
@@ -254,12 +282,25 @@ service cloud.firestore {
     // Login approval requests for admin accounts. Created when an admin
     // logs in from an unrecognized device; the primary device watches for
     // pending approvals via onSnapshot and can approve or deny them.
-    // Only the user themselves can read/write their own approvals -
-    // the "approve" action comes from the same uid's primary device session.
+    //
+    // Creating a fresh 'pending' request is still a plain client write -
+    // that's just "someone is trying to log in," not itself a grant of
+    // anything. What used to be the actual bypass is that the SAME
+    // session could also perform `allow update` and flip its own request's
+    // status straight to 'approved' - no separate approving device, no 2FA,
+    // nothing. Deciding a request (status -> approved/denied) and
+    // redeeming an approved one into a trusted device now only ever happen
+    // in netlify/edge-functions/login-approval-approve.ts and
+    // login-approval-redeem.ts, via the service-account credential that
+    // bypasses these rules entirely - so `allow update` is false here,
+    // full stop.
     match /users/{uid}/login_approvals/{approvalId} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow create: if isSignedIn() && request.auth.uid == uid;
-      allow update: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.resolvedBy == null;
+      allow update: if false;
       allow delete: if isSignedIn() && (
         request.auth.uid == uid || isSuperAdmin()
       );

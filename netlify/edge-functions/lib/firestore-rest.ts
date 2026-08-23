@@ -206,6 +206,52 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<string | n
   return payload.sub;
 }
 
+// Same verification as verifyFirebaseIdToken(), but also returns auth_time
+// (epoch seconds of the underlying sign-in/reauth, not just "was this
+// session ever authenticated"). device-register.ts uses this to require a
+// genuinely recent password entry rather than trusting an old, merely
+// still-valid session - see that file for why that distinction matters.
+export async function verifyFirebaseIdTokenWithAuthTime(idToken: string): Promise<{ uid: string; authTime: number } | null> {
+  if (!idToken) return null;
+  const parts = idToken.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+
+  let header: any, payload: any;
+  try {
+    header = decodeJwtJson(headerB64);
+    payload = decodeJwtJson(payloadB64);
+  } catch {
+    return null;
+  }
+  if (header.alg !== "RS256" || typeof header.kid !== "string") return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const CLOCK_SKEW_SECS = 300;
+  if (payload.iss !== `https://securetoken.google.com/${PROJECT_ID}`) return null;
+  if (payload.aud !== PROJECT_ID) return null;
+  if (typeof payload.exp !== "number" || payload.exp <= now - CLOCK_SKEW_SECS) return null;
+  if (typeof payload.iat !== "number" || payload.iat > now + CLOCK_SKEW_SECS) return null;
+  if (typeof payload.auth_time !== "number" || payload.auth_time > now + CLOCK_SKEW_SECS) return null;
+  if (typeof payload.sub !== "string" || !payload.sub) return null;
+
+  try {
+    const key = await getGoogleSigningKey(header.kid);
+    if (!key) return null;
+    const valid = await crypto.subtle.verify(
+      { name: "RSASSA-PKCS1-v1_5" },
+      key,
+      base64UrlToBytes(sigB64),
+      new TextEncoder().encode(`${headerB64}.${payloadB64}`),
+    );
+    if (!valid) return null;
+  } catch {
+    return null;
+  }
+
+  return { uid: payload.sub, authTime: payload.auth_time };
+}
+
 // --------------------------------------------------------------------------
 // Minimal Firestore REST helpers.
 // --------------------------------------------------------------------------
@@ -287,6 +333,28 @@ export async function addFsDoc(token: string, collectionId: string, fields: Reco
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Firestore create failed: ${res.status}`);
+}
+
+// Lists all documents directly under a subcollection path (e.g.
+// "users/abc123/trusted_devices"). Uses the plain documents.list REST
+// endpoint rather than runQuery, since runFsQuery above always queries
+// against the database root and can't address a path nested under a
+// specific parent document.
+export async function listFsDocs(token: string, path: string): Promise<Record<string, any>[]> {
+  const out: Record<string, any>[] = [];
+  let pageToken: string | undefined;
+  do {
+    const url = new URL(`${FIRESTORE_BASE}/${path}`);
+    url.searchParams.set("pageSize", "300");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+    const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 404) return out;
+    if (!res.ok) throw new Error(`Firestore list failed: ${res.status}`);
+    const data = await res.json();
+    for (const doc of data.documents || []) out.push(fsDocToObject(doc));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return out;
 }
 
 export async function runFsQuery(

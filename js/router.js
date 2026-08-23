@@ -12,9 +12,10 @@
 //    blank the whole app - it falls back to a friendly in-shell error card
 //    with a "try again" button, and the sidebar/nav stay usable.
 // ==========================================================================
-import { getCurrentProfile, getCurrentSchool } from "./services/auth.service.js";
+import { getCurrentProfile, getCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
 import { getSubscriptionState } from "./services/subscription.service.js";
 import { renderShell } from "./components/shell.js";
+import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
 
@@ -222,6 +223,29 @@ export async function renderRoute() {
       app.innerHTML = "";
       app.appendChild(content);
       await changePasswordView.init?.({ profile, forced: true });
+      return;
+    }
+
+    // Device-approval / 2FA gate. Re-checked on EVERY protected-route
+    // render (not just once at login form submit) - see
+    // auth.service.js's getAuthGateStatus() header for why that matters.
+    // An unresolved gate replaces the entire app the same way
+    // mustChangePassword above does: no route, shell, or nav underneath.
+    let gate;
+    try {
+      gate = await getAuthGateStatus(profile);
+    } catch (err) {
+      showFatalError(err, { where: "router.getAuthGateStatus" });
+      return;
+    }
+    if (isStale()) return;
+    if (gate) {
+      const onDone = () => navigate(path);
+      if (gate.type === "approval") {
+        renderApprovalGate(gate, onDone);
+      } else if (gate.type === "2fa") {
+        renderTwoFactorGate(gate, onDone);
+      }
       return;
     }
 

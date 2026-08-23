@@ -2,24 +2,77 @@
 // Login Approval Service
 // Manages new-device login approval requests. Approvals are stored as
 // Firestore subcollection docs under users/{uid}/login_approvals/{approvalId}.
+//
+// Creating a 'pending' request is still a direct client write (harmless -
+// see firestore.rules). Deciding a request (approve/deny) and redeeming an
+// approved one into an actual trusted device now go through
+// netlify/edge-functions/login-approval-approve.ts and
+// login-approval-redeem.ts - firestore.rules denies any client update on
+// this collection outright now.
 // ==========================================================================
 
 import {
-  doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  doc, addDoc, getDoc, getDocs, deleteDoc,
   collection, query, where, orderBy, limit,
   serverTimestamp, onSnapshot, Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
+
+async function callFunction(path, payload) {
+  if (!auth.currentUser) throw new Error("You must be signed in.");
+  const idToken = await auth.currentUser.getIdToken();
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Unexpected response from the server.");
+  }
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
 
 /**
  * Creates a new login approval request for an unrecognized device.
- * Adds a new doc with status 'pending'.
- * 
+ * Adds a new doc with status 'pending'. Still a plain client write -
+ * firestore.rules requires status/resolvedAt/resolvedBy to be exactly
+ * 'pending'/null/null on create, so this can never masquerade as an
+ * already-decided request.
+ *
  * @param {string} uid - The user ID
  * @param {Object} deviceInfo - Contains deviceFingerprint, deviceName, screenRes, timezone
  * @returns {Promise<string>} - The ID of the newly created approval document
  */
+/**
+ * Returns an existing pending approval for this exact device fingerprint if
+ * one exists, otherwise creates a new one. Used both by login() (first
+ * sign-in from an unknown device) and by the router-level gate (every
+ * subsequent navigation/refresh while still unapproved) so the two don't
+ * race into creating duplicate pending requests for the same device.
+ *
+ * @param {string} uid
+ * @param {string} fingerprint
+ * @param {Object} deviceInfo
+ * @returns {Promise<string>} approvalId
+ */
+export async function findOrCreatePendingApproval(uid, fingerprint, deviceInfo) {
+  const approvalsRef = collection(db, "users", uid, "login_approvals");
+  const q = query(approvalsRef, where("status", "==", "pending"), where("deviceFingerprint", "==", fingerprint));
+  const snap = await getDocs(q);
+  if (!snap.empty) return snap.docs[0].id;
+  return createLoginApproval(uid, { ...deviceInfo, deviceFingerprint: fingerprint });
+}
+
 export async function createLoginApproval(uid, deviceInfo) {
   const approvalsRef = collection(db, "users", uid, "login_approvals");
   const docRef = await addDoc(approvalsRef, {
@@ -32,17 +85,20 @@ export async function createLoginApproval(uid, deviceInfo) {
     resolvedAt: null,
     resolvedBy: null
   });
-  
+
   // Log the creation (best-effort, non-blocking)
   logAction(uid, "create_login_approval", "login_approvals", docRef.id).catch(console.error);
-  
+
   return docRef.id;
 }
 
 /**
  * Real-time onSnapshot listener on a single approval doc.
  * Used by the WAITING screen to detect when approval is granted or denied.
- * 
+ * The status field this reports can now only ever have been set by
+ * login-approval-approve.ts (service-account write) - there's no client
+ * path left that could set it, so this listener is safe to trust.
+ *
  * @param {string} uid - The user ID
  * @param {string} approvalId - The ID of the approval document
  * @param {Function} callback - Called on every change with the approval document data
@@ -62,7 +118,7 @@ export function watchLoginApproval(uid, approvalId, callback) {
 /**
  * Real-time onSnapshot listener on the subcollection filtered by status == 'pending'.
  * Used by the PRIMARY device's shell to show incoming approval requests.
- * 
+ *
  * @param {string} uid - The user ID
  * @param {Function} callback - Called on every change with an array of pending approvals
  * @returns {Function} - The unsubscribe function to detach the listener
@@ -77,47 +133,61 @@ export function watchPendingApprovals(uid, callback) {
 }
 
 /**
- * Approves a login request.
- * Updates the document status to 'approved'.
- * 
+ * Approves a login request via /login-approval-approve. Must be called
+ * from a session sitting on an already-trusted device for this account -
+ * the server independently verifies that (and a fresh 2FA code, if the
+ * account has 2FA enabled) before flipping status.
+ *
  * @param {string} uid - The user ID of the account being accessed
  * @param {string} approvalId - The ID of the approval document
- * @param {string} approvedByUid - The user ID of the admin or owner granting approval
+ * @param {string} approverFingerprint - The fingerprint of the device approving (must be already-trusted)
+ * @param {string} [stepUpToken] - Required when the account has 2FA enabled - from two-factor.service.js's verify2FAForStepUp()
  */
-export async function approveLogin(uid, approvalId, approvedByUid) {
-  const docRef = doc(db, "users", uid, "login_approvals", approvalId);
-  await updateDoc(docRef, {
-    status: "approved",
-    resolvedAt: serverTimestamp(),
-    resolvedBy: approvedByUid
+export async function approveLogin(uid, approvalId, approverFingerprint, stepUpToken) {
+  await callFunction("/login-approval-approve", {
+    approvalId,
+    decision: "approved",
+    approverFingerprint,
+    stepUpToken,
   });
-  
-  await logAction(approvedByUid, "approve_login", "login_approvals", approvalId);
 }
 
 /**
- * Denies a login request.
- * Updates the document status to 'denied'.
- * 
+ * Denies a login request via /login-approval-approve.
+ *
  * @param {string} uid - The user ID of the account being accessed
  * @param {string} approvalId - The ID of the approval document
- * @param {string} deniedByUid - The user ID of the admin or owner denying approval
+ * @param {string} approverFingerprint - The fingerprint of the device denying (must be already-trusted)
+ * @param {string} [stepUpToken] - Required when the account has 2FA enabled
  */
-export async function denyLogin(uid, approvalId, deniedByUid) {
-  const docRef = doc(db, "users", uid, "login_approvals", approvalId);
-  await updateDoc(docRef, {
-    status: "denied",
-    resolvedAt: serverTimestamp(),
-    resolvedBy: deniedByUid
+export async function denyLogin(uid, approvalId, approverFingerprint, stepUpToken) {
+  await callFunction("/login-approval-approve", {
+    approvalId,
+    decision: "denied",
+    approverFingerprint,
+    stepUpToken,
   });
-  
-  await logAction(deniedByUid, "deny_login", "login_approvals", approvalId);
+}
+
+/**
+ * Called by the WAITING device once it observes status === 'approved'.
+ * Re-verifies the approval server-side (never trusts the polled status
+ * alone) and, only then, registers this device as trusted via
+ * /login-approval-redeem.
+ *
+ * @param {string} uid - The user ID
+ * @param {string} approvalId - The ID of the approval document
+ * @param {string} fingerprint - This device's own fingerprint
+ * @param {Object} deviceInfo - This device's own info
+ */
+export async function redeemLoginApproval(uid, approvalId, fingerprint, deviceInfo) {
+  await callFunction("/login-approval-redeem", { approvalId, fingerprint, deviceInfo });
 }
 
 /**
  * Fetches recent approval docs ordered by requestedAt desc.
  * Used for the security settings activity log.
- * 
+ *
  * @param {string} uid - The user ID
  * @param {number} count - Maximum number of records to return (defaults to 20)
  * @returns {Promise<Array>} - List of recent approvals
@@ -126,7 +196,7 @@ export async function listRecentApprovals(uid, count = 20) {
   const approvalsRef = collection(db, "users", uid, "login_approvals");
   const q = query(approvalsRef, orderBy("requestedAt", "desc"), limit(count));
   const snap = await getDocs(q);
-  
+
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -134,7 +204,7 @@ export async function listRecentApprovals(uid, count = 20) {
  * Deletes approval docs older than 30 days.
  * This is designed to be fire-and-forget and should be called lazily (e.g., on login)
  * without awaiting its completion to avoid blocking the user flow.
- * 
+ *
  * @param {string} uid - The user ID
  */
 export async function cleanupOldApprovals(uid) {
@@ -143,10 +213,10 @@ export async function cleanupOldApprovals(uid) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 30);
     const cutoffTimestamp = Timestamp.fromDate(cutoffDate);
-    
+
     const q = query(approvalsRef, where("requestedAt", "<", cutoffTimestamp));
     const snap = await getDocs(q);
-    
+
     // Delete all matched old docs in parallel
     const deletePromises = snap.docs.map((d) => deleteDoc(d.ref));
     await Promise.allSettled(deletePromises);

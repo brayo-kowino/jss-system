@@ -6,7 +6,7 @@ import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
 import { listTrustedDevices, removeTrustedDevice, resetAllTrustedDevices } from "../js/services/device.service.js";
 import { listRecentApprovals } from "../js/services/login-approval.service.js";
-import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled, verify2FACode, generateBackupCodes } from "../js/services/two-factor.service.js";
+import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
 
 let settings = null;
 let activeThemeId = "custom";

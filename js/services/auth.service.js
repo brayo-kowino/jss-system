@@ -42,8 +42,8 @@ import { auth, db, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
 import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice } from "./device.service.js";
-import { createLoginApproval, cleanupOldApprovals } from "./login-approval.service.js";
-import { is2FAEnabled } from "./two-factor.service.js";
+import { findOrCreatePendingApproval, cleanupOldApprovals } from "./login-approval.service.js";
+import { is2FAVerifiedThisSession } from "./two-factor.service.js";
 
 // ==========================================================================
 // School-id cookie
@@ -340,54 +340,71 @@ export async function login(email, password) {
   }
   await logAction(profile.uid, "login", "auth", null);
 
-  // -----------------------------------------------------------------------
-  // Admin account protection: device trust + 2FA.
-  // Only admin and super_admin roles go through these additional gates.
-  // Regular staff/teachers/parents sign in normally - this protection is
-  // for the accounts that can create/modify/suspend other accounts and
-  // manage school-wide settings, i.e. the high-value targets.
-  // -----------------------------------------------------------------------
+  // Admin/super_admin device-trust + 2FA gating is now entirely decided by
+  // getAuthGateStatus() below, which router.js also calls on every
+  // subsequent navigation/refresh - see that function's header for why
+  // having a single source of truth (rather than login() and the router
+  // each keeping their own copy of this logic) matters here specifically.
+  const gate = await getAuthGateStatus(profile);
+  if (gate?.type === "approval") return { ...profile, needsApproval: true, ...gate };
+  if (gate?.type === "2fa") return { ...profile, needs2FA: true, ...gate };
+  return profile;
+}
+
+// ==========================================================================
+// Single source of truth for "is this signed-in session actually allowed
+// past the login screen." Called by login() (once, at sign-in) AND by
+// router.js (on every render of every protected route).
+//
+// The reason both call this same function rather than each keeping their
+// own copy: Firebase Auth's own session is fully live the instant
+// signInWithEmailAndPassword resolves, regardless of any app-level
+// device-trust/2FA concept - onAuthStateChanged fires globally and the
+// router will try to render *something* independent of whatever login()
+// returned. Before this, only login()'s one-time return value gated the
+// UI, so a page refresh, a slow tab, or the router's own render cycle could
+// reach the full app shell on an unapproved device with nothing rechecking
+// on the way in. Now both call sites ask the same question, so the answer
+// can't drift between them.
+//
+// Returns null when nothing is blocking (either the role isn't gated, or
+// the device is trusted and 2FA - if enabled - was already verified this
+// session). Otherwise returns { type: 'approval', uid, approvalId,
+// fingerprint, deviceInfo } or { type: '2fa', uid }.
+// ==========================================================================
+export async function getAuthGateStatus(profile) {
+  if (!profile || profile.mustChangePassword) return null;
   const isProtectedRole = profile.role === "admin" || profile.role === "super_admin";
+  if (!isProtectedRole) return null;
 
-  if (isProtectedRole && !profile.mustChangePassword) {
-    const fingerprint = generateDeviceFingerprint();
-    const deviceInfo = getDeviceInfo();
-    const trusted = await isDeviceTrusted(profile.uid, fingerprint);
+  const fingerprint = generateDeviceFingerprint();
+  const trusted = await isDeviceTrusted(profile.uid, fingerprint);
 
-    if (trusted) {
-      // Known device - update last-seen timestamp (fire-and-forget)
-      updateLastSeen(profile.uid, fingerprint).catch(() => {});
-      // Cleanup old approval docs in the background (non-blocking)
-      cleanupOldApprovals(profile.uid).catch(() => {});
+  if (trusted) {
+    updateLastSeen(profile.uid, fingerprint).catch(() => {});
+    cleanupOldApprovals(profile.uid).catch(() => {});
 
-      // Check if 2FA is enabled - if so, the login view needs to prompt
-      // for a code before allowing navigation to the dashboard.
-      const has2FA = await is2FAEnabled(profile.uid);
-      if (has2FA) {
-        return { ...profile, needs2FA: true };
-      }
-      return profile;
+    if (profile.twoFactorEnabled && !is2FAVerifiedThisSession(profile.uid)) {
+      return { type: "2fa", uid: profile.uid };
     }
-
-    // Unknown device: check if this user has ANY trusted devices registered.
-    // If they have none (e.g. brand-new account that hasn't gone through
-    // forced password change yet, or all devices were reset), skip the
-    // approval gate - otherwise they'd be locked out with nobody to approve.
-    const primaryDevice = await getPrimaryDevice(profile.uid);
-    if (primaryDevice) {
-      // They have a primary device - trigger the approval workflow.
-      const approvalId = await createLoginApproval(profile.uid, deviceInfo);
-      return { ...profile, needsApproval: true, approvalId, deviceInfo, fingerprint };
-    }
-
-    // No primary device registered yet - this is a fresh account that's
-    // already been through mustChangePassword (or was manually cleared).
-    // Register this device as the primary automatically.
-    await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
-    return profile;
+    return null;
   }
 
-  return profile;
+  // Unknown device: check if this user has ANY trusted devices registered.
+  // If they have none (e.g. brand-new account that hasn't gone through
+  // forced password change yet, or all devices were reset), skip the
+  // approval gate - otherwise they'd be locked out with nobody to approve.
+  const deviceInfo = getDeviceInfo();
+  const primaryDevice = await getPrimaryDevice(profile.uid);
+  if (!primaryDevice) {
+    await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
+    return null;
+  }
+
+  // Reuses an existing pending request for this exact device rather than
+  // spawning a new one on every navigation while the gate is unresolved.
+  const approvalId = await findOrCreatePendingApproval(profile.uid, fingerprint, deviceInfo);
+  return { type: "approval", uid: profile.uid, approvalId, fingerprint, deviceInfo };
 }
 
 export async function logout() {

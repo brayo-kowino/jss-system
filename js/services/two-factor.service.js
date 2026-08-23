@@ -1,25 +1,22 @@
 // ==========================================================================
-// Two-Factor Authentication Service (TOTP)
+// Two-Factor Authentication Service (TOTP) - client side.
 // ==========================================================================
-// Provides TOTP (RFC 6238) two-factor authentication using the otpauth library.
-// 
-// IMPORTANT: This is a client-side implementation where the TOTP secret is
-// stored in Firestore and verified on the client. For production-grade 2FA,
-// verification should be handled by a Cloud Function (server-side) to ensure
-// the secret never leaves the server.
-//
-// 2FA data is stored on the user's Firestore doc (users/{uid}) as fields:
-// - twoFactorEnabled: boolean
-// - twoFactorSecret: string (base32-encoded TOTP secret)
-// - twoFactorBackupCodes: string[] (array of hashed backup codes)
-// - twoFactorEnabledAt: Timestamp
+// generate2FASetup() still runs client-side (it only proposes a candidate
+// secret for the QR code - nothing is persisted or trusted until the code
+// is verified). Every step that actually checks a code or writes 2FA state
+// to Firestore now goes through same-origin edge functions
+// (netlify/edge-functions/two-factor-*.ts), which hold the one
+// service-account credential capable of writing twoFactorEnabled/
+// twoFactorSecret/twoFactorBackupCodes - firestore.rules blocks a direct
+// client write to those fields outright now (see users/{uid}'s allow
+// update clause). This mirrors subscription.service.js's callFunction()
+// pattern exactly.
 // ==========================================================================
 
 import {
-  doc, getDoc, setDoc, updateDoc, serverTimestamp,
+  doc, getDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../firebase-config.js";
-import { logAction } from "./audit.service.js";
+import { db, auth } from "../firebase-config.js";
 
 let OTPAuth = null;
 async function loadOTPAuth() {
@@ -28,182 +25,129 @@ async function loadOTPAuth() {
   return OTPAuth;
 }
 
+async function callFunction(path, payload) {
+  if (!auth.currentUser) throw new Error("You must be signed in.");
+  const idToken = await auth.currentUser.getIdToken();
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Unexpected response from the server.");
+  }
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+
 /**
- * Generates a new TOTP secret using otpauth.
- * Does NOT save to Firestore yet — saving happens only after verification.
+ * Generates a candidate TOTP secret client-side for rendering the QR code.
+ * Nothing is persisted or trusted yet - enable2FA() below is what actually
+ * verifies and saves it.
  */
 export async function generate2FASetup(uid, email) {
   const otpauth = await loadOTPAuth();
-  
-  // Generate a random base32 secret
   const secret = new otpauth.Secret({ size: 20 });
   const secretString = secret.base32;
-  
   const totp = new otpauth.TOTP({
-    issuer: 'Eeskia',
+    issuer: "Eeskia",
     label: email,
-    algorithm: 'SHA1',
+    algorithm: "SHA1",
     digits: 6,
     period: 30,
-    secret: secret
+    secret,
   });
-  
-  return {
-    secret: secretString,
-    otpauthUri: totp.toString()
-  };
+  return { secret: secretString, otpauthUri: totp.toString() };
 }
 
 /**
- * Verifies a 6-digit code against a base32 secret string.
- * Uses a window of 1 (allows ±30 seconds drift).
- * Pure function — no Firestore reads.
- */
-export async function verify2FACode(secret, code) {
-  const otpauth = await loadOTPAuth();
-  const totp = new otpauth.TOTP({
-    issuer: 'Eeskia',
-    algorithm: 'SHA1',
-    digits: 6,
-    period: 30,
-    secret: otpauth.Secret.fromBase32(secret)
-  });
-  
-  const delta = totp.validate({ token: code, window: 1 });
-  return delta !== null;
-}
-
-/**
- * Generates 10 random 8-character alphanumeric backup codes.
- */
-export function generateBackupCodes() {
-  const codes = [];
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  for (let i = 0; i < 10; i++) {
-    let code = '';
-    for (let j = 0; j < 8; j++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    codes.push(code);
-  }
-  return codes;
-}
-
-/**
- * Simple hash of a backup code for storage.
- * FNV-1a hash implementation.
- */
-export function hashBackupCode(code) {
-  let hash = 2166136261;
-  for (let i = 0; i < code.length; i++) {
-    hash ^= code.charCodeAt(i);
-    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-  }
-  return (hash >>> 0).toString(16);
-}
-
-/**
- * First verifies the code against the secret. If valid, writes the secret,
- * twoFactorEnabled=true, and generates 10 backup codes to the user doc.
- * Returns the backup codes array (plaintext). Throws if code is invalid.
+ * Verifies the enrollment code against the candidate secret server-side,
+ * and only then persists twoFactorEnabled/twoFactorSecret and
+ * server-generated backup codes (netlify/edge-functions/two-factor-enable.ts).
+ * Returns the backup codes array (plaintext, shown once). Throws if the
+ * code is invalid.
  */
 export async function enable2FA(uid, secret, verificationCode) {
-  const isValid = await verify2FACode(secret, verificationCode);
-  if (!isValid) {
-    throw new Error("Invalid verification code.");
-  }
-
-  const backupCodes = generateBackupCodes();
-  const hashedBackupCodes = backupCodes.map(hashBackupCode);
-
-  await setDoc(doc(db, "users", uid), {
-    twoFactorEnabled: true,
-    twoFactorSecret: secret,
-    twoFactorBackupCodes: hashedBackupCodes,
-    twoFactorEnabledAt: serverTimestamp()
-  }, { merge: true });
-
-  await logAction(uid, "enable_2fa", "users", uid);
-
-  return backupCodes;
+  const data = await callFunction("/two-factor-enable", { secret, code: verificationCode });
+  return data.backupCodes;
 }
 
 /**
- * Reads the stored secret, verifies the code (or checks if it matches a backup code),
- * then clears all 2FA fields from the user doc. Throws if code is invalid.
+ * Verifies a code (TOTP or backup) server-side
+ * (netlify/edge-functions/two-factor-verify.ts) and, only if valid,
+ * clears 2FA fields via /two-factor-disable using the short-lived
+ * step-up token the verify call returns. Throws if the code is invalid.
  */
 export async function disable2FA(uid, verificationCode) {
-  const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) throw new Error("User not found.");
-  
-  const data = snap.data();
-  if (!data.twoFactorEnabled || !data.twoFactorSecret) {
-    throw new Error("2FA is not enabled.");
-  }
-
-  const isValidTOTP = await verify2FACode(data.twoFactorSecret, verificationCode);
-  
-  let isValidBackup = false;
-  if (!isValidTOTP && data.twoFactorBackupCodes && data.twoFactorBackupCodes.length > 0) {
-    const hashedCode = hashBackupCode(verificationCode);
-    isValidBackup = data.twoFactorBackupCodes.includes(hashedCode);
-  }
-
-  if (!isValidTOTP && !isValidBackup) {
-    throw new Error("Invalid verification code.");
-  }
-
-  await updateDoc(doc(db, "users", uid), {
-    twoFactorEnabled: null,
-    twoFactorSecret: null,
-    twoFactorBackupCodes: null,
-    twoFactorEnabledAt: null
-  });
-
-  await logAction(uid, "disable_2fa", "users", uid);
+  const verified = await callFunction("/two-factor-verify", { code: verificationCode });
+  await callFunction("/two-factor-disable", { stepUpToken: verified.stepUpToken });
 }
 
 /**
- * Reads user doc, returns boolean (twoFactorEnabled === true)
+ * Verifies a code (TOTP or backup) at login time, server-side. Returns
+ * boolean - true only if /two-factor-verify accepted the code.
+ */
+export async function validate2FALogin(uid, code) {
+  try {
+    const data = await callFunction("/two-factor-verify", { code });
+    return data.valid === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Same as validate2FALogin(), but also returns the short-lived step-up
+ * token - used by the login-approval "approve" flow (shell.js), which
+ * needs to prove a fresh code was just checked when handing off to
+ * login-approval-approve.ts.
+ */
+export async function verify2FAForStepUp(code) {
+  return callFunction("/two-factor-verify", { code });
+}
+
+const TWOFA_SESSION_KEY_PREFIX = "jss_2fa_verified_";
+
+/**
+ * Marks this browser session as having verified a 2FA code for this uid.
+ * sessionStorage-scoped (cleared when the tab/session ends) - purely a UX
+ * signal so getAuthGateStatus() (auth.service.js) doesn't re-prompt for a
+ * code on every navigation within the same sign-in. It grants nothing by
+ * itself: every privileged server call (disable 2FA, approve a login) still
+ * independently requires its own fresh step-up token from
+ * /two-factor-verify, regardless of this flag.
+ */
+export function mark2FAVerifiedThisSession(uid) {
+  try {
+    sessionStorage.setItem(TWOFA_SESSION_KEY_PREFIX + uid, "1");
+  } catch {
+    // sessionStorage unavailable (e.g. private browsing edge cases) -
+    // worst case the user is asked for a code again next navigation.
+  }
+}
+
+export function is2FAVerifiedThisSession(uid) {
+  try {
+    return sessionStorage.getItem(TWOFA_SESSION_KEY_PREFIX + uid) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reads user doc, returns boolean (twoFactorEnabled === true). Read-only,
+ * so this is still a direct Firestore read - no privileged write involved.
  */
 export async function is2FAEnabled(uid) {
   const snap = await getDoc(doc(db, "users", uid));
   if (!snap.exists()) return false;
   return snap.data().twoFactorEnabled === true;
-}
-
-/**
- * Reads stored secret from user doc, verifies the code.
- * If the code matches a backup code instead, consume it.
- * Returns boolean.
- */
-export async function validate2FALogin(uid, code) {
-  const snap = await getDoc(doc(db, "users", uid));
-  if (!snap.exists()) return false;
-  
-  const data = snap.data();
-  if (!data.twoFactorEnabled || !data.twoFactorSecret) return false;
-
-  const isValidTOTP = await verify2FACode(data.twoFactorSecret, code);
-  if (isValidTOTP) return true;
-
-  if (data.twoFactorBackupCodes && data.twoFactorBackupCodes.length > 0) {
-    const hashedCode = hashBackupCode(code);
-    const codeIndex = data.twoFactorBackupCodes.indexOf(hashedCode);
-    
-    if (codeIndex !== -1) {
-      // Consume backup code
-      const updatedCodes = [...data.twoFactorBackupCodes];
-      updatedCodes.splice(codeIndex, 1);
-      
-      await updateDoc(doc(db, "users", uid), {
-        twoFactorBackupCodes: updatedCodes
-      });
-      
-      await logAction(uid, "use_2fa_backup_code", "users", uid);
-      return true;
-    }
-  }
-
-  return false;
 }

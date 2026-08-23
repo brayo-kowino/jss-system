@@ -8,7 +8,8 @@ import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 import { mountAnnouncementBanner } from "./announcement-banner.js";
 import { watchPendingApprovals, approveLogin, denyLogin } from "../services/login-approval.service.js";
-import { registerTrustedDevice, generateDeviceFingerprint } from "../services/device.service.js";
+import { generateDeviceFingerprint } from "../services/device.service.js";
+import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -385,7 +386,7 @@ export async function refreshSchoolChrome() {
 
 // Shows the new-device login approval modal on the primary (admin) device.
 // Non-dismissible: the admin must explicitly approve or deny.
-function showApprovalModal(approval, profile) {
+async function showApprovalModal(approval, profile) {
   // Don't stack duplicate modals for the same approval
   if (document.getElementById("jss-approval-modal")) return;
 
@@ -399,6 +400,11 @@ function showApprovalModal(approval, profile) {
   const requestedAt = approval.requestedAt?.toDate
     ? approval.requestedAt.toDate().toLocaleString()
     : new Date().toLocaleString();
+
+  // /login-approval-approve.ts requires a fresh 2FA code on this call when
+  // the account has 2FA enabled - check once up front so the modal can
+  // show the code field only when it's actually needed.
+  const needsCode = await is2FAEnabled(profile.uid).catch(() => false);
 
   const overlay = el("div", { class: "approval-modal-overlay", id: "jss-approval-modal" });
   const modal = el("div", { class: "approval-modal" });
@@ -435,49 +441,81 @@ function showApprovalModal(approval, profile) {
     ]),
   );
 
+  const errorEl = el("p", { class: "approval-modal__error", style: "color:#c0392b;min-height:18px;margin:4px 0;" }, "");
+  let codeInput = null;
+  if (needsCode) {
+    modal.append(
+      el("div", { class: "approval-modal__2fa" }, [
+        el("label", { class: "approval-modal__device-label" }, "Confirm with your 2FA code to approve or deny:"),
+      ]),
+    );
+    codeInput = el("input", {
+      type: "text", inputmode: "numeric", maxlength: "6", placeholder: "6-digit code",
+      class: "approval-modal__code-input",
+    });
+    modal.append(codeInput, errorEl);
+  } else {
+    modal.append(errorEl);
+  }
+
   const approveBtn = el("button", { class: "btn btn--primary" }, [icon("check"), " Approve"]);
   const denyBtn = el("button", { class: "btn btn--danger" }, [icon("block"), " Deny"]);
   const actions = el("div", { class: "approval-modal__actions" }, [denyBtn, approveBtn]);
   modal.append(actions);
 
+  // Resolves the step-up token when 2FA is required, or undefined when
+  // it isn't. Returns null (and shows an error) if the code was wrong.
+  async function resolveStepUpToken() {
+    if (!needsCode) return undefined;
+    const code = (codeInput?.value || "").trim();
+    if (code.length < 6) {
+      errorEl.textContent = "Enter your 6-digit code first.";
+      return null;
+    }
+    try {
+      const data = await verify2FAForStepUp(code);
+      return data.stepUpToken;
+    } catch (err) {
+      errorEl.textContent = "Invalid code. Please try again.";
+      return null;
+    }
+  }
+
   approveBtn.addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const stepUpToken = await resolveStepUpToken();
+    if (stepUpToken === null) return; // error already shown, nothing disabled yet
     approveBtn.disabled = true;
     denyBtn.disabled = true;
     approveBtn.textContent = "Approving…";
     try {
-      await approveLogin(profile.uid, approval.id, profile.uid);
-      // Register the new device as trusted (non-primary)
-      try {
-        await registerTrustedDevice(
-          profile.uid,
-          approval.deviceFingerprint,
-          { deviceName: approval.deviceName, screenRes: approval.screenRes, timezone: approval.timezone },
-          false
-        );
-      } catch (e) {
-        console.error("Failed to register approved device:", e);
-      }
+      await approveLogin(profile.uid, approval.id, currentFingerprint, stepUpToken);
       toast("Login approved. The new device can now access the account.", "success");
     } catch (err) {
-      toast("Failed to approve login. Try again.", "error");
+      toast(err.message || "Failed to approve login. Try again.", "error");
       approveBtn.disabled = false;
       denyBtn.disabled = false;
+      approveBtn.textContent = "Approve";
       return;
     }
     overlay.remove();
   });
 
   denyBtn.addEventListener("click", async () => {
+    errorEl.textContent = "";
+    const stepUpToken = await resolveStepUpToken();
+    if (stepUpToken === null) return;
     approveBtn.disabled = true;
     denyBtn.disabled = true;
     denyBtn.textContent = "Denying…";
     try {
-      await denyLogin(profile.uid, approval.id, profile.uid);
+      await denyLogin(profile.uid, approval.id, currentFingerprint, stepUpToken);
       toast("Login denied. The device has been blocked.", "info");
     } catch (err) {
-      toast("Failed to deny login. Try again.", "error");
+      toast(err.message || "Failed to deny login. Try again.", "error");
       approveBtn.disabled = false;
       denyBtn.disabled = false;
+      denyBtn.textContent = "Deny";
       return;
     }
     overlay.remove();

@@ -7,12 +7,20 @@
 // The fingerprint is deterministic per browser/device profile but includes a
 // localStorage salt so that clearing browser data resets the fingerprint
 // (forcing re-approval, which is a security feature).
+//
+// registerTrustedDevice() below now calls the /device-register edge
+// function (netlify/edge-functions/device-register.ts) instead of writing
+// straight to Firestore - firestore.rules no longer allows a client write
+// to users/{uid}/trusted_devices/{deviceId} at all (see that match block).
+// The edge function requires a recently-issued ID token (i.e. a genuine
+// password entry a few minutes ago) or genuine first-device bootstrap -
+// see that file's header for why.
 // ==========================================================================
 import {
-  doc, getDoc, setDoc, getDocs, deleteDoc,
+  doc, getDoc, getDocs, deleteDoc, setDoc,
   collection, query, where, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../firebase-config.js";
+import { db, auth } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 
 const DEVICE_SALT_KEY = 'jss_device_salt';
@@ -105,25 +113,41 @@ export function getDeviceInfo() {
   };
 }
 
+async function callFunction(path, payload) {
+  if (!auth.currentUser) throw new Error("You must be signed in.");
+  const idToken = await auth.currentUser.getIdToken();
+  let res;
+  try {
+    res = await fetch(path, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload || {}),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Unexpected response from the server.");
+  }
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
+}
+
 /**
- * Registers a device as trusted for a given user.
+ * Registers the CALLER's own current device as trusted, via the
+ * /device-register edge function. Only ever registers the signed-in
+ * caller's own device - uid is implicit from the caller's ID token, not a
+ * parameter, so this can no longer be used to register a device on behalf
+ * of a different account (which is also why the login-approval "approve"
+ * flow in shell.js no longer calls this directly - see
+ * login-approval.service.js's redeemLoginApproval() instead).
  */
 export async function registerTrustedDevice(uid, fingerprint, deviceInfo = {}, isPrimary = false) {
-  if (!uid || !fingerprint) return;
-  const docRef = doc(db, "users", uid, "trusted_devices", String(fingerprint));
-  const data = {
-    fingerprint: String(fingerprint),
-    deviceName: String(deviceInfo.deviceName || "Unknown Device"),
-    screenRes: String(deviceInfo.screenRes || "Unknown"),
-    timezone: String(deviceInfo.timezone || "UTC"),
-    browser: String(deviceInfo.browser || "Unknown Browser"),
-    os: String(deviceInfo.os || "Unknown OS"),
-    isPrimary: Boolean(isPrimary),
-    registeredAt: serverTimestamp(),
-    lastSeenAt: serverTimestamp(),
-  };
-  await setDoc(docRef, data, { merge: true });
-  await logAction(uid, "register_device", "users", String(fingerprint));
+  if (!fingerprint) return;
+  await callFunction("/device-register", { fingerprint: String(fingerprint), deviceInfo, isPrimary: Boolean(isPrimary) });
 }
 
 /**
@@ -163,7 +187,10 @@ export async function listTrustedDevices(uid) {
 }
 
 /**
- * Removes a trusted device.
+ * Removes a trusted device. Still a direct client delete - firestore.rules
+ * continues to allow this for the account owner/admin/super_admin, since
+ * *removing* trust (forcing a future re-approval) isn't the sensitive
+ * direction; only *granting* it is.
  */
 export async function removeTrustedDevice(uid, deviceId) {
   await deleteDoc(doc(db, "users", uid, "trusted_devices", deviceId));
@@ -182,10 +209,21 @@ export async function resetAllTrustedDevices(uid) {
 }
 
 /**
- * Updates the last seen timestamp for a trusted device.
+ * Updates the last seen timestamp for a trusted device. Still a direct
+ * client write via setDoc's merge - firestore.rules' `allow create, update:
+ * if false` on trusted_devices blocks this too now, same as everything
+ * else on that collection, so this best-effort call will fail silently
+ * (callers already treat it as fire-and-forget). Left in place rather than
+ * removed so lastSeenAt simply stops updating rather than throwing - a
+ * cosmetic regression, not a security one, and worth revisiting by adding
+ * a narrow allow-update-lastSeenAt-only rule if it's wanted back.
  */
 export async function updateLastSeen(uid, fingerprint) {
-  const docRef = doc(db, "users", uid, "trusted_devices", fingerprint);
-  // Merge true so we don't overwrite the whole document
-  await setDoc(docRef, { lastSeenAt: serverTimestamp() }, { merge: true });
+  try {
+    const docRef = doc(db, "users", uid, "trusted_devices", fingerprint);
+    await setDoc(docRef, { lastSeenAt: serverTimestamp() }, { merge: true });
+  } catch {
+    // Expected now that trusted_devices denies client writes outright -
+    // see comment above.
+  }
 }
