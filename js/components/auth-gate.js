@@ -23,7 +23,7 @@
 import { watchLoginApproval, redeemLoginApproval } from "../services/login-approval.service.js";
 import { validate2FALogin, is2FAEnabled, mark2FAVerifiedThisSession } from "../services/two-factor.service.js";
 import { generateDeviceFingerprint, getDeviceInfo } from "../services/device.service.js";
-import { logout } from "../services/auth.service.js";
+import { logout, refreshCurrentSchool } from "../services/auth.service.js";
 import { el, icon, toast, busyButton } from "../utils.js";
 
 // ===========================================================================
@@ -89,6 +89,7 @@ export function renderApprovalGate(gate, onDone) {
         renderTwoFactorGate({ uid: gate.uid }, onDone);
         return;
       }
+      await refreshCurrentSchool();
       toast("Login approved! Welcome in.", "success");
       onDone();
     } else if (approval.status === "denied") {
@@ -175,6 +176,7 @@ export function renderTwoFactorGate(gate, onDone) {
       const valid = await validate2FALogin(gate.uid, code);
       if (valid) {
         mark2FAVerifiedThisSession(gate.uid);
+        await refreshCurrentSchool();
         toast("Verified! Welcome in.", "success");
         onDone();
       } else {

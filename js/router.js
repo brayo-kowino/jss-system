@@ -12,7 +12,7 @@
 //    blank the whole app - it falls back to a friendly in-shell error card
 //    with a "try again" button, and the sidebar/nav stay usable.
 // ==========================================================================
-import { getCurrentProfile, getCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
+import { getCurrentProfile, getCurrentSchool, refreshCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
 import { getSubscriptionState } from "./services/subscription.service.js";
 import { renderShell } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
@@ -272,7 +272,10 @@ export async function renderRoute() {
     // case (see views/subscription-locked.js) - a suspension can only be
     // lifted by the platform admin, not a token.
     if (profile.role !== "super_admin") {
-      const school = getCurrentSchool();
+      let school = getCurrentSchool();
+      if (!school && profile.schoolId) {
+        school = await refreshCurrentSchool();
+      }
       const { active } = getSubscriptionState(school || {});
       if (!active) {
         const content = await subscriptionLockedView.render({ profile, school });

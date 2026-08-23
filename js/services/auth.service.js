@@ -301,11 +301,21 @@ export function getCurrentSchool() {
 
 // And on explicit sign-in/switch: refresh currentSchool if we have one.
 // Called right after fetchProfile() inside login() below and after any
-// direct schoolId assignment.
 export async function refreshCurrentSchool() {
   if (!currentProfile?.schoolId) return null;
-  currentSchool = await fetchSchool(currentProfile.schoolId);
-  if (currentSchool) writeCachedSchool(currentSchool);
+  try {
+    currentSchool = await fetchSchool(currentProfile.schoolId);
+    if (currentSchool) {
+      writeCachedSchool(currentSchool);
+      if (!unsubscribeSchoolListener && typeof navigator !== "undefined" && navigator.onLine) {
+        watchCurrentSchool(currentProfile.schoolId, () => {
+          import("../router.js").then(({ renderRoute }) => renderRoute()).catch(() => {});
+        });
+      }
+    }
+  } catch (err) {
+    console.error("auth.service: refreshCurrentSchool failed:", err);
+  }
   return currentSchool;
 }
 
