@@ -172,7 +172,7 @@ export async function render({ profile }) {
 
   return el("div", { class: "page" }, [
     el("div", { class: "page-header" }, [
-      el("h1", { class: "page-title" }, "Contact Support"),
+      el("h1", { class: "page-title" }, ""),
       el("p", { class: "page-subtitle" }, "Raise an issue with the platform administration."),
     ]),
     contactCards,

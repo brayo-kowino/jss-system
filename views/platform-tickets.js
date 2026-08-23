@@ -77,7 +77,7 @@ function showResolveModal(ticket, profile) {
     el("p", { class: "mb-md" }, [
       "Resolving ticket for ", el("strong", {}, ticket.schoolName),
     ]),
-    el("div", { class: "form-group" }, [
+    el("div", { class: "field" }, [
       el("label", {}, "Resolution / Reply"),
       noteInput
     ]),

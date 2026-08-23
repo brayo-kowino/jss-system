@@ -92,7 +92,7 @@ function showResolveModal(issue, profile) {
     el("p", { class: "mb-md" }, [
       "Mark issue as resolved for ", el("strong", {}, issue.studentName), "?"
     ]),
-    el("div", { class: "form-group" }, [
+    el("div", { class: "field" }, [
       el("label", {}, "Resolution Note"),
       noteInput
     ]),
