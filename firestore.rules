@@ -180,8 +180,31 @@ service cloud.firestore {
     // above this point respectively - Firestore Rules functions aren't
     // order-dependent within the same service block, so forward references
     // are fine.
+    // READS deliberately do NOT call isSubscriptionActive() here. That
+    // function does a cross-collection get() on schools/{schoolId} - fine
+    // as a one-off, but ownsExisting() is the choke point EVERY operational
+    // read in the app goes through, and stacking a second document fetch
+    // onto every one of them (on top of queries that already chain several
+    // where() filters - fee_payments date ranges, student_fee_status
+    // compound filters, audit_logs, the dashboard's aggregate calls) is
+    // what silently pushed those specific screens over Firestore's rule-
+    // evaluation budget and started returning permission-denied - while
+    // simpler single/double-filter reads (students, classes) still fit
+    // under it. That's a performance cliff, not a security boundary, so it
+    // doesn't belong on the read path.
+    //
+    // A lapsed/suspended school losing read access mid-session was never
+    // actually the gap that needed closing - subscription-gate.ts already
+    // hard-blocks a *suspended* school at the edge, before the app (and
+    // therefore any Firestore read) ever loads, on every fresh navigation.
+    // What genuinely needed DB-layer enforcement is WRITES: a lapsed
+    // school's already-open tab should not be able to keep recording fee
+    // payments, entering marks, or editing students after the subscription
+    // ends or the school is suspended - so isSubscriptionActive() stays on
+    // ownsIncoming()/ownsBoth() below, where it only costs one extra get()
+    // on the comparatively rare create/update path, not on every read.
     function ownsExisting() {
-      return isUserActive() && isFullyVerified() && isSubscriptionActive()
+      return isUserActive() && isFullyVerified()
         && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
     }
     function ownsIncoming() {
