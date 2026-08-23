@@ -508,6 +508,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /support_tickets/{docId} {
+      allow read: if isSuperAdmin() || (isStaff() && ownsExisting());
+      allow create: if isStaff() && ownsIncoming();
+      allow update: if isSuperAdmin() || (isStaff() && ownsBoth());
+      allow delete: if false;
+    }
+
     // Teacher accounts/assignments - PII (phone, TSC number, email) that
     // no longer needs to be world-readable to every staff role. Read is
     // admin/principal (Teachers page), academic_master (Analytics), or the

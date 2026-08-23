@@ -65,8 +65,13 @@ export const routes = {
   "/fees": { view: () => import("../views/fees.js"), roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
 
   "/timetable": { view: () => import("../views/timetable.js"), allRoles: true, title: "Timetable" },
+  "/student-issues": { view: () => import("../views/student-issues.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"], title: "Student Issues" },
+  "/support": { view: () => import("../views/support.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"], title: "Contact Support" },
+  
   "/schools": { view: () => import("../views/schools.js"), roles: ["super_admin"], title: "Schools" },
   "/platform-announcements": { view: () => import("../views/platform-announcements.js"), roles: ["super_admin"], title: "Platform Announcements" },
+  "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets" },
+  
   "/notifications": { view: () => import("../views/notifications.js"), allRoles: true, title: "Notifications" },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
   "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
@@ -257,7 +262,7 @@ export async function renderRoute() {
     // super_admin has no schoolId and isn't scoped to any single school's
     // data - the only things it can see are the Schools registry and the
     // platform announcements it authors (also not scoped to any school).
-    if (profile.role === "super_admin" && path !== "/schools" && path !== "/platform-announcements") {
+    if (profile.role === "super_admin" && path !== "/schools" && path !== "/platform-announcements" && path !== "/platform-tickets") {
       return navigate("/schools");
     }
 

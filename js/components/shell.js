@@ -121,6 +121,7 @@ const NAV = [
     label: "Operations",
     links: [
       { path: "/fees", icon: "payments", text: "Fees", roles: ["admin", "deputy_principal", "principal", "bursar"] },
+      { path: "/student-issues", icon: "assignment_late", text: "Student Issues", roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"] },
     ],
   },
   {
@@ -128,6 +129,7 @@ const NAV = [
     links: [
       { path: "/settings", icon: "settings", text: "School Settings", roles: ["admin"] },
       { path: "/audit", icon: "policy", text: "Audit Trail", roles: ["admin"] },
+      { path: "/support", icon: "support_agent", text: "Contact Support", roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"] },
     ],
   },
   {
@@ -135,6 +137,7 @@ const NAV = [
     links: [
       { path: "/schools", icon: "corporate_fare", text: "Schools", roles: ["super_admin"] },
       { path: "/platform-announcements", icon: "campaign", text: "Announcements", roles: ["super_admin"] },
+      { path: "/platform-tickets", icon: "confirmation_number", text: "Support Tickets", roles: ["super_admin"] },
     ],
   },
 ];

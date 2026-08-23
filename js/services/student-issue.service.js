@@ -76,6 +76,18 @@ export async function listOpenIssues() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+export async function listAllIssuesForSchool() {
+  const snap = await getDocs(
+    query(collection(db, "student_issues"), where("schoolId", "==", getCurrentSchoolId()))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === "open" ? -1 : 1;
+      return (b.raisedAt?.seconds || 0) - (a.raisedAt?.seconds || 0);
+    });
+}
+
 export async function resolveIssue(userId, id, resolutionNote) {
   await updateDoc(doc(db, "student_issues", id), {
     status: "resolved",
