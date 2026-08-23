@@ -109,7 +109,12 @@ function currentPath() {
 }
 
 export function navigate(path) {
-  location.hash = path;
+  const targetHash = path.startsWith("#") ? path : `#${path}`;
+  if (location.hash === targetHash) {
+    renderRoute().catch((err) => showFatalError(err, { where: "router.navigate" }));
+  } else {
+    location.hash = targetHash;
+  }
 }
 
 function renderNotFound(app, { authed }) {
