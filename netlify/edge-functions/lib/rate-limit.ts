@@ -38,7 +38,7 @@
 // which would mean moving this to Firestore transactions instead.
 // ==========================================================================
 
-import { getStore } from "@netlify/blobs";
+import { getStore } from "https://esm.sh/@netlify/blobs@8.1.0";
 
 interface RateLimitRecord {
   count: number;
