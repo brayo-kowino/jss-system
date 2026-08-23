@@ -240,3 +240,15 @@ export async function cleanupOldApprovals(uid) {
     console.warn("Failed to cleanup old login approvals:", error);
   }
 }
+
+/**
+ * Deletes a single login approval request.
+ */
+export async function deleteApproval(uid, approvalId) {
+  if (!uid || !approvalId) return;
+  try {
+    await deleteDoc(doc(db, "users", uid, "login_approvals", approvalId));
+  } catch (err) {
+    console.warn("deleteApproval failed:", err);
+  }
+}

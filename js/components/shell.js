@@ -7,7 +7,7 @@ import { startTour } from "./tour.js";
 import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 import { mountAnnouncementBanner } from "./announcement-banner.js";
-import { watchPendingApprovals, approveLogin, denyLogin } from "../services/login-approval.service.js";
+import { watchPendingApprovals, approveLogin, denyLogin, deleteApproval } from "../services/login-approval.service.js";
 import { generateDeviceFingerprint, isDeviceTrusted } from "../services/device.service.js";
 import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service.js";
 
@@ -407,9 +407,21 @@ async function showApprovalModal(approval, profile) {
   const needsCode = await is2FAEnabled(profile.uid).catch(() => false);
 
   const overlay = el("div", { class: "approval-modal-overlay", id: "jss-approval-modal" });
-  const modal = el("div", { class: "approval-modal" });
+  const modal = el("div", { class: "approval-modal", style: "position:relative;" });
+
+  const closeBtn = el("button", {
+    type: "button",
+    class: "approval-modal__close",
+    style: "position:absolute;top:12px;right:12px;background:none;border:none;cursor:pointer;font-size:20px;color:#888;line-height:1;padding:4px 8px;",
+    title: "Dismiss",
+    onClick: () => {
+      deleteApproval(profile.uid, approval.id).catch(() => {});
+      overlay.remove();
+    }
+  }, "✕");
 
   modal.append(
+    closeBtn,
     el("div", { class: "approval-modal__header" }, [
       icon("security"),
       el("div", {}, [
@@ -918,12 +930,16 @@ export function renderShell(app, profile, activePath) {
       const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint);
       if (incoming.length === 0) return;
 
-      // Filter out any requests from devices that are ALREADY trusted
+      // Filter out and auto-clean any requests from devices that are ALREADY trusted
       const unapproved = [];
       for (const req of incoming) {
         if (req.deviceFingerprint) {
           const trusted = await isDeviceTrusted(profile.uid, req.deviceFingerprint).catch(() => false);
-          if (!trusted) unapproved.push(req);
+          if (trusted) {
+            deleteApproval(profile.uid, req.id).catch(() => {});
+          } else {
+            unapproved.push(req);
+          }
         }
       }
       if (unapproved.length === 0) return;
