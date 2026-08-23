@@ -182,7 +182,7 @@ export async function render({ profile }) {
 
   return el("div", { class: "page" }, [
     el("div", { class: "page-header" }, [
-      el("h1", { class: "page-title" }, "Student Issues"),
+      el("h1", { class: "page-title" }, ""),
       el("p", { class: "page-subtitle" }, "Track and resolve front-desk issues across the school."),
     ]),
     toolbar,
