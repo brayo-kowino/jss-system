@@ -112,7 +112,7 @@ function showRaiseTicketModal(profile) {
   );
 
   body.append(
-    el("p", { class: "text-sm text-muted", style: "margin-bottom: var(--sp-4);" }, "Submit a direct ticket to the ISKIFY360 platform team. We will review and respond promptly."),
+    el("p", { class: "text-sm text-muted", style: "margin-bottom: var(--sp-4);" }, "Submit a direct ticket to the ISKIFY360 team. We will review and respond promptly."),
     el("div", { class: "field" }, [
       el("label", { for: "ticket-subject" }, "Subject"),
       subjectInput,
