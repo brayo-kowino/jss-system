@@ -3,10 +3,12 @@ import {
   resolveSupportTicket,
   reopenSupportTicket,
 } from "../js/services/support.service.js";
+import { listSchools } from "../js/services/school.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { openModal } from "../js/components/modal.js";
 
 let tickets = [];
+let schoolsMap = new Map();
 let filterStatus = "open";
 
 function renderRow(ticket, profile) {
@@ -19,9 +21,16 @@ function renderRow(ticket, profile) {
     isOpen ? "Open" : "Resolved"
   );
 
+  const resolvedSchoolName =
+    (ticket.schoolName && ticket.schoolName !== "Unknown School" ? ticket.schoolName : null) ||
+    schoolsMap.get(ticket.schoolId)?.schoolName ||
+    schoolsMap.get(ticket.schoolId)?.name ||
+    ticket.schoolName ||
+    "Unknown School";
+
   tr.append(
     el("td", { "data-label": "School" }, [
-      el("strong", {}, ticket.schoolName || "Unknown School"),
+      el("strong", {}, resolvedSchoolName),
       el("div", { class: "text-xs text-muted" }, `ID: ${ticket.schoolId}`),
     ]),
     el("td", { "data-label": "Subject & Issue" }, [
@@ -168,7 +177,12 @@ async function handleReopen(ticket, profile) {
 }
 
 async function loadData() {
-  tickets = await listAllPlatformTickets(filterStatus);
+  const [ticketsList, allSchools] = await Promise.all([
+    listAllPlatformTickets(filterStatus),
+    listSchools().catch(() => []),
+  ]);
+  tickets = ticketsList;
+  schoolsMap = new Map((allSchools || []).map((s) => [s.id, s]));
 }
 
 let tableContainer;

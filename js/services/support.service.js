@@ -17,12 +17,23 @@ export async function raiseSupportTicket(userId, { subject, message }) {
   if (!subject) throw new Error("Subject is required.");
   if (!message) throw new Error("Message is required.");
   const schoolId = getCurrentSchoolId();
-  const school = getCurrentSchool();
   if (!schoolId) throw new Error("Must be associated with a school to raise a ticket.");
+
+  let school = getCurrentSchool();
+  let schoolName = school?.schoolName || school?.name;
+  if (!schoolName) {
+    try {
+      const snap = await getDoc(doc(db, "schools", schoolId));
+      if (snap.exists()) {
+        const data = snap.data();
+        schoolName = data.schoolName || data.name;
+      }
+    } catch (e) {}
+  }
 
   const ref_ = await addDoc(collection(db, "support_tickets"), {
     schoolId,
-    schoolName: school?.name || "Unknown School",
+    schoolName: schoolName || "Unknown School",
     subject: subject.trim(),
     message: message.trim(),
     status: "open",
