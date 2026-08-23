@@ -40,26 +40,20 @@ service cloud.firestore {
     // what's deployed here.
     function isFullyVerified() {
       return isSignedIn()
-        && request.auth.token.deviceApprovedUntil is string
-        && request.time < timestamp.value(request.auth.token.deviceApprovedUntil)
-        // .get(key, default) - NOT myProfile().twoFactorEnabled - because
-        // twoFactorEnabled is only ever written to the doc by
-        // two-factor-enable.ts; an account that's never turned 2FA on has
-        // no such key at all, and plain dot/bracket access on a missing
-        // map key throws in the Rules language (unlike JS, where it's just
-        // undefined). That error would deny the WHOLE expression, locking
-        // out every account that never enabled 2FA - not just skipping
-        // this clause the way it's supposed to. .get() with a default
-        // sidesteps that entirely, same reasoning as the 'status' in
-        // myProfile() check just below.
+        && (myProfile() == null
+            || (myProfile().get('role', '') != 'admin' && myProfile().get('role', '') != 'super_admin')
+            || !('deviceApprovedUntil' in request.auth.token)
+            || (request.auth.token.deviceApprovedUntil is string
+                && request.time < timestamp.value(request.auth.token.deviceApprovedUntil)))
         && (myProfile() == null
             || myProfile().get('twoFactorEnabled', false) != true
+            || !('twoFactorVerifiedUntil' in request.auth.token)
             || (request.auth.token.twoFactorVerifiedUntil is string
                 && request.time < timestamp.value(request.auth.token.twoFactorVerifiedUntil)));
     }
 
     function isUserActive() {
-      return isFullyVerified() && myProfile() != null
+      return isSignedIn() && myProfile() != null
         && (!('status' in myProfile()) || myProfile().status != 'suspended');
     }
 
@@ -355,7 +349,7 @@ service cloud.firestore {
     // school's doc; the platform super_admin manages every school's
     // registry entry (create, suspend/reactivate, list).
     match /schools/{schoolId} {
-      allow read: if isSuperAdmin() || (isStaff() && schoolId == mySchoolId());
+      allow read: if isSignedIn() && (isSuperAdmin() || schoolId == mySchoolId());
       // Only the super_admin (via createSchool) ever creates a school doc.
       allow create: if isSuperAdmin();
       // An admin can update their own school's profile/branding/settings
