@@ -197,7 +197,6 @@ export async function render({ profile }) {
 
   const header = el("div", { class: "page-header" }, [
     el("div", {}, [
-      el("h1", {}, "Student Issues & Disputes"),
       el("p", { class: "text-sm text-muted" }, "Track, investigate, and resolve front-desk student discrepancies across the school."),
     ]),
   ]);
