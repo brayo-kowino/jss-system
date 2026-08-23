@@ -165,12 +165,18 @@ export async function registerTrustedDevice(uid, fingerprint, deviceInfo = {}, i
 /**
  * Checks if a specific device fingerprint is registered as trusted for the user.
  */
+const trustedCache = new Map();
+
 export async function isDeviceTrusted(uid, fingerprint) {
   if (!uid || !fingerprint) return false;
+  const key = `${uid}_${fingerprint}`;
+  if (trustedCache.has(key)) return trustedCache.get(key);
   try {
     const docRef = doc(db, "users", uid, "trusted_devices", String(fingerprint));
     const snap = await getDoc(docRef);
-    return snap.exists();
+    const exists = snap.exists();
+    if (exists) trustedCache.set(key, exists);
+    return exists;
   } catch (err) {
     console.error("isDeviceTrusted check failed:", err);
     return false;

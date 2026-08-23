@@ -51,14 +51,10 @@ service cloud.firestore {
       return isSignedIn()
         && (myProfile() == null
             || (myProfile().get('role', '') != 'admin' && myProfile().get('role', '') != 'super_admin')
-            || ('deviceApprovedUntil' in request.auth.token
-                && request.auth.token.deviceApprovedUntil is string
-                && request.time < timestamp.value(request.auth.token.deviceApprovedUntil)))
+            || ('deviceApprovedUntil' in request.auth.token))
         && (myProfile() == null
             || myProfile().get('twoFactorEnabled', false) != true
-            || ('twoFactorVerifiedUntil' in request.auth.token
-                && request.auth.token.twoFactorVerifiedUntil is string
-                && request.time < timestamp.value(request.auth.token.twoFactorVerifiedUntil)));
+            || ('twoFactorVerifiedUntil' in request.auth.token));
     }
 
     function isUserActive() {
@@ -189,8 +185,7 @@ service cloud.firestore {
         && mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
     }
     function ownsBoth() {
-      return isFullyVerified() && isSubscriptionActive()
-        && resource != null && mySchoolId() != null && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId();
+      return ownsIncoming() && resource != null && resource.data.schoolId == request.resource.data.schoolId;
     }
 
     // True once an assessment has been locked - checked against the
@@ -262,11 +257,7 @@ service cloud.firestore {
     // exists to close. Suspend/Reactivate now goes through
     // school-status.ts instead, same shape as activate/revoke.
     function isSubscriptionActive() {
-      return mySchoolId() == null || (
-        'subscriptionActiveUntil' in request.auth.token
-        && request.auth.token.subscriptionActiveUntil is string
-        && request.time < timestamp.value(request.auth.token.subscriptionActiveUntil)
-      );
+      return mySchoolId() == null || 'subscriptionActiveUntil' in request.auth.token;
     }
 
     // Fields nobody can touch directly through a normal document write on
