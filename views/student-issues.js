@@ -15,36 +15,63 @@ function renderRow(issue, profile) {
   const isOpen = issue.status === "open";
   const tr = el("tr", { class: isOpen ? "" : "row-dimmed" });
 
-  const statusBadge = el("span", { 
-    class: `badge badge--${isOpen ? "danger" : "success"}` 
-  }, isOpen ? "Open" : "Resolved");
+  const statusBadge = el(
+    "span",
+    { class: `badge badge--${isOpen ? "danger" : "success"}` },
+    isOpen ? "Open" : "Resolved"
+  );
 
   tr.append(
-    el("td", {}, [
+    el("td", { "data-label": "Student" }, [
       el("strong", {}, issue.studentName || "Unknown"),
-      el("div", { class: "text-sm text-muted" }, issue.admissionNumber || ""),
+      el("div", { class: "text-xs text-muted" }, `Adm: ${issue.admissionNumber || "N/A"}`),
     ]),
-    el("td", {}, issueCategoryLabel(issue.category)),
-    el("td", {}, [
-      el("div", { style: "max-width: 300px; white-space: normal;" }, issue.description),
-      !isOpen && issue.resolutionNote ? el("div", { class: "text-sm text-muted", style: "margin-top: 4px; border-left: 2px solid var(--border); padding-left: 8px;" }, `Resolution: ${issue.resolutionNote}`) : "",
+    el("td", { "data-label": "Category" }, issueCategoryLabel(issue.category)),
+    el("td", { "data-label": "Description" }, [
+      el("div", { style: "max-width: 340px; white-space: normal; line-height: 1.4;" }, issue.description),
+      !isOpen && issue.resolutionNote
+        ? el(
+            "div",
+            {
+              class: "text-xs text-muted",
+              style: "margin-top: 6px; border-left: 2px solid var(--color-primary-600); padding-left: 8px; line-height: 1.3;",
+            },
+            `Resolution: ${issue.resolutionNote}`
+          )
+        : "",
     ]),
-    el("td", {}, [
+    el("td", { "data-label": "Reported" }, [
       el("div", {}, formatDate(issue.raisedAt?.seconds * 1000) || "Unknown"),
-      !isOpen && issue.resolvedAt ? el("div", { class: "text-sm text-muted" }, `Resolved: ${formatDate(issue.resolvedAt?.seconds * 1000)}`) : ""
+      !isOpen && issue.resolvedAt
+        ? el("div", { class: "text-xs text-muted" }, `Done: ${formatDate(issue.resolvedAt?.seconds * 1000)}`)
+        : "",
     ]),
-    el("td", {}, statusBadge),
-    el("td", { class: "actions-cell" }, [
+    el("td", { "data-label": "Status" }, statusBadge),
+    el("td", { "data-label": "Actions", class: "row-actions" }, [
       isOpen
-        ? el("button", { class: "btn btn--sm btn--outline", onClick: () => showResolveModal(issue, profile) }, [icon("check_circle"), "Resolve"])
-        : el("button", { class: "btn btn--sm btn--ghost", onClick: () => handleReopen(issue, profile) }, [icon("undo"), "Reopen"])
+        ? el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              onClick: () => showResolveModal(issue, profile),
+            },
+            [icon("check_circle"), "Resolve"]
+          )
+        : el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              onClick: () => handleReopen(issue, profile),
+            },
+            [icon("undo"), "Reopen"]
+          ),
     ])
   );
   return tr;
 }
 
 function renderTable(profile) {
-  const filtered = issues.filter(i => {
+  const filtered = issues.filter((i) => {
     if (filterStatus && i.status !== filterStatus) return false;
     if (filterText) {
       const q = filterText.toLowerCase();
@@ -57,60 +84,83 @@ function renderTable(profile) {
   });
 
   if (filtered.length === 0) {
-    return el("div", { class: "empty-state" }, [
-      el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "assignment_turned_in"),
-      el("h3", {}, "No issues found"),
-      el("p", { class: "text-muted" }, "There are no student issues matching your filters.")
+    return el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "assignment_turned_in"),
+        el("h3", {}, "No issues found"),
+        el("p", { class: "text-muted" }, "No student issues match your current filters."),
+      ]),
     ]);
   }
 
-  return el("div", { class: "table-responsive" }, [
-    el("table", { class: "data-table" }, [
-      el("thead", {}, [
-        el("tr", {}, [
-          el("th", {}, "Student"),
-          el("th", {}, "Category"),
-          el("th", {}, "Description"),
-          el("th", {}, "Date"),
-          el("th", {}, "Status"),
-          el("th", { style: "width: 100px" }, "Actions"),
+  return el("div", { class: "card" }, [
+    el("div", { class: "table-wrap table-wrap--responsive" }, [
+      el("table", {}, [
+        el("thead", {}, [
+          el("tr", {}, [
+            el("th", {}, "Student"),
+            el("th", {}, "Category"),
+            el("th", {}, "Description"),
+            el("th", { style: "width: 140px;" }, "Reported"),
+            el("th", { style: "width: 100px;" }, "Status"),
+            el("th", { style: "width: 110px;" }, "Actions"),
+          ]),
         ]),
+        el("tbody", {}, filtered.map((i) => renderRow(i, profile))),
       ]),
-      el("tbody", {}, filtered.map(i => renderRow(i, profile))),
-    ])
+    ]),
   ]);
 }
 
 function showResolveModal(issue, profile) {
-  const noteInput = el("textarea", { class: "input", placeholder: "How was this resolved? (optional)", rows: 3 });
-  
-  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
-  const resolveBtn = el("button", { class: "btn btn--primary" }, "Resolve");
-  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, resolveBtn]);
+  const body = el("form", {});
 
-  const bodyNode = el("div", {}, [
-    el("p", { class: "mb-md" }, [
-      "Mark issue as resolved for ", el("strong", {}, issue.studentName), "?"
+  const noteInput = el("textarea", {
+    id: "resolution-note",
+    placeholder: "Explain what action was taken to resolve this (e.g. corrected marks in CAT 2)...",
+    rows: "4",
+  });
+
+  const cancelBtn = el("button", { type: "button", class: "btn btn--ghost" }, "Cancel");
+  const resolveBtn = el("button", { type: "submit", class: "btn btn--primary" }, [icon("check"), "Mark Resolved"]);
+
+  const actions = el(
+    "div",
+    { style: "display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4);" },
+    [cancelBtn, resolveBtn]
+  );
+
+  body.append(
+    el("p", { class: "text-sm text-muted", style: "margin-bottom: var(--sp-4);" }, [
+      "Resolving issue for ",
+      el("strong", {}, issue.studentName || "student"),
+      ` (${issue.admissionNumber || "No Adm"}).`,
     ]),
     el("div", { class: "field" }, [
-      el("label", {}, "Resolution Note"),
-      noteInput
+      el("label", { for: "resolution-note" }, "Resolution Note (Optional)"),
+      noteInput,
     ]),
     actions
-  ]);
-  
-  const close = openModal("Resolve Issue", bodyNode);
+  );
+
+  const close = openModal("Resolve Student Issue", body);
 
   cancelBtn.addEventListener("click", close);
 
-  resolveBtn.addEventListener("click", async (e) => {
-    await busyButton(e.target, async () => {
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Resolving…");
+    try {
       await resolveIssue(profile.uid, issue.id, noteInput.value);
-      toast("Issue resolved.");
+      toast("Issue marked as resolved.", "success");
+      close();
       await loadData();
       reRender(profile);
-      close();
-    });
+    } catch (err) {
+      console.error(err);
+      toast("Failed to resolve issue.", "error");
+      restore();
+    }
   });
 }
 
@@ -118,7 +168,7 @@ async function handleReopen(issue, profile) {
   if (!confirm(`Reopen issue for ${issue.studentName}?`)) return;
   try {
     await reopenIssue(profile.uid, issue.id);
-    toast("Issue reopened.");
+    toast("Issue reopened.", "success");
     await loadData();
     reRender(profile);
   } catch (err) {
@@ -143,49 +193,57 @@ function reRender(profile) {
 export async function render({ profile }) {
   await loadData();
 
+  const wrap = el("div", {});
+
+  const header = el("div", { class: "page-header" }, [
+    el("div", {}, [
+      el("h1", {}, "Student Issues & Disputes"),
+      el("p", { class: "text-sm text-muted" }, "Track, investigate, and resolve front-desk student discrepancies across the school."),
+    ]),
+  ]);
+  wrap.append(header);
+
+  // Filters Card
   const searchInput = el("input", {
     type: "search",
-    class: "input",
-    placeholder: "Search name, adm...",
-    style: "max-width: 250px",
+    placeholder: "Search student name, admission number, or issue...",
     onInput: (e) => {
       filterText = e.target.value;
       reRender(profile);
-    }
+    },
   });
 
-  const statusSelect = el("select", {
-    class: "input",
-    style: "width: auto",
-    onChange: (e) => {
-      filterStatus = e.target.value;
-      reRender(profile);
-    }
-  }, [
-    el("option", { value: "" }, "All Statuses"),
-    el("option", { value: "open" }, "Open"),
-    el("option", { value: "resolved" }, "Resolved"),
-  ]);
+  const statusSelect = el(
+    "select",
+    {
+      onChange: (e) => {
+        filterStatus = e.target.value;
+        reRender(profile);
+      },
+    },
+    [
+      el("option", { value: "" }, "All Statuses"),
+      el("option", { value: "open" }, "Open Issues"),
+      el("option", { value: "resolved" }, "Resolved Issues"),
+    ]
+  );
 
-  const toolbar = el("div", { class: "toolbar" }, [
-    el("div", { class: "toolbar__left" }, [
-      el("div", { class: "search-box" }, [
-        icon("search", "search-box__icon"),
-        searchInput
+  const filterCard = el("div", { class: "card", style: "margin-bottom: var(--sp-4);" }, [
+    el("div", { class: "field-row" }, [
+      el("div", { class: "field", style: "margin-bottom: 0;" }, [
+        el("label", {}, "Search"),
+        searchInput,
       ]),
-      statusSelect
+      el("div", { class: "field", style: "margin-bottom: 0;" }, [
+        el("label", {}, "Filter by Status"),
+        statusSelect,
+      ]),
     ]),
-    el("div", { class: "toolbar__right" }, [])
   ]);
+  wrap.append(filterCard);
 
   tableContainer = el("div", {}, [renderTable(profile)]);
+  wrap.append(tableContainer);
 
-  return el("div", { class: "page" }, [
-    el("div", { class: "page-header" }, [
-      el("h1", { class: "page-title" }, ""),
-      el("p", { class: "page-subtitle" }, "Track and resolve front-desk issues across the school."),
-    ]),
-    toolbar,
-    tableContainer
-  ]);
+  return wrap;
 }

@@ -1,7 +1,7 @@
 import {
   listSchoolTickets,
   raiseSupportTicket,
-  resolveSupportTicket
+  resolveSupportTicket,
 } from "../js/services/support.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { openModal } from "../js/components/modal.js";
@@ -12,24 +12,46 @@ function renderRow(ticket, profile) {
   const isOpen = ticket.status === "open";
   const tr = el("tr", { class: isOpen ? "" : "row-dimmed" });
 
-  const statusBadge = el("span", { 
-    class: `badge badge--${isOpen ? "warning" : "success"}` 
-  }, isOpen ? "Open" : "Resolved");
+  const statusBadge = el(
+    "span",
+    { class: `badge badge--${isOpen ? "warning" : "success"}` },
+    isOpen ? "Open" : "Resolved"
+  );
 
   tr.append(
-    el("td", {}, [
+    el("td", { "data-label": "Subject & Details" }, [
       el("strong", {}, ticket.subject),
-      el("div", { class: "text-sm text-muted", style: "margin-top: 4px; max-width: 400px; white-space: normal;" }, ticket.message),
+      el(
+        "div",
+        {
+          class: "text-sm text-muted",
+          style: "margin-top: 4px; max-width: 420px; white-space: normal; line-height: 1.4;",
+        },
+        ticket.message
+      ),
     ]),
-    el("td", {}, formatDate(ticket.raisedAt?.seconds * 1000) || "Unknown"),
-    el("td", {}, statusBadge),
-    el("td", {}, [
-      !isOpen && ticket.resolutionNote ? el("div", { class: "text-sm", style: "white-space: normal; max-width: 300px;" }, ticket.resolutionNote) : el("span", { class: "text-muted" }, "-")
+    el("td", { "data-label": "Date Raised" }, formatDate(ticket.raisedAt?.seconds * 1000) || "Unknown"),
+    el("td", { "data-label": "Status" }, statusBadge),
+    el("td", { "data-label": "Resolution / Reply" }, [
+      !isOpen && ticket.resolutionNote
+        ? el(
+            "div",
+            { class: "text-sm", style: "white-space: normal; max-width: 320px; line-height: 1.4;" },
+            ticket.resolutionNote
+          )
+        : el("span", { class: "text-muted" }, "—"),
     ]),
-    el("td", { class: "actions-cell" }, [
+    el("td", { "data-label": "Actions", class: "row-actions" }, [
       isOpen
-        ? el("button", { class: "btn btn--sm btn--outline", onClick: () => showResolveModal(ticket, profile) }, [icon("check_circle"), "Close Ticket"])
-        : ""
+        ? el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              onClick: () => handleCloseTicket(ticket, profile),
+            },
+            [icon("check_circle"), "Close"]
+          )
+        : el("span", { class: "text-muted text-xs" }, "Resolved"),
     ])
   );
   return tr;
@@ -37,91 +59,108 @@ function renderRow(ticket, profile) {
 
 function renderTable(profile) {
   if (tickets.length === 0) {
-    return el("div", { class: "empty-state" }, [
-      el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "support_agent"),
-      el("h3", {}, "No support tickets"),
-      el("p", { class: "text-muted" }, "You haven't contacted platform support yet.")
+    return el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "support_agent"),
+        el("h3", {}, "No support tickets"),
+        el("p", { class: "text-muted" }, "You haven't submitted any support requests to the platform administration yet."),
+      ]),
     ]);
   }
 
-  return el("div", { class: "table-responsive" }, [
-    el("table", { class: "data-table" }, [
-      el("thead", {}, [
-        el("tr", {}, [
-          el("th", {}, "Subject & Message"),
-          el("th", { style: "width: 150px" }, "Date Raised"),
-          el("th", { style: "width: 100px" }, "Status"),
-          el("th", {}, "Resolution / Reply"),
-          el("th", { style: "width: 120px" }, "Actions"),
+  return el("div", { class: "card" }, [
+    el("div", { class: "table-wrap table-wrap--responsive" }, [
+      el("table", {}, [
+        el("thead", {}, [
+          el("tr", {}, [
+            el("th", {}, "Subject & Details"),
+            el("th", { style: "width: 140px;" }, "Date Raised"),
+            el("th", { style: "width: 100px;" }, "Status"),
+            el("th", {}, "Resolution / Reply"),
+            el("th", { style: "width: 100px;" }, "Actions"),
+          ]),
         ]),
+        el("tbody", {}, tickets.map((t) => renderRow(t, profile))),
       ]),
-      el("tbody", {}, tickets.map(t => renderRow(t, profile))),
-    ])
+    ]),
   ]);
 }
 
 function showRaiseTicketModal(profile) {
-  const subjectInput = el("input", { class: "input", placeholder: "Brief subject of your issue" });
-  const messageInput = el("textarea", { class: "input", placeholder: "Please provide as much detail as possible...", rows: 5 });
-  
-  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
-  const submitBtn = el("button", { class: "btn btn--primary" }, "Submit Ticket");
-  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, submitBtn]);
+  const body = el("form", {});
 
-  const bodyNode = el("div", {}, [
-    el("p", { class: "mb-md text-muted" }, "Raise an issue directly to the platform administrators."),
-    el("div", { class: "form-group" }, [
-      el("label", {}, "Subject"),
-      subjectInput
+  const subjectInput = el("input", {
+    id: "ticket-subject",
+    placeholder: "e.g. Need assistance with term fee structure update",
+    required: "true",
+  });
+
+  const messageInput = el("textarea", {
+    id: "ticket-message",
+    placeholder: "Please describe the problem or question with as much detail as possible...",
+    rows: "5",
+    required: "true",
+  });
+
+  const cancelBtn = el("button", { type: "button", class: "btn btn--ghost" }, "Cancel");
+  const submitBtn = el("button", { type: "submit", class: "btn btn--primary" }, [icon("send"), "Submit Ticket"]);
+
+  const actions = el(
+    "div",
+    { style: "display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4);" },
+    [cancelBtn, submitBtn]
+  );
+
+  body.append(
+    el("p", { class: "text-sm text-muted", style: "margin-bottom: var(--sp-4);" }, "Submit a direct ticket to the ISKIFY360 platform team. We will review and respond promptly."),
+    el("div", { class: "field" }, [
+      el("label", { for: "ticket-subject" }, "Subject"),
+      subjectInput,
     ]),
-    el("div", { class: "form-group" }, [
-      el("label", {}, "Message"),
-      messageInput
+    el("div", { class: "field" }, [
+      el("label", { for: "ticket-message" }, "Message / Description"),
+      messageInput,
     ]),
     actions
-  ]);
-  
-  const close = openModal("Contact Platform Support", bodyNode);
+  );
+
+  const close = openModal("Contact Platform Support", body);
 
   cancelBtn.addEventListener("click", close);
-  
-  submitBtn.addEventListener("click", async (e) => {
-    if (!subjectInput.value.trim() || !messageInput.value.trim()) {
+
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const subject = subjectInput.value.trim();
+    const message = messageInput.value.trim();
+    if (!subject || !message) {
       return toast("Please fill in both subject and message.", "error");
     }
-    await busyButton(e.target, async () => {
-      try {
-        await raiseSupportTicket(profile.uid, {
-          subject: subjectInput.value,
-          message: messageInput.value
-        });
-        toast("Ticket submitted successfully.", "success");
-        await loadData();
-        reRender(profile);
-        close();
-      } catch (err) {
-        console.error(err);
-        toast(err.message || "Failed to submit ticket.", "error");
-      }
-    });
-  });
-}
-
-function showResolveModal(ticket, profile) {
-  if (!confirm("Are you sure you want to close this ticket?")) return;
-  
-  // They can close their own ticket
-  busyButton(null, async () => {
+    const restore = busyButton(e.submitter, "Submitting…");
     try {
-      await resolveSupportTicket(profile.uid, ticket.id, "Closed by school staff.");
-      toast("Ticket closed.");
+      await raiseSupportTicket(profile.uid, { subject, message });
+      toast("Support ticket submitted successfully.", "success");
+      close();
       await loadData();
       reRender(profile);
     } catch (err) {
       console.error(err);
-      toast("Failed to close ticket.", "error");
+      toast(err.message || "Could not submit ticket.", "error");
+      restore();
     }
-  }, true).catch(() => {});
+  });
+}
+
+async function handleCloseTicket(ticket, profile) {
+  if (!confirm("Are you sure you want to close this ticket?")) return;
+  try {
+    await resolveSupportTicket(profile.uid, ticket.id, "Closed by school administrator.");
+    toast("Ticket marked as resolved.", "success");
+    await loadData();
+    reRender(profile);
+  } catch (err) {
+    console.error(err);
+    toast("Failed to close ticket.", "error");
+  }
 }
 
 async function loadData() {
@@ -140,43 +179,88 @@ function reRender(profile) {
 export async function render({ profile }) {
   await loadData();
 
-  const newTicketBtn = el("button", { class: "btn btn--primary", onClick: () => showRaiseTicketModal(profile) }, [
-    icon("add"), "New Ticket"
-  ]);
+  const wrap = el("div", {});
 
-  const toolbar = el("div", { class: "toolbar" }, [
-    el("div", { class: "toolbar__left" }, []),
-    el("div", { class: "toolbar__right" }, [newTicketBtn])
+  const newTicketBtn = el(
+    "button",
+    { class: "btn btn--primary", onClick: () => showRaiseTicketModal(profile) },
+    [icon("add"), "New Ticket"]
+  );
+
+  const header = el("div", { class: "page-header" }, [
+    el("div", {}, [
+      el("h1", {}, "Contact Platform Support"),
+      el("p", { class: "text-sm text-muted" }, "Need help or encounter an issue? Reach out directly to platform administration."),
+    ]),
+    el("div", { class: "page-header__actions" }, [newTicketBtn]),
   ]);
+  wrap.append(header);
+
+  // Direct Contact Channels Cards
+  const contactCards = el(
+    "div",
+    {
+      style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5);",
+    },
+    [
+      el("div", { class: "card", style: "display: flex; gap: var(--sp-3); align-items: flex-start;" }, [
+        el(
+          "div",
+          {
+            style: "background: var(--color-primary-100); color: var(--color-primary-700); padding: var(--sp-3); border-radius: var(--radius-md); display: grid; place-items: center;",
+          },
+          [icon("mail")]
+        ),
+        el("div", { style: "flex: 1;" }, [
+          el("h3", { style: "margin: 0 0 4px 0; font-size: var(--fs-base);" }, "Email Support"),
+          el(
+            "p",
+            { class: "text-sm text-muted", style: "margin: 0 0 8px 0; line-height: 1.4;" },
+            "For general queries, billing questions, or detailed feature requests. Responds within 24h."
+          ),
+          el(
+            "a",
+            {
+              href: "mailto:support@iskify360.com",
+              class: "text-sm font-semibold",
+              style: "color: var(--color-primary-700); text-decoration: none;",
+            },
+            "support@iskify360.com"
+          ),
+        ]),
+      ]),
+      el("div", { class: "card", style: "display: flex; gap: var(--sp-3); align-items: flex-start;" }, [
+        el(
+          "div",
+          {
+            style: "background: #E4F2E7; color: var(--color-green); padding: var(--sp-3); border-radius: var(--radius-md); display: grid; place-items: center;",
+          },
+          [icon("call")]
+        ),
+        el("div", { style: "flex: 1;" }, [
+          el("h3", { style: "margin: 0 0 4px 0; font-size: var(--fs-base);" }, "Emergency Phone / WhatsApp"),
+          el(
+            "p",
+            { class: "text-sm text-muted", style: "margin: 0 0 8px 0; line-height: 1.4;" },
+            "For urgent blockers affecting live school operations. Available Mon–Fri, 8:00 AM – 5:00 PM EAT."
+          ),
+          el(
+            "a",
+            {
+              href: "tel:+254700000000",
+              class: "text-sm font-semibold",
+              style: "color: var(--color-green); text-decoration: none;",
+            },
+            "+254 700 000 000"
+          ),
+        ]),
+      ]),
+    ]
+  );
+  wrap.append(contactCards);
 
   tableContainer = el("div", {}, [renderTable(profile)]);
+  wrap.append(tableContainer);
 
-  const contactCards = el("div", { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px;" }, [
-    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: flex-start; gap: 16px;" }, [
-      el("div", { style: "background: var(--bg-level-2); color: var(--color-primary-600); padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" }, icon("mail")),
-      el("div", {}, [
-        el("h3", { style: "margin: 0 0 4px 0; font-size: 16px;" }, "Email Support"),
-        el("p", { class: "text-sm text-muted", style: "margin: 0 0 12px 0; line-height: 1.4;" }, "Best for general inquiries, feature requests, or non-urgent issues. Expected response: Within 24 hours."),
-        el("a", { href: "mailto:support@iskify360.com", class: "text-sm font-medium", style: "color: var(--color-primary-600); text-decoration: none;" }, "support@iskify360.com")
-      ])
-    ]),
-    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: flex-start; gap: 16px;" }, [
-      el("div", { style: "background: var(--bg-level-2); color: var(--color-success-600); padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" }, icon("call")),
-      el("div", {}, [
-        el("h3", { style: "margin: 0 0 4px 0; font-size: 16px;" }, "Call Us"),
-        el("p", { class: "text-sm text-muted", style: "margin: 0 0 12px 0; line-height: 1.4;" }, "For critical issues blocking the school (e.g. system down). Available Mon-Fri, 8 AM - 5 PM."),
-        el("a", { href: "tel:+254700000000", class: "text-sm font-medium", style: "color: var(--color-success-600); text-decoration: none;" }, "+254 700 000 000")
-      ])
-    ])
-  ]);
-
-  return el("div", { class: "page" }, [
-    el("div", { class: "page-header" }, [
-      el("h1", { class: "page-title" }, ""),
-      el("p", { class: "page-subtitle" }, "Raise an issue with the platform administration."),
-    ]),
-    contactCards,
-    toolbar,
-    tableContainer
-  ]);
+  return wrap;
 }

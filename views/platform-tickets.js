@@ -1,7 +1,7 @@
 import {
   listAllPlatformTickets,
   resolveSupportTicket,
-  reopenSupportTicket
+  reopenSupportTicket,
 } from "../js/services/support.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { openModal } from "../js/components/modal.js";
@@ -13,28 +13,57 @@ function renderRow(ticket, profile) {
   const isOpen = ticket.status === "open";
   const tr = el("tr", { class: isOpen ? "" : "row-dimmed" });
 
-  const statusBadge = el("span", { 
-    class: `badge badge--${isOpen ? "warning" : "success"}` 
-  }, isOpen ? "Open" : "Resolved");
+  const statusBadge = el(
+    "span",
+    { class: `badge badge--${isOpen ? "warning" : "success"}` },
+    isOpen ? "Open" : "Resolved"
+  );
 
   tr.append(
-    el("td", {}, [
+    el("td", { "data-label": "School" }, [
       el("strong", {}, ticket.schoolName || "Unknown School"),
-      el("div", { class: "text-sm text-muted" }, `ID: ${ticket.schoolId}`)
+      el("div", { class: "text-xs text-muted" }, `ID: ${ticket.schoolId}`),
     ]),
-    el("td", {}, [
+    el("td", { "data-label": "Subject & Issue" }, [
       el("strong", {}, ticket.subject),
-      el("div", { class: "text-sm text-muted", style: "margin-top: 4px; max-width: 300px; white-space: normal;" }, ticket.message),
+      el(
+        "div",
+        {
+          class: "text-sm text-muted",
+          style: "margin-top: 4px; max-width: 380px; white-space: normal; line-height: 1.4;",
+        },
+        ticket.message
+      ),
     ]),
-    el("td", {}, formatDate(ticket.raisedAt?.seconds * 1000) || "Unknown"),
-    el("td", {}, statusBadge),
-    el("td", {}, [
-      !isOpen && ticket.resolutionNote ? el("div", { class: "text-sm", style: "white-space: normal; max-width: 250px;" }, ticket.resolutionNote) : el("span", { class: "text-muted" }, "-")
+    el("td", { "data-label": "Submitted" }, formatDate(ticket.raisedAt?.seconds * 1000) || "Unknown"),
+    el("td", { "data-label": "Status" }, statusBadge),
+    el("td", { "data-label": "Resolution Note" }, [
+      !isOpen && ticket.resolutionNote
+        ? el(
+            "div",
+            { class: "text-sm", style: "white-space: normal; max-width: 300px; line-height: 1.4;" },
+            ticket.resolutionNote
+          )
+        : el("span", { class: "text-muted" }, "—"),
     ]),
-    el("td", { class: "actions-cell" }, [
+    el("td", { "data-label": "Actions", class: "row-actions" }, [
       isOpen
-        ? el("button", { class: "btn btn--sm btn--primary", onClick: () => showResolveModal(ticket, profile) }, [icon("reply"), "Resolve"])
-        : el("button", { class: "btn btn--sm btn--ghost", onClick: () => handleReopen(ticket, profile) }, [icon("undo"), "Reopen"])
+        ? el(
+            "button",
+            {
+              class: "btn btn--primary btn--sm",
+              onClick: () => showResolveModal(ticket, profile),
+            },
+            [icon("reply"), "Resolve"]
+          )
+        : el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              onClick: () => handleReopen(ticket, profile),
+            },
+            [icon("undo"), "Reopen"]
+          ),
     ])
   );
   return tr;
@@ -42,68 +71,86 @@ function renderRow(ticket, profile) {
 
 function renderTable(profile) {
   if (tickets.length === 0) {
-    return el("div", { class: "empty-state" }, [
-      el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "task_alt"),
-      el("h3", {}, "Inbox Zero"),
-      el("p", { class: "text-muted" }, "There are no tickets matching your filter.")
+    return el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "task_alt"),
+        el("h3", {}, "Inbox Zero"),
+        el("p", { class: "text-muted" }, "There are no tickets matching your current filter."),
+      ]),
     ]);
   }
 
-  return el("div", { class: "table-responsive" }, [
-    el("table", { class: "data-table" }, [
-      el("thead", {}, [
-        el("tr", {}, [
-          el("th", {}, "School"),
-          el("th", {}, "Issue"),
-          el("th", { style: "width: 120px" }, "Date Raised"),
-          el("th", { style: "width: 100px" }, "Status"),
-          el("th", {}, "Resolution"),
-          el("th", { style: "width: 120px" }, "Actions"),
+  return el("div", { class: "card" }, [
+    el("div", { class: "table-wrap table-wrap--responsive" }, [
+      el("table", {}, [
+        el("thead", {}, [
+          el("tr", {}, [
+            el("th", {}, "School"),
+            el("th", {}, "Subject & Issue"),
+            el("th", { style: "width: 140px;" }, "Submitted"),
+            el("th", { style: "width: 100px;" }, "Status"),
+            el("th", {}, "Resolution Note"),
+            el("th", { style: "width: 110px;" }, "Actions"),
+          ]),
         ]),
+        el("tbody", {}, tickets.map((t) => renderRow(t, profile))),
       ]),
-      el("tbody", {}, tickets.map(t => renderRow(t, profile))),
-    ])
+    ]),
   ]);
 }
 
 function showResolveModal(ticket, profile) {
-  const noteInput = el("textarea", { class: "input", placeholder: "Response to the school...", rows: 5 });
-  
-  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
-  const resolveBtn = el("button", { class: "btn btn--primary" }, "Resolve");
-  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, resolveBtn]);
+  const body = el("form", {});
 
-  const bodyNode = el("div", {}, [
-    el("p", { class: "mb-md" }, [
-      "Resolving ticket for ", el("strong", {}, ticket.schoolName),
+  const noteInput = el("textarea", {
+    id: "platform-resolution-note",
+    placeholder: "Write your response/resolution for the school staff to see...",
+    rows: "5",
+    required: "true",
+  });
+
+  const cancelBtn = el("button", { type: "button", class: "btn btn--ghost" }, "Cancel");
+  const resolveBtn = el("button", { type: "submit", class: "btn btn--primary" }, [icon("send"), "Send Resolution"]);
+
+  const actions = el(
+    "div",
+    { style: "display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4);" },
+    [cancelBtn, resolveBtn]
+  );
+
+  body.append(
+    el("p", { class: "text-sm text-muted", style: "margin-bottom: var(--sp-4);" }, [
+      "Providing a resolution for ",
+      el("strong", {}, ticket.schoolName || "this school"),
+      ".",
     ]),
     el("div", { class: "field" }, [
-      el("label", {}, "Resolution / Reply"),
-      noteInput
+      el("label", { for: "platform-resolution-note" }, "Resolution / Response"),
+      noteInput,
     ]),
     actions
-  ]);
-  
-  const close = openModal("Resolve Ticket", bodyNode);
-  
+  );
+
+  const close = openModal("Resolve School Ticket", body);
+
   cancelBtn.addEventListener("click", close);
 
-  resolveBtn.addEventListener("click", async (e) => {
-    if (!noteInput.value.trim()) {
-      return toast("Please provide a resolution note.", "error");
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const note = noteInput.value.trim();
+    if (!note) return toast("Please provide a resolution response.", "error");
+    const restore = busyButton(e.submitter, "Resolving…");
+    try {
+      await resolveSupportTicket(profile.uid, ticket.id, note);
+      toast("Ticket resolved and school notified.", "success");
+      close();
+      await loadData();
+      reRender(profile);
+    } catch (err) {
+      console.error(err);
+      toast(err.message || "Failed to resolve ticket.", "error");
+      restore();
     }
-    await busyButton(e.target, async () => {
-      try {
-        await resolveSupportTicket(profile.uid, ticket.id, noteInput.value);
-        toast("Ticket resolved.");
-        await loadData();
-        reRender(profile);
-        close();
-      } catch (err) {
-        console.error(err);
-        toast("Failed to resolve ticket.", "error");
-      }
-    });
   });
 }
 
@@ -111,7 +158,7 @@ async function handleReopen(ticket, profile) {
   if (!confirm(`Reopen ticket for ${ticket.schoolName}?`)) return;
   try {
     await reopenSupportTicket(profile.uid, ticket.id);
-    toast("Ticket reopened.");
+    toast("Ticket reopened.", "success");
     await loadData();
     reRender(profile);
   } catch (err) {
@@ -136,35 +183,43 @@ function reRender(profile) {
 export async function render({ profile }) {
   await loadData();
 
-  const statusSelect = el("select", {
-    class: "input",
-    style: "width: auto",
-    onChange: async (e) => {
-      filterStatus = e.target.value;
-      await loadData();
-      reRender(profile);
-    }
-  }, [
-    el("option", { value: "open" }, "Open Tickets"),
-    el("option", { value: "resolved" }, "Resolved Tickets"),
-    el("option", { value: "" }, "All Tickets"),
-  ]);
+  const wrap = el("div", {});
 
-  const toolbar = el("div", { class: "toolbar" }, [
-    el("div", { class: "toolbar__left" }, [
-      statusSelect
+  const header = el("div", { class: "page-header" }, [
+    el("div", {}, [
+      el("h1", {}, "Platform Support Tickets"),
+      el("p", { class: "text-sm text-muted" }, "Incoming inquiries, bug reports, and assistance requests from tenant schools."),
     ]),
-    el("div", { class: "toolbar__right" }, [])
   ]);
+  wrap.append(header);
+
+  // Status Filter Card
+  const statusSelect = el(
+    "select",
+    {
+      onChange: async (e) => {
+        filterStatus = e.target.value;
+        await loadData();
+        reRender(profile);
+      },
+    },
+    [
+      el("option", { value: "open" }, "Open Tickets"),
+      el("option", { value: "resolved" }, "Resolved Tickets"),
+      el("option", { value: "" }, "All Tickets"),
+    ]
+  );
+
+  const filterCard = el("div", { class: "card", style: "margin-bottom: var(--sp-4);" }, [
+    el("div", { class: "field", style: "margin-bottom: 0; max-width: 240px;" }, [
+      el("label", {}, "Filter by Status"),
+      statusSelect,
+    ]),
+  ]);
+  wrap.append(filterCard);
 
   tableContainer = el("div", {}, [renderTable(profile)]);
+  wrap.append(tableContainer);
 
-  return el("div", { class: "page" }, [
-    el("div", { class: "page-header" }, [
-      el("h1", { class: "page-title" }, "Platform Tickets"),
-      el("p", { class: "page-subtitle" }, "Manage support tickets raised by schools."),
-    ]),
-    toolbar,
-    tableContainer
-  ]);
+  return wrap;
 }
