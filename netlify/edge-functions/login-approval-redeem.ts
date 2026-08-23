@@ -78,6 +78,21 @@ export default async (request: Request, context: Context) => {
     await patchFsDoc(accessToken, `users/${uid}/login_approvals/${approvalId}`, {
       redeemedAt: new Date(),
     });
+    try {
+      const allApprovals = await listFsDocs(accessToken, `users/${uid}/login_approvals`);
+      for (const item of allApprovals) {
+        if (item.deviceFingerprint === fingerprint && item.status === "pending") {
+          await patchFsDoc(accessToken, `users/${uid}/login_approvals/${item.id}`, {
+            status: "approved",
+            resolvedAt: new Date(),
+            resolvedBy: uid,
+            redeemedAt: new Date(),
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("login-approval-redeem: leftover approval cleanup failed:", e);
+    }
     await putFsDoc(accessToken, `users/${uid}/trusted_devices/${fingerprint}`, {
       fingerprint,
       deviceName: String(deviceInfo.deviceName || "Unknown Device"),

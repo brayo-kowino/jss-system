@@ -8,7 +8,7 @@ import { TOUR_STEPS } from "../tour-steps.js";
 import { isInstallable, isRunningInstalled, installMethod, promptInstall, onInstallabilityChange } from "../services/install-prompt.js";
 import { mountAnnouncementBanner } from "./announcement-banner.js";
 import { watchPendingApprovals, approveLogin, denyLogin } from "../services/login-approval.service.js";
-import { generateDeviceFingerprint } from "../services/device.service.js";
+import { generateDeviceFingerprint, isDeviceTrusted } from "../services/device.service.js";
 import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service.js";
 
 // First-time visitors get the tour started for them automatically, once
@@ -909,7 +909,7 @@ export function renderShell(app, profile, activePath) {
       window.__jssApprovalUnsub();
       window.__jssApprovalUnsub = null;
     }
-    window.__jssApprovalUnsub = watchPendingApprovals(profile.uid, (pending) => {
+    window.__jssApprovalUnsub = watchPendingApprovals(profile.uid, async (pending) => {
       // Remove any existing approval modal before potentially showing a new one
       document.getElementById("jss-approval-modal")?.remove();
       if (!pending || pending.length === 0) return;
@@ -918,15 +918,25 @@ export function renderShell(app, profile, activePath) {
       const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint);
       if (incoming.length === 0) return;
 
+      // Filter out any requests from devices that are ALREADY trusted
+      const unapproved = [];
+      for (const req of incoming) {
+        if (req.deviceFingerprint) {
+          const trusted = await isDeviceTrusted(profile.uid, req.deviceFingerprint).catch(() => false);
+          if (!trusted) unapproved.push(req);
+        }
+      }
+      if (unapproved.length === 0) return;
+
       // Sort incoming by requestedAt descending so the newest request is always shown first
-      incoming.sort((a, b) => {
+      unapproved.sort((a, b) => {
         const tA = a.requestedAt?.toDate ? a.requestedAt.toDate().getTime() : (a.requestedAt?.seconds ? a.requestedAt.seconds * 1000 : (typeof a.requestedAt === "string" ? new Date(a.requestedAt).getTime() : 0));
         const tB = b.requestedAt?.toDate ? b.requestedAt.toDate().getTime() : (b.requestedAt?.seconds ? b.requestedAt.seconds * 1000 : (typeof b.requestedAt === "string" ? new Date(b.requestedAt).getTime() : 0));
         return tB - tA;
       });
 
-      // Show the most recent pending approval from another device
-      const req = incoming[0];
+      // Show the most recent pending approval from an unapproved device
+      const req = unapproved[0];
       showApprovalModal(req, profile);
     });
   }
