@@ -26,7 +26,16 @@ service cloud.firestore {
     //
     // Both claims are expiry timestamps (ISO strings), not bare booleans -
     // see claimExpiryIso() in lib/firestore-rest.ts for why. A claim past
-    // its expiry is treated exactly like a claim that was never granted.
+    // its expiry is treated exactly like a claim that was never granted -
+    // and so is a claim that was NEVER SET AT ALL (e.g. an admin/super_admin
+    // token that has never once gone through device-register.ts, or a 2FA-
+    // enabled account's token that's never gone through two-factor-verify.ts
+    // this session). Each existence/type/expiry check below is written as a
+    // single `&&` so it both short-circuits safely (no runtime error from
+    // calling timestamp.value() on an absent field) AND correctly requires
+    // the claim - a standalone `!('claim' in token) || ...` bypass term
+    // would make an unverified token pass this check outright, which is
+    // the exact case this gate exists to block.
     //
     // IMPORTANT SCOPE CAVEAT (documented here on purpose, not silently
     // assumed): Firebase custom claims are account-wide, not per-device or
@@ -42,13 +51,13 @@ service cloud.firestore {
       return isSignedIn()
         && (myProfile() == null
             || (myProfile().get('role', '') != 'admin' && myProfile().get('role', '') != 'super_admin')
-            || !('deviceApprovedUntil' in request.auth.token)
-            || (request.auth.token.deviceApprovedUntil is string
+            || ('deviceApprovedUntil' in request.auth.token
+                && request.auth.token.deviceApprovedUntil is string
                 && request.time < timestamp.value(request.auth.token.deviceApprovedUntil)))
         && (myProfile() == null
             || myProfile().get('twoFactorEnabled', false) != true
-            || !('twoFactorVerifiedUntil' in request.auth.token)
-            || (request.auth.token.twoFactorVerifiedUntil is string
+            || ('twoFactorVerifiedUntil' in request.auth.token
+                && request.auth.token.twoFactorVerifiedUntil is string
                 && request.time < timestamp.value(request.auth.token.twoFactorVerifiedUntil)));
     }
 
@@ -163,14 +172,25 @@ service cloud.firestore {
     // ownsExisting/ownsIncoming) and must keep working even when expired -
     // the app needs to read the school doc's own subscription fields to
     // know it's expired and show the lock screen in the first place.
+    // isFullyVerified() (2FA/device-approval) and isSubscriptionActive()
+    // (subscription lock) are both folded in here - this is the single
+    // choke point every operational collection below depends on, so both
+    // checks apply automatically with no per-collection changes needed.
+    // NOTE: isSubscriptionActive() and isFullyVerified() are defined below/
+    // above this point respectively - Firestore Rules functions aren't
+    // order-dependent within the same service block, so forward references
+    // are fine.
     function ownsExisting() {
-      return isUserActive() && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
+      return isUserActive() && isFullyVerified() && isSubscriptionActive()
+        && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
     }
     function ownsIncoming() {
-      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+      return isFullyVerified() && isSubscriptionActive()
+        && mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
     }
     function ownsBoth() {
-      return resource != null && mySchoolId() != null && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId();
+      return isFullyVerified() && isSubscriptionActive()
+        && resource != null && mySchoolId() != null && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId();
     }
 
     // True once an assessment has been locked - checked against the
@@ -246,21 +266,39 @@ service cloud.firestore {
     // Principals may additionally create a teacher login (the one thing
     // the Teacher Module lets a principal do), but nothing else - they
     // can't hand out admin/registrar/etc. accounts this way.
+    //
+    // isFullyVerified() gates every branch below where the ACTOR is
+    // exercising admin/super_admin privilege over someone else's account
+    // (reading another profile, creating/editing/deleting a login) - this
+    // is exactly the class of action the device-approval/2FA framework
+    // exists to protect, so a stolen admin token that never cleared that
+    // gate can't use it to mint or hijack accounts. It deliberately does
+    // NOT gate self-read or the narrow self-update below: those have to
+    // keep working before deviceApprovedUntil/twoFactorVerifiedUntil
+    // claims exist at all, since the app reads its own profile (to decide
+    // whether the gate even applies) and clears mustChangePassword during
+    // onboarding, before any device/2FA step has happened yet.
     match /users/{uid} {
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
-        isSuperAdmin() ||
-        ((isAdmin() || isPrincipal()) && (resource == null || resource.data.schoolId == mySchoolId()))
+        (isFullyVerified() && (
+          isSuperAdmin() ||
+          ((isAdmin() || isPrincipal()) && (resource == null || resource.data.schoolId == mySchoolId()))
+        ))
       );
-      allow create: if isSuperAdmin()
+      allow create: if isFullyVerified() && (
+        isSuperAdmin()
         || (isAdmin() && request.resource.data.schoolId == mySchoolId() && request.resource.data.role != 'super_admin')
         || (isPrincipal() && request.resource.data.schoolId == mySchoolId()
-            && request.resource.data.role in ['class_teacher', 'subject_teacher']);
-      allow update: if isSuperAdmin()
-        || (isAdmin() && resource.data.schoolId == mySchoolId()
-            && resource.data.role != 'super_admin'
-            && request.resource.data.role != 'super_admin'
-            && request.resource.data.schoolId == mySchoolId())
+            && request.resource.data.role in ['class_teacher', 'subject_teacher'])
+      );
+      allow update: if (isFullyVerified() && (
+            isSuperAdmin()
+            || (isAdmin() && resource.data.schoolId == mySchoolId()
+                && resource.data.role != 'super_admin'
+                && request.resource.data.role != 'super_admin'
+                && request.resource.data.schoolId == mySchoolId())
+          ))
         || (isUserActive() && request.auth.uid == uid
             // twoFactorEnabled/twoFactorSecret/twoFactorBackupCodes/
             // twoFactorEnabledAt used to be in this list. A client write
@@ -274,7 +312,8 @@ service cloud.firestore {
             // that bypasses these rules entirely - same pattern as
             // touchesSubscriptionFields() below for schools/{id}.
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mustChangePassword', 'updatedAt']));
-      allow delete: if isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && resource.data.role != 'super_admin');
+      allow delete: if isFullyVerified()
+        && (isSuperAdmin() || (isAdmin() && resource.data.schoolId == mySchoolId() && resource.data.role != 'super_admin'));
     }
 
     // Trusted devices for admin account protection. Each admin's browser
@@ -282,13 +321,21 @@ service cloud.firestore {
     // subsequent logins from unrecognized devices trigger an approval
     // workflow. Users can manage their own devices; an admin or super_admin
     // can reset another user's devices (e.g. if they lose access to their
-    // primary device and can't approve a new login).
+    // primary device and can't approve a new login) - that's a privileged
+    // account-recovery action (resetting someone's devices drops them back
+    // to isGenuineBootstrap, so their very next login auto-trusts whatever
+    // device they use with no approval step), so it's gated by
+    // isFullyVerified() same as the admin-acting branches in users/{uid}
+    // above. Self-access is never gated by it - needed for the device's
+    // own lastSeenAt bump below regardless of claim state.
     match /users/{uid}/trusted_devices/{deviceId} {
       allow read: if isSignedIn() && (
         request.auth.uid == uid ||
-        isSuperAdmin() ||
-        (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
-         get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+        (isFullyVerified() && (
+          isSuperAdmin() ||
+          (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
+           get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+        ))
       );
       // create used to be "if isSignedIn() && request.auth.uid == uid" -
       // meaning any session for this account, however it was obtained,
@@ -310,9 +357,11 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastSeenAt']);
       allow delete: if isSignedIn() && (
         request.auth.uid == uid ||
-        isSuperAdmin() ||
-        (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
-         get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+        (isFullyVerified() && (
+          isSuperAdmin() ||
+          (isAdmin() && exists(/databases/$(database)/documents/users/$(uid)) &&
+           get(/databases/$(database)/documents/users/$(uid)).data.schoolId == mySchoolId())
+        ))
       );
     }
 

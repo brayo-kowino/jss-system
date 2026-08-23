@@ -91,6 +91,7 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "This request has already been resolved." }, 409);
   }
 
+  try {
     await patchFsDoc(accessToken, `users/${uid}/login_approvals/${approvalId}`, {
       status: decision,
       resolvedAt: new Date(),

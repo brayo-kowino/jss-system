@@ -1,6 +1,16 @@
 // ==========================================================================
-// In-code rate limiter (In-Memory Sliding Window), zero external dependencies
+// Rate limiter backed by Netlify Blobs (sliding window, shared across
+// isolates/regions) - this MUST use a shared store, not in-memory state.
+// Edge functions run as many independent isolates across edge locations;
+// a plain in-memory Map is scoped to a single isolate, so two requests
+// from the same caller can land on different isolates (or a freshly
+// cold-started one) and each see their own empty counter, letting
+// callers blow past the intended limit. That matters most here because
+// several of these limits guard brute-force-sensitive endpoints
+// (2FA verify, login-approval-approve, etc.) - see call sites.
 // ==========================================================================
+
+import { getStore } from "@netlify/blobs";
 
 interface RateLimitRecord {
   count: number;
@@ -12,18 +22,11 @@ export interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
-const memoryStore = new Map<string, RateLimitRecord>();
-
-// Clean up expired entries every 5 minutes to prevent memory leaks
-let lastCleanup = Date.now();
-function cleanupExpiredRecords(now: number) {
-  if (now - lastCleanup < 300_000) return;
-  lastCleanup = now;
-  for (const [key, record] of memoryStore.entries()) {
-    if (now - record.windowStart > 3600_000) {
-      memoryStore.delete(key);
-    }
-  }
+function store() {
+  // "rate-limits" is a dedicated blob store; consistency: "strong" so a
+  // read immediately after a write on the same key doesn't see stale data,
+  // which matters for a counter that's read-then-written on every request.
+  return getStore({ name: "rate-limits", consistency: "strong" });
 }
 
 export async function checkRateLimit(
@@ -33,12 +36,26 @@ export async function checkRateLimit(
 ): Promise<RateLimitResult> {
   const now = Date.now();
   const windowMs = windowSizeSeconds * 1000;
-  cleanupExpiredRecords(now);
+  const blobKey = `rl:${key}`;
+  const blobs = store();
 
-  const record = memoryStore.get(key);
+  let record: RateLimitRecord | null = null;
+  try {
+    record = await blobs.get(blobKey, { type: "json" });
+  } catch (e) {
+    // If the blob store is unreachable, fail open rather than locking
+    // every caller out - log it so it's visible, but don't 500 the request.
+    console.error("checkRateLimit: blob read failed, failing open", e);
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
 
   if (!record || now - record.windowStart >= windowMs) {
-    memoryStore.set(key, { count: 1, windowStart: now });
+    const fresh: RateLimitRecord = { count: 1, windowStart: now };
+    try {
+      await blobs.setJSON(blobKey, fresh, { metadata: { expiresAt: now + windowMs } });
+    } catch (e) {
+      console.error("checkRateLimit: blob write failed", e);
+    }
     return { allowed: true, retryAfterSeconds: 0 };
   }
 
@@ -47,7 +64,12 @@ export async function checkRateLimit(
     return { allowed: false, retryAfterSeconds };
   }
 
-  record.count += 1;
+  const updated: RateLimitRecord = { count: record.count + 1, windowStart: record.windowStart };
+  try {
+    await blobs.setJSON(blobKey, updated, { metadata: { expiresAt: record.windowStart + windowMs } });
+  } catch (e) {
+    console.error("checkRateLimit: blob write failed", e);
+  }
   return { allowed: true, retryAfterSeconds: 0 };
 }
 

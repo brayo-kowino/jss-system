@@ -15,7 +15,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Same TTL as device-register.ts - keep the two in sync since they grant
