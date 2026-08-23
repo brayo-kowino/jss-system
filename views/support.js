@@ -63,7 +63,7 @@ function renderTable(profile) {
       el("div", { class: "empty-state" }, [
         el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "support_agent"),
         el("h3", {}, "No support tickets"),
-        el("p", { class: "text-muted" }, "You haven't submitted any support requests to the platform administration yet."),
+        el("p", { class: "text-muted" }, "You haven't submitted any support requests yet."),
       ]),
     ]);
   }
