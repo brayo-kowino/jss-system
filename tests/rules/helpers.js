@@ -31,8 +31,12 @@ export async function getTestEnv() {
   });
 }
 
-export function authedDb(env, uid) {
-  return env.authenticatedContext(uid).firestore();
+export function authedDb(env, uid, claims = null) {
+  const defaultClaims = {
+    deviceApprovedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    twoFactorVerifiedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  return env.authenticatedContext(uid, claims || defaultClaims).firestore();
 }
 
 export function unauthDb(env) {
