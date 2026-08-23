@@ -151,11 +151,31 @@ export async function render({ profile }) {
 
   tableContainer = el("div", {}, [renderTable(profile)]);
 
+  const contactCards = el("div", { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 32px;" }, [
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: flex-start; gap: 16px;" }, [
+      el("div", { style: "background: var(--bg-level-2); color: var(--color-primary-600); padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" }, icon("mail")),
+      el("div", {}, [
+        el("h3", { style: "margin: 0 0 4px 0; font-size: 16px;" }, "Email Support"),
+        el("p", { class: "text-sm text-muted", style: "margin: 0 0 12px 0; line-height: 1.4;" }, "Best for general inquiries, feature requests, or non-urgent issues. Expected response: Within 24 hours."),
+        el("a", { href: "mailto:support@iskify360.com", class: "text-sm font-medium", style: "color: var(--color-primary-600); text-decoration: none;" }, "support@iskify360.com")
+      ])
+    ]),
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: flex-start; gap: 16px;" }, [
+      el("div", { style: "background: var(--bg-level-2); color: var(--color-success-600); padding: 12px; border-radius: 12px; display: flex; align-items: center; justify-content: center;" }, icon("call")),
+      el("div", {}, [
+        el("h3", { style: "margin: 0 0 4px 0; font-size: 16px;" }, "Call Us"),
+        el("p", { class: "text-sm text-muted", style: "margin: 0 0 12px 0; line-height: 1.4;" }, "For critical issues blocking the school (e.g. system down). Available Mon-Fri, 8 AM - 5 PM."),
+        el("a", { href: "tel:+254700000000", class: "text-sm font-medium", style: "color: var(--color-success-600); text-decoration: none;" }, "+254 700 000 000")
+      ])
+    ])
+  ]);
+
   return el("div", { class: "page" }, [
     el("div", { class: "page-header" }, [
       el("h1", { class: "page-title" }, "Contact Support"),
       el("p", { class: "page-subtitle" }, "Raise an issue with the platform administration."),
     ]),
+    contactCards,
     toolbar,
     tableContainer
   ]);
