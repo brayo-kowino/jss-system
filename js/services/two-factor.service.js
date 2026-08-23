@@ -48,6 +48,20 @@ async function callFunction(path, payload) {
   return data;
 }
 
+// /two-factor-verify mints twoFactorVerifiedUntil on success. Every caller
+// below that hits it needs to force a token refresh right after, or this
+// browser keeps using its old token - which firestore.rules'
+// isFullyVerified() sees as un-2FA'd - until the token naturally refreshes
+// up to an hour later.
+async function refreshClaimsToken() {
+  if (!auth.currentUser) return;
+  try {
+    await auth.currentUser.getIdToken(true);
+  } catch (err) {
+    console.error("two-factor.service: token refresh after 2FA grant failed:", err);
+  }
+}
+
 /**
  * Generates a candidate TOTP secret client-side for rendering the QR code.
  * Nothing is persisted or trusted yet - enable2FA() below is what actually
@@ -88,6 +102,7 @@ export async function enable2FA(uid, secret, verificationCode) {
  */
 export async function disable2FA(uid, verificationCode) {
   const verified = await callFunction("/two-factor-verify", { code: verificationCode });
+  await refreshClaimsToken();
   await callFunction("/two-factor-disable", { stepUpToken: verified.stepUpToken });
 }
 
@@ -98,6 +113,7 @@ export async function disable2FA(uid, verificationCode) {
 export async function validate2FALogin(uid, code) {
   try {
     const data = await callFunction("/two-factor-verify", { code });
+    if (data.valid === true) await refreshClaimsToken();
     return data.valid === true;
   } catch {
     return false;
@@ -111,7 +127,9 @@ export async function validate2FALogin(uid, code) {
  * login-approval-approve.ts.
  */
 export async function verify2FAForStepUp(code) {
-  return callFunction("/two-factor-verify", { code });
+  const data = await callFunction("/two-factor-verify", { code });
+  await refreshClaimsToken();
+  return data;
 }
 
 const TWOFA_SESSION_KEY_PREFIX = "jss_2fa_verified_";

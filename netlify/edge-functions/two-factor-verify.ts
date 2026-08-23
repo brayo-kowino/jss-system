@@ -21,12 +21,20 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { verifyTotp, hashBackupCode } from "./lib/totp.ts";
 import { signStepUpToken, newJti } from "./lib/step-up-token.ts";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 const STEP_UP_TTL_MS = 5 * 60 * 1000; // 5 minutes - long enough to complete the next call, short enough to not be worth stealing
+
+// How long twoFactorVerifiedUntil stays valid before firestore.rules starts
+// requiring a fresh code again. Deliberately much shorter than the device
+// claim's 30 days - 2FA is meant to be a per-login/per-session proof, not a
+// one-time account setup step, so this expiring on a working-day timescale
+// is the mechanism that forces re-verification on the next fresh sign-in
+// instead of a stale "verified" claim quietly carrying over indefinitely.
+const TWO_FACTOR_CLAIM_TTL_MS = 12 * 60 * 60 * 1000;
 
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
@@ -110,6 +118,18 @@ export default async (request: Request, context: Context) => {
     });
   } catch (err) {
     console.error("two-factor-verify: audit log failed (non-fatal)", err);
+  }
+
+  // Mint twoFactorVerifiedUntil so firestore.rules' isFullyVerified() sees
+  // this session as cleared, for the next TWO_FACTOR_CLAIM_TTL_MS. Unlike
+  // the old permanent boolean, this expires on its own - so a fresh sign-in
+  // hours or days later genuinely needs a new code, rather than silently
+  // inheriting whatever "verified" state the account happened to have from
+  // a previous session.
+  try {
+    await setCustomClaims(accessToken, uid, { twoFactorVerifiedUntil: claimExpiryIso(TWO_FACTOR_CLAIM_TTL_MS) });
+  } catch (err) {
+    console.error("two-factor-verify: setCustomClaims failed", err);
   }
 
   const secret = Netlify.env.get("STEP_UP_TOKEN_SECRET");

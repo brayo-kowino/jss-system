@@ -182,6 +182,16 @@ export async function denyLogin(uid, approvalId, approverFingerprint, stepUpToke
  */
 export async function redeemLoginApproval(uid, approvalId, fingerprint, deviceInfo) {
   await callFunction("/login-approval-redeem", { approvalId, fingerprint, deviceInfo });
+  // Same reasoning as device.service.js's registerTrustedDevice(): this
+  // just granted deviceApprovedUntil server-side, so the waiting device's
+  // current token needs to be swapped for one that actually carries it.
+  if (auth.currentUser) {
+    try {
+      await auth.currentUser.getIdToken(true);
+    } catch (err) {
+      console.error("redeemLoginApproval: token refresh after grant failed:", err);
+    }
+  }
 }
 
 /**

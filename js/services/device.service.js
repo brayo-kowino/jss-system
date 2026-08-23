@@ -148,6 +148,18 @@ async function callFunction(path, payload) {
 export async function registerTrustedDevice(uid, fingerprint, deviceInfo = {}, isPrimary = false) {
   if (!fingerprint) return;
   await callFunction("/device-register", { fingerprint: String(fingerprint), deviceInfo, isPrimary: Boolean(isPrimary) });
+  // device-register.ts just minted deviceApprovedUntil on this account.
+  // Without forcing a refresh here, this browser keeps using its old
+  // token - which has no such claim - and every Firestore read/write
+  // gated by isFullyVerified() in firestore.rules keeps failing for up to
+  // an hour, even though the grant already succeeded server-side.
+  if (auth.currentUser) {
+    try {
+      await auth.currentUser.getIdToken(true);
+    } catch (err) {
+      console.error("registerTrustedDevice: token refresh after grant failed:", err);
+    }
+  }
 }
 
 /**

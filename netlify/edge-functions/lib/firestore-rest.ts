@@ -62,7 +62,15 @@ export async function getAccessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const claims = {
     iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/datastore",
+    // datastore: existing Firestore REST calls below.
+    // identitytoolkit: setCustomUserClaims() further down - needed so
+    // device-register.ts / login-approval-redeem.ts / two-factor-verify.ts
+    // can mint deviceApproved / twoFactorVerified onto the account, which
+    // firestore.rules' isFullyVerified() then reads back out of the token.
+    // The service account also needs the "Firebase Authentication Admin"
+    // IAM role granted in GCP for this scope to actually be honored -
+    // the datastore scope alone doesn't imply it.
+    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit",
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
@@ -255,6 +263,52 @@ export async function verifyFirebaseIdTokenWithAuthTime(idToken: string): Promis
 // --------------------------------------------------------------------------
 // Minimal Firestore REST helpers.
 // --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// Custom claims (deviceApproved / twoFactorVerified). Merges into whatever
+// claims already exist on the account - accounts:update REPLACES the whole
+// customAttributes blob, so callers must read-modify-write, not just set
+// the one key they care about, or they'll silently wipe the other claim.
+// --------------------------------------------------------------------------
+export async function getCustomClaims(accessToken: string, uid: string): Promise<Record<string, any>> {
+  const res = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ localId: [uid] }),
+  });
+  if (!res.ok) throw new Error(`accounts:lookup failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  const user = data.users && data.users[0];
+  if (!user) throw new Error(`accounts:lookup: no such user ${uid}`);
+  return user.customAttributes ? JSON.parse(user.customAttributes) : {};
+}
+
+export async function setCustomClaims(accessToken: string, uid: string, patch: Record<string, any>): Promise<void> {
+  const current = await getCustomClaims(accessToken, uid);
+  const merged = { ...current, ...patch };
+  const res = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:update", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ localId: uid, customAttributes: JSON.stringify(merged) }),
+  });
+  if (!res.ok) throw new Error(`accounts:update failed: ${res.status} ${await res.text()}`);
+}
+
+// Both gate claims are stored as an ISO-8601 expiry string, not a bare
+// boolean - firestore.rules compares request.time against it directly via
+// timestamp.value(). This bounds how long a claim stays valid once granted:
+// a boolean claim, once true, stays true on every future token for the
+// account until something explicitly flips it back (which nothing did,
+// pre-TTL) - including a token minted by someone who phished the password
+// and signed in fresh themselves, well after the real owner's device was
+// approved. An expiry turns "permanent until revoked" into "must be
+// re-earned periodically," which meaningfully shrinks that window without
+// requiring a Firebase Auth Blocking Function (the only mechanism that
+// could bind a claim to one specific sign-in rather than the whole
+// account - out of scope for a Netlify-only deploy).
+export function claimExpiryIso(ttlMs: number): string {
+  return new Date(Date.now() + ttlMs).toISOString();
+}
 
 export function fsDecode(value: any): any {
   if (value == null) return null;

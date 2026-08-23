@@ -15,8 +15,13 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
+
+// Same TTL as device-register.ts - keep the two in sync since they grant
+// the same claim for the same conceptual event ("this device is now on
+// record").
+const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
@@ -94,6 +99,15 @@ export default async (request: Request, context: Context) => {
   } catch (err) {
     console.error("login-approval-redeem: write failed", err);
     return jsonResponse({ error: "Couldn't complete sign-in. Please try again." }, 500);
+  }
+
+  // Same claim-mint as device-register.ts's bootstrap path - this device is
+  // now genuinely on record too, having gone through a separate approver's
+  // sign-off rather than self-bootstrap.
+  try {
+    await setCustomClaims(accessToken, uid, { deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS) });
+  } catch (err) {
+    console.error("login-approval-redeem: setCustomClaims failed", err);
   }
 
   return jsonResponse({ redeemed: true }, 200);

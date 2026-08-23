@@ -16,8 +16,51 @@ service cloud.firestore {
         : null;
     }
 
+    // Gate check: has THIS token's account cleared device-approval and (if
+    // enabled) 2FA, per the custom claims set server-side by
+    // device-register.ts / login-approval-redeem.ts / two-factor-verify.ts.
+    // Those claims are the only thing standing between "valid ID token" and
+    // "ordinary data access" for a session that never went through the
+    // approval/2FA UI at all - e.g. a stolen token used directly against
+    // the Firestore SDK/REST API, skipping router.js's auth-gate entirely.
+    //
+    // Both claims are expiry timestamps (ISO strings), not bare booleans -
+    // see claimExpiryIso() in lib/firestore-rest.ts for why. A claim past
+    // its expiry is treated exactly like a claim that was never granted.
+    //
+    // IMPORTANT SCOPE CAVEAT (documented here on purpose, not silently
+    // assumed): Firebase custom claims are account-wide, not per-device or
+    // per-session. Once deviceApprovedUntil is set for this uid, it's on
+    // every token for this uid until it expires - including one held by
+    // someone who phished the password and never went through
+    // device-register.ts themselves. The expiry bounds that exposure to a
+    // finite window instead of forever; it doesn't eliminate it. Fully
+    // eliminating it needs claims bound to one specific sign-in event via a
+    // Firebase Auth Blocking Function, which is new infrastructure beyond
+    // what's deployed here.
+    function isFullyVerified() {
+      return isSignedIn()
+        && request.auth.token.deviceApprovedUntil is string
+        && request.time < timestamp.value(request.auth.token.deviceApprovedUntil)
+        // .get(key, default) - NOT myProfile().twoFactorEnabled - because
+        // twoFactorEnabled is only ever written to the doc by
+        // two-factor-enable.ts; an account that's never turned 2FA on has
+        // no such key at all, and plain dot/bracket access on a missing
+        // map key throws in the Rules language (unlike JS, where it's just
+        // undefined). That error would deny the WHOLE expression, locking
+        // out every account that never enabled 2FA - not just skipping
+        // this clause the way it's supposed to. .get() with a default
+        // sidesteps that entirely, same reasoning as the 'status' in
+        // myProfile() check just below.
+        && (myProfile() == null
+            || myProfile().get('twoFactorEnabled', false) != true
+            || (request.auth.token.twoFactorVerifiedUntil is string
+                && request.time < timestamp.value(request.auth.token.twoFactorVerifiedUntil)));
+    }
+
     function isUserActive() {
-      return myProfile() != null && (!('status' in myProfile()) || myProfile().status != 'suspended');
+      return isFullyVerified() && myProfile() != null
+        && (!('status' in myProfile()) || myProfile().status != 'suspended');
     }
 
     function myRole() {

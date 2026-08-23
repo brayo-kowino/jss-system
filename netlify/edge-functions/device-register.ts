@@ -26,7 +26,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, addFsDoc, listFsDocs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, putFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Firebase refreshes ID tokens roughly hourly, but auth_time only changes
@@ -34,6 +34,13 @@ import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 // "just typed my password" without being wide enough to cover an
 // hours-old idle session.
 const RECENT_AUTH_WINDOW_SECS = 15 * 60;
+
+// How long deviceApprovedUntil stays valid before the account needs a fresh
+// device-register.ts or login-approval-redeem.ts call to renew it. 30 days
+// keeps normal usage friction-free (nobody logs in daily on every school
+// system) while still bounding a stolen/stale claim's lifetime instead of
+// leaving it valid forever. Tune down if that window feels too wide.
+const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
@@ -113,6 +120,21 @@ export default async (request: Request, context: Context) => {
   } catch (err) {
     console.error("device-register: write failed", err);
     return jsonResponse({ error: "Couldn't register this device. Please try again." }, 500);
+  }
+
+  // Mint the deviceApprovedUntil claim now that this device is genuinely on
+  // record. firestore.rules' isFullyVerified() reads it back out of the
+  // token - but only once the CLIENT refreshes its token (see
+  // auth.service.js: getIdToken(true) must run right after this call
+  // resolves, or the caller keeps hitting rules-denied against its old,
+  // pre-claim token for up to an hour).
+  try {
+    const accessTokenForClaims = await getAccessToken();
+    await setCustomClaims(accessTokenForClaims, uid, { deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS) });
+  } catch (err) {
+    // Non-fatal to the device-registration itself, but the caller stays
+    // gated until this succeeds - log loudly so it doesn't go unnoticed.
+    console.error("device-register: setCustomClaims failed", err);
   }
 
   return jsonResponse({ registered: true, isPrimary }, 200);
