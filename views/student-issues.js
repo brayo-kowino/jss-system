@@ -84,33 +84,33 @@ function renderTable(profile) {
 function showResolveModal(issue, profile) {
   const noteInput = el("textarea", { class: "input", placeholder: "How was this resolved? (optional)", rows: 3 });
   
-  openModal({
-    title: "Resolve Issue",
-    body: el("div", {}, [
-      el("p", { class: "mb-md" }, [
-        "Mark issue as resolved for ", el("strong", {}, issue.studentName), "?"
-      ]),
-      el("div", { class: "form-group" }, [
-        el("label", {}, "Resolution Note"),
-        noteInput
-      ])
+  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
+  const resolveBtn = el("button", { class: "btn btn--primary" }, "Resolve");
+  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, resolveBtn]);
+
+  const bodyNode = el("div", {}, [
+    el("p", { class: "mb-md" }, [
+      "Mark issue as resolved for ", el("strong", {}, issue.studentName), "?"
     ]),
-    actions: [
-      { text: "Cancel", class: "btn btn--ghost", close: true },
-      {
-        text: "Resolve",
-        class: "btn btn--primary",
-        onClick: async (e, close) => {
-          await busyButton(e.target, async () => {
-            await resolveIssue(profile.uid, issue.id, noteInput.value);
-            toast("Issue resolved.");
-            await loadData();
-            reRender(profile);
-            close();
-          });
-        }
-      }
-    ]
+    el("div", { class: "form-group" }, [
+      el("label", {}, "Resolution Note"),
+      noteInput
+    ]),
+    actions
+  ]);
+  
+  const close = openModal("Resolve Issue", bodyNode);
+
+  cancelBtn.addEventListener("click", close);
+
+  resolveBtn.addEventListener("click", async (e) => {
+    await busyButton(e.target, async () => {
+      await resolveIssue(profile.uid, issue.id, noteInput.value);
+      toast("Issue resolved.");
+      await loadData();
+      reRender(profile);
+      close();
+    });
   });
 }
 

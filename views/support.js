@@ -64,46 +64,46 @@ function showRaiseTicketModal(profile) {
   const subjectInput = el("input", { class: "input", placeholder: "Brief subject of your issue" });
   const messageInput = el("textarea", { class: "input", placeholder: "Please provide as much detail as possible...", rows: 5 });
   
-  openModal({
-    title: "Contact Platform Support",
-    body: el("div", {}, [
-      el("p", { class: "mb-md text-muted" }, "Raise an issue directly to the platform administrators."),
-      el("div", { class: "form-group" }, [
-        el("label", {}, "Subject"),
-        subjectInput
-      ]),
-      el("div", { class: "form-group" }, [
-        el("label", {}, "Message"),
-        messageInput
-      ])
+  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
+  const submitBtn = el("button", { class: "btn btn--primary" }, "Submit Ticket");
+  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, submitBtn]);
+
+  const bodyNode = el("div", {}, [
+    el("p", { class: "mb-md text-muted" }, "Raise an issue directly to the platform administrators."),
+    el("div", { class: "form-group" }, [
+      el("label", {}, "Subject"),
+      subjectInput
     ]),
-    actions: [
-      { text: "Cancel", class: "btn btn--ghost", close: true },
-      {
-        text: "Submit Ticket",
-        class: "btn btn--primary",
-        onClick: async (e, close) => {
-          if (!subjectInput.value.trim() || !messageInput.value.trim()) {
-            return toast("Please fill in both subject and message.", "error");
-          }
-          await busyButton(e.target, async () => {
-            try {
-              await raiseSupportTicket(profile.uid, {
-                subject: subjectInput.value,
-                message: messageInput.value
-              });
-              toast("Ticket submitted successfully.", "success");
-              await loadData();
-              reRender(profile);
-              close();
-            } catch (err) {
-              console.error(err);
-              toast(err.message || "Failed to submit ticket.", "error");
-            }
-          });
-        }
+    el("div", { class: "form-group" }, [
+      el("label", {}, "Message"),
+      messageInput
+    ]),
+    actions
+  ]);
+  
+  const close = openModal("Contact Platform Support", bodyNode);
+
+  cancelBtn.addEventListener("click", close);
+  
+  submitBtn.addEventListener("click", async (e) => {
+    if (!subjectInput.value.trim() || !messageInput.value.trim()) {
+      return toast("Please fill in both subject and message.", "error");
+    }
+    await busyButton(e.target, async () => {
+      try {
+        await raiseSupportTicket(profile.uid, {
+          subject: subjectInput.value,
+          message: messageInput.value
+        });
+        toast("Ticket submitted successfully.", "success");
+        await loadData();
+        reRender(profile);
+        close();
+      } catch (err) {
+        console.error(err);
+        toast(err.message || "Failed to submit ticket.", "error");
       }
-    ]
+    });
   });
 }
 

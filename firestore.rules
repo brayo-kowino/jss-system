@@ -80,6 +80,7 @@ service cloud.firestore {
       return myRole() == 'principal';
     }
 
+    // isSuperAdmin bypasses the redundant isUserActive since myRole() already checks it
     function isSuperAdmin() {
       return myRole() == 'super_admin';
     }
@@ -177,7 +178,7 @@ service cloud.firestore {
     // order-dependent within the same service block, so forward references
     // are fine.
     function ownsExisting() {
-      return isUserActive() && isFullyVerified() && isSubscriptionActive()
+      return isFullyVerified() && isSubscriptionActive()
         && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
     }
     function ownsIncoming() {
@@ -509,9 +510,9 @@ service cloud.firestore {
     }
 
     match /support_tickets/{docId} {
-      allow read: if isSuperAdmin() || (isStaff() && ownsExisting());
-      allow create: if isStaff() && ownsIncoming();
-      allow update: if isSuperAdmin() || (isStaff() && ownsBoth());
+      allow read: if isSuperAdmin() || (isStaff() && resource.data.schoolId == mySchoolId());
+      allow create: if isStaff() && request.resource.data.schoolId == mySchoolId();
+      allow update: if isSuperAdmin() || (isStaff() && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId());
       allow delete: if false;
     }
 

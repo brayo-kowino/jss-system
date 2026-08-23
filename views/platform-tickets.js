@@ -69,41 +69,41 @@ function renderTable(profile) {
 function showResolveModal(ticket, profile) {
   const noteInput = el("textarea", { class: "input", placeholder: "Response to the school...", rows: 5 });
   
-  openModal({
-    title: "Resolve Ticket",
-    body: el("div", {}, [
-      el("p", { class: "mb-md" }, [
-        "Resolving ticket for ", el("strong", {}, ticket.schoolName),
-      ]),
-      el("div", { class: "form-group" }, [
-        el("label", {}, "Resolution / Reply"),
-        noteInput
-      ])
+  const cancelBtn = el("button", { class: "btn btn--ghost" }, "Cancel");
+  const resolveBtn = el("button", { class: "btn btn--primary" }, "Resolve");
+  const actions = el("div", { class: "modal__actions", style: "display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px;" }, [cancelBtn, resolveBtn]);
+
+  const bodyNode = el("div", {}, [
+    el("p", { class: "mb-md" }, [
+      "Resolving ticket for ", el("strong", {}, ticket.schoolName),
     ]),
-    actions: [
-      { text: "Cancel", class: "btn btn--ghost", close: true },
-      {
-        text: "Resolve",
-        class: "btn btn--primary",
-        onClick: async (e, close) => {
-          if (!noteInput.value.trim()) {
-            return toast("Please provide a resolution note.", "error");
-          }
-          await busyButton(e.target, async () => {
-            try {
-              await resolveSupportTicket(profile.uid, ticket.id, noteInput.value);
-              toast("Ticket resolved.");
-              await loadData();
-              reRender(profile);
-              close();
-            } catch (err) {
-              console.error(err);
-              toast("Failed to resolve ticket.", "error");
-            }
-          });
-        }
+    el("div", { class: "form-group" }, [
+      el("label", {}, "Resolution / Reply"),
+      noteInput
+    ]),
+    actions
+  ]);
+  
+  const close = openModal("Resolve Ticket", bodyNode);
+  
+  cancelBtn.addEventListener("click", close);
+
+  resolveBtn.addEventListener("click", async (e) => {
+    if (!noteInput.value.trim()) {
+      return toast("Please provide a resolution note.", "error");
+    }
+    await busyButton(e.target, async () => {
+      try {
+        await resolveSupportTicket(profile.uid, ticket.id, noteInput.value);
+        toast("Ticket resolved.");
+        await loadData();
+        reRender(profile);
+        close();
+      } catch (err) {
+        console.error(err);
+        toast("Failed to resolve ticket.", "error");
       }
-    ]
+    });
   });
 }
 
