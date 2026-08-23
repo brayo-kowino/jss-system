@@ -310,6 +310,50 @@ export function claimExpiryIso(ttlMs: number): string {
   return new Date(Date.now() + ttlMs).toISOString();
 }
 
+// --------------------------------------------------------------------------
+// subscriptionActiveUntil claim sync.
+// --------------------------------------------------------------------------
+// firestore.rules' isSubscriptionActive() reads this claim instead of
+// doing a get() on schools/{schoolId} on every operational write - see the
+// comment on isSubscriptionActive() in firestore.rules for why (a get()
+// there didn't get cached across the several documents in one batched
+// write, so it scaled with roster/grade size and started tipping large
+// attendance/fee writes over the rules-evaluation budget).
+//
+// The trade-off: subscription status applies to a whole school's staff at
+// once, but a custom claim is per Firebase Auth user. Anything that can
+// change whether a school's subscription is active - subscription-activate.ts,
+// subscription-revoke.ts, school-status.ts (Suspend/Reactivate) - must call
+// this afterwards to re-mint the claim for every user of that school, not
+// just the one who triggered the change. Best-effort per user: one bad
+// account shouldn't stop the rest of the school's staff from getting the
+// refreshed claim, and the caller's own primary write (the schools/{id}
+// patch) has already succeeded by the time this runs.
+//
+// Minted as an ISO expiry, not a bare boolean, mirroring the old live
+// get()-based check: the claim self-expires the instant the term is up
+// (once the token holding it is refreshed - see the staleness-window note
+// in firestore.rules) rather than staying valid forever once granted.
+export async function syncSubscriptionClaims(accessToken: string, schoolId: string): Promise<void> {
+  const school = await getFsDoc(accessToken, `schools/${schoolId}`);
+  const suspended = school != null && school.status === "suspended";
+  const subStatus = school?.subscriptionStatus;
+  const lapsed = subStatus === "revoked" || subStatus === "suspended" || subStatus === "expired";
+  const expiresAt = school?.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+  const activeUntil =
+    !suspended && !lapsed && expiresAt && expiresAt.getTime() > Date.now() ? expiresAt.toISOString() : null;
+
+  const staff = await runFsQuery(accessToken, "users", [["schoolId", "EQUAL", schoolId]]);
+  for (const user of staff) {
+    if (!user.id) continue;
+    try {
+      await setCustomClaims(accessToken, user.id, { subscriptionActiveUntil: activeUntil });
+    } catch (err) {
+      console.error(`syncSubscriptionClaims: failed to set claim for ${user.id}`, err);
+    }
+  }
+}
+
 export function fsDecode(value: any): any {
   if (value == null) return null;
   if ("stringValue" in value) return value.stringValue;

@@ -180,31 +180,8 @@ service cloud.firestore {
     // above this point respectively - Firestore Rules functions aren't
     // order-dependent within the same service block, so forward references
     // are fine.
-    // READS deliberately do NOT call isSubscriptionActive() here. That
-    // function does a cross-collection get() on schools/{schoolId} - fine
-    // as a one-off, but ownsExisting() is the choke point EVERY operational
-    // read in the app goes through, and stacking a second document fetch
-    // onto every one of them (on top of queries that already chain several
-    // where() filters - fee_payments date ranges, student_fee_status
-    // compound filters, audit_logs, the dashboard's aggregate calls) is
-    // what silently pushed those specific screens over Firestore's rule-
-    // evaluation budget and started returning permission-denied - while
-    // simpler single/double-filter reads (students, classes) still fit
-    // under it. That's a performance cliff, not a security boundary, so it
-    // doesn't belong on the read path.
-    //
-    // A lapsed/suspended school losing read access mid-session was never
-    // actually the gap that needed closing - subscription-gate.ts already
-    // hard-blocks a *suspended* school at the edge, before the app (and
-    // therefore any Firestore read) ever loads, on every fresh navigation.
-    // What genuinely needed DB-layer enforcement is WRITES: a lapsed
-    // school's already-open tab should not be able to keep recording fee
-    // payments, entering marks, or editing students after the subscription
-    // ends or the school is suspended - so isSubscriptionActive() stays on
-    // ownsIncoming()/ownsBoth() below, where it only costs one extra get()
-    // on the comparatively rare create/update path, not on every read.
     function ownsExisting() {
-      return isUserActive() && isFullyVerified()
+      return isUserActive() && isFullyVerified() && isSubscriptionActive()
         && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
     }
     function ownsIncoming() {
@@ -229,57 +206,86 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------
     // Subscription enforcement.
-    // subscriptionExpiresAt/subscriptionStatus live on the same schools/{id}
-    // doc as everything else, but are only ever written by the
-    // subscription-issue.ts / subscription-activate.ts Netlify edge
-    // functions (via a Google service-account credential, which bypasses
-    // these rules entirely) - never by a client SDK call, even the school's
-    // own admin. See the "subscription fields are locked" carve-out in the
-    // schools/{schoolId} match block below for the other half of that.
+    // This USED to be a live get() on schools/{schoolId} (see git history),
+    // same shape as myProfile()'s single-doc cache. That caching is scoped
+    // to ONE document's rule evaluation, not the whole request - it is
+    // NOT shared across the several documents touched by a single batched
+    // write/transaction. ownsIncoming()/ownsBoth() run on every operational
+    // write, so any write path that batches multiple documents (marking
+    // attendance for a whole class roster in one batch;
+    // fee.service.js's syncStudentFeeStatus()/resyncFeeStatusForGrade()
+    // updating every affected student alongside a payment) paid that get()
+    // once per document instead of once per request - cost scaling
+    // linearly with roster/grade size until it tipped over Firestore's
+    // rules-evaluation budget and came back as a bare PERMISSION_DENIED,
+    // indistinguishable from an actual rules denial. isSubscriptionActive()
+    // was folded into ownsExisting() too (see the comment above it), so
+    // reads paid this same per-document cost - it just didn't show up as
+    // visibly because the app's read patterns happen to batch fewer
+    // documents at once than the attendance-roster/fee-resync writes do.
     //
-    // This is deliberately a *live* comparison against request.time, not a
-    // cached boolean someone flips once - so a lapsed subscription takes
-    // effect the instant the expiry passes, and there's no field a client
-    // could set to "renew" itself early.
+    // isSubscriptionActive() now reads a subscriptionActiveUntil custom
+    // claim instead of doing a get() at all, so it's free to call from
+    // ownsIncoming()/ownsBoth() no matter how large the batch is. The
+    // claim is minted as an ISO expiry - not a bare boolean - so it keeps
+    // the same "self-expires the instant the term is up" property the old
+    // live check had, rather than staying valid forever once granted.
+    //
+    // Trade-off this introduces: a claim is only as fresh as the caller's
+    // ID token, and (unlike the per-user deviceApprovedUntil/
+    // twoFactorVerifiedUntil claims) subscription status applies to an
+    // entire school's staff at once, not just the one user who triggered
+    // the change. Every place that can flip it - subscription-activate.ts,
+    // subscription-revoke.ts, and school-status.ts (Suspend/Reactivate) -
+    // now fans the claim out to every user of that school via
+    // syncSubscriptionClaims() in lib/firestore-rest.ts, using the same
+    // privileged service-account credential that writes the schools/{id}
+    // fields themselves. An already-open tab only picks up the change on
+    // its next ID token refresh (Firebase does this automatically roughly
+    // hourly). That's an acceptable gap because subscription-gate.ts's
+    // app-shell check already hard-blocks a suspended/lapsed school before
+    // any Firestore call happens on a fresh navigation - this rule was
+    // always the backstop for an already-open tab, not the front door, so
+    // a short staleness window here doesn't reopen the thing it exists to
+    // close.
     //
     // super_admin has no schoolId and manages the Schools registry itself
-    // (not gated by any single school's subscription), so it's exempt.
-    // Anyone with no resolvable schoolId is already denied everywhere else
-    // in this file, so exempting them here isn't an opening.
-    // NOTE: this also gates on schools/{id}'s `status` field ("active" |
-    // "suspended"), which is what the Platform Admin's Schools page
-    // Suspend/Reactivate button writes. Previously that button only ever
-    // updated `status` for display purposes - it was never wired into the
-    // actual access check, so a "suspended" school's staff could still
-    // read/write everything. Folding it in here (the single choke point
-    // every operational collection already depends on via ownsExisting/
-    // ownsIncoming) means Suspend now revokes access the same way an
-    // expired subscription does, with no per-collection changes needed.
-    // Unlike the subscription fields, `status` IS writable by a normal
-    // client SDK call (super_admin only, per the schools/{schoolId} rule
-    // below) - it isn't part of touchesSubscriptionFields()'s carve-out.
-    function schoolDoc() {
-      return mySchoolId() != null && exists(/databases/$(database)/documents/schools/$(mySchoolId()))
-        ? get(/databases/$(database)/documents/schools/$(mySchoolId())).data
-        : null;
-    }
-
+    // (not gated by any single school's subscription), so it's exempt -
+    // same as before.
+    //
+    // NOTE: `status` ("active" | "suspended", the Platform Admin's Suspend/
+    // Reactivate button) used to be writable directly by a super_admin's
+    // client SDK call. It no longer is - see touchesSubscriptionFields()
+    // below - because a direct client write would change schools/{id}
+    // without ever calling syncSubscriptionClaims(), silently reopening
+    // the exact "suspended school's staff can keep writing" gap this claim
+    // exists to close. Suspend/Reactivate now goes through
+    // school-status.ts instead, same shape as activate/revoke.
     function isSubscriptionActive() {
       return mySchoolId() == null || (
-        schoolDoc() != null &&
-        (!('status' in schoolDoc()) || schoolDoc().status != 'suspended') &&
-        (!('subscriptionStatus' in schoolDoc()) || (schoolDoc().subscriptionStatus != 'revoked' && schoolDoc().subscriptionStatus != 'suspended' && schoolDoc().subscriptionStatus != 'expired'))
+        'subscriptionActiveUntil' in request.auth.token
+        && request.auth.token.subscriptionActiveUntil is string
+        && request.time < timestamp.value(request.auth.token.subscriptionActiveUntil)
       );
     }
 
-    // Fields a school admin can never touch directly through a normal
-    // document write, on schools/{schoolId} - only the two subscription
-    // edge functions (running with a privileged service-account
-    // credential that bypasses rules entirely) can set these.
+    // Fields nobody can touch directly through a normal document write on
+    // schools/{schoolId} - only the subscription edge functions
+    // (subscription-activate.ts/subscription-revoke.ts) and school-status.ts
+    // (running with a privileged service-account credential that bypasses
+    // rules entirely) can set these. `status` is included here - not just
+    // the subscriptionX fields - because every one of these functions also
+    // calls syncSubscriptionClaims() to fan the subscriptionActiveUntil
+    // claim out to the school's staff; a direct client write (even from
+    // super_admin, who is otherwise exempt from this carve-out below in
+    // the schools/{schoolId} match block) would change the doc without
+    // ever re-minting that claim, leaving isSubscriptionActive() looking
+    // at a stale claim until tokens happen to refresh on their own.
     function touchesSubscriptionFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
-        'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId'
+        'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId',
+        'status'
       ]);
     }
 
@@ -425,12 +431,20 @@ service cloud.firestore {
       // Only the super_admin (via createSchool) ever creates a school doc.
       allow create: if isSuperAdmin();
       // An admin can update their own school's profile/branding/settings
-      // as always, but never the subscription fields - those only ever
-      // change via the edge functions' privileged service-account write,
-      // which bypasses this rule entirely (so this "deny" only ever
-      // blocks a client SDK call, which is exactly the point).
-      allow update: if isSuperAdmin()
-        || (isAdmin() && schoolId == mySchoolId() && !touchesSubscriptionFields());
+      // as always, but never the subscription fields (or, now, `status` -
+      // see touchesSubscriptionFields() above) - those only ever change via
+      // the edge functions' privileged service-account write, which
+      // bypasses this rule entirely (so this "deny" only ever blocks a
+      // client SDK call, which is exactly the point). super_admin used to
+      // be exempt from this carve-out (it could still write `status`
+      // directly, since Suspend/Reactivate was a plain client write) - now
+      // that Suspend/Reactivate goes through school-status.ts instead, that
+      // exemption would only ever let a super_admin's browser silently
+      // desync `status` from the subscriptionActiveUntil claim, so it's
+      // gone: every actor, super_admin included, goes through
+      // touchesSubscriptionFields() here.
+      allow update: if (isSuperAdmin() || (isAdmin() && schoolId == mySchoolId()))
+        && !touchesSubscriptionFields();
       allow delete: if isSuperAdmin();
     }
 

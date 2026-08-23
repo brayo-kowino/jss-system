@@ -18,7 +18,7 @@ import {
   getDocs,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db, firebaseApp, attachAppCheck } from "../firebase-config.js";
+import { db, auth, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { DEFAULT_SETTINGS, slugify, isSlugAvailable, publishSchoolBranding } from "./settings.service.js";
 
@@ -89,7 +89,19 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
   } catch (err) {
     // Roll back the school doc if the admin account couldn't be created,
     // so we don't leave an orphaned school with no one able to log into it.
-    await updateDoc(schoolRef, { status: "suspended", setupFailed: true });
+    // `status` now has to go through the school-status edge function (see
+    // its file header / setSchoolStatus below) rather than a direct client
+    // write - firestore.rules no longer permits that field on a plain
+    // update, even from super_admin. setupFailed isn't a subscription
+    // field, so it stays a normal client write. Best-effort: the school
+    // has no admin account at this point (that's the failure we're
+    // handling), so there's no one signed in whose access this status
+    // change could even be gating yet - if either of these fails, the
+    // original error below is still what surfaces to the caller.
+    await setSchoolStatus(superAdminUserId, schoolId, "suspended").catch((statusErr) => {
+      console.error("createSchool: rollback status update failed", statusErr);
+    });
+    await updateDoc(schoolRef, { setupFailed: true }).catch(() => {});
     throw err;
   } finally {
     await signOut(secondaryAuth);
@@ -120,15 +132,34 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
 // lands, and any already-open session gets kicked to the lock screen via
 // auth.service.js's live listener on this doc - no separate "revoke"
 // action needed.
+// Routed through the school-status Netlify edge function rather than a
+// direct client write - see the comment at the top of that file. In
+// short: `status` now feeds firestore.rules' isSubscriptionActive() via a
+// custom claim that has to be fanned out to every one of the school's
+// staff, which only the edge function's privileged service-account
+// credential can do; firestore.rules no longer permits a plain client SDK
+// write to this field at all, even from super_admin. The edge function
+// also keeps school_public/{slug} in step and writes the audit log entry,
+// so this is now just the network call.
 export async function setSchoolStatus(superAdminUserId, schoolId, status) {
-  await updateDoc(doc(db, "schools", schoolId), { status, updatedAt: serverTimestamp() });
-  // Keep the public login-branding doc's status in step, so a suspended
-  // school's direct login link stops resolving instead of still showing
-  // its branding to anonymous visitors.
-  const snap = await getDoc(doc(db, "schools", schoolId));
-  const slug = snap.exists() ? snap.data().slug : null;
-  if (slug) {
-    await setDoc(doc(db, "school_public", slug), { status }, { merge: true }).catch(() => {});
+  if (!auth.currentUser) throw new Error("You must be signed in.");
+  const idToken = await auth.currentUser.getIdToken();
+  let res;
+  try {
+    res = await fetch("/school-status", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${idToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ schoolId, status }),
+    });
+  } catch {
+    throw new Error("Couldn't reach the server. Check your connection and try again.");
   }
-  await logAction(superAdminUserId, status === "suspended" ? "suspend_school" : "activate_school", "schools", schoolId);
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Unexpected response from the server.");
+  }
+  if (!res.ok) throw new Error(data.error || "Something went wrong.");
+  return data;
 }

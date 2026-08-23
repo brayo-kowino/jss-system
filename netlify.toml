@@ -88,24 +88,29 @@
 # ==========================================================================
 # ==========================================================================
 # Subscription system.
-# Three same-origin edge functions - netlify/edge-functions/subscription-issue.ts
+# Four same-origin edge functions - netlify/edge-functions/subscription-issue.ts
 # (super_admin mints a token from the Schools page),
 # netlify/edge-functions/subscription-activate.ts (a school admin redeems
-# one from Settings, or from the subscription-expired lock screen), and
+# one from Settings, or from the subscription-expired lock screen),
 # netlify/edge-functions/subscription-revoke.ts (super_admin cuts an
 # already-active term short for non-payment/chargeback/fraud/error - see
 # that file's header for how it differs from suspend/reactivate on
-# schools/{id}'s separate `status` field) - plus one standard Netlify
-# Function, netlify/functions/subscription-expiry-check.mjs, which is a
-# scheduled function (cron) rather than an edge function only because
-# Netlify's scheduler doesn't support edge functions. All four talk to
+# schools/{id}'s separate `status` field), and netlify/edge-functions/
+# school-status.ts (super_admin's Suspend/Reactivate action on the Schools
+# page - used to be a direct client write to `status`, moved here because
+# that field now feeds firestore.rules' isSubscriptionActive() via a
+# custom claim that has to be fanned out to the school's staff, which only
+# a privileged service-account credential can do) - plus one standard
+# Netlify Function, netlify/functions/subscription-expiry-check.mjs, which
+# is a scheduled function (cron) rather than an edge function only because
+# Netlify's scheduler doesn't support edge functions. All five talk to
 # Firestore with a Google service-account credential that bypasses
 # firestore.rules entirely, same pattern as results-lookup.ts. Their paths
-# ("/subscription-issue", "/subscription-activate", "/subscription-revoke")
-# are declared inline via each file's own `export const config`, so
-# nothing needs registering here - same as media-upload.ts/results-lookup.ts.
-# Already covered by connect-src 'self' below, so no CSP change was needed
-# either.
+# ("/subscription-issue", "/subscription-activate", "/subscription-revoke",
+# "/school-status") are declared inline via each file's own
+# `export const config`, so nothing needs registering here - same as
+# media-upload.ts/results-lookup.ts. Already covered by connect-src 'self'
+# below, so no CSP change was needed either.
 #
 # REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
 # variables - secrets, never commit them):

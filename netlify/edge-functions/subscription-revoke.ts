@@ -33,7 +33,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, syncSubscriptionClaims, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 // Mirrors REVOKE_REASONS in subscription.service.js - kept as two
@@ -150,6 +150,13 @@ export default async (request: Request, context: Context) => {
   } catch (err) {
     console.error("subscription-revoke: write failed", err);
     return jsonResponse({ error: "Couldn't revoke the subscription. Please try again." }, 500);
+  }
+
+  // Best-effort - see the matching comment in subscription-activate.ts.
+  try {
+    await syncSubscriptionClaims(accessToken, schoolId);
+  } catch (err) {
+    console.error("subscription-revoke: claim sync failed", err);
   }
 
   return jsonResponse({ subscriptionStatus: "revoked", subscriptionRevokeReason: reason }, 200);

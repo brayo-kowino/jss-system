@@ -16,7 +16,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, syncSubscriptionClaims, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { verifySubscriptionToken } from "./lib/subscription-tokens.ts";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
@@ -127,6 +127,16 @@ export default async (request: Request, context: Context) => {
   } catch (err) {
     console.error("subscription-activate: write failed", err);
     return jsonResponse({ error: "Couldn't activate that token. Please try again." }, 500);
+  }
+
+  // Best-effort: the subscription is already active per the write above -
+  // a claim-sync hiccup shouldn't turn a successful activation into an
+  // error response. Staff whose claim didn't get refreshed here pick it up
+  // on their next ID token refresh regardless.
+  try {
+    await syncSubscriptionClaims(accessToken, payload.sid);
+  } catch (err) {
+    console.error("subscription-activate: claim sync failed", err);
   }
 
   return jsonResponse(
