@@ -65,17 +65,38 @@ async function callFunction(path, payload) {
  * @param {Object} deviceInfo
  * @returns {Promise<string>} approvalId
  */
+let pendingApprovalPromise = null;
+
 export async function findOrCreatePendingApproval(uid, fingerprint, deviceInfo) {
-  try {
-    const approvalsRef = collection(db, "users", uid, "login_approvals");
-    const q = query(approvalsRef, where("status", "==", "pending"));
-    const snap = await getDocs(q);
-    const existing = snap.docs.find((d) => d.data().deviceFingerprint === fingerprint);
-    if (existing) return existing.id;
-  } catch (e) {
-    console.warn("findOrCreatePendingApproval lookup failed:", e);
+  const key = `${uid}_${fingerprint}`;
+  if (pendingApprovalPromise && pendingApprovalPromise.key === key) {
+    return pendingApprovalPromise.promise;
   }
-  return createLoginApproval(uid, { ...deviceInfo, deviceFingerprint: fingerprint });
+
+  const promise = (async () => {
+    try {
+      const approvalsRef = collection(db, "users", uid, "login_approvals");
+      const q = query(approvalsRef, where("status", "==", "pending"));
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => d.data().deviceFingerprint === fingerprint);
+      if (existing) return existing.id;
+    } catch (e) {
+      console.warn("findOrCreatePendingApproval lookup failed:", e);
+    }
+    return createLoginApproval(uid, { ...deviceInfo, deviceFingerprint: fingerprint });
+  })();
+
+  pendingApprovalPromise = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    // Keep cached briefly so rapid route transitions don't duplicate
+    setTimeout(() => {
+      if (pendingApprovalPromise?.key === key) {
+        pendingApprovalPromise = null;
+      }
+    }, 3000);
+  }
 }
 
 export async function createLoginApproval(uid, deviceInfo) {

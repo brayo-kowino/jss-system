@@ -187,7 +187,6 @@ export async function render({ profile }) {
 
   const header = el("div", { class: "page-header" }, [
     el("div", {}, [
-      el("h1", {}, "Platform Support Tickets"),
       el("p", { class: "text-sm text-muted" }, "Incoming inquiries, bug reports, and assistance requests from tenant schools."),
     ]),
   ]);

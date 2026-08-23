@@ -189,8 +189,7 @@ export async function render({ profile }) {
 
   const header = el("div", { class: "page-header" }, [
     el("div", {}, [
-      el("h1", {}, "Contact Platform Support"),
-      el("p", { class: "text-sm text-muted" }, "Need help or encounter an issue? Reach out directly to platform administration."),
+      el("p", { class: "text-sm text-muted" }, "Need help or encounter an issue? Reach out directly to us."),
     ]),
     el("div", { class: "page-header__actions" }, [newTicketBtn]),
   ]);
