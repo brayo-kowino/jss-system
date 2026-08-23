@@ -384,9 +384,10 @@ export async function refreshSchoolChrome() {
   return settings;
 }
 
+const dismissedApprovals = new Set();
+
 // Shows the new-device login approval modal on the primary (admin) device.
-// Non-dismissible: the admin must explicitly approve or deny.
-async function showApprovalModal(approval, profile) {
+export async function showApprovalModal(approval, profile) {
   // Don't stack duplicate modals for the same approval
   if (document.getElementById("jss-approval-modal")) return;
 
@@ -399,7 +400,7 @@ async function showApprovalModal(approval, profile) {
 
   const requestedAt = approval.requestedAt?.toDate
     ? approval.requestedAt.toDate().toLocaleString()
-    : new Date().toLocaleString();
+    : (approval.requestedAt?.seconds ? new Date(approval.requestedAt.seconds * 1000).toLocaleString() : (typeof approval.requestedAt === 'string' ? new Date(approval.requestedAt).toLocaleString() : new Date().toLocaleString()));
 
   // /login-approval-approve.ts requires a fresh 2FA code on this call when
   // the account has 2FA enabled - check once up front so the modal can
@@ -413,9 +414,9 @@ async function showApprovalModal(approval, profile) {
     type: "button",
     class: "approval-modal__close",
     style: "position:absolute;top:12px;right:12px;background:none;border:none;cursor:pointer;font-size:20px;color:#888;line-height:1;padding:4px 8px;",
-    title: "Dismiss",
+    title: "Dismiss (You can still approve from Settings)",
     onClick: () => {
-      deleteApproval(profile.uid, approval.id).catch(() => {});
+      dismissedApprovals.add(approval.id);
       overlay.remove();
     }
   }, "✕");
@@ -927,7 +928,7 @@ export function renderShell(app, profile, activePath) {
       if (!pending || pending.length === 0) return;
 
       const currentFingerprint = generateDeviceFingerprint();
-      const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint);
+      const incoming = pending.filter((req) => req.deviceFingerprint !== currentFingerprint && !dismissedApprovals.has(req.id));
       if (incoming.length === 0) return;
 
       // Filter out and auto-clean any requests from devices that are ALREADY trusted

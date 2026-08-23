@@ -1,6 +1,6 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, REVOKE_REASONS } from "../js/services/subscription.service.js";
-import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor } from "../js/components/shell.js";
+import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor, showApprovalModal } from "../js/components/shell.js";
 import { getCurrentSchoolId, refreshCurrentSchool, getCurrentProfile } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
@@ -943,13 +943,23 @@ function buildSecurityPanel(profile) {
       );
       const tbody = el("tbody", {});
       for (const a of approvals) {
-        const time = a.requestedAt?.toDate ? a.requestedAt.toDate().toLocaleString() : "—";
+        const time = a.requestedAt?.toDate ? a.requestedAt.toDate().toLocaleString() : (a.requestedAt?.seconds ? new Date(a.requestedAt.seconds * 1000).toLocaleString() : "—");
         const statusClass = a.status === "approved" ? "status-badge--approved" : a.status === "denied" ? "status-badge--denied" : "status-badge--pending";
+        const statusContent = [el("span", { class: `status-badge ${statusClass}` }, a.status || "unknown")];
+        if (a.status === "pending") {
+          statusContent.push(
+            el("button", {
+              class: "btn btn--xs btn--primary",
+              style: "margin-left: 8px; font-size: 11px; padding: 2px 8px;",
+              onClick: () => showApprovalModal(a, profile)
+            }, "Review / Decide")
+          );
+        }
         tbody.append(
           el("tr", {}, [
             el("td", {}, a.deviceName || "Unknown"),
             el("td", {}, time),
-            el("td", {}, [el("span", { class: `status-badge ${statusClass}` }, a.status || "unknown")]),
+            el("td", {}, statusContent),
           ])
         );
       }
