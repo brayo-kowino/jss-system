@@ -75,8 +75,8 @@ function renderTable() {
   ]);
 }
 
-export default async function render(container, profile) {
-  container.innerHTML = "";
+export async function render({ profile }) {
+  const wrap = el("div", {});
 
   const searchInput = el("input", {
     type: "text",
@@ -100,14 +100,14 @@ export default async function render(container, profile) {
     ])
   ]);
 
-  container.append(header);
+  wrap.append(header);
   
   const tableContainer = el("div", { class: "page-content" }, [
     el("div", { class: "empty-state" }, [
       el("span", { class: "spinner spinner--md spinner--dark" })
     ])
   ]);
-  container.append(tableContainer);
+  wrap.append(tableContainer);
 
   const loadData = async (code = null) => {
     try {
@@ -129,5 +129,9 @@ export default async function render(container, profile) {
     await busyButton(clearBtn, () => loadData());
   });
 
-  await loadData();
+  // Since render returns the DOM node immediately for the router,
+  // we do the initial fetch asynchronously after returning.
+  loadData();
+
+  return wrap;
 }

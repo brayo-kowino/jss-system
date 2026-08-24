@@ -403,7 +403,10 @@ service cloud.firestore {
     // full stop.
     match /users/{uid}/login_approvals/{approvalId} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow create: if false; // Creation is now strictly handled by edge functions for rate limiting
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.resolvedAt == null
+        && request.resource.data.resolvedBy == null;
       allow update: if false;
       allow delete: if isSignedIn() && (
         request.auth.uid == uid || isSuperAdmin()
