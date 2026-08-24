@@ -62,28 +62,12 @@ export function attachAppCheck(app) {
   }
 }
 
-if (typeof window !== "undefined") {
-  // navigator.onLine only reflects whether the network interface is up
-  // (Wi-Fi/ethernet connected), not whether the internet is actually
-  // reachable - a device can be "connected" to a router with no upstream.
-  // Firing App Check straight off that flag at boot means reCAPTCHA's
-  // recaptcha/api.js gets requested and fails before anyone's had a
-  // chance to notice. error-handler.js's confirmOnline() does the same
-  // real-connectivity probe that its background verifyLoop() polls with,
-  // so this waits on that instead of the raw flag. The "actually-online"
-  // listener below still covers reconnects after boot the same as before.
-  if (navigator.onLine) {
-    import("./error-handler.js")
-      .then(({ confirmOnline }) => confirmOnline())
-      .then((isReallyOnline) => {
-        if (isReallyOnline) attachAppCheck(firebaseApp);
-      })
-      .catch(() => {});
-  }
-  window.addEventListener("actually-online", () => {
-    attachAppCheck(firebaseApp);
-  });
-}
+// We must attach App Check synchronously BEFORE getAuth(). If we delay it behind
+// an async online-check, Firebase Auth's initial session-restore request (accounts:lookup)
+// will fire without the App Check header. If App Check is enforced, the server rejects it
+// with a 401 Unauthorized, causing Auth to incorrectly assume the session is invalid and
+// log the user out on every refresh.
+attachAppCheck(firebaseApp);
 
 export const auth = getAuth(firebaseApp);
 
