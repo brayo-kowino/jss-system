@@ -37,7 +37,7 @@
 // bytes change. Without a version bump here, anyone who installed the SW
 // before a CSP change keeps enforcing the old policy indefinitely (only a
 // forced/hard reload bypasses the SW long enough to hide the symptom).
-const CACHE_VERSION = "eeskia-v3.8.0";
+const CACHE_VERSION = "eeskia-v3.8.1";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -104,7 +104,7 @@ async function networkFirst(request, cacheName) {
     if (response && response.ok) cache.put(request, response.clone());
     return response;
   } catch {
-    const cached = await cache.match(request);
+    const cached = await cache.match(request, { ignoreVary: true, ignoreSearch: true });
     if (cached) return cached;
     if (isNavigationRequest(request)) {
       const shellFallback = await cache.match(APP_SHELL_URL);
@@ -117,7 +117,7 @@ async function networkFirst(request, cacheName) {
 
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, { ignoreVary: true, ignoreSearch: true });
   if (cached) return cached;
   const response = await fetch(request);
   if (response && response.ok) cache.put(request, response.clone());
@@ -126,7 +126,7 @@ async function cacheFirst(request, cacheName) {
 
 async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+  const cached = await cache.match(request, { ignoreVary: true, ignoreSearch: true });
   const networkPromise = fetch(request)
     .then((response) => {
       if (response && response.ok) cache.put(request, response.clone());
