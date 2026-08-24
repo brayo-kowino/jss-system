@@ -23,7 +23,7 @@ export default async (request: Request, context: Context) => {
   if (!uid) return jsonResponse({ error: "You must be signed in." }, 401);
 
   // Rate limit: Max 3 requests per 5 minutes (300 seconds) to prevent prompt spamming
-  const rl = await checkRateLimit(login-approval-request:uid: + uid, 3, 300);
+  const rl = await checkRateLimit(`login-approval-request:uid:${uid}`, 3, 300);
   if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSeconds);
 
   let body: any;
@@ -48,7 +48,7 @@ export default async (request: Request, context: Context) => {
 
   try {
     // Avoid creating duplicate pending requests for the same device if one already exists
-    const allApprovals = await listFsDocs(accessToken, users/ + uid + /login_approvals);
+    const allApprovals = await listFsDocs(accessToken, `users/${uid}/login_approvals`);
     const existing = allApprovals.find((a: any) => a.deviceFingerprint === fingerprint && a.status === "pending");
     
     if (existing) {
@@ -59,7 +59,7 @@ export default async (request: Request, context: Context) => {
   }
 
   try {
-    const docRef = await addFsDoc(accessToken, users/ + uid + /login_approvals, {
+    const docRef = await addFsDoc(accessToken, `users/${uid}/login_approvals`, {
       deviceFingerprint: fingerprint,
       deviceName: String(deviceInfo.deviceName || "Unknown Device"),
       screenRes: String(deviceInfo.screenRes || "Unknown"),
