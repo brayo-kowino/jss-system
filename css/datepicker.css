@@ -3,6 +3,10 @@
    ========================================================================== */
 
 .flatpickr-calendar {
+  position: absolute;
+  visibility: hidden;
+  opacity: 0;
+  display: none;
   background: var(--color-white, #ffffff);
   border: 1px solid var(--color-line, #dce3e8);
   border-radius: 12px;
@@ -12,8 +16,15 @@
   padding: 12px;
   width: 320px;
   box-sizing: border-box;
-  animation: fpFadeInDown 200ms cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 99999 !important;
+}
+
+.flatpickr-calendar.open,
+.flatpickr-calendar.inline {
+  visibility: visible;
+  opacity: 1;
+  display: block;
+  animation: fpFadeInDown 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .flatpickr-calendar::before,
@@ -209,4 +220,9 @@ span.flatpickr-weekday {
 .datepicker-input-wrap input {
   padding-right: 38px !important;
   cursor: pointer;
+}
+
+@keyframes fpFadeInDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
