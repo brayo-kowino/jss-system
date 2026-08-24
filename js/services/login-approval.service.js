@@ -100,22 +100,11 @@ export async function findOrCreatePendingApproval(uid, fingerprint, deviceInfo) 
 }
 
 export async function createLoginApproval(uid, deviceInfo) {
-  const approvalsRef = collection(db, "users", uid, "login_approvals");
-  const docRef = await addDoc(approvalsRef, {
-    deviceFingerprint: deviceInfo.deviceFingerprint || "",
-    deviceName: deviceInfo.deviceName || "Unknown Device",
-    screenRes: deviceInfo.screenRes || "Unknown",
-    timezone: deviceInfo.timezone || "Unknown",
-    status: "pending",
-    requestedAt: serverTimestamp(),
-    resolvedAt: null,
-    resolvedBy: null
+  const data = await callFunction("/login-approval-request", {
+    fingerprint: deviceInfo.deviceFingerprint || "",
+    deviceInfo
   });
-
-  // Log the creation (best-effort, non-blocking)
-  logAction(uid, "create_login_approval", "login_approvals", docRef.id).catch(console.error);
-
-  return docRef.id;
+  return data.id;
 }
 
 /**
