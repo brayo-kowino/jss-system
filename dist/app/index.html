@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<title>Eeskia | School Management System</title>
+
+<meta name="description" content="Eeskia is a school management system built for the Kenya curriculum especially for the CBC - one dashboard for admins, teachers, parents and support staff to manage students, grading, fees, attendance and timetables." />
+<meta name="keywords" content="school management system, CBC grading, student information system, school fees software, attendance tracking, Kenya school software" />
+<meta name="robots" content="index, follow" />
+<meta name="author" content="Eeskia" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Eeskia" />
+<meta property="og:title" content="Eeskia | School Management System" />
+<meta property="og:description" content="One dashboard for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance and timetables." />
+<meta property="og:url" content="https://eeskia.netlify.app/" />
+<meta property="og:image" content="https://eeskia.netlify.app/assets/eeskia-hero-image.png" />
+<meta property="og:image:width" content="1366" />
+<meta property="og:image:height" content="768" />
+<meta property="og:image:alt" content="Eeskia dashboard preview" />
+<meta property="og:locale" content="en_US" />
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Eeskia | School Management System" />
+<meta name="twitter:description" content="One dashboard for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance and timetables." />
+<meta name="twitter:image" content="https://eeskia.netlify.app/assets/eeskia-hero-image.png" />
+<meta name="twitter:image:alt" content="Eeskia dashboard preview" />
+<meta name="theme-color" content="#14538A" />
+
+<link rel="manifest" href="/site.webmanifest" />
+<link rel="icon" type="image/png" href="/assets/logo.png" />
+<link rel="apple-touch-icon" href="/assets/learning-journey.png" />
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Eeskia",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Web",
+  "description": "Eeskia is a school management system for admins, teachers, parents and support staff to manage students, CBC grading, fees, attendance, timetables and more.",
+  "url": "https://eeskia.netlify.app/",
+  "image": "https://eeskia.netlify.app/assets/eeskia-hero-image.png"
+}
+</script>
+  <script type="module" crossorigin src="/assets/app-Bh7Iz2TS.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/app-Dar-q7G8.css">
+  <link rel="stylesheet" crossorigin href="/assets/fonts-CDci7ksx.css">
+</head>
+<body>
+<div id="app"></div>
+
+<div class="splash-screen" id="splash-screen">
+  <div class="splash-content">
+    <div class="splash-logo">
+      <div class="seal seal--splash">
+        <img
+          class="seal__img"
+          src="/assets/logo.png"
+          alt="Eeskia logo"
+        />
+      </div>
+    </div>
+    <h2 class="splash-title">Eeskia</h2>
+    <div class="splash-subtitle">
+      See it all. Run it well.
+    </div>
+    <div class="splash-loader">
+      <div class="splash-loader-bar splash-loader-bar--progress" id="splash-loader-bar"></div>
+    </div>
+    <div class="splash-status" id="splash-status">Starting up…</div>
+  </div>
+</div>
+<div id="toast-root"></div>
+
+<noscript>
+  <div
+    style="
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-family:Arial,Helvetica,sans-serif;
+      text-align:center;
+      padding:32px;
+      background:#FAF6F0;
+      color:#21262B;
+    "
+  >
+    <div>
+      <h2 style="color:#0B2545;margin-bottom:8px;">
+        Eeskia needs JavaScript
+      </h2>
+      <p style="color:#5C6A73;">
+        Please enable JavaScript in your browser to use this system.
+        Your data is safe and nothing has been changed.
+      </p>
+    </div>
+  </div>
+</noscript>
+
+<script>
+(function () {
+  var settled = false;
+  var timer = null;
+  function settle() {
+    settled = true;
+    if (timer) clearTimeout(timer);
+  }
+  function armTimer(customMs) {
+    if (settled) return;
+    if (timer) clearTimeout(timer);
+    var timeoutMs = typeof customMs === "number" ? customMs : 90000;
+    timer = setTimeout(function () {
+      if (settled) return;
+      showBootFallback(
+        "This is taking longer than expected to load. The internet connection may be slow."
+      );
+    }, timeoutMs);
+  }
+
+  // __jssBootPing re-arms the watchdog timer whenever progress occurs
+  window.__jssBootPing = armTimer;
+  window.__jssBootOk = settle;
+  armTimer(90000);
+
+  window.addEventListener("error", function (e) {
+    var t = e.target;
+    if (settled || !t || t === window) return;
+    if (t.tagName === "SCRIPT" || t.tagName === "LINK") {
+      var src = t.src || t.href || "";
+      if (src.indexOf("recaptcha") !== -1 || src.indexOf("google.com") !== -1 || src.indexOf("googleapis.com") !== -1) {
+        return;
+      }
+      clearTimeout(timer);
+      showBootFallback(
+        "A required file failed to load. This is usually a connection issue."
+      );
+    }
+  }, true);
+
+  function showBootFallback(reason) {
+    if (settled) return;
+    window.__jssHideSplash && window.__jssHideSplash();
+    var app = document.getElementById("app");
+    if (!app) return;
+    app.innerHTML =
+      '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;font-family:Arial,Helvetica,sans-serif;background:#FAF6F0;">' +
+        '<div style="max-width:420px;width:100%;background:#FFFFFF;border:1px solid #DCE3E8;border-radius:8px;box-shadow:0 12px 32px rgba(11,37,69,0.16);padding:40px 32px;text-align:center;">' +
+          '<div style="width:64px;height:64px;margin:0 auto 16px;border-radius:50%;background:#E4EDF7;display:flex;align-items:center;justify-content:center;font-size:30px;">&#9888;&#65039;</div>' +
+          '<h2 style="color:#0B2545;margin:0 0 8px;font-family:Georgia,serif;">Eeskia couldn\'t start</h2>' +
+          '<p style="color:#5C6A73;margin:0 0 12px;line-height:1.5;">' +
+            reason +
+            ' Your data is safe and nothing has been lost or changed.' +
+          '</p>' +
+          '<button onclick="location.reload()" style="background:#14538A;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;">Reload page</button>' +
+          '<p style="color:#5C6A73;font-size:12px;margin-top:16px;">' +
+            'If this keeps happening, check your internet connection or contact your school administrator.' +
+          '</p>' +
+        '</div>' +
+      '</div>';
+  }
+})();
+</script>
+
+<script>
+(function () {
+  var MIN_SPLASH_MS = 3000;
+  var shownAt = Date.now();
+  var hidden = false;
+
+  function hideSplash() {
+    if (hidden) return;
+    hidden = true;
+    var el = document.getElementById("splash-screen");
+    if (!el) return;
+    el.classList.add("splash-screen--hide");
+    setTimeout(function () {
+      el.remove();
+    }, 400);
+  }
+
+  window.__jssUpdateSplashProgress = function (percent, text) {
+    var bar = document.getElementById("splash-loader-bar");
+    var status = document.getElementById("splash-status");
+    if (bar) {
+      bar.style.width = Math.min(100, Math.max(0, percent)) + "%";
+    }
+    if (status && text) {
+      status.textContent = text;
+    }
+    if (window.__jssBootPing) {
+      window.__jssBootPing();
+    }
+  };
+
+  window.__jssHideSplash = hideSplash;
+  var origBootOk = window.__jssBootOk;
+  window.__jssBootOk = function () {
+    if (origBootOk) {
+      origBootOk();
+    }
+    setTimeout(hideSplash, 300);
+  };
+})();
+</script>
+  </body>
+</html>

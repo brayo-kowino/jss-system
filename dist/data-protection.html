@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Data Protection - Eeskia</title>
+<meta name="description" content="How Eeskia collects, stores, protects and shares school, staff and learner data, and how administrators, teachers and parents can exercise their rights under Kenya's Data Protection Act." />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://eeskia.netlify.app/data-protection.html" />
+<meta name="theme-color" content="#14538A" />
+<link rel="icon" type="image/png" href="/assets/logo-BdweYxGt.png" />
+<link rel="apple-touch-icon" href="/assets/logo-BdweYxGt.png" />
+
+<style>
+:root {
+  --navy-900: #0B2545;
+  --navy-700: #14538A;
+  --blue-100: #E4EDF7;
+  --cream: #FAF6F0;
+  --cream-dim: #F1EAE0;
+  --ink: #21262B;
+  --ink-soft: #5C6A73;
+  --gold: #C9A227;
+  --gold-soft: #E9D9A0;
+  --green: #2E7D46;
+  --line: #DCE3E8;
+  --white: #FFFFFF;
+  --font-display: 'Lora', Georgia, serif;
+  --font-body: 'Manrope', Arial, sans-serif;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --shadow-sm: 0 1px 2px rgba(11, 37, 69, 0.08);
+  --shadow-md: 0 8px 24px rgba(11, 37, 69, 0.10);
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --container: 860px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; font-size: 17px; }
+body { margin: 0; font-family: var(--font-body); color: var(--ink); background: var(--cream); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+a { color: var(--navy-700); text-decoration: underline; text-decoration-color: var(--gold-soft); text-underline-offset: 3px; }
+a:hover { color: var(--navy-900); }
+h1, h2, h3 { font-family: var(--font-display); color: var(--navy-900); margin: 0; line-height: 1.25; font-weight: 700; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.3em; }
+li { margin-top: 8px; }
+.container { max-width: var(--container); margin: 0 auto; padding: 0 24px; }
+:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.material-symbols-rounded {
+  font-family: 'Material Symbols Rounded'; font-weight: normal; font-style: normal; font-size: 24px;
+  line-height: 1; display: inline-block; white-space: nowrap; direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+}
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 22px; border-radius: 999px; font-weight: 800; font-size: 0.92rem; border: 1px solid transparent; text-decoration: none; transition: transform 220ms var(--ease), background 220ms var(--ease); white-space: nowrap; }
+.btn:hover { transform: translateY(-2px); }
+.btn--gold { background: var(--gold); color: var(--navy-900); box-shadow: var(--shadow-sm); }
+.btn--outline-navy { background: transparent; border-color: var(--navy-700); color: var(--navy-700); text-decoration: none; }
+.btn--outline-navy:hover { background: var(--navy-700); color: var(--white); }
+.btn--sm { padding: 10px 18px; font-size: 0.86rem; }
+
+.site-header { position: sticky; top: 0; z-index: 100; background: rgba(250, 246, 240, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; max-width: 1180px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand__mark { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--gold); padding: 4px; background: var(--navy-900); }
+.brand__mark img { width: 100%; height: 100%; object-fit: contain; filter: invert(1) brightness(2); }
+.brand__word { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--navy-900); }
+.nav__actions { display: flex; align-items: center; gap: 12px; }
+
+.hero { padding: 56px 0 8px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.eyebrow::before { content: ""; width: 22px; height: 1px; background: var(--gold); }
+.hero h1 { font-size: clamp(2rem, 4vw, 2.7rem); margin-top: 10px; }
+.hero .updated { margin-top: 14px; color: var(--ink-soft); font-size: 0.95rem; font-weight: 600; }
+.hero .lead { margin-top: 18px; font-size: 1.1rem; color: var(--ink-soft); }
+
+.toc { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 22px 26px; margin: 36px 0; box-shadow: var(--shadow-sm); }
+.toc h2 { font-size: 1rem; font-family: var(--font-body); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--navy-900); }
+.toc ol { margin-top: 14px; columns: 2; column-gap: 28px; }
+.toc li { margin-top: 6px; font-size: 0.94rem; font-weight: 600; break-inside: avoid; }
+.toc a { text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+@media (max-width: 620px) { .toc ol { columns: 1; } }
+
+.doc-section { padding: 34px 0; border-top: 1px solid var(--line); scroll-margin-top: 90px; }
+.doc-section h2 { font-size: 1.4rem; display: flex; align-items: center; gap: 12px; }
+.doc-section h2 .step-num { font-family: var(--font-body); font-size: 0.9rem; font-weight: 800; color: var(--white); background: var(--navy-700); width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.doc-section p { margin-top: 14px; font-size: 1rem; color: var(--ink); }
+.doc-section ul, .doc-section ol { margin-top: 14px; }
+.doc-section li { font-size: 0.98rem; }
+.doc-section li strong { color: var(--navy-900); }
+
+.callout { display: flex; gap: 14px; background: var(--blue-100); border-radius: var(--radius-md); padding: 18px 20px; margin-top: 18px; }
+.callout .material-symbols-rounded { color: var(--navy-700); flex-shrink: 0; }
+.callout p { font-size: 0.95rem; margin-top: 0; }
+
+.role-table { width: 100%; border-collapse: collapse; margin-top: 16px; background: var(--white); border-radius: var(--radius-md); overflow: hidden; box-shadow: var(--shadow-sm); }
+.role-table th, .role-table td { padding: 12px 14px; text-align: left; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
+.role-table thead th { background: var(--navy-900); color: var(--white); font-weight: 700; }
+.role-table tbody tr:last-child td { border-bottom: none; }
+.role-table td:first-child { font-weight: 700; color: var(--navy-900); }
+
+.contact-box { background: var(--navy-900); color: var(--white); border-radius: var(--radius-lg); padding: 30px 28px; margin-top: 40px; }
+.contact-box h2 { color: var(--white); font-size: 1.3rem; }
+.contact-box p { color: #B9C9DC; margin-top: 10px; font-size: 0.98rem; }
+.contact-box .rows { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.contact-box .rows a { color: var(--gold-soft); font-weight: 700; text-decoration: none; }
+.contact-box .rows a:hover { text-decoration: underline; }
+
+.site-footer { background: var(--navy-900); color: #B9C9DC; padding: 40px 0; margin-top: 40px; }
+.site-footer .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 0.86rem; max-width: 1180px; }
+.site-footer a { color: #B9C9DC; text-decoration: none; }
+.site-footer a:hover { color: var(--gold-soft); }
+.footer-links { display: flex; gap: 20px; flex-wrap: wrap; }
+</style>
+  <script async type="module" crossorigin src="/assets/dataProtection-CPmvQK9R.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/fonts-CDci7ksx.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="nav">
+    <a href="index.html" class="brand" aria-label="Eeskia home">
+      <span class="brand__mark"><img src="/assets/logo-BdweYxGt.png" alt="" /></span>
+      <span class="brand__word">Eeskia</span>
+    </a>
+    <div class="nav__actions">
+      <a href="index.html#faq" class="btn btn--outline-navy btn--sm">FAQ</a>
+      <a href="index.html#demo" class="btn btn--gold btn--sm">Request a demo</a>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero">
+    <div class="container">
+      <span class="eyebrow">Legal</span>
+      <h1>Data protection</h1>
+      <p class="updated">Last updated: 8 August 2026</p>
+      <p class="lead">This page explains what school, staff, learner and parent data Eeskia collects, why, how it's protected, who can see it, and how you can exercise your rights. It applies to every school using Eeskia and every account on the platform.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <nav class="toc" aria-label="Table of contents">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#data-we-collect">What data we collect</a></li>
+        <li><a href="#why-we-collect-it">Why we collect it</a></li>
+        <li><a href="#who-can-see-it">Who can see it</a></li>
+        <li><a href="#storage-and-security">Storage and security</a></li>
+        <li><a href="#retention">How long we keep it</a></li>
+        <li><a href="#sharing">Sharing with third parties</a></li>
+        <li><a href="#your-rights">Your rights</a></li>
+        <li><a href="#breach-response">If something goes wrong</a></li>
+        <li><a href="#childrens-data">Children's data</a></li>
+        <li><a href="#contact-us">Contact us</a></li>
+      </ol>
+    </nav>
+
+    <section class="doc-section" id="data-we-collect">
+      <h2><span class="step-num">1</span>What data we collect</h2>
+      <p>Eeskia holds different data depending on who the account belongs to:</p>
+      <ul>
+        <li><strong>Learners:</strong> name, admission number, date of birth, guardian contacts, class and stream, attendance records, CBC competency levels and grades, fee balances.</li>
+        <li><strong>Staff:</strong> name, role, contact details, assigned classes and subjects, login activity.</li>
+        <li><strong>Parents and guardians:</strong> name, phone number, email, and the identity of the learners they are linked to.</li>
+        <li><strong>School administrators:</strong> the school's registration details, term structure, fee schedule, and billing contact.</li>
+      </ul>
+      <p>We do not collect data we don't need to run the system — there's no tracking of location, no advertising identifiers, and no data sold to third parties.</p>
+    </section>
+
+    <section class="doc-section" id="why-we-collect-it">
+      <h2><span class="step-num">2</span>Why we collect it</h2>
+      <p>Every piece of data serves a specific function inside the system:</p>
+      <ul>
+        <li>Running attendance, grading, timetabling and fee tracking for the school</li>
+        <li>Generating CBC report cards and school-wide analytics</li>
+        <li>Giving parents visibility into their own children's records</li>
+        <li>Keeping an audit trail of who changed what, for accountability</li>
+        <li>Contacting a school about their account, billing, or a demo request</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="who-can-see-it">
+      <h2><span class="step-num">3</span>Who can see it</h2>
+      <p>Access is role-based. Nobody sees more than their role requires:</p>
+      <table class="role-table">
+        <thead>
+          <tr><th>Role</th><th>Can see</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Parent</td><td>Their own children's grades, attendance and fee balance only</td></tr>
+          <tr><td>Class teacher</td><td>Students in their own classes</td></tr>
+          <tr><td>Bursar</td><td>Fee records school-wide, not grades or attendance</td></tr>
+          <tr><td>Administrator</td><td>Full school records, plus the audit log</td></tr>
+          <tr><td>Eeskia support staff</td><td>Only what's needed to resolve a support request, and only with the school's permission</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span>
+        <p>Every access, edit and export is logged. Schools can review this audit trail from their admin dashboard at any time.</p>
+      </div>
+    </section>
+
+    <section class="doc-section" id="storage-and-security">
+      <h2><span class="step-num">4</span>Storage and security</h2>
+      <ul>
+        <li>Data is encrypted in transit (HTTPS/TLS) and at rest</li>
+        <li>Automatic daily backups, stored separately from live data</li>
+        <li>Access to production systems is restricted to a small engineering team, and logged</li>
+        <li>Passwords are hashed and never stored in plain text</li>
+      </ul>
+      <p>No system is unbreakable, and we don't claim otherwise — but these controls are designed so that a lost device, a forgotten password, or a single compromised account doesn't put the whole school's records at risk.</p>
+    </section>
+
+    <section class="doc-section" id="retention">
+      <h2><span class="step-num">5</span>How long we keep it</h2>
+      <p>We keep learner and staff records for as long as a school's account is active, plus a limited period afterward to allow for transfers, disputes, and legal record-keeping requirements. A school can request deletion of specific records, or full account closure, at any time — see <a href="#your-rights">your rights</a> below.</p>
+    </section>
+
+    <section class="doc-section" id="sharing">
+      <h2><span class="step-num">6</span>Sharing with third parties</h2>
+      <p>We do not sell data, and we do not share it for advertising. Data is only shared with:</p>
+      <ul>
+        <li>Infrastructure providers who host and back up the system, under contractual confidentiality obligations</li>
+        <li>Authorities, where required by Kenyan law</li>
+        <li>A new system provider, if a school switches and formally requests a data export on the parent school's behalf</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="your-rights">
+      <h2><span class="step-num">7</span>Your rights</h2>
+      <p>Under Kenya's Data Protection Act, 2019, you can ask us to:</p>
+      <ul>
+        <li>Confirm what personal data we hold about you or your child</li>
+        <li>Correct inaccurate or incomplete records</li>
+        <li>Delete data that's no longer needed, subject to a school's legal record-keeping duties</li>
+        <li>Export a copy of the data in a portable format</li>
+        <li>Object to processing you believe is unlawful</li>
+      </ul>
+      <p>Requests about a specific learner's data should generally go through the school first, since the school is the data controller and Eeskia is the processor acting on its instructions. If your school is unresponsive, you can contact us directly and we'll help route the request.</p>
+    </section>
+
+    <section class="doc-section" id="breach-response">
+      <h2><span class="step-num">8</span>If something goes wrong</h2>
+      <p>If we become aware of a data breach that risks harm to any school, staff member, learner or parent, we will notify the affected school without undue delay, and support them in meeting their own notification obligations to the Office of the Data Protection Commissioner and to affected individuals, as required by law.</p>
+    </section>
+
+    <section class="doc-section" id="childrens-data">
+      <h2><span class="step-num">9</span>Children's data</h2>
+      <p>Most learner records on Eeskia belong to minors. Schools act as the data controller for this information and are responsible for the lawful basis on which it's collected — typically their existing enrolment and safeguarding obligations. Eeskia processes this data only on the school's instructions, and applies the same encryption, access controls and audit logging described above.</p>
+    </section>
+
+    <div class="contact-box" id="contact-us">
+      <h2>Questions about your data</h2>
+      <p>Reach out and we'll respond within a few business days, or sooner for anything urgent.</p>
+      <div class="rows">
+        <div><a href="mailto:privacy@eeskia.app">privacy@eeskia.app</a></div>
+        <div><a href="tel:+254700000000">+254 700 000 000</a></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <span>© 2026 Eeskia. All rights reserved.</span>
+    <div class="footer-links">
+      <a href="index.html#top">Home</a>
+      <a href="terms-of-service.html">Terms of service</a>
+      <a href="data-protection.html">Data protection</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
