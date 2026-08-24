@@ -4,6 +4,9 @@ import { initErrorHandling, showFatalError } from "./error-handler.js";
 // or shell exist yet. See that module for why.
 import "./services/install-prompt.js";
 
+import "flatpickr/dist/flatpickr.min.css";
+import "../css/datepicker.css";
+
 
 // Installed first, before anything else - so a failure in auth, the router,
 // or Firebase itself still gets caught and shown nicely instead of leaving
