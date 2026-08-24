@@ -62,10 +62,8 @@ function obfuscatorPlugin() {
         if (asset.type !== "chunk" || !fileName.endsWith(".js")) continue;
         const result = JavaScriptObfuscator.obfuscate(asset.code, {
           compact: true,
-          controlFlowFlattening: true,
-          controlFlowFlatteningThreshold: 0.3,
-          deadCodeInjection: true,
-          deadCodeInjectionThreshold: 0.3,
+          controlFlowFlattening: false,
+          deadCodeInjection: false,
           stringArray: true,
           stringArrayEncoding: ["base64"],
           stringArrayThreshold: 0.75,
