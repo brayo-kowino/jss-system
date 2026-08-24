@@ -409,8 +409,8 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     tbody.append(el("tr", {}, [
       el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:6px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "") : ""]),
       ...(showBothColumns ? [
-        el("td", {}, s.midtScore == null ? el("span", { class: "text-muted" }, "—") : s.midtScore.toFixed(1)),
-        el("td", {}, s.endScore == null ? el("span", { class: "text-muted" }, "—") : s.endScore.toFixed(1)),
+        el("td", {}, s.midtScore == null ? el("span", { class: "text-muted" }, "") : s.midtScore.toFixed(1)),
+        el("td", {}, s.endScore == null ? el("span", { class: "text-muted" }, "") : s.endScore.toFixed(1)),
       ] : []),
       el("td", {}, s.average.toFixed(1)),
       el("td", {}, s.grade),
