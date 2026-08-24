@@ -546,11 +546,11 @@ function buildSubscriptionTab() {
     const reasonLabel = REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "unspecified reason";
     statusBanner.append(icon("error"), el("span", {}, `Your subscription was revoked (${reasonLabel}). The system is locked until we issue a new token.`));
   } else if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
-    statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact us at support@iskify360.com to get a subscription token, then paste it below."));
+    statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact us at iskify360.tech@gmail.com to get a subscription token, then paste it below."));
   } else if (active) {
     statusBanner.append(icon("check_circle"), el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`));
   } else {
-    statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact us at support@iskify360.com for a new token.`));
+    statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact us at iskify360.tech@gmail.com for a new token.`));
   }
   card.append(statusBanner);
 

@@ -220,11 +220,11 @@ export async function render({ profile }) {
           el(
             "a",
             {
-              href: "mailto:support@iskify360.com",
+              href: "mailto:iskify360.tech@gmail.com",
               class: "text-sm font-semibold",
               style: "color: var(--color-primary-700); text-decoration: none;",
             },
-            "support@iskify360.com"
+            "iskify360.tech@gmail.com"
           ),
         ]),
       ]),

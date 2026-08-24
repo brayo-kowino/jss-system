@@ -49,7 +49,7 @@ export async function render({ profile, school } = {}) {
   // token - so both fall through to the same admin form below.
   if (suspended) {
     wrap.append(
-      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at support@iskify360.com to have access restored.")
+      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at iskify360.tech@gmail.com to have access restored.")
     );
   } else if (profile?.role === "admin") {
     const card = el("div", { class: "card", style: "max-width:420px;margin:20px auto 0;text-align:left;" }, [
@@ -65,7 +65,7 @@ export async function render({ profile, school } = {}) {
     wrap.append(card);
   } else {
     wrap.append(
-      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at support@iskify360.com to renew access.")
+      el("p", { class: "text-muted", style: "max-width:480px;margin:12px auto 0;" }, "Contact us at iskify360.tech@gmail.com to renew access.")
     );
   }
 
