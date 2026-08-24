@@ -401,13 +401,13 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Subject"),
       ...(showBothColumns ? [el("th", {}, "Midt"), el("th", {}, "End")] : []),
-      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Points"), el("th", {}, "Rank"), el("th", {}, "Remarks"),
+      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const s of [...result.subjects].sort((a, b) => a.name.localeCompare(b.name))) {
     tbody.append(el("tr", {}, [
-      el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:6px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "") : ""]),
+      el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:2px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "") : ""]),
       ...(showBothColumns ? [
         el("td", {}, s.midtScore == null ? el("span", { class: "text-muted" }, "") : s.midtScore.toFixed(1)),
         el("td", {}, s.endScore == null ? el("span", { class: "text-muted" }, "") : s.endScore.toFixed(1)),
