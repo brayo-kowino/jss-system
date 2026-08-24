@@ -148,8 +148,16 @@ export function issueSubscriptionToken({ schoolId, plan, duration, customExpires
 // School admin only (enforced server-side by subscription-activate.ts) -
 // redeems a token for the caller's own school. Returns
 // { subscriptionStatus, subscriptionPlan, subscriptionExpiresAt }.
-export function activateSubscription(token) {
-  return callFunction("/subscription-activate", { payload: { token } });
+export async function activateSubscription(token) {
+  const result = await callFunction("/subscription-activate", { payload: { token } });
+  if (auth.currentUser) {
+    try {
+      await auth.currentUser.getIdToken(true);
+    } catch (err) {
+      console.error("Token refresh after subscription activation failed:", err);
+    }
+  }
+  return result;
 }
 
 // super_admin only (enforced server-side by subscription-revoke.ts) - cuts
