@@ -1417,3 +1417,12 @@ tbody tr:hover { background: var(--color-primary-100); }
 @media (min-width: 720px) {
   .leadership-group { grid-column: span 1; margin-bottom: 0; }
 }
+
+/* ==========================================================================
+   Utilities
+   ========================================================================== */
+@media (max-width: 768px) {
+  .hide-on-mobile {
+    display: none !important;
+  }
+}

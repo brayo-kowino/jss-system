@@ -173,7 +173,7 @@ function renderList(container, results, profile, bodyMount) {
     ]),
   ]);
   if (results.length) {
-    const bulkBtn = el("button", { class: "btn btn--ghost btn--sm" }, [icon("folder_zip"), "Download All (ZIP)"]);
+    const bulkBtn = el("button", { class: "btn btn--ghost btn--sm hide-on-mobile" }, [icon("folder_zip"), "Download All (ZIP)"]);
     bulkBtn.addEventListener("click", () => handleBulkDownload(bulkBtn, results, profile));
     header.append(bulkBtn);
   }
@@ -317,8 +317,8 @@ function buildActionBar(bodyMount, result, profile) {
   bar.append(
     el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back"), "Back to list"]),
     el("div", { style: "display:flex; gap:8px;" }, [
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print"]),
-      el("button", { class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.currentTarget, result) }, [icon("download"), "Download PDF"]),
+      el("button", { class: "btn btn--ghost btn--sm hide-on-mobile", onClick: () => window.print() }, [icon("print"), "Print"]),
+      el("button", { class: "btn btn--primary btn--sm hide-on-mobile", onClick: (e) => handleDownload(e.currentTarget, result) }, [icon("download"), "Download PDF"]),
     ])
   );
   return bar;

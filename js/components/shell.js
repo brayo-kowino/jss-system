@@ -138,6 +138,7 @@ const NAV = [
       { path: "/schools", icon: "corporate_fare", text: "Schools", roles: ["super_admin"] },
       { path: "/platform-announcements", icon: "campaign", text: "Announcements", roles: ["super_admin"] },
       { path: "/platform-tickets", icon: "confirmation_number", text: "Support Tickets", roles: ["super_admin"] },
+      { path: "/platform-error-logs", icon: "bug_report", text: "Error Logs", roles: ["super_admin"] },
     ],
   },
 ];

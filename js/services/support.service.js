@@ -7,6 +7,8 @@ import {
   getDocs,
   query,
   where,
+  limit,
+  orderBy,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
@@ -94,4 +96,15 @@ export async function reopenSupportTicket(userId, id) {
   try {
     await logAction(userId, "reopen_support_ticket", "support_tickets", id);
   } catch (err) {}
+}
+
+export async function listErrorLogs(codeQuery = null) {
+  let q = collection(db, "error_logs");
+  if (codeQuery) {
+    q = query(q, where("code", "==", codeQuery), limit(10));
+  } else {
+    q = query(q, orderBy("createdAt", "desc"), limit(50));
+  }
+  const snap = await getDocs(q);
+  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }

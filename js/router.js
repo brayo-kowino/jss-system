@@ -71,6 +71,7 @@ export const routes = {
   "/schools": { view: () => import("../views/schools.js"), roles: ["super_admin"], title: "Schools" },
   "/platform-announcements": { view: () => import("../views/platform-announcements.js"), roles: ["super_admin"], title: "Platform Announcements" },
   "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets" },
+  "/platform-error-logs": { view: () => import("../views/platform-error-logs.js"), roles: ["super_admin"], title: "Error Logs" },
   
   "/notifications": { view: () => import("../views/notifications.js"), allRoles: true, title: "Notifications" },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
@@ -263,7 +264,7 @@ export async function renderRoute() {
     // super_admin has no schoolId and isn't scoped to any single school's
     // data - the only things it can see are the Schools registry and the
     // platform announcements it authors (also not scoped to any school).
-    if (profile.role === "super_admin" && path !== "/schools" && path !== "/platform-announcements" && path !== "/platform-tickets") {
+    if (profile.role === "super_admin" && path !== "/schools" && path !== "/platform-announcements" && path !== "/platform-tickets" && path !== "/platform-error-logs") {
       return navigate("/schools");
     }
 
