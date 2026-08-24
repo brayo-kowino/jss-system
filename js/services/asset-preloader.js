@@ -91,7 +91,7 @@ export async function preloadAllAppAssets(onProgress) {
   onProgress?.(10, "Checking environment…");
 
   // Step 1: Preload fonts & icon glyphs (avoids icon flashing and raw text names)
-  onProgress?.(25, "Loading fonts & icon glyphs…");
+  onProgress?.(25, "Loading fonts & icons…");
   await preloadFonts();
 
   // Step 2: Preload core images & logos
@@ -106,7 +106,7 @@ export async function preloadAllAppAssets(onProgress) {
   onProgress?.(90, "Initializing system services…");
   await preloadCoreServices();
 
-  onProgress?.(100, "Starting Eeskia…");
+  onProgress?.(100, "Almost ready…");
   // Short micro-delay so the 100% state is visible before transition
   await new Promise((r) => setTimeout(r, 200));
 }
