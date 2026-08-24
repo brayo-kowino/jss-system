@@ -8,6 +8,7 @@
   border-radius: var(--radius-lg);
   padding: var(--sp-6);
   max-width: 860px;
+  min-width: 800px;
   margin: 0 auto;
   box-shadow: var(--shadow-sm);
   /* Standard, widely-available system font for the whole document - no
@@ -279,38 +280,15 @@
 }
 .receipt__footer { text-align: center; font-size: var(--fs-xs); color: var(--color-ink-soft); margin-top: var(--sp-3); }
 
-/* --- Mobile: the report card is a printable A5-ish record, not a page
-   that was designed with a phone in mind, but it still needs to be
-   readable rather than clipped/overflowing (see the mobile screenshot -
-   section headers were cut off because content was wider than the
-   screen). This doesn't try to make it look like a native app screen,
-   just keeps every part of it on-screen and legible. --- */
-@media (max-width: 640px) {
-  .report-card { padding: var(--sp-4) var(--sp-3); }
-
-  .report-card__header { flex-wrap: wrap; gap: var(--sp-2); }
-  .report-card__logo { width: 44px; height: 44px; }
-  .report-card__school-name { font-size: var(--fs-md); }
-  .report-card__address { margin-left: 0; text-align: left; flex-basis: 100%; }
-
-  .report-card__student { flex-direction: column; align-items: center; text-align: center; }
-  .report-card__photo { width: 72px; height: 72px; }
-
-  /* Labels like "Assessment No" were forced to stay on one line, which
-     is what set this table's minimum width past the screen. Letting them
-     wrap keeps the table itself scaled to the phone instead of the
-     widest label. */
-  .report-card__info-table th { white-space: normal; width: auto; }
-  .report-card__info-table th, .report-card__info-table td { font-size: var(--fs-xs); padding: 6px 8px; }
-
-  .report-card__pathways { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
-
-  .report-card__remarks { grid-template-columns: 1fr; }
-
-  .report-card__dates { flex-direction: column; gap: 4px; }
-
-  .report-card__actions { flex-wrap: wrap; }
-  .report-card__actions .btn { flex: 1 1 auto; }
+/* --- Mobile Fit-to-Width: Instead of breaking the layout into single columns, 
+   we force the report card to stay A4-sized (min-width: 800px) and scale the 
+   entire page down to fit the phone screen visually, just like a PDF viewer. 
+   zoom scales both the visual size and the layout footprint. --- */
+@media (max-width: 840px) {
+  .report-card {
+    /* 100vw minus standard main-area padding / 800px (the min-width) */
+    zoom: calc((100vw - 32px) / 800);
+  }
 }
 
 /* --- Print: show only the report card or receipt, one clean page --- */

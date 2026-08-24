@@ -374,7 +374,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     ["Total Marks", `${result.totalMarks.toFixed(1)}/${result.totalOutOf}`],
     ["Mean Marks", `${result.meanMarks.toFixed(2)}%`],
     ["Mean Grade", result.meanGrade ?? "N/A"],
-    ["Total Points", String(result.totalPoints)],
+    ["Total Pts", String(result.totalPoints)],
     [positionScopeLabel(isStreamView), `${cardPos}/${cardSize}`],
   ]));
 
