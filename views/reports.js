@@ -289,7 +289,25 @@ async function openCard(bodyMount, result, profile) {
   bodyMount.innerHTML = "";
   bodyMount.append(buildActionBar(bodyMount, result, profile));
   const card = buildCard(result, feeSummary, priorHistory, profile);
-  bodyMount.append(card);
+  
+  const wrapper = el("div", { class: "report-card-wrapper", style: "width: 100%; overflow-x: auto; overflow-y: hidden; text-align: center;" });
+  wrapper.append(card);
+
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = entry.contentRect.width;
+        // If container is smaller than A4 (approx 840px), shrink it to fit exactly
+        if (width > 0 && width < 840) {
+          card.style.zoom = width / 840;
+        } else {
+          card.style.zoom = 1;
+        }
+      }
+    }).observe(wrapper);
+  }
+
+  bodyMount.append(wrapper);
 }
 
 function buildActionBar(bodyMount, result, profile) {

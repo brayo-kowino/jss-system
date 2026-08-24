@@ -280,17 +280,6 @@
 }
 .receipt__footer { text-align: center; font-size: var(--fs-xs); color: var(--color-ink-soft); margin-top: var(--sp-3); }
 
-/* --- Mobile Fit-to-Width: Instead of breaking the layout into single columns, 
-   we force the report card to stay A4-sized (min-width: 800px) and scale the 
-   entire page down to fit the phone screen visually, just like a PDF viewer. 
-   zoom scales both the visual size and the layout footprint. --- */
-@media (max-width: 840px) {
-  .report-card {
-    /* 100vw minus standard main-area padding / 800px (the min-width) */
-    zoom: calc((100vw - 32px) / 800);
-  }
-}
-
 /* --- Print: show only the report card or receipt, one clean page --- */
 @media print {
   body * { visibility: hidden; }
