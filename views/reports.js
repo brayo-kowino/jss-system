@@ -290,22 +290,24 @@ async function openCard(bodyMount, result, profile) {
   bodyMount.append(buildActionBar(bodyMount, result, profile));
   const card = buildCard(result, feeSummary, priorHistory, profile);
   
-  const wrapper = el("div", { class: "report-card-wrapper", style: "width: 100%; overflow-x: auto; overflow-y: hidden; text-align: center;" });
+  const wrapper = el("div", { class: "report-card-wrapper", style: "width: 100%; overflow-x: auto; overflow-y: hidden; display: flex; justify-content: center;" });
   wrapper.append(card);
 
-  if (typeof ResizeObserver !== "undefined") {
-    new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const width = entry.contentRect.width;
-        // If container is smaller than A4 (approx 840px), shrink it to fit exactly
-        if (width > 0 && width < 840) {
-          card.style.zoom = width / 840;
-        } else {
-          card.style.zoom = 1;
-        }
-      }
-    }).observe(wrapper);
-  }
+  const applyScale = () => {
+    if (!wrapper.isConnected) {
+      window.removeEventListener("resize", applyScale);
+      return;
+    }
+    const width = wrapper.clientWidth;
+    if (width > 0 && width < 840) {
+      card.style.zoom = width / 840;
+    } else {
+      card.style.zoom = 1;
+    }
+  };
+  
+  window.addEventListener("resize", applyScale);
+  setTimeout(applyScale, 0);
 
   bodyMount.append(wrapper);
 }
