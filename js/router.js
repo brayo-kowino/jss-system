@@ -349,18 +349,17 @@ export async function renderRoute() {
         context: { where: `view:${path}` },
         onRetry: async () => {
           const retryToken = ++currentRenderToken;
-          const retryMain = renderShell(app, profile, path);
           if (retryToken !== currentRenderToken) return;
-          retryMain.innerHTML = "";
-          retryMain.appendChild(skeletonPage());
+          main.innerHTML = "";
+          main.appendChild(skeletonPage());
           const retryOffline = typeof navigator !== "undefined" && !navigator.onLine;
           const retryMaybeTimeout = (p) => retryOffline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
           const view = await retryMaybeTimeout(loadView(path, route));
           if (retryToken !== currentRenderToken) return;
           const content = await retryMaybeTimeout(view.render({ profile, title: route.title }));
           if (retryToken !== currentRenderToken) return;
-          retryMain.innerHTML = "";
-          retryMain.appendChild(content);
+          main.innerHTML = "";
+          main.appendChild(content);
           await view.init?.({ profile });
         },
       });
