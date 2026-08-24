@@ -84,6 +84,11 @@ export function renderApprovalGate(gate, onDone) {
         await redeemLoginApproval(gate.uid, gate.approvalId, fingerprint, deviceInfo);
       } catch (e) {
         console.error("Failed to redeem approved device:", e);
+        statusEl.innerHTML = "";
+        statusEl.append(
+          el("p", { class: "approval-wait__denied", style: "color: var(--color-red);" }, "Failed to finalize approval. If on localhost, ensure you are running 'netlify dev' to support Edge Functions.")
+        );
+        return; // Halt here so we don't call onDone() and trigger an infinite loop
       }
       if (await is2FAEnabled(gate.uid)) {
         renderTwoFactorGate({ uid: gate.uid }, onDone);
