@@ -45,7 +45,7 @@
   "image": "https://eeskia.netlify.app/assets/eeskia-hero-image.png"
 }
 </script>
-  <script type="module" crossorigin src="/assets/app-ikiUu1QG.js"></script>
+  <script type="module" crossorigin src="/assets/app-FzkYVyoI.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/app-BTSCbCRI.css">
   <link rel="stylesheet" crossorigin href="/assets/fonts-CDci7ksx.css">
 </head>
@@ -122,12 +122,13 @@
   // __jssBootPing re-arms the watchdog timer whenever progress occurs
   window.__jssBootPing = armTimer;
   window.__jssBootOk = settle;
+  window.__jssCancelWatchdog = settle;
   armTimer(90000);
 
   window.addEventListener("error", function (e) {
     var t = e.target;
     if (settled || !t || t === window) return;
-    if (t.tagName === "SCRIPT" || t.tagName === "LINK") {
+    if (t.tagName === "SCRIPT" || (t.tagName === "LINK" && t.rel === "stylesheet")) {
       var src = t.src || t.href || "";
       if (src.indexOf("recaptcha") !== -1 || src.indexOf("google.com") !== -1 || src.indexOf("googleapis.com") !== -1) {
         return;

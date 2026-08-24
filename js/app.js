@@ -68,6 +68,11 @@ try {
         }
       }
       window.__jssUpdateSplashProgress?.(95, "Rendering view…");
+      
+      // The JS app has successfully loaded and is taking over routing/timeouts.
+      // Cancel the global HTML watchdog so it doesn't race with router timeouts on slow networks.
+      window.__jssCancelWatchdog?.();
+
       await renderRoute();
       if (typeof document !== "undefined" && document.fonts) {
         try {

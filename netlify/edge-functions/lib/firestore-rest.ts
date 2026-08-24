@@ -423,7 +423,7 @@ export async function patchFsDoc(token: string, path: string, fields: Record<str
   if (!res.ok) throw new Error(`Firestore update failed: ${res.status}`);
 }
 
-export async function addFsDoc(token: string, collectionId: string, fields: Record<string, any>): Promise<void> {
+export async function addFsDoc(token: string, collectionId: string, fields: Record<string, any>): Promise<any> {
   const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, fsEncode(v)])) };
   const res = await fetch(`${FIRESTORE_BASE}/${collectionId}`, {
     method: "POST",
@@ -431,6 +431,7 @@ export async function addFsDoc(token: string, collectionId: string, fields: Reco
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Firestore create failed: ${res.status}`);
+  return await res.json();
 }
 
 // Lists all documents directly under a subcollection path (e.g.
