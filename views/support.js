@@ -246,11 +246,11 @@ export async function render({ profile }) {
           el(
             "a",
             {
-              href: "tel:+254700000000",
+              href: "tel:+254702495776",
               class: "text-sm font-semibold",
               style: "color: var(--color-green); text-decoration: none;",
             },
-            "+254 700 000 000"
+            "+254 702 495 776"
           ),
         ]),
       ]),
