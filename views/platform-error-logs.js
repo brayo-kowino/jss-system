@@ -89,18 +89,21 @@ export async function render({ profile }) {
   const clearBtn = el("button", { class: "btn btn--ghost" }, "Clear");
 
   const header = el("div", { class: "page-header" }, [
-    el("div", { class: "page-header__title" }, [
-      el("h2", {}, "Error Logs"),
-      el("p", { class: "text-muted" }, "View technical crash reports and trace EKA- codes.")
-    ]),
-    el("div", { class: "page-header__actions" }, [
-      searchInput,
-      searchBtn,
-      clearBtn
+    el("div", {}, [
+      el("p", { class: "text-sm text-muted" }, "View technical crash reports and trace EKA- codes.")
     ])
   ]);
-
   wrap.append(header);
+
+  const filterCard = el("div", { class: "card", style: "margin-bottom: var(--sp-4); display: flex; gap: 8px; align-items: flex-end;" }, [
+    el("div", { class: "field", style: "margin-bottom: 0; flex: 1; max-width: 300px;" }, [
+      el("label", {}, "Search by Reference Code"),
+      searchInput
+    ]),
+    searchBtn,
+    clearBtn
+  ]);
+  wrap.append(filterCard);
   
   const tableContainer = el("div", { class: "page-content" }, [
     el("div", { class: "empty-state" }, [

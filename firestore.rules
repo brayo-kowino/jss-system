@@ -721,6 +721,18 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /error_logs/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    match /error_reports/{docId} {
+      allow read: if isSuperAdmin();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
     // No catch-all wildcard anymore: every operational collection above is
     // named explicitly, and anything not matched here is denied by
     // Firestore's default-deny, rather than silently falling through to a
