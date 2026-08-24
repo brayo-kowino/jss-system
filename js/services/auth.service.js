@@ -172,14 +172,42 @@ function watchCurrentUser(uid, onChange) {
 
 function watchCurrentSchool(schoolId, onChange) {
   unsubscribeSchoolListener?.();
+  let firstFire = true;
+  let prevLockState = null;
+
+  const getLockState = (data) => {
+    if (!data) return null;
+    return JSON.stringify({
+      status: data.status,
+      subStatus: data.subscriptionStatus,
+      subPlan: data.subscriptionPlan,
+      subExp: data.subscriptionExpiresAt?.seconds || String(data.subscriptionExpiresAt)
+    });
+  };
+
+  if (currentSchool) {
+    prevLockState = getLockState(currentSchool);
+  }
+
   unsubscribeSchoolListener = onSnapshot(
     doc(db, "schools", schoolId),
     (snap) => {
       if (snap.exists()) {
-        currentSchool = { id: schoolId, ...snap.data() };
+        const newData = snap.data();
+        currentSchool = { id: schoolId, ...newData };
         writeCachedSchool(currentSchool);
+
+        const newLockState = getLockState(newData);
+        if (!firstFire && newLockState !== prevLockState) {
+          prevLockState = newLockState;
+          onChange();
+        } else {
+          prevLockState = newLockState;
+        }
+      } else if (!firstFire) {
+        onChange();
       }
-      onChange();
+      firstFire = false;
     },
     () => {} // best-effort - a real problem here still surfaces normally on next navigation/read
   );
