@@ -91,10 +91,6 @@ export const db = initializeFirestore(firebaseApp, {
   cache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
-setPersistence(auth, browserLocalPersistence).catch((err) =>
-  console.error("Auth persistence error:", err)
-);
-
 // ==========================================================================
 // Keep Firestore's network layer in sync with the browser's own online/
 // offline signal, instead of leaving every read to discover a dead
