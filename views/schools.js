@@ -11,6 +11,7 @@
 import { listSchools, createSchool, setSchoolStatus } from "../js/services/school.service.js";
 import { issueSubscriptionToken, listSubscriptionTokens, revokeSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { openModal } from "../js/components/modal.js";
+import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, formatDateTime, busyButton } from "../js/utils.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../js/firebase-config.js";
@@ -171,7 +172,7 @@ function openIssueTokenModal(school) {
   );
   const customDateField = el("div", { class: "field", id: "sub-custom-date-field", style: "display:none;" }, [
     el("label", { for: "sub-custom-date" }, "Expiry date"),
-    el("input", { id: "sub-custom-date", type: "date" }),
+    datePickerInput({ id: "sub-custom-date" }, { minDate: "today" }),
   ]);
   durationSelect.addEventListener("change", () => {
     customDateField.style.display = durationSelect.value === "custom" ? "" : "none";

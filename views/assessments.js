@@ -14,6 +14,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listMarksByAssessment } from "../js/services/marks.service.js";
 import { gradeFor } from "../js/services/grading.service.js";
 import { openModal } from "../js/components/modal.js";
+import { datePickerInput } from "../js/components/datepicker.js";
 import { navigate } from "../js/router.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
 
@@ -917,7 +918,7 @@ function openAssessmentForm(profile, existing = null) {
       el("input", { id: "a-maxscore", type: "number", min: "1", step: "0.5", value: existing?.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE, placeholder: "e.g. 30" }),
     ]),
     modeHint,
-    el("div", { class: "field" }, [el("label", {}, "Date"), el("input", { id: "a-date", type: "date", value: existing?.date || "" })]),
+    el("div", { class: "field" }, [el("label", {}, "Date"), datePickerInput({ id: "a-date", value: existing?.date || "" })]),
     el("div", { class: "field" }, [
       el("label", {}, "Academic Year"),
       el("input", { id: "a-year", value: existing?.academicYear || settings.currentAcademicYear || "" }),

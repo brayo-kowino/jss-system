@@ -36,6 +36,7 @@ import {
   downloadCsv,
 } from "../js/services/student-import.service.js";
 import { openModal } from "../js/components/modal.js";
+import { datePickerInput, datePickerField } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
 
 let students = [];
@@ -830,7 +831,7 @@ function openPaymentForm(profile, student, onDone) {
     el("div", { class: "field" }, [el("label", {}, "Amount (KES)"), el("input", { id: "pay-amount", type: "number", min: "1", step: "0.01" })]),
     el("div", { class: "field" }, [el("label", {}, "Method"), methodSelect]),
     el("div", { class: "field" }, [el("label", {}, "Reference (optional)"), el("input", { id: "pay-reference", type: "text" })]),
-    el("div", { class: "field" }, [el("label", {}, "Date"), el("input", { id: "pay-date", type: "date", value: new Date().toISOString().slice(0, 10) })]),
+    el("div", { class: "field" }, [el("label", {}, "Date"), datePickerInput({ id: "pay-date", value: new Date().toISOString().slice(0, 10) })]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("add_card"), "Record Payment"])
   );
   const close = openModal(`Record Payment: ${student.fullName}`, body);
@@ -1181,6 +1182,9 @@ function openStudentForm(profile, existing = null, onDone) {
 }
 
 function field(id, label, value = "", type = "text") {
+  if (type === "date") {
+    return datePickerField(id, label, value, { maxDate: id === "s-dob" ? "today" : undefined });
+  }
   return el("div", { class: "field" }, [el("label", { for: id }, label), el("input", { id, type, value: value || "" })]);
 }
 function val(id) {

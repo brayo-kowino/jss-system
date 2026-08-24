@@ -221,8 +221,34 @@ export function showFatalError(err, context = {}) {
   // here, or this card renders invisibly underneath the splash overlay.
   window.__jssHideSplash?.();
 
-  const code = reportError(err, { ...context, severity: "fatal" });
   const info = classifyError(err);
+
+  // Boot can't finish without ever reaching the network once (auth, initial
+  // data) - so a first-ever offline visit hits this path too. Unlike
+  // renderInlineError, this used to have no offline check at all, so a
+  // plain "no signal" hiccup landed on the same "Connection problem /
+  // Reload app / Report this" takeover as a real crash. Show a calm
+  // "waiting for a connection" placeholder instead, and let it recover on
+  // its own the moment real connectivity is confirmed.
+  const genuinelyOffline = typeof navigator !== "undefined" && !navigator.onLine;
+  if (genuinelyOffline && (info.kind === "offline" || info.kind === "network" || info.kind === "timeout")) {
+    reportError(err, { ...context, severity: "fatal-offline-suppressed" });
+    const root = document.getElementById("app") || document.body;
+    const card = el("div", { class: "error-card error-card--fatal" }, [
+      el("div", { class: "error-card__icon-wrap" }, [icon("wifi_off", "error-card__icon")]),
+      el("h2", { class: "error-card__title" }, "You're offline"),
+      el("p", { class: "error-card__message" }, "This app needs a connection the first time it opens on this device. It'll pick up automatically once you're back online, or tap below to try again."),
+      el("div", { class: "error-card__actions" }, [
+        el("button", { class: "btn btn--primary", onClick: () => location.reload() }, [icon("refresh"), "Try again"]),
+      ]),
+    ]);
+    root.innerHTML = "";
+    root.append(el("div", { class: "error-screen" }, [card]));
+    window.addEventListener("actually-online", () => location.reload(), { once: true });
+    return;
+  }
+
+  const code = reportError(err, { ...context, severity: "fatal" });
   const root = document.getElementById("app") || document.body;
 
   const card = el("div", { class: "error-card error-card--fatal" }, [
@@ -372,20 +398,15 @@ export function initErrorHandling() {
   let actualOnlineStatus = true; // assume true initially if no offline event
   const verifyLoop = async () => {
     if (!navigator.onLine) return;
-    try {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch("/robots.txt", { method: "HEAD", cache: "no-store", signal: controller.signal });
-      clearTimeout(id);
-      if (res.ok) {
-        if (!actualOnlineStatus) {
-          actualOnlineStatus = true;
-          toast("Back online.", "success", 3000);
-          window.dispatchEvent(new Event("actually-online"));
-        }
-        return; // we are online, stop polling
+    const ok = await confirmOnline();
+    if (ok) {
+      if (!actualOnlineStatus) {
+        actualOnlineStatus = true;
+        toast("Back online.", "success", 3000);
+        window.dispatchEvent(new Event("actually-online"));
       }
-    } catch (e) {} // ignore fetch error
+      return; // we are online, stop polling
+    }
     
     // If we reach here, we are on a network but no actual internet
     if (actualOnlineStatus) {
@@ -403,6 +424,28 @@ export function initErrorHandling() {
   // Also verify on initial load if the browser claims we are online
   if (typeof navigator !== "undefined" && navigator.onLine) {
     verifyLoop();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Single real-connectivity probe: does navigator.onLine === true actually
+// mean we can reach the internet, not just that the network interface is
+// up? verifyLoop() above uses this to poll in the background, but boot-time
+// code that's about to trust navigator.onLine for an important decision
+// (firebase-config.js's initial App Check attach, notably) can also await
+// this directly instead of firing on the unverified flag and finding out
+// three seconds later that it guessed wrong.
+// ---------------------------------------------------------------------------
+export async function confirmOnline() {
+  if (typeof navigator !== "undefined" && !navigator.onLine) return false;
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch("/robots.txt", { method: "HEAD", cache: "no-store", signal: controller.signal });
+    clearTimeout(id);
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 

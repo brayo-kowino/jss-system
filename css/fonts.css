@@ -11,8 +11,17 @@
    from /fonts/ at runtime.
    ========================================================================== */
 
-/* --- Material Symbols Rounded (Google Fonts CDN - optimized lightweight slice) -------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+/* --- Material Symbols Rounded (self-hosted, variable font) --------------- */
+/* Was previously pulled live from the Google Fonts CDN - the woff2 below
+   lives in public/fonts/ and is served from /fonts/ at runtime, same as
+   Manrope and Lora, so icons render with no connection at all. */
+@font-face {
+  font-family: 'Material Symbols Rounded';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url(/fonts/material-symbols-rounded.woff2) format('woff2');
+}
 
 .material-symbols-rounded {
   font-family: 'Material Symbols Rounded';

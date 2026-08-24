@@ -11,6 +11,7 @@ import {
   summarizeForRoster,
 } from "../js/services/attendance.service.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
+import { datePickerInput } from "../js/components/datepicker.js";
 
 const CAN_MARK_ANY_CLASS = ["admin", "principal"];
 
@@ -69,11 +70,20 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
     el("option", { value: "" }, "Select class"),
     ...opts.map((o) => el("option", { value: o.value, ...(o.value === selection.classKey ? { selected: "true" } : {}) }, o.label)),
   ]);
-  const dateInput = el("input", { type: "date", value: selection.date, max: todayStr() });
+  const datePickerWrap = datePickerInput(
+    { id: "a-date", value: selection.date },
+    {
+      maxDate: "today",
+      onChange: (selectedDates, dateStr) => {
+        selection.date = dateStr;
+        maybeLoad(profile, bodyMount, summaryMount);
+      },
+    }
+  );
 
   row.append(
     el("div", { class: "field" }, [el("label", {}, "Class"), classSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Date"), dateInput])
+    el("div", { class: "field" }, [el("label", {}, "Date"), datePickerWrap])
   );
   container.append(row);
 
@@ -92,7 +102,6 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
   }
 
   classSelect.addEventListener("change", () => { selection.classKey = classSelect.value; maybeLoad(profile, bodyMount, summaryMount); });
-  dateInput.addEventListener("change", () => { selection.date = dateInput.value; maybeLoad(profile, bodyMount, summaryMount); });
 }
 
 async function maybeLoad(profile, bodyMount, summaryMount) {

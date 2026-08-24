@@ -15,6 +15,7 @@ import {
 } from "../js/services/fee.service.js";
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
+import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
 
 let classes = [];
@@ -322,14 +323,22 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
   const amountInput = el("input", { type: "number", min: "1", step: "1", placeholder: "e.g. 5000" });
   const methodSelect = el("select", {}, PAYMENT_METHODS.map((m) => el("option", { value: m }, m)));
   const referenceInput = el("input", { type: "text", placeholder: "M-Pesa code / receipt ref (optional)" });
-  const dateInput = el("input", { type: "date", value: new Date().toISOString().slice(0, 10) });
+  let paymentDate = new Date().toISOString().slice(0, 10);
+  const datePickerWrap = datePickerInput(
+    { value: paymentDate },
+    {
+      onChange: (selectedDates, dateStr) => {
+        paymentDate = dateStr;
+      },
+    }
+  );
 
   body.append(
     el("p", { class: "text-muted" }, `${student.fullName} · ${grade} ${stream} · ${term} ${academicYear}`),
     el("div", { class: "field" }, [el("label", {}, "Amount (KES)"), amountInput]),
     el("div", { class: "field" }, [el("label", {}, "Method"), methodSelect]),
     el("div", { class: "field" }, [el("label", {}, "Reference"), referenceInput]),
-    el("div", { class: "field" }, [el("label", {}, "Date"), dateInput]),
+    el("div", { class: "field" }, [el("label", {}, "Date"), datePickerWrap]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("payments"), "Record Payment"])
   );
 
@@ -346,7 +355,7 @@ function openPaymentModal(profile, student, balancesContainer, paymentsMount, re
         amount: amountInput.value,
         method: methodSelect.value,
         reference: referenceInput.value.trim(),
-        date: dateInput.value,
+        date: paymentDate,
       });
     } catch (err) {
       toast(err.message || "Could not record payment.", "error");

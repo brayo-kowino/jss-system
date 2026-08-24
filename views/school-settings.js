@@ -4,6 +4,7 @@ import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor, s
 import { getCurrentSchoolId, refreshCurrentSchool, getCurrentProfile } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
+import { datePickerField } from "../js/components/datepicker.js";
 import { listTrustedDevices, removeTrustedDevice, resetAllTrustedDevices } from "../js/services/device.service.js";
 import { listRecentApprovals } from "../js/services/login-approval.service.js";
 import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
@@ -567,6 +568,9 @@ function buildSubscriptionTab() {
 }
 
 function field(id, label, value = "", type = "text", full = false) {
+  if (type === "date") {
+    return datePickerField(id, label, value, {}, full);
+  }
   return el("div", { class: `field${full ? " field--full" : ""}` }, [
     el("label", { for: id }, label),
     el("input", { id, type, value: value || "" }),
