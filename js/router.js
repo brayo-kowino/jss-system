@@ -243,6 +243,7 @@ export async function renderRoute() {
     // mustChangePassword above does: no route, shell, or nav underneath.
     let gate;
     try {
+      window.__jssBootPing?.();
       gate = await getAuthGateStatus(profile);
     } catch (err) {
       showFatalError(err, { where: "router.getAuthGateStatus" });
@@ -279,6 +280,7 @@ export async function renderRoute() {
     if (profile.role !== "super_admin") {
       let school = getCurrentSchool();
       if (!school && profile.schoolId) {
+        window.__jssBootPing?.();
         school = await refreshCurrentSchool();
       }
       const { active } = getSubscriptionState(school || {});
@@ -311,6 +313,13 @@ export async function renderRoute() {
       return;
     }
     if (isStale()) return;
+    
+    // We successfully rendered the shell. The app has officially started.
+    // Stand down the boot watchdog and hide the splash screen now, so any
+    // slow network delays fetching the view chunk or data are handled by
+    // the inline skeleton/error card (which keeps the shell intact) instead
+    // of falsely triggering a full-screen "Eeskia couldn't start" fatal error.
+    window.__jssBootOk?.();
 
     main.innerHTML = "";
     main.appendChild(skeletonPage());
