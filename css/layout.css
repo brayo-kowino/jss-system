@@ -1060,7 +1060,7 @@
 
 .splash-title {
   font-size: var(--fs-2xl);
-  margin-bottom: var(--sp-1);
+  margin-bottom: var(--sp-4);
   background: linear-gradient(110deg, var(--color-primary-900) 30%, var(--color-gold) 50%, var(--color-primary-600) 70%);
   background-size: 220% 100%;
   -webkit-background-clip: text;
@@ -1069,14 +1069,6 @@
   animation: slideUp 0.6s 0.15s ease-out both, shimmer 2.8s 1s ease-in-out infinite;
 }
 
-.splash-subtitle {
-  color: var(--color-ink-soft);
-  font-size: var(--fs-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: var(--sp-6);
-  animation: slideUp 0.7s 0.3s ease-out both;
-}
 
 .splash-dots span {
   display: inline-block;
