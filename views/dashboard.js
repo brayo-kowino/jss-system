@@ -3,7 +3,6 @@ import { db } from "../js/firebase-config.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import { getTodayAttendanceStat } from "../js/services/attendance.service.js";
 import { getTermCollectionTotal, getMonthlyRevenueTrend, getStudentsWithBalancesCount, formatKES } from "../js/services/fee.service.js";
-import { fetchRecentLogs, describeLog } from "../js/services/audit.service.js";
 import { listAssessments } from "../js/services/assessment.service.js";
 import { listStudents } from "../js/services/student.service.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
@@ -37,11 +36,10 @@ let chartDataCache = {
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
 
-  const [teachersResult, attendanceStat, feesCollectedResult, recentLogs, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult] = await Promise.all([
+  const [teachersResult, attendanceStat, feesCollectedResult, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult] = await Promise.all([
     safeCount("teachers"),
     getTodayAttendanceStat(),
     getTermCollectionTotal(settings.currentAcademicYear, settings.currentTerm),
-    fetchRecentLogs(7),
     listAssessments(),
     listStudents(),
     // Single count aggregate against student_fee_status (kept in sync by
@@ -265,34 +263,7 @@ export async function render({ profile }) {
   ]);
   leftCol.append(alertsCard);
 
-  const activityCard = el("div", { class: "md3-card" }, [
-    el("div", { style: "display:flex; justify-content:space-between; align-items:center;" }, [
-      el("h3", { class: "md3-card__title", style: "margin:0;" }, "Live Activity"),
-      profile.role === "admin"
-        ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => navigate("/audit") }, "View all")
-        : "",
-    ]),
-  ]);
-
-  if (recentLogs.length) {
-    const timeline = el("div", { class: "md3-timeline" });
-    for (const log of recentLogs) {
-      const actionData = describeLog(log);
-      timeline.append(el("div", { class: "md3-timeline-item" }, [
-        el("div", { class: "md3-timeline-icon" }, [
-          el("span", { class: `material-symbols-rounded text-${actionData.color}` }, actionData.icon)
-        ]),
-        el("div", { class: "md3-timeline-content" }, [
-          el("div", { class: "text" }, actionData.label),
-          el("div", { class: "time text-xs text-muted" }, log.timestamp ? formatDate(log.timestamp) : "Just now")
-        ])
-      ]));
-    }
-    activityCard.append(timeline);
-  } else {
-    activityCard.append(el("p", { class: "text-muted" }, "No recent activity found."));
-  }
-  leftCol.append(activityCard);
+  // Removed Live Activity as it belongs in the Audit Trail section.
 
   // --- Center Column ---
   const centerCol = el("div", { class: "md3-col" });
@@ -304,6 +275,17 @@ export async function render({ profile }) {
     ])
   ]);
   centerCol.append(demoCard);
+
+  // --- Right Column ---
+  const rightCol = el("div", { class: "md3-col" });
+
+  const chartCard = el("div", { class: "md3-card" }, [
+    el("h3", { class: "md3-card__title" }, "Revenue Trend"),
+    el("div", { class: "md3-chart-container" }, [
+      el("canvas", { id: "revenueChart" })
+    ])
+  ]);
+  rightCol.append(chartCard);
 
   const upcomingCard = el("div", { class: "md3-card" }, [
     el("h3", { class: "md3-card__title" }, "Upcoming Assessments")
@@ -327,18 +309,7 @@ export async function render({ profile }) {
   } else {
     upcomingCard.append(el("p", { class: "text-muted" }, "No open assessments scheduled."));
   }
-  centerCol.append(upcomingCard);
-
-  // --- Right Column ---
-  const rightCol = el("div", { class: "md3-col" });
-
-  const chartCard = el("div", { class: "md3-card" }, [
-    el("h3", { class: "md3-card__title" }, "Revenue Trend"),
-    el("div", { class: "md3-chart-container" }, [
-      el("canvas", { id: "revenueChart" })
-    ])
-  ]);
-  rightCol.append(chartCard);
+  rightCol.append(upcomingCard);
 
   mainGrid.append(leftCol, centerCol, rightCol);
   wrap.append(mainGrid);

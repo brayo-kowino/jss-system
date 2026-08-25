@@ -166,19 +166,38 @@ export async function registerTrustedDevice(uid, fingerprint, deviceInfo = {}, i
  * Checks if a specific device fingerprint is registered as trusted for the user.
  */
 const trustedCache = new Map();
+const TRUSTED_STORAGE_KEY = 'jss_trusted_';
 
 export async function isDeviceTrusted(uid, fingerprint) {
   if (!uid || !fingerprint) return false;
   const key = `${uid}_${fingerprint}`;
   if (trustedCache.has(key)) return trustedCache.get(key);
+
+  const localVal = localStorage.getItem(TRUSTED_STORAGE_KEY + key);
+  
+  // Fast path for offline: if we already knew this device was trusted and we're offline,
+  // trust it. We can't verify revocation until back online anyway.
+  if (localVal === 'true' && typeof navigator !== "undefined" && !navigator.onLine) {
+    return true;
+  }
+
   try {
     const docRef = doc(db, "users", uid, "trusted_devices", String(fingerprint));
     const snap = await getDoc(docRef);
     const exists = snap.exists();
-    if (exists) trustedCache.set(key, exists);
+    if (exists) {
+      trustedCache.set(key, exists);
+      localStorage.setItem(TRUSTED_STORAGE_KEY + key, 'true');
+    } else {
+      localStorage.removeItem(TRUSTED_STORAGE_KEY + key);
+    }
     return exists;
   } catch (err) {
     console.error("isDeviceTrusted check failed:", err);
+    // Fallback if Firestore read fails (e.g. offline cache miss)
+    if (localVal === 'true') {
+      return true;
+    }
     return false;
   }
 }
@@ -212,6 +231,9 @@ export async function listTrustedDevices(uid) {
  */
 export async function removeTrustedDevice(uid, deviceId) {
   await deleteDoc(doc(db, "users", uid, "trusted_devices", deviceId));
+  const key = `${uid}_${deviceId}`;
+  trustedCache.delete(key);
+  localStorage.removeItem(TRUSTED_STORAGE_KEY + key);
   await logAction(uid, "remove_device", "users", deviceId);
 }
 
@@ -222,6 +244,9 @@ export async function resetAllTrustedDevices(uid) {
   const devices = await listTrustedDevices(uid);
   for (const device of devices) {
     await deleteDoc(doc(db, "users", uid, "trusted_devices", device.id));
+    const key = `${uid}_${device.id}`;
+    trustedCache.delete(key);
+    localStorage.removeItem(TRUSTED_STORAGE_KEY + key);
   }
   await logAction(uid, "reset_all_devices", "users", uid);
 }
