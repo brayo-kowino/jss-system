@@ -163,8 +163,8 @@ export async function render({ profile }) {
     }
   `);
 
-  let termProgress = el("div", { style: "display: flex; flex-direction: column; align-items: flex-end; justify-content: center; text-align: right;" }, [
-    el("span", { style: "font-size: var(--fs-sm); color: var(--color-ink-soft); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;" }, "Term Progress")
+  let termProgress = el("div", { style: "display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; min-width: 180px;" }, [
+    el("span", { style: "font-size: var(--fs-sm); color: var(--color-ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;" }, "Term Progress")
   ]);
 
   if (settings.closingDate) {
@@ -201,10 +201,15 @@ export async function render({ profile }) {
     termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, "Configure in Settings"));
   }
 
+  const divider = el("div", { style: "display: flex; gap: 4px; margin: 0 var(--sp-4); padding: 4px 0;" }, [
+    el("div", { style: "width: 3px; background: var(--color-primary); border-radius: 2px; height: 100%; opacity: 0.8;" }),
+    el("div", { style: "width: 3px; background: var(--color-primary); border-radius: 2px; height: 100%; opacity: 0.3;" })
+  ]);
+
 // Hero Section
-  const header = el("div", { class: "md3-hero" }, [
+  const header = el("div", { class: "md3-hero", style: "align-items: stretch; justify-content: flex-start; padding-right: var(--sp-6);" }, [
     waveStyle,
-    el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4);" }, [
+    el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4); flex: 1; justify-content: center;" }, [
       el("div", { class: "md3-hero__text" }, [
         el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
           el("span", { class: "waving-hand" }, "👋"),
@@ -223,6 +228,7 @@ export async function render({ profile }) {
         ])
       ])
     ]),
+    divider,
     termProgress
   ]);
   wrap.append(header);
