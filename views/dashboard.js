@@ -140,6 +140,16 @@ export async function render({ profile }) {
   else if (hour < 18) greeting = "Good afternoon";
 
   const waveStyle = el("style", {}, `
+    @keyframes waveAnimation {
+      0% { transform: rotate(0deg); }
+      15% { transform: rotate(14deg); }
+      30% { transform: rotate(-8deg); }
+      45% { transform: rotate(14deg); }
+      60% { transform: rotate(-4deg); }
+      75% { transform: rotate(10deg); }
+      90% { transform: rotate(0deg); }
+      100% { transform: rotate(0deg); }
+    }
     @keyframes slideHide {
       0% { width: 44px; opacity: 1; transform: translateX(0) scale(1); margin-right: 12px; }
       100% { width: 0; opacity: 0; transform: translateX(-10px) scale(0); margin-right: 0; }
@@ -151,8 +161,8 @@ export async function render({ profile }) {
       width: 44px;
       height: 44px;
       margin-right: 12px;
-      transform-origin: center center;
-      animation: slideHide 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.5s forwards;
+      transform-origin: 70% 70%;
+      animation: waveAnimation 2s ease-in-out, slideHide 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.5s forwards;
       overflow: hidden;
       flex-shrink: 0;
     }
@@ -169,7 +179,7 @@ export async function render({ profile }) {
     el("div", { class: "md3-hero__text" }, [
       el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
         el("span", { class: "waving-hand" }, [
-          el("img", { src: "https://fonts.gstatic.com/s/e/notoemoji/latest/1f44b/512.gif", alt: "Waving hand" })
+          el("img", { src: "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Waving%20hand/Medium/3D/waving_hand_3d_medium.png", alt: "Waving hand" })
         ]),
         el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
       ])
