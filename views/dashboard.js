@@ -151,25 +151,15 @@ export async function render({ profile }) {
       100% { transform: rotate(0deg); }
     }
     @keyframes slideHide {
-      0% { width: 44px; opacity: 1; transform: translateX(0) scale(1); margin-right: 12px; }
+      0% { width: 1.2em; opacity: 1; transform: translateX(0) scale(1); margin-right: 8px; }
       100% { width: 0; opacity: 0; transform: translateX(-10px) scale(0); margin-right: 0; }
     }
     .waving-hand {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 44px;
-      height: 44px;
-      margin-right: 12px;
+      display: inline-block;
       transform-origin: 70% 70%;
-      animation: waveAnimation 2s ease-in-out, slideHide 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.5s forwards;
+      animation: waveAnimation 2s ease-in-out, slideHide 0.5s ease-in-out 2.5s forwards;
+      white-space: nowrap;
       overflow: hidden;
-      flex-shrink: 0;
-    }
-    .waving-hand img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
     }
   `);
 
@@ -178,9 +168,7 @@ export async function render({ profile }) {
     waveStyle,
     el("div", { class: "md3-hero__text" }, [
       el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
-        el("span", { class: "waving-hand" }, [
-          el("img", { src: "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Waving%20hand/Medium/3D/waving_hand_3d_medium.png", alt: "Waving hand" })
-        ]),
+        el("span", { class: "waving-hand" }, "👋"),
         el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
       ])
     ]),
