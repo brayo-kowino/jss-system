@@ -163,26 +163,67 @@ export async function render({ profile }) {
     }
   `);
 
+  let termProgress = el("div", { style: "display: flex; flex-direction: column; align-items: flex-end; justify-content: center; text-align: right;" }, [
+    el("span", { style: "font-size: var(--fs-sm); color: var(--color-ink-soft); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;" }, "Term Progress")
+  ]);
+
+  if (settings.closingDate) {
+    const closes = new Date(settings.closingDate);
+    const today = new Date();
+    closes.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const diffDays = Math.ceil((closes - today) / msPerDay);
+    
+    let termLength = 90;
+    if (settings.openingDate) {
+      const opens = new Date(settings.openingDate);
+      opens.setHours(0,0,0,0);
+      const diffTotal = Math.ceil((closes - opens) / msPerDay);
+      if (diffTotal > 0) termLength = diffTotal;
+    }
+
+    const daysPassed = termLength - diffDays;
+    let pct = Math.max(0, Math.min(100, Math.round((daysPassed / termLength) * 100)));
+
+    if (diffDays < 0) {
+       termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-red); margin-bottom: 4px;" }, "Closed"));
+       termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, `Ended ${Math.abs(diffDays)} days ago`));
+    } else {
+       termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, `${diffDays} Days Left`));
+       termProgress.append(el("div", { style: "width: 140px; height: 6px; background: var(--color-line); border-radius: 4px; overflow: hidden; margin-top: 4px;" }, [
+         el("div", { style: `height: 100%; width: ${pct}%; background: var(--color-primary); border-radius: 4px;` })
+       ]));
+    }
+  } else {
+    termProgress.append(el("strong", { style: "font-size: 20px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, "Not Set"));
+    termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, "Configure in Settings"));
+  }
+
 // Hero Section
   const header = el("div", { class: "md3-hero" }, [
     waveStyle,
-    el("div", { class: "md3-hero__text" }, [
-      el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
-        el("span", { class: "waving-hand" }, "👋"),
-        el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
+    el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4);" }, [
+      el("div", { class: "md3-hero__text" }, [
+        el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
+          el("span", { class: "waving-hand" }, "👋"),
+          el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
+        ])
+      ]),
+      el("div", { class: "md3-hero__actions" }, [
+        el("button", { class: "btn btn--primary", onClick: () => navigate("/students") }, [
+          el("span", { class: "material-symbols-rounded" }, "person_add"), "New Admission"
+        ]),
+        el("button", { class: "btn btn--tonal", onClick: () => navigate("/fees") }, [
+          el("span", { class: "material-symbols-rounded" }, "payments"), "Record Fee"
+        ]),
+        el("button", { class: "btn btn--tonal", onClick: () => navigate("/attendance") }, [
+          el("span", { class: "material-symbols-rounded" }, "fact_check"), "Roll Call"
+        ])
       ])
     ]),
-    el("div", { class: "md3-hero__actions" }, [
-      el("button", { class: "btn btn--primary", onClick: () => navigate("/students") }, [
-        el("span", { class: "material-symbols-rounded" }, "person_add"), "New Admission"
-      ]),
-      el("button", { class: "btn btn--tonal", onClick: () => navigate("/fees") }, [
-        el("span", { class: "material-symbols-rounded" }, "payments"), "Record Fee"
-      ]),
-      el("button", { class: "btn btn--tonal", onClick: () => navigate("/attendance") }, [
-        el("span", { class: "material-symbols-rounded" }, "fact_check"), "Roll Call"
-      ])
-    ])
+    termProgress
   ]);
   wrap.append(header);
 
