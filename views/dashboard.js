@@ -161,12 +161,41 @@ export async function render({ profile }) {
       white-space: nowrap;
       overflow: hidden;
     }
+    
+    .dashboard-hero {
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+    }
+    .hero-left-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-4);
+      flex: 1;
+      justify-content: center;
+      min-width: 0;
+    }
+    .hero-term-progress {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      text-align: left;
+      min-width: 180px;
+    }
+    
     @media (max-width: 768px) {
       .hero-divider { display: none !important; }
+      .dashboard-hero { 
+         flex-direction: column !important; 
+         align-items: stretch !important; 
+         gap: var(--sp-6) !important;
+      }
+      .hero-left-content { width: 100%; }
+      .hero-term-progress { width: 100%; min-width: auto; }
     }
   `);
 
-  let termProgress = el("div", { style: "display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; min-width: 180px;" }, [
+  let termProgress = el("div", { class: "hero-term-progress" }, [
     el("span", { style: "font-size: var(--fs-sm); color: var(--color-ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;" }, "Term Progress")
   ]);
 
@@ -210,9 +239,9 @@ export async function render({ profile }) {
   ]);
 
 // Hero Section
-  const header = el("div", { class: "md3-hero", style: "align-items: stretch; justify-content: flex-start;" }, [
+  const header = el("div", { class: "md3-hero dashboard-hero" }, [
     waveStyle,
-    el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4); flex: 1; justify-content: center;" }, [
+    el("div", { class: "hero-left-content" }, [
       el("div", { class: "md3-hero__text" }, [
         el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
           el("span", { class: "material-symbols-rounded waving-hand", style: "font-size: 1.1em; color: var(--color-primary-700);" }, "waving_hand"),
