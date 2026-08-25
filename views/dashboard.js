@@ -204,13 +204,13 @@ export async function render({ profile }) {
     termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, "Configure in Settings"));
   }
 
-  const divider = el("div", { style: "display: flex; gap: 4px; margin: 0 var(--sp-4); padding: 4px 0;" }, [
+  const divider = el("div", { class: "hero-divider", style: "display: flex; gap: 4px; margin: 0 var(--sp-4); padding: 4px 0;" }, [
     el("div", { style: "width: 3px; background: var(--color-primary-700); border-radius: 2px; height: 100%; opacity: 0.8;" }),
     el("div", { style: "width: 3px; background: var(--color-primary-700); border-radius: 2px; height: 100%; opacity: 0.3;" })
   ]);
 
 // Hero Section
-  const header = el("div", { class: "md3-hero", style: "align-items: stretch; justify-content: flex-start; padding-right: var(--sp-6);" }, [
+  const header = el("div", { class: "md3-hero", style: "align-items: stretch; justify-content: flex-start;" }, [
     waveStyle,
     el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4); flex: 1; justify-content: center;" }, [
       el("div", { class: "md3-hero__text" }, [
