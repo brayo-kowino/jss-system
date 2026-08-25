@@ -182,6 +182,14 @@ export async function render({ profile }) {
       text-align: left;
       min-width: 180px;
     }
+    .hero-progress-track {
+      width: 140px; 
+      height: 6px; 
+      background: var(--color-line); 
+      border-radius: 4px; 
+      overflow: hidden; 
+      margin-top: 4px;
+    }
     
     @media (max-width: 768px) {
       .hero-divider { display: none !important; }
@@ -191,7 +199,10 @@ export async function render({ profile }) {
          gap: var(--sp-6) !important;
       }
       .hero-left-content { width: 100%; }
-      .hero-term-progress { width: 100%; min-width: auto; }
+      .hero-term-progress { width: 100%; min-width: auto; align-items: stretch; }
+      .hero-progress-track { width: 100%; }
+      .dashboard-hero .md3-hero__actions { width: 100%; }
+      .dashboard-hero .md3-hero__actions .btn { flex: 1 1 100%; justify-content: center; }
     }
   `);
 
@@ -224,7 +235,7 @@ export async function render({ profile }) {
        termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, `Ended ${Math.abs(diffDays)} days ago`));
     } else {
        termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, `${diffDays} Days Left`));
-       termProgress.append(el("div", { style: "width: 140px; height: 6px; background: var(--color-line); border-radius: 4px; overflow: hidden; margin-top: 4px;" }, [
+       termProgress.append(el("div", { class: "hero-progress-track" }, [
          el("div", { style: `height: 100%; width: ${pct}%; background: var(--color-primary-700); border-radius: 4px;` })
        ]));
     }
