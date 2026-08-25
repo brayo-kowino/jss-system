@@ -134,10 +134,43 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "dashboard-container" });
 
+  const hour = new Date().getHours();
+  let greeting = "Good evening";
+  if (hour < 12) greeting = "Good morning";
+  else if (hour < 18) greeting = "Good afternoon";
+
+  const waveStyle = el("style", {}, `
+    @keyframes waveAnimation {
+      0% { transform: rotate(0deg); }
+      15% { transform: rotate(14deg); }
+      30% { transform: rotate(-8deg); }
+      45% { transform: rotate(14deg); }
+      60% { transform: rotate(-4deg); }
+      75% { transform: rotate(10deg); }
+      90% { transform: rotate(0deg); }
+      100% { transform: rotate(0deg); }
+    }
+    @keyframes slideHide {
+      0% { width: 1.2em; opacity: 1; transform: translateX(0) scale(1); margin-right: 8px; }
+      100% { width: 0; opacity: 0; transform: translateX(-10px) scale(0); margin-right: 0; }
+    }
+    .waving-hand {
+      display: inline-block;
+      transform-origin: 70% 70%;
+      animation: waveAnimation 2s ease-in-out, slideHide 0.5s ease-in-out 2.5s forwards;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+  `);
+
 // Hero Section
   const header = el("div", { class: "md3-hero" }, [
+    waveStyle,
     el("div", { class: "md3-hero__text" }, [
-      el("h1", { style: "margin: 0;" }, `Welcome back, ${profile.fullName || profile.email}`)
+      el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
+        el("span", { class: "waving-hand" }, "👋"),
+        el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
+      ])
     ]),
     el("div", { class: "md3-hero__actions" }, [
       el("button", { class: "btn btn--primary", onClick: () => navigate("/students") }, [
