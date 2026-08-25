@@ -435,6 +435,7 @@ function buildCalendarTab() {
   }
   calForm.append(el("div", { class: "field" }, [el("label", {}, "Current Term"), termSelect]));
   calForm.append(
+    field("termBegins", "Current Term Begins", settings.termBegins, "date"),
     field("closingDate", "School Closes On", settings.closingDate, "date"),
     field("openingDate", "Next Term Begins", settings.openingDate, "date"),
   );
@@ -710,6 +711,7 @@ export function init({ profile }) {
       await saveSchoolSettings(profile.uid, {
         currentAcademicYear: val("currentAcademicYear"),
         currentTerm: document.getElementById("currentTerm").value,
+        termBegins: val("termBegins"),
         closingDate: val("closingDate"),
         openingDate: val("openingDate"),
       });

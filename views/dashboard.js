@@ -220,10 +220,10 @@ export async function render({ profile }) {
     const diffDays = Math.ceil((closes - today) / msPerDay);
     
     let termLength = 90;
-    if (settings.openingDate) {
-      const opens = new Date(settings.openingDate);
-      opens.setHours(0,0,0,0);
-      const diffTotal = Math.ceil((closes - opens) / msPerDay);
+    if (settings.termBegins) {
+      const begins = new Date(settings.termBegins);
+      begins.setHours(0,0,0,0);
+      const diffTotal = Math.ceil((closes - begins) / msPerDay);
       if (diffTotal > 0) termLength = diffTotal;
     }
 
