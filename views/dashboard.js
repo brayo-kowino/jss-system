@@ -161,6 +161,9 @@ export async function render({ profile }) {
       white-space: nowrap;
       overflow: hidden;
     }
+    @media (max-width: 768px) {
+      .hero-divider { display: none !important; }
+    }
   `);
 
   let termProgress = el("div", { style: "display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; min-width: 180px;" }, [
