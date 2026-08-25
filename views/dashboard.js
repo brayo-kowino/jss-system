@@ -287,29 +287,7 @@ export async function render({ profile }) {
   ]);
   rightCol.append(chartCard);
 
-  const upcomingCard = el("div", { class: "md3-card" }, [
-    el("h3", { class: "md3-card__title" }, "Upcoming Assessments")
-  ]);
-  const upcoming = assessments.filter(a => a.status === "open").slice(0, 3);
-  if (upcoming.length) {
-    const eventList = el("div", { class: "md3-event-list" });
-    for (const event of upcoming) {
-      eventList.append(el("div", { class: "md3-event-item" }, [
-        el("div", { class: "md3-event-date" }, [
-          el("span", { class: "day" }, event.date ? event.date.split("-")[2] : "--"),
-          el("span", { class: "month" }, event.date ? new Date(event.date).toLocaleString('default', { month: 'short' }) : "--")
-        ]),
-        el("div", { class: "md3-event-details" }, [
-          el("div", { class: "title" }, event.name),
-          el("div", { class: "meta" }, `${event.type} • Wgt: ${event.weight}%`)
-        ])
-      ]));
-    }
-    upcomingCard.append(eventList);
-  } else {
-    upcomingCard.append(el("p", { class: "text-muted" }, "No open assessments scheduled."));
-  }
-  rightCol.append(upcomingCard);
+  // Removed Upcoming Assessments as it has a dedicated section.
 
   mainGrid.append(leftCol, centerCol, rightCol);
   wrap.append(mainGrid);
