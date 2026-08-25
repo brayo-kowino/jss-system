@@ -212,7 +212,7 @@ export async function render({ profile }) {
     el("div", { style: "display: flex; flex-direction: column; gap: var(--sp-4); flex: 1; justify-content: center;" }, [
       el("div", { class: "md3-hero__text" }, [
         el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
-          el("span", { class: "waving-hand" }, "👋"),
+          el("span", { class: "material-symbols-rounded waving-hand", style: "font-size: 1.1em; color: var(--color-primary-700);" }, "waving_hand"),
           el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
         ])
       ]),
