@@ -193,7 +193,7 @@ export async function render({ profile }) {
     } else {
        termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, `${diffDays} Days Left`));
        termProgress.append(el("div", { style: "width: 140px; height: 6px; background: var(--color-line); border-radius: 4px; overflow: hidden; margin-top: 4px;" }, [
-         el("div", { style: `height: 100%; width: ${pct}%; background: var(--color-primary); border-radius: 4px;` })
+         el("div", { style: `height: 100%; width: ${pct}%; background: var(--color-primary-700); border-radius: 4px;` })
        ]));
     }
   } else {
@@ -202,8 +202,8 @@ export async function render({ profile }) {
   }
 
   const divider = el("div", { style: "display: flex; gap: 4px; margin: 0 var(--sp-4); padding: 4px 0;" }, [
-    el("div", { style: "width: 3px; background: var(--color-primary); border-radius: 2px; height: 100%; opacity: 0.8;" }),
-    el("div", { style: "width: 3px; background: var(--color-primary); border-radius: 2px; height: 100%; opacity: 0.3;" })
+    el("div", { style: "width: 3px; background: var(--color-primary-700); border-radius: 2px; height: 100%; opacity: 0.8;" }),
+    el("div", { style: "width: 3px; background: var(--color-primary-700); border-radius: 2px; height: 100%; opacity: 0.3;" })
   ]);
 
 // Hero Section
