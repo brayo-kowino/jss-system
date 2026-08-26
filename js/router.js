@@ -132,7 +132,7 @@ function renderNotFound(app, { authed }) {
       el("div", { class: "not-found-page__code" }, "404"),
       el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "explore_off"),
       el("h2", {}, "That page doesn't exist"),
-      el("p", { class: "text-muted" }, "The link you followed may be broken, out of date, or mistyped. Nothing on your account has been changed."),
+      el("p", { class: "text-muted" }, "The link you followed may be broken, out of date, or mistyped."),
       el("button", { class: "btn btn--primary", style: "margin-top:16px;", onClick: () => navigate(actionPath) }, [icon("home"), actionLabel]),
     ])
   );
