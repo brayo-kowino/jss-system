@@ -187,7 +187,13 @@ export default async (request: Request, context: Context) => {
     const cookieToken = getCookie(request, BYPASS_COOKIE);
     const isBypassed = bypassToken && cookieToken === bypassToken;
 
-    if (!isBypassed) {
+    // Only apply the 503 maintenance block to the /app/ dashboard and 
+    // internal edge functions. The public marketing site, /results/ lookup, 
+    // and all their static assets remain accessible.
+    const isApp = url.pathname.startsWith("/app");
+    const isApi = url.pathname.startsWith("/media-upload") || url.pathname.startsWith("/subscription-") || url.pathname.startsWith("/school-status");
+
+    if (!isBypassed && (isApp || isApi)) {
       const styleHash = await sha256Base64(STYLE);
 
       const html = `<!DOCTYPE html>
@@ -204,7 +210,7 @@ export default async (request: Request, context: Context) => {
     <h1>We'll be right back</h1>
     <p>Eeskia is offline for scheduled maintenance.</p>
     <p>Your data is safe and nothing has been lost or changed.</p>
-    <div class="fine">Please check back shortly. If this persists, contact your school administrator.</div>
+    <div class="fine">Please check back shortly. If this persists, contact us at iskify360.tech@gmail.com.</div>
   </div>
 </body>
 </html>`;
