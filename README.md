@@ -223,8 +223,3 @@ Each view module exports `render(ctx)` (returns a DOM node) and `init(ctx)`
 pattern for every new module.
 
 ## Next build step
-
-**Reports & Dashboard** (Student List, Top Students, Subject/Class
-Analysis, Fee Report, Attendance Report, Teacher Workload, Promotion List,
-Exam Report - most of the raw data these need already exists in Firestore
-from the modules above).
