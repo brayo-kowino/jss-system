@@ -441,7 +441,7 @@ export async function confirmOnline() {
   try {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), 3000);
-    const res = await fetch("net-ping.txt", { method: "HEAD", cache: "no-store", signal: controller.signal });
+    const res = await fetch("/status.html", { method: "HEAD", cache: "no-store", signal: controller.signal });
     clearTimeout(id);
     return res.ok;
   } catch {
