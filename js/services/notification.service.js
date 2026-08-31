@@ -15,12 +15,74 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
+  onSnapshot,
   serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db, auth } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate } from "./query-cache.js";
+
+// ==========================================================================
+// Unread-notification tracking
+// Stored in localStorage per uid so the badge is independent per browser
+// (each device knows what *it* has already seen, which is the right UX).
+// ==========================================================================
+
+function lastSeenKey(uid) {
+  return `jss_notif_seen_${uid}`;
+}
+
+export function getNotificationsLastSeen(uid) {
+  try {
+    const raw = Number(localStorage.getItem(lastSeenKey(uid)));
+    return Number.isFinite(raw) && raw > 0 ? raw : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function markNotificationsAsSeen(uid) {
+  try {
+    localStorage.setItem(lastSeenKey(uid), String(Date.now()));
+  } catch {
+    // localStorage unavailable (private mode etc.) — badge just won't clear
+  }
+}
+
+// Returns a count of school notifications created after the last-seen
+// timestamp for this uid. Reads from the already-cached list so it's a
+// pure in-memory calculation when the cache is warm.
+export async function countUnreadNotifications(uid) {
+  const since = getNotificationsLastSeen(uid);
+  const all = await listNotifications();
+  return all.filter((n) => {
+    const ts = n.createdAt?.toMillis
+      ? n.createdAt.toMillis()
+      : n.createdAt?.seconds
+      ? n.createdAt.seconds * 1000
+      : 0;
+    return ts > since;
+  }).length;
+}
+
+// Live listener on the school's notifications collection. Calls `callback`
+// with the full array whenever a doc is added/changed/removed. Returns an
+// unsubscribe function — callers MUST call it when tearing down (e.g. on
+// every renderShell() to avoid stacking listeners).
+export function subscribeToNotifications(schoolId, callback) {
+  if (!schoolId) return () => {};
+  const q = query(
+    collection(db, "notifications"),
+    where("schoolId", "==", schoolId),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    callback(docs);
+  }, () => {}); // swallow errors so a permissions hiccup doesn't throw
+}
 
 export const CATEGORIES = [
   { value: "fees", label: "Fee Balance Reminder" },

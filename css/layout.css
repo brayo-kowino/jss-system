@@ -621,6 +621,36 @@
 .nav-link .icon { width: 20px; font-size: 1.15rem; text-align: center; opacity: 0.85; flex-shrink: 0; }
 .nav-link.active .icon { opacity: 1; color: var(--color-gold-soft); }
 
+/* Notification badge on the nav link icon */
+.nav-link__icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+}
+.nav-notif-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #e53e3e;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--color-primary-900, #0d3a62);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.nav-notif-badge[hidden] { display: none; }
+
+
 .sidebar__footer {
   padding-top: var(--sp-4);
   border-top: 1px solid rgba(255, 255, 255, 0.08);

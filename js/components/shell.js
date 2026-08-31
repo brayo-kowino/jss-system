@@ -10,6 +10,8 @@ import { mountAnnouncementBanner } from "./announcement-banner.js";
 import { watchPendingApprovals, approveLogin, denyLogin, deleteApproval } from "../services/login-approval.service.js";
 import { generateDeviceFingerprint, isDeviceTrusted } from "../services/device.service.js";
 import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service.js";
+import { subscribeToNotifications, getNotificationsLastSeen, countUnreadNotifications } from "../services/notification.service.js";
+import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissKey } from "../services/platform-announcement.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -292,6 +294,138 @@ function offlineStatusPill() {
   return pill;
 }
 
+// ---------------------------------------------------------------------------
+// Notification badge + OS push notifications
+//
+// Two live Firestore listeners (one on school notifications, one on platform
+// announcements) keep a single red badge on the Notifications nav link up to
+// date in real time. The same listeners fire native OS notifications (via the
+// Web Notifications API) for items that arrive after the session starts —
+// exactly like WhatsApp Web on Windows.
+//
+// Both listeners are torn down and replaced on every renderShell() call (same
+// pattern as offlinePillCleanup) so navigating doesn't pile up stale listeners.
+// ---------------------------------------------------------------------------
+let unsubNotifications = null;
+let unsubAnnouncements = null;
+let notifBadgeEl = null; // reference to the live DOM node — patched in-place
+
+// Timestamp of when this shell session started — used to gate OS push
+// notifications so we don't re-fire for notifications that already existed
+// when the page loaded.
+let shellSessionStart = 0;
+
+// Last known snapshots from each source, kept so we can recalculate the
+// combined badge count whenever either source changes.
+let latestSchoolNotifs = [];
+let latestAnnouncements = [];
+
+function updateBadge(uid) {
+  if (!notifBadgeEl) return;
+  const since = getNotificationsLastSeen(uid);
+  const unreadNotifs = latestSchoolNotifs.filter((n) => {
+    const ts = n.createdAt?.toMillis
+      ? n.createdAt.toMillis()
+      : n.createdAt?.seconds
+      ? n.createdAt.seconds * 1000
+      : 0;
+    return ts > since;
+  }).length;
+
+  const dismissed = (() => {
+    try { return new Set(JSON.parse(localStorage.getItem("jss_dismissed_announcements") || "[]")); }
+    catch { return new Set(); }
+  })();
+  const unreadAnnouncements = latestAnnouncements.filter(
+    (a) => !dismissed.has(dismissKey(a))
+  ).length;
+
+  const total = unreadNotifs + unreadAnnouncements;
+  if (total > 0) {
+    notifBadgeEl.textContent = total > 99 ? "99+" : String(total);
+    notifBadgeEl.removeAttribute("hidden");
+  } else {
+    notifBadgeEl.setAttribute("hidden", "");
+  }
+}
+
+function fireOsPush(title, body) {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(title, {
+      body: body ? (body.length > 80 ? body.slice(0, 77) + "…" : body) : "",
+      icon: "/assets/logo.png",
+      tag: `eeskia-${Date.now()}`,
+    });
+    n.addEventListener("click", () => {
+      window.focus();
+      navigate("/notifications");
+    });
+  } catch {
+    // Some browsers restrict Notification() in certain contexts — non-fatal.
+  }
+}
+
+function requestOsPushPermission() {
+  if (typeof Notification === "undefined") return;
+  if (Notification.permission === "default") {
+    Notification.requestPermission().catch(() => {});
+  }
+}
+
+function teardownNotifListeners() {
+  if (unsubNotifications) { unsubNotifications(); unsubNotifications = null; }
+  if (unsubAnnouncements) { unsubAnnouncements(); unsubAnnouncements = null; }
+  notifBadgeEl = null;
+  latestSchoolNotifs = [];
+  latestAnnouncements = [];
+}
+
+function startNotifListeners(profile, badgeEl) {
+  notifBadgeEl = badgeEl;
+  shellSessionStart = Date.now();
+
+  // --- School notifications listener ---
+  if (profile.schoolId) {
+    unsubNotifications = subscribeToNotifications(profile.schoolId, (docs) => {
+      // Detect genuinely new arrivals (after session start) for OS push.
+      const newOnes = docs.filter((n) => {
+        const ts = n.createdAt?.toMillis
+          ? n.createdAt.toMillis()
+          : n.createdAt?.seconds
+          ? n.createdAt.seconds * 1000
+          : 0;
+        return ts > shellSessionStart;
+      });
+      // Only push for docs that weren't in the previous snapshot.
+      const prevIds = new Set(latestSchoolNotifs.map((n) => n.id));
+      for (const n of newOnes) {
+        if (!prevIds.has(n.id)) fireOsPush(n.title || "New notification", n.body || "");
+      }
+      latestSchoolNotifs = docs;
+      updateBadge(profile.uid);
+    });
+  }
+
+  // --- Platform announcements listener ---
+  unsubAnnouncements = subscribeToActiveAnnouncements((announcements) => {
+    const prevIds = new Set(latestAnnouncements.map((a) => a.id));
+    for (const a of announcements) {
+      const ts = a.createdAt?.toMillis
+        ? a.createdAt.toMillis()
+        : a.createdAt?.seconds
+        ? a.createdAt.seconds * 1000
+        : 0;
+      if (ts > shellSessionStart && !prevIds.has(a.id)) {
+        fireOsPush(a.title || "Platform notice", a.message || "");
+      }
+    }
+    latestAnnouncements = announcements;
+    updateBadge(profile.uid);
+  });
+}
+
 // Which nav groups the user has manually collapsed, persisted across
 // sessions. A group holding the currently active link is always forced
 // open regardless of this, so navigating never hides the page you're on.
@@ -543,6 +677,7 @@ export async function showApprovalModal(approval, profile) {
 }
 
 export function renderShell(app, profile, activePath) {
+  teardownNotifListeners();
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
   const previousSidebar = app.querySelector(".sidebar");
@@ -623,6 +758,7 @@ export function renderShell(app, profile, activePath) {
   // Collected while building the groups below, then used by the search
   // handler to filter/restore without re-rendering the whole sidebar.
   const groupRefs = [];
+  let mainNavBadge = null;
 
   for (const group of NAV) {
     const visibleLinks = group.links.filter((l) =>
@@ -646,6 +782,16 @@ export function renderShell(app, profile, activePath) {
     const linkRefs = [];
     for (const link of visibleLinks) {
       const isActive = activePath === link.path;
+      
+      const iconWrap = el("span", { class: "nav-link__icon-wrap" }, [
+        el("span", { class: "material-symbols-rounded icon" }, link.icon)
+      ]);
+      
+      if (link.path === "/notifications") {
+        mainNavBadge = el("span", { class: "nav-notif-badge", hidden: "true" }, "");
+        iconWrap.append(mainNavBadge);
+      }
+
       const linkEl = el(
         "div",
         {
@@ -654,7 +800,7 @@ export function renderShell(app, profile, activePath) {
           title: link.text,
           onClick: () => navigate(link.path),
         },
-        [el("span", { class: "material-symbols-rounded icon" }, link.icon), el("span", {}, link.text)]
+        [iconWrap, el("span", {}, link.text)]
       );
       linksWrap.append(linkEl);
       linkRefs.push({ linkEl, text: link.text.toLowerCase() });
@@ -961,6 +1107,12 @@ export function renderShell(app, profile, activePath) {
       showApprovalModal(req, profile);
     });
   }
+
+  // -------------------------------------------------------------------------
+  // Start the notification badge / OS push listener orchestration
+  // -------------------------------------------------------------------------
+  requestOsPushPermission();
+  startNotifListeners(profile, mainNavBadge);
 
   return main;
 }

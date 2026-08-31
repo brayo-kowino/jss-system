@@ -24,13 +24,68 @@ import {
   deleteDoc,
   getDocs,
   query,
+  where,
   orderBy,
+  onSnapshot,
   serverTimestamp,
   Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate } from "./query-cache.js";
+
+// Reads the same dismissed-announcements set that announcement-banner.js
+// writes, so there is exactly one source of truth for "has the user seen
+// this announcement already."
+const DISMISSED_KEY = "jss_dismissed_announcements";
+function readDismissed() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+// How many currently-live announcements has the user NOT yet dismissed?
+// Used by the shell to add the announcement count into the badge total.
+export function countUndismissedAnnouncements() {
+  try {
+    const dismissed = readDismissed();
+    // We only have the cached list synchronously if listAllAnnouncements()
+    // was already called (announcement-banner.js fires this on every shell
+    // mount). If the cache is cold this returns 0 rather than hanging —
+    // the live subscriber below will correct it within a few seconds.
+    const raw = localStorage.getItem("jss_pa_live_ids");
+    if (!raw) return 0;
+    const liveIds = JSON.parse(raw);
+    return liveIds.filter((key) => !dismissed.has(key)).length;
+  } catch {
+    return 0;
+  }
+}
+
+// Live listener on platform_announcements filtered to active == true.
+// Calls callback(announcements[]) whenever a doc changes. Returns an
+// unsubscribe function — callers MUST call it on teardown.
+// Also writes a compact "live ids" cache to localStorage so
+// countUndismissedAnnouncements() has something to work with synchronously.
+export function subscribeToActiveAnnouncements(callback) {
+  const q = query(
+    collection(db, "platform_announcements"),
+    where("active", "==", true),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(q, (snap) => {
+    const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const live = docs.filter(isCurrentlyLive);
+    try {
+      // Persist dismiss-keys so countUndismissedAnnouncements() is fast.
+      localStorage.setItem("jss_pa_live_ids", JSON.stringify(live.map(dismissKey)));
+    } catch {}
+    callback(live);
+  }, () => {});
+}
+
 
 export const SEVERITIES = [
   { value: "info", label: "Info", icon: "info", description: "General notice - a survey, a heads-up, nothing broken." },

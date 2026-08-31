@@ -8,6 +8,7 @@ import {
   deleteNotification,
   resolveRecipients,
   buildTemplate,
+  markNotificationsAsSeen,
 } from "../js/services/notification.service.js";
 import {
   listNewsletters,
@@ -45,6 +46,8 @@ export async function render({ profile }) {
     listStudents(),
     listParents(),
   ]);
+
+  markNotificationsAsSeen(profile.uid);
 
   const wrap = el("div", {});
   wrap.append(el("div", { class: "page-header" }, [el("div", {}, [el("h1", {}, "")])]));
