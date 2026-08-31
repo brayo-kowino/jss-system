@@ -55,3 +55,5 @@ export default async function handler(req: Request) {
 
   return jsonResponse({ success: true, count: fcmTokens.length }, 200);
 }
+
+export const config = { path: "/api/dispatch-push" };
