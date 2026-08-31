@@ -499,7 +499,7 @@
   padding-right: 0;
   gap: 0;
 }
-.sidebar--collapsed .nav-link > span:not(.icon) {
+.sidebar--collapsed .nav-link > span:not(.icon):not(.nav-link__icon-wrap) {
   display: none;
 }
 /* Both the default seal and a school's own uploaded logo need to shrink
@@ -964,7 +964,7 @@
   .sidebar--collapsed .sidebar__search,
   .sidebar--collapsed .sidebar__footer,
   .sidebar--collapsed .nav-group__label,
-  .sidebar--collapsed .nav-link > span:not(.icon) { display: revert; }
+  .sidebar--collapsed .nav-link > span:not(.icon):not(.nav-link__icon-wrap) { display: revert; }
   .sidebar--collapsed .nav-link { justify-content: flex-start; padding-left: 16px; gap: var(--sp-3); }
 
   .sidebar-backdrop {
