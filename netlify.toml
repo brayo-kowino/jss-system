@@ -172,7 +172,7 @@
       style-src 'self' 'unsafe-inline';
       font-src 'self' data:;
       img-src 'self' data: blob: https://res.cloudinary.com https://api.qrserver.com;
-      connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com https://www.gstatic.com https://www.google.com https://cdn.jsdelivr.net https://challenges.cloudflare.com https://res.cloudinary.com;
+      connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://fcm.googleapis.com https://www.gstatic.com https://www.google.com https://cdn.jsdelivr.net https://challenges.cloudflare.com https://res.cloudinary.com;
       worker-src 'self' blob:;
       manifest-src 'self';
       object-src 'none';
