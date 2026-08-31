@@ -951,7 +951,7 @@ function buildSecurityPanel(profile) {
     style: "margin:4px 0 0;",
   }, requireApproval
     ? "Any login from an unrecognized browser is held until an existing trusted device approves it."
-    : "New devices can log in with the correct password immediately — no approval required."
+    : "New devices can log in with the correct password immediately, no approval required."
   );
   toggleText.append(toggleTitle, toggleSub);
   toggleLabel.append(toggleInput, toggleText);
@@ -967,7 +967,7 @@ function buildSecurityPanel(profile) {
       requireApproval = newValue;
       toggleSub.textContent = newValue
         ? "Any login from an unrecognized browser is held until an existing trusted device approves it."
-        : "New devices can log in with the correct password immediately — no approval required.";
+        : "New devices can log in with the correct password immediately, no approval required.";
       toast(
         newValue
           ? "Device approval enabled. New logins will require approval."
@@ -976,7 +976,7 @@ function buildSecurityPanel(profile) {
       );
     } catch (err) {
       toast("Failed to save device approval setting.", "error");
-      toggleInput.checked = requireApproval; // revert UI on failure
+      toggleInput.checked = requireApproval; 
     }
     toggleInput.disabled = false;
   });
