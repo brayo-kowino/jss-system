@@ -89,6 +89,39 @@ export default async (request: Request, context: Context) => {
   const authIsRecent = now - authTime <= RECENT_AUTH_WINDOW_SECS;
   const isGenuineBootstrap = existingDevices.length === 0;
 
+  // -------------------------------------------------------------------------
+  // School-level device-approval policy gate (unbypassable server-side check).
+  //
+  // We fetch the school doc using the service-account credential — the client
+  // has no way to forge or override this read. If the school's
+  // requireDeviceApproval field is NOT explicitly false (the safe default for
+  // any school that has never changed the setting), and this is not a genuine
+  // first-device bootstrap (nobody to approve yet) and not coming from an
+  // authorized flow (fresh password entry), we reject. This ensures that even
+  // if someone tampers with the frontend to skip the "Waiting for approval"
+  // screen and calls this endpoint directly, the policy is still enforced.
+  // -------------------------------------------------------------------------
+  if (!isGenuineBootstrap) {
+    let requireDeviceApproval = true; // safe default — strict mode
+    if (userDoc && userDoc.schoolId) {
+      try {
+        const schoolDoc = await getFsDoc(accessToken, `schools/${userDoc.schoolId}`);
+        if (schoolDoc && schoolDoc.requireDeviceApproval === false) {
+          requireDeviceApproval = false;
+        }
+      } catch (err) {
+        console.warn("device-register: school policy lookup failed, defaulting to strict", err);
+      }
+    }
+
+    if (requireDeviceApproval && !authIsRecent) {
+      return jsonResponse(
+        { error: "Device approval is required for this school. Re-enter your password or wait for approval from a trusted device." },
+        403,
+      );
+    }
+  }
+
   if (!authIsRecent && !isGenuineBootstrap) {
     return jsonResponse(
       { error: "For your security, re-enter your password before registering a new trusted device." },

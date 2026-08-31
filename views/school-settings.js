@@ -920,6 +920,69 @@ function buildSecurityPanel(profile) {
   }
   loadDevices();
 
+  // --- Device Approval Policy Section ---
+  const policySection = el("div", { style: "margin-bottom:32px;" });
+  policySection.append(
+    el("h3", {}, [icon("policy"), " Device Approval Policy"]),
+  );
+
+  // Read initial value from the already-loaded module-level `settings` object.
+  // Falls back to true (strict) if the field has never been saved to Firestore
+  // so all existing schools are automatically in strict mode on first render.
+  let requireApproval = settings.requireDeviceApproval !== false;
+
+  const toggleRow = el("div", { style: "display:flex;align-items:flex-start;gap:16px;margin-top:4px;" });
+
+  const toggleLabel = el("label", {
+    style: "display:flex;align-items:center;gap:10px;cursor:pointer;",
+  });
+  const toggleInput = el("input", {
+    type: "checkbox",
+    style: "width:18px;height:18px;cursor:pointer;flex-shrink:0;",
+  });
+  if (requireApproval) toggleInput.checked = true;
+
+  const toggleText = el("div", {});
+  const toggleTitle = el("span", {
+    style: "font-weight:500;display:block;",
+  }, "Require approval for new devices");
+  const toggleSub = el("p", {
+    class: "text-muted text-sm",
+    style: "margin:4px 0 0;",
+  }, requireApproval
+    ? "Any login from an unrecognized browser is held until an existing trusted device approves it."
+    : "New devices can log in with the correct password immediately — no approval required."
+  );
+  toggleText.append(toggleTitle, toggleSub);
+  toggleLabel.append(toggleInput, toggleText);
+  toggleRow.append(toggleLabel);
+  policySection.append(toggleRow);
+
+  toggleInput.addEventListener("change", async () => {
+    const newValue = toggleInput.checked;
+    toggleInput.disabled = true;
+    try {
+      await saveSchoolSettings(profile.uid, { requireDeviceApproval: newValue });
+      settings.requireDeviceApproval = newValue;
+      requireApproval = newValue;
+      toggleSub.textContent = newValue
+        ? "Any login from an unrecognized browser is held until an existing trusted device approves it."
+        : "New devices can log in with the correct password immediately — no approval required.";
+      toast(
+        newValue
+          ? "Device approval enabled. New logins will require approval."
+          : "Device approval disabled. New devices can sign in directly with the password.",
+        "success"
+      );
+    } catch (err) {
+      toast("Failed to save device approval setting.", "error");
+      toggleInput.checked = requireApproval; // revert UI on failure
+    }
+    toggleInput.disabled = false;
+  });
+
+  wrap.append(policySection);
+
   // --- Login Activity Section ---
   const activitySection = el("div", {});
   activitySection.append(

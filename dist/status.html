@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eeskia | System Status</title>
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+      background: #FAF6F0; 
+      color: #0B2545; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      height: 100vh; 
+      margin: 0; 
+    }
+    .card { 
+      background: white; 
+      padding: 40px 32px; 
+      border-radius: 8px; 
+      box-shadow: 0 12px 32px rgba(11,37,69,0.16); 
+      text-align: center; 
+      max-width: 420px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      background: #E8F5E9;
+      color: #2E7D32;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 30px;
+    }
+    h2 { margin: 0 0 8px 0; font-family: Georgia, serif; }
+    p { color: #5C6A73; margin: 0 0 16px 0; line-height: 1.5; }
+    .status { 
+      color: #2E7D32; 
+      font-weight: 600; 
+      background: #E8F5E9;
+      padding: 8px 16px;
+      border-radius: 20px;
+      display: inline-block;
+      font-size: 14px;
+    }
+    .btn {
+      display: inline-block;
+      margin-top: 24px;
+      background: #14538A;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">✓</div>
+    <h2>Connection Successful</h2>
+    <p>You can successfully reach Eeskia servers. If you were having trouble loading the app, your internet connection is working correctly.</p>
+    <div class="status">Systems are reachable</div>
+    <div>
+      <a href="/app/#/dashboard" class="btn">Go to Dashboard</a>
+    </div>
+  </div>
+</body>
+</html>

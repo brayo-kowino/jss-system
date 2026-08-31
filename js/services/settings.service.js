@@ -57,6 +57,14 @@ export const DEFAULT_SETTINGS = {
   closingDate: "",
   openingDate: "",
   gradingScale: DEFAULT_GRADING_SCALE,
+  // Device approval policy. When true (the default), admin/super_admin logins
+  // from unrecognized browsers are held in a "waiting for approval" gate until
+  // an existing trusted device approves them. Set to false to allow any browser
+  // that can supply the correct password to enter immediately (useful for demo
+  // accounts). The backend edge function (device-register.ts) reads this from
+  // Firestore server-side and enforces it independently — the client cannot
+  // bypass the gate by tampering with this cached value.
+  requireDeviceApproval: true,
   status: "active",
   // Subscription fields live on this same doc but are never set here or by
   // any client write - only subscription-issue.ts/subscription-activate.ts

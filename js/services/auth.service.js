@@ -44,6 +44,7 @@ import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js
 import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice } from "./device.service.js";
 import { findOrCreatePendingApproval, cleanupOldApprovals } from "./login-approval.service.js";
 import { is2FAVerifiedThisSession } from "./two-factor.service.js";
+import { getSchoolSettings } from "./settings.service.js";
 
 // ==========================================================================
 // School-id cookie
@@ -437,6 +438,31 @@ export async function getAuthGateStatus(profile) {
   if (!primaryDevice) {
     await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
     return null;
+  }
+
+  // Read the school's device-approval policy.
+  //
+  // NOTE: This check only decides which UI screen to render. It is NOT a
+  // security boundary. A client that patches this code and skips straight
+  // to calling /device-register will still be rejected by the edge function
+  // if the school's Firestore doc has requireDeviceApproval === true, because
+  // the edge function reads the policy independently using the service account
+  // — the client cannot influence that server-side lookup.
+  if (profile.schoolId) {
+    try {
+      const schoolSettings = await getSchoolSettings(profile.schoolId);
+      if (schoolSettings.requireDeviceApproval === false) {
+        // Policy is off: register this device immediately in the background.
+        // The /device-register edge function will enforce its own auth_time
+        // check and will read requireDeviceApproval from Firestore server-side
+        // before minting the deviceApprovedUntil claim.
+        await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        return null;
+      }
+    } catch {
+      // If settings are unavailable, fall through to the approval gate
+      // (safe default: stricter behaviour on error).
+    }
   }
 
   // Reuses an existing pending request for this exact device rather than
