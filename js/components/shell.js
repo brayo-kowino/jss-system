@@ -12,6 +12,7 @@ import { generateDeviceFingerprint, isDeviceTrusted } from "../services/device.s
 import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service.js";
 import { subscribeToNotifications, getNotificationsLastSeen, countUnreadNotifications } from "../services/notification.service.js";
 import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissKey } from "../services/platform-announcement.service.js";
+import { registerFCMToken } from "../services/fcm.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -367,11 +368,9 @@ function fireOsPush(title, body) {
   }
 }
 
-function requestOsPushPermission() {
-  if (typeof Notification === "undefined") return;
-  if (Notification.permission === "default") {
-    Notification.requestPermission().catch(() => {});
-  }
+function requestOsPushPermission(uid, schoolId) {
+  // FCM service handles the Notification.requestPermission() inside.
+  registerFCMToken(uid, schoolId);
 }
 
 function teardownNotifListeners() {
@@ -1111,7 +1110,7 @@ export function renderShell(app, profile, activePath) {
   // -------------------------------------------------------------------------
   // Start the notification badge / OS push listener orchestration
   // -------------------------------------------------------------------------
-  requestOsPushPermission();
+  requestOsPushPermission(profile.uid, profile.schoolId);
   startNotifListeners(profile, mainNavBadge);
 
   return main;

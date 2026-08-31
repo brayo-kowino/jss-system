@@ -23,6 +23,7 @@ import { db, auth } from "../firebase-config.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate } from "./query-cache.js";
+import { dispatchPush } from "./fcm.service.js";
 
 // ==========================================================================
 // Unread-notification tracking
@@ -164,7 +165,16 @@ export async function createNotification(userId, data) {
       console.error("Failed to trigger notification dispatch:", err);
     }
   }
-  
+
+  // FCM Web Push background broadcast
+  if (data.channel === "app" || data.channel === "email" || data.channel === "sms") {
+    dispatchPush({
+      title: data.title,
+      message: data.body,
+      schoolId: schoolId
+    });
+  }
+
   return ref.id;
 }
 

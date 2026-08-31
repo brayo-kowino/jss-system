@@ -451,6 +451,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // FCM tokens for background OS push notifications. A user can only register
+    // or revoke their own tokens. The edge function (dispatch-push.ts) reads
+    // them to broadcast pushes via the service account, bypassing this rule.
+    match /fcm_tokens/{tokenId} {
+      allow read, create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
+      allow update: if isSignedIn() && request.auth.uid == resource.data.uid && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
+    }
+
     // Narrow, deliberately public mirror of a school's cosmetic branding
     // only (name/logo/colors/status), keyed by the school's human-friendly
     // login code rather than its Firestore doc ID. This is what lets the

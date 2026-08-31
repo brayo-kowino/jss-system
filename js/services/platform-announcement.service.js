@@ -33,6 +33,7 @@ import {
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate } from "./query-cache.js";
+import { dispatchPush } from "./fcm.service.js";
 
 // Reads the same dismissed-announcements set that announcement-banner.js
 // writes, so there is exactly one source of truth for "has the user seen
@@ -152,6 +153,13 @@ export async function createAnnouncement(userId, { title, message, severity, exp
   });
   invalidate(CACHE_KEY);
   await logAction(userId, "create_platform_announcement", "platform_announcements", ref.id);
+
+  dispatchPush({
+    title: cleanTitle,
+    message: cleanMessage,
+    isPlatformAnnouncement: true
+  });
+
   return ref.id;
 }
 

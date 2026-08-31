@@ -70,7 +70,7 @@ export async function getAccessToken(): Promise<string> {
     // The service account also needs the "Firebase Authentication Admin"
     // IAM role granted in GCP for this scope to actually be honored -
     // the datastore scope alone doesn't imply it.
-    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit",
+    scope: "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/identitytoolkit https://www.googleapis.com/auth/firebase.messaging",
     aud: "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600,
