@@ -286,21 +286,47 @@ export async function render({ profile }) {
   }
 
   // Interactive KPI Chips
+  // For a brand-new school every counter is 0 / N/A.  Show a dash with a
+  // muted hint so the chip doesn't look broken instead of empty.
+  const isNewSchool = !studentsCount && !teachers && !feesCollected;
+
   const kpiGrid = el("div", { class: "md3-kpi-grid" });
   const kpis = [
-    { label: "Active Students", value: studentsCount, icon: "school", color: "blue" },
-    { label: "Active Staff", value: teachers, icon: "badge", color: "gold" },
-    { label: "Attendance Today", value: attendanceToday || "0%", icon: "how_to_reg", color: "green" },
+    {
+      label: "Active Students",
+      value: studentsCount || null,
+      hint: "No admissions yet",
+      icon: "school",
+      color: "blue",
+    },
+    {
+      label: "Active Staff",
+      value: teachers || null,
+      hint: "No staff added yet",
+      icon: "badge",
+      color: "gold",
+    },
+    {
+      label: "Attendance Today",
+      value: attendanceToday && attendanceToday !== "N/A" ? attendanceToday : null,
+      hint: "Not marked yet",
+      icon: "how_to_reg",
+      color: "green",
+    },
     {
       label: "Term Revenue",
-      currency: "KES",
-      value: Number(feesCollected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      currency: feesCollected ? "KES" : null,
+      value: feesCollected
+        ? Number(feesCollected).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : null,
+      hint: "No fees recorded yet",
       icon: "account_balance_wallet",
       color: "gold",
     },
   ];
 
   for (const kpi of kpis) {
+    const hasValue = kpi.value !== null && kpi.value !== undefined;
     kpiGrid.append(
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${kpi.color}` }, [
         el("div", { class: "md3-kpi-chip__icon" }, [
@@ -308,12 +334,17 @@ export async function render({ profile }) {
         ]),
         el("div", { class: "md3-kpi-chip__data" }, [
           el("div", { class: "md3-kpi-chip__label" }, kpi.label),
-          kpi.currency
-            ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
-                el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
-                el("span", { class: "md3-kpi-chip__value numeric" }, kpi.value),
-              ])
-            : el("div", { class: "md3-kpi-chip__value numeric" }, String(kpi.value)),
+          hasValue
+            ? (kpi.currency
+                ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
+                    el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
+                    el("span", { class: "md3-kpi-chip__value numeric" }, String(kpi.value)),
+                  ])
+                : el("div", { class: "md3-kpi-chip__value numeric" }, String(kpi.value)))
+            : el("div", { class: "md3-kpi-chip__empty" }, [
+                el("span", { class: "md3-kpi-chip__dash" }, "—"),
+                kpi.hint ? el("span", { class: "md3-kpi-chip__hint" }, kpi.hint) : null,
+              ].filter(Boolean)),
         ])
       ])
     );
@@ -343,7 +374,7 @@ export async function render({ profile }) {
         : attendancePct >= 75
         ? { icon: "how_to_reg", color: "gold", text: `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
         : { icon: "how_to_reg", color: "red", text: `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
-      : { icon: "fact_check", color: "blue", text: "Attendance hasn't been marked yet today." },
+      : null,
 
     settings.openingDate
       ? { icon: "event_available", color: "blue", text: `Next term begins on ${formatDate(settings.openingDate)}.` }
@@ -376,13 +407,23 @@ export async function render({ profile }) {
       : null,
   ].filter(Boolean).slice(0, 6);
 
+  // Quick Insights card — full empty state when the school is brand-new
+  let insightsBody;
+  if (insightCandidates.length) {
+    insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) =>
+      el("li", {}, [el("span", { class: `material-symbols-rounded text-${item.color}` }, item.icon), item.text])
+    ));
+  } else {
+    insightsBody = el("div", { class: "card-empty-state" }, [
+      el("span", { class: "material-symbols-rounded card-empty-state__icon" }, "auto_awesome"),
+      el("p", { class: "card-empty-state__title" }, "No insights yet"),
+      el("p", { class: "card-empty-state__sub" }, "Insights will appear here once students, fees, and attendance data are added."),
+    ]);
+  }
+
   const alertsCard = el("div", { class: "md3-card md3-alerts-card" }, [
     el("h3", { class: "md3-card__title" }, "Quick Insights"),
-    insightCandidates.length
-      ? el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) =>
-          el("li", {}, [el("span", { class: `material-symbols-rounded text-${item.color}` }, item.icon), item.text])
-        ))
-      : el("p", { class: "text-muted" }, "Not enough data yet to generate insights."),
+    insightsBody,
   ]);
   leftCol.append(alertsCard);
 
@@ -391,22 +432,37 @@ export async function render({ profile }) {
   // --- Center Column ---
   const centerCol = el("div", { class: "md3-col" });
 
+  // "Students by Grade" — show empty state when there are no students yet
+  const hasGradeData = chartDataCache.gradeLabels.length > 0;
   const demoCard = el("div", { class: "md3-card" }, [
     el("h3", { class: "md3-card__title" }, "Students by Grade"),
-    el("div", { class: "md3-chart-container" }, [
-      el("canvas", { id: "demographicsChart" })
-    ])
+    hasGradeData
+      ? el("div", { class: "md3-chart-container" }, [
+          el("canvas", { id: "demographicsChart" })
+        ])
+      : el("div", { class: "card-empty-state" }, [
+          el("span", { class: "material-symbols-rounded card-empty-state__icon" }, "bar_chart"),
+          el("p", { class: "card-empty-state__title" }, "No enrollment data"),
+          el("p", { class: "card-empty-state__sub" }, "Grade distribution will appear once students are admitted."),
+        ]),
   ]);
   centerCol.append(demoCard);
 
   // --- Right Column ---
   const rightCol = el("div", { class: "md3-col" });
 
+  // "Revenue Trend" — show empty state when there is no fee revenue yet
   const chartCard = el("div", { class: "md3-card" }, [
     el("h3", { class: "md3-card__title" }, "Revenue Trend"),
-    el("div", { class: "md3-chart-container" }, [
-      el("canvas", { id: "revenueChart" })
-    ])
+    hasRevenueData
+      ? el("div", { class: "md3-chart-container" }, [
+          el("canvas", { id: "revenueChart" })
+        ])
+      : el("div", { class: "card-empty-state" }, [
+          el("span", { class: "material-symbols-rounded card-empty-state__icon" }, "show_chart"),
+          el("p", { class: "card-empty-state__title" }, "No revenue recorded"),
+          el("p", { class: "card-empty-state__sub" }, "The fee trend chart will populate as payments are recorded."),
+        ]),
   ]);
   rightCol.append(chartCard);
 
@@ -415,12 +471,29 @@ export async function render({ profile }) {
   mainGrid.append(leftCol, centerCol, rightCol);
   wrap.append(mainGrid);
 
-  if (!studentsCount) {
+  // Welcome call-to-action for brand-new schools — shown below the grid
+  // instead of the charts so the page never looks like a wall of empty boxes.
+  if (isNewSchool) {
     wrap.append(
-      el("div", { class: "card empty-state", style: "margin-top: 24px;" }, [
-        el("span", { class: "material-symbols-rounded empty-state__icon" }, "school"),
-        el("h3", {}, "No students yet"),
-        el("p", {}, "Head over to Student Management to admit your first batch of students."),
+      el("div", { class: "md3-card dashboard-welcome-card", style: "margin-top: var(--sp-2);" }, [
+        el("div", { class: "dashboard-welcome-inner" }, [
+          el("div", { class: "dashboard-welcome-icon" }, [
+            el("span", { class: "material-symbols-rounded" }, "rocket_launch"),
+          ]),
+          el("div", { class: "dashboard-welcome-text" }, [
+            el("h3", { style: "margin: 0 0 var(--sp-1);" }, "Welcome to your school dashboard!"),
+            el("p", { style: "margin: 0; color: var(--color-ink-soft); font-size: var(--fs-sm);" },
+              "Get started by admitting students, adding staff, and configuring your school settings. Your dashboard will come to life as data flows in."),
+          ]),
+          el("div", { class: "dashboard-welcome-actions" }, [
+            el("button", { class: "btn btn--primary btn--sm", onClick: () => navigate("/students") }, [
+              el("span", { class: "material-symbols-rounded" }, "person_add"), "Admit Students"
+            ]),
+            el("button", { class: "btn btn--outline btn--sm", onClick: () => navigate("/school-settings") }, [
+              el("span", { class: "material-symbols-rounded" }, "settings"), "School Settings"
+            ]),
+          ]),
+        ]),
       ])
     );
   }
