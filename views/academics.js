@@ -23,7 +23,7 @@ export async function render({ profile }) {
     ])
   );
 
-  const gridWrap = el("div", {});
+  const gridWrap = el("div", { id: "academics-grid-wrap" });
   wrap.append(gridWrap);
   renderGrid(gridWrap, profile);
 
@@ -100,7 +100,7 @@ async function refresh(profile) {
   // forceRefresh: true - we just created/edited/deleted a grade or stream,
   // so skip straight past the cache instead of possibly showing stale data.
   classes = await listClasses(true);
-  const container = document.querySelector(".card-grid")?.parentElement;
+  const container = document.getElementById("academics-grid-wrap");
   if (container) renderGrid(container, profile);
 }
 
@@ -150,6 +150,13 @@ function openGradeForm(profile) {
     e.preventDefault();
     const grade = document.getElementById("g-grade").value.trim();
     if (!grade) return toast("Grade name is required.", "error");
+    
+    // Automatically add any stream typed in the input but not yet "Added"
+    const pendingInput = document.getElementById("g-stream-input").value.trim();
+    if (pendingInput && !pendingStreams.includes(pendingInput)) {
+      pendingStreams.push(pendingInput);
+    }
+    
     const restore = busyButton(e.submitter, "Creating…");
     try {
       await addClass(profile.uid, grade, pendingStreams);

@@ -88,7 +88,11 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
   container.append(row);
 
   if (!opts.length) {
-    container.append(el("p", { class: "text-muted" }, "You have no class assigned. Contact the administrator."));
+    if (!allowedClassKeys) {
+      container.append(el("p", { class: "text-muted" }, "No classes with streams have been set up yet. Go to Academics to add them."));
+    } else {
+      container.append(el("p", { class: "text-muted" }, "You have no class assigned. Contact the administrator."));
+    }
   }
 
   // Same reasoning as Marks Entry: a retained class/date from a previous

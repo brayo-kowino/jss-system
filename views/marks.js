@@ -102,7 +102,11 @@ function renderPicker(container, profile, bodyMount) {
   container.append(row);
 
   if (!subjectChoices.length) {
-    container.append(el("p", { class: "text-muted" }, "You have no subjects assigned. Contact the administrator."));
+    if (!allowedSubjectCodes) {
+      container.append(el("p", { class: "text-muted" }, "No subjects have been set up yet. Go to Academics to add them."));
+    } else {
+      container.append(el("p", { class: "text-muted" }, "You have no subjects assigned. Contact the administrator."));
+    }
   }
 
   function refreshAssessmentOptions() {
