@@ -8,6 +8,7 @@ import { datePickerField } from "../js/components/datepicker.js";
 import { listTrustedDevices, removeTrustedDevice, resetAllTrustedDevices } from "../js/services/device.service.js";
 import { listRecentApprovals } from "../js/services/login-approval.service.js";
 import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
+import { extractLogoPalette } from "../js/services/logo-palette.js";
 
 let settings = null;
 let activeThemeId = "custom";
@@ -273,7 +274,33 @@ function buildBrandingTab() {
   logoCard.append(logoRow);
   wrap.append(logoCard);
 
-  // --- Theme gallery card ---
+  // --- Smart Theme card ---
+  const smartCard = el("div", { class: "card settings-card" });
+  const hasLogoNow = !!settings.logoUrl;
+  smartCard.append(
+    el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;" }, [
+      el("div", {}, [
+        el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+          el("span", { class: "material-symbols-rounded", style: "color:var(--color-primary-700);" }, "auto_awesome"),
+          el("strong", {}, "Smart Theme"),
+        ]),
+        el("p", { class: "text-sm text-muted", style: "margin-top:4px;" },
+          "Scan your school logo and automatically extract the best primary and accent colors."
+        ),
+      ]),
+      el("button", {
+        type: "button",
+        id: "smart-theme-btn",
+        class: "btn btn--ghost",
+        ...(hasLogoNow ? {} : { disabled: true, title: "Upload a logo first, then use Smart Theme." }),
+      }, [
+        el("span", { class: "material-symbols-rounded" }, "colorize"),
+        "Extract from Logo",
+      ]),
+    ])
+  );
+  wrap.append(smartCard);
+
   const galleryCard = el("div", { class: "card settings-card" });
   galleryCard.append(
     el("h3", {}, "Theme Gallery"),
@@ -650,6 +677,56 @@ export function init({ profile }) {
     secondaryInput.addEventListener("input", onColorChange);
   }
 
+  // Enable Smart Theme button when a new logo file is selected
+  const logoInput = document.getElementById("logo-input");
+  if (logoInput) {
+    logoInput.addEventListener("change", () => {
+      const btn = document.getElementById("smart-theme-btn");
+      if (btn && logoInput.files[0]) {
+        btn.disabled = false;
+        btn.title = "";
+      }
+    });
+  }
+
+  // Smart Theme: extract palette from logo and fill in the color pickers
+  const smartBtn = document.getElementById("smart-theme-btn");
+  if (smartBtn) {
+    smartBtn.addEventListener("click", async () => {
+      const logoFile = document.getElementById("logo-input")?.files[0];
+      const source = logoFile || settings.logoUrl;
+      if (!source) {
+        toast("Upload a logo first, then use Smart Theme.", "error");
+        return;
+      }
+      const originalContent = smartBtn.innerHTML;
+      smartBtn.disabled = true;
+      smartBtn.innerHTML = `<span class="material-symbols-rounded" style="animation:spin 1s linear infinite;">autorenew</span> Scanning…`;
+      try {
+        const { primary, accent } = await extractLogoPalette(source);
+        const themeEl = document.getElementById("themeColor");
+        const accentEl = document.getElementById("secondaryColor");
+        if (themeEl) themeEl.value = primary;
+        if (accentEl) accentEl.value = accent;
+        updateThemePreview(primary, accent);
+        updateThemeColor(primary);
+        // Deselect any active preset — colors are now "custom"
+        for (const c of document.querySelectorAll(".theme-card")) {
+          c.classList.remove("theme-card--active");
+          const status = c.querySelector(".theme-card__status");
+          if (status) { status.innerHTML = "Apply"; }
+        }
+        activeThemeId = "custom";
+        toast("Colors extracted from your logo — click Save branding to apply.", "success", 4000);
+      } catch (err) {
+        toast(err.message || "Could not extract colors from logo.", "error");
+      } finally {
+        smartBtn.disabled = false;
+        smartBtn.innerHTML = originalContent;
+      }
+    });
+  }
+
   document.getElementById("branding-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
@@ -684,6 +761,7 @@ export function init({ profile }) {
       restore();
     }
   });
+
 
   document.getElementById("leadership-form").addEventListener("submit", async (e) => {
     e.preventDefault();
