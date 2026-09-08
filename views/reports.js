@@ -358,7 +358,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   card.append(
     el("div", { class: "report-card__header" }, [
       settings.logoUrl
-        ? el("img", { class: "report-card__logo", src: settings.logoUrl })
+        ? el("img", { class: "report-card__logo", src: settings.logoUrl, crossorigin: "anonymous" })
         : el("img", { class: "report-card__logo", src: "/assets/logo.png", alt: "logo" }),
       el("div", {}, [
         el("h2", { class: "report-card__school-name" }, settings.schoolName || "School Name"),
@@ -375,7 +375,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   card.append(
     el("div", { class: "report-card__student" }, [
       result.photoUrl
-        ? el("img", { class: "report-card__photo", src: result.photoUrl })
+        ? el("img", { class: "report-card__photo", src: result.photoUrl, crossorigin: "anonymous" })
         : el("div", { class: "report-card__photo" }),
       infoTable([
         ["Name", result.fullName, "Adm No", result.admissionNumber || "N/A"],

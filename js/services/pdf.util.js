@@ -30,17 +30,18 @@ function yieldToMain(ms = 30) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Renders one DOM node to a PDF Blob. Uses hardware-accelerated JPEG encoding
-// and A4 page layout to deliver a clean, printable PDF without UI freeze.
+// Renders one DOM node to a PDF Blob. Uses the browser's native PNG encoder
+// for lossless, pixel-perfect output — text, lines, and solid colours stay
+// razor-sharp with no JPEG compression artifacts. The "FAST" flag in jsPDF
+// embeds the browser-encoded PNG stream directly without re-compressing it
+// in pure JavaScript (that re-compression was the original speed bottleneck).
 //
-// Scale 1.5 (~150 DPI) keeps output sharp for professional printing while
-// cutting canvas pixel count by ~44% compared to scale 2, roughly halving
-// html2canvas rendering time.
+// Scale 2 (~200 DPI) delivers print-quality sharpness.
 //
 // Report cards are generated in standard A4 portrait format so they print
 // correctly on any printer without white gaps. Receipts keep a compact custom
 // page size since they are short slips not printed on full A4 sheets.
-export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout = 3000, onStatus } = {}) {
+export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3000, onStatus } = {}) {
   onStatus?.("loading_libs");
   await yieldToMain(20);
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
@@ -103,10 +104,12 @@ export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout =
     },
   });
 
-
   onStatus?.("building_pdf");
   await yieldToMain(20);
-  const imgData = canvas.toDataURL("image/jpeg", 0.92);
+
+  // PNG = lossless. Browser's native encoder is hardware-accelerated and fast.
+  // "FAST" tells jsPDF to embed the encoded stream as-is (no JS re-compression).
+  const imgData = canvas.toDataURL("image/png");
 
   // Standard PDF sizing in points (1px at 96 DPI = 0.75 pt at 72 DPI)
   const rawWidthPt = (canvas.width / scale) * 0.75;
@@ -115,7 +118,7 @@ export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout =
   // ── Receipts: compact custom page (short slip, not printed on A4) ─────────
   if (isReceipt) {
     const pdf = new jsPDF({ unit: "pt", format: [rawWidthPt, rawHeightPt], compress: true });
-    pdf.addImage(imgData, "JPEG", 0, 0, rawWidthPt, rawHeightPt, undefined, "FAST");
+    pdf.addImage(imgData, "PNG", 0, 0, rawWidthPt, rawHeightPt, undefined, "FAST");
     return pdf.output("blob");
   }
 
@@ -140,7 +143,7 @@ export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout =
   const yOffset = MARGIN + (contentH - scaledH) / 2;
 
   const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
-  pdf.addImage(imgData, "JPEG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
+  pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
   return pdf.output("blob");
 }
 
