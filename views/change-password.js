@@ -106,7 +106,7 @@ function renderInShellScreen(profile) {
       icon("lock_person", { style: "font-size: 32px;" })
     ]),
     el("h1", { style: "font-size: var(--fs-xl); margin: 0 0 8px; color: var(--color-primary-900);" }, "Change Password"),
-    el("p", { class: "text-muted", style: "margin: 0; font-size: var(--fs-md);" }, "Update your password to keep your account secure."),
+    el("p", { class: "text-muted", style: "margin: 0; font-size: var(--fs-md);" }, ""),
   ]);
 
   const notice = el("div", { class: "notice-banner" }, [
