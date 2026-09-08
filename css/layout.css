@@ -209,14 +209,6 @@
   animation-iteration-count: infinite;
 }
 
-/* Eyes: blinking animation */
-.learner-eye {
-  fill: #ffffff;
-  animation: learnerEyeBlink 7s infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
 @keyframes learnerPageSettle {
   0%, 100% { transform: rotateY(0deg) scaleX(1); }
   50% { transform: scaleX(0.94) translateX(1px); }
@@ -228,10 +220,6 @@
 @keyframes learnerTwinkle {
   0%, 100% { opacity: 0; transform: scale(0.7); }
   50% { opacity: 1; transform: scale(1); }
-}
-@keyframes learnerEyeBlink {
-  0%, 92%, 98%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .learner-book__page-right, .learner-cap, .learner-twinkle, .learner-eye { animation: none; }

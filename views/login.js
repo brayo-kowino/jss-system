@@ -33,7 +33,8 @@ const BRAND_POINTS = [
 // cream fills, gold strokes) instead of a literal tech/network diagram.
 // Motion stays gentle and ambient: the book's page settles as if just
 // turned, the cap has a faint float, and a handful of soft twinkles fade
-// in and out around the figure.
+// in and out around the figure. The eyes (added below) layer small
+// contextual and idle animations on top of this same calm baseline.
 const TWINKLES = [
   { cx: 96, cy: 108, s: 1.0, dur: 3.4, delay: 0.0 },
   { cx: 372, cy: 96, s: 0.75, dur: 3.0, delay: 0.6 },
@@ -48,6 +49,42 @@ function sparklePath(cx, cy, s) {
   const a = 9 * s, b = 2.4 * s;
   return `M${cx},${cy - a} L${cx + b},${cy - b} L${cx + a},${cy} L${cx + b},${cy + b} ` +
     `L${cx},${cy + a} L${cx - b},${cy + b} L${cx - a},${cy} L${cx - b},${cy - b} Z`;
+}
+
+// One-time injection of the eye styles. Kept local to this module (rather
+// than the shared stylesheet) since the eyes are purely a login-screen
+// flourish - guarded so re-rendering the view (e.g. switching schools)
+// never duplicates the <style> tag.
+const EYE_STYLE_ID = "learner-eye-styles";
+function ensureEyeStyles() {
+  if (document.getElementById(EYE_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = EYE_STYLE_ID;
+  style.textContent = `
+    .learner-eye__white { fill: var(--auth-illustration-cream, #fdf6e3); }
+    .learner-eye__pupil {
+      fill: var(--auth-illustration-gold-dark, #7a5c1e);
+      transition: transform 0.15s ease-out;
+    }
+    .learner-eye__lid {
+      fill: var(--auth-illustration-gold, #c9a24b);
+      transform-origin: center top;
+      transform: scaleY(0);
+      transition: transform 0.12s ease-in;
+    }
+    #learner-eyes.is-blinking .learner-eye__lid { transform: scaleY(1); transition-duration: 0.09s; }
+    #learner-eyes.is-sleepy .learner-eye__lid { transform: scaleY(1); transition-duration: 1.6s; }
+    #learner-eyes.is-waking .learner-eye__lid { transform: scaleY(0); transition-duration: 0.15s; }
+    #learner-eyes.is-happy .learner-eye__lid { transform: scaleY(0.55); transition-duration: 0.2s; }
+    .learner-mouth {
+      fill: none;
+      stroke: var(--auth-illustration-gold-dark, #7a5c1e);
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      transition: d 0.25s ease;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 function buildLearnerSvg() {
@@ -82,10 +119,21 @@ function buildLearnerSvg() {
       </g>
 
       <circle class="learner-head" cx="240" cy="174" r="35" />
-      <g class="learner-eyes">
-        <circle class="learner-eye" cx="226" cy="168" r="4" />
-        <circle class="learner-eye" cx="254" cy="168" r="4" />
+
+      <g class="learner-eyes" id="learner-eyes">
+        <g class="learner-eye" data-eye="left">
+          <ellipse class="learner-eye__white" cx="228" cy="168" rx="6" ry="7" />
+          <circle class="learner-eye__pupil" id="learner-pupil-l" cx="228" cy="169" r="2.6" />
+          <rect class="learner-eye__lid" x="221" y="159" width="14" height="16" />
+        </g>
+        <g class="learner-eye" data-eye="right">
+          <ellipse class="learner-eye__white" cx="252" cy="168" rx="6" ry="7" />
+          <circle class="learner-eye__pupil" id="learner-pupil-r" cx="252" cy="169" r="2.6" />
+          <rect class="learner-eye__lid" x="245" y="159" width="14" height="16" />
+        </g>
       </g>
+
+      <path class="learner-mouth" id="learner-mouth" d="M231,186 Q240,190 249,186" />
 
       <g class="learner-book">
         <path class="learner-book__page-left" d="M240,282 L179,290 L181,313 L240,306 Z" />
@@ -184,6 +232,7 @@ export async function render() {
     el("button", { type: "button", class: `auth-rotator__dot${i === 0 ? " is-active" : ""}`, "data-index": String(i), "aria-label": `Show feature ${i + 1}` })
   ));
 
+  ensureEyeStyles();
   const illustration = el("div", { class: "auth-brand__illustration", "aria-hidden": "true" });
   illustration.innerHTML = buildLearnerSvg();
 
@@ -352,11 +401,143 @@ function initRotator() {
   restart();
 }
 
+// Small eye-animation state machine for the learner illustration:
+//  - idle default: gentle cursor-follow (eyes drift toward the pointer)
+//  - periodic blink
+//  - sleepy: eyes slowly close after IDLE_MS of no mouse/keyboard activity,
+//    and snap back open ("wake") on the next input
+//  - contextual glance: password focus/typing nudges the pupils toward the
+//    form for a held duration, overriding cursor-follow while active
+//  - happy: brief lid-lowered "content" look, triggered on login success
+// Returns null if the eyes markup isn't present (e.g. illustration swapped
+// out), so callers can safely optional-chain every method.
+function initEyes() {
+  const eyesRoot = document.getElementById("learner-eyes");
+  if (!eyesRoot) return null;
+  const pupilL = document.getElementById("learner-pupil-l");
+  const pupilR = document.getElementById("learner-pupil-r");
+  const svgEl = document.querySelector(".learner-svg");
+
+  let lastActivity = Date.now();
+  let sleepy = false;
+  let overrideUntil = 0; // while Date.now() < this, a contextual glance owns the pupils
+  let blinkTimer = null;
+  let idleInterval = null;
+
+  function isAttached() {
+    return document.body.contains(eyesRoot);
+  }
+
+  // --- blinking ---
+  function scheduleBlink() {
+    const next = 2500 + Math.random() * 3500; // every 2.5-6s
+    blinkTimer = setTimeout(() => {
+      if (!isAttached()) {
+        return; // view was swapped out - stop the chain rather than reschedule forever
+      }
+      if (!sleepy) {
+        eyesRoot.classList.add("is-blinking");
+        setTimeout(() => eyesRoot.classList.remove("is-blinking"), 120);
+      }
+      scheduleBlink();
+    }, next);
+  }
+  scheduleBlink();
+
+  // --- mouth ---
+  const MOUTHS = {
+    neutral: "M231,186 Q240,190 249,186", // gentle content curve, resting/reading
+    focus:   "M233,187 Q240,189 247,187", // slightly tighter - concentrating on typing
+    smile:   "M228,184 Q240,196 252,184", // happy - wider, deeper curve
+    sleepy:  "M232,187 L248,187",         // flat line while dozing
+  };
+  const mouthEl = document.getElementById("learner-mouth");
+  function setMouth(state) {
+    if (mouthEl) mouthEl.setAttribute("d", MOUTHS[state] || MOUTHS.neutral);
+  }
+
+  // --- pupil positioning ---
+  function setPupil(dx, dy) {
+    const max = 2.4; // px of travel - past this it starts looking cross-eyed
+    const cx = Math.max(-max, Math.min(max, dx));
+    const cy = Math.max(-max, Math.min(max, dy));
+    pupilL.style.transform = `translate(${cx}px, ${cy}px)`;
+    pupilR.style.transform = `translate(${cx}px, ${cy}px)`;
+  }
+
+  // --- cursor follow (default, lowest priority) ---
+  function onMouseMove(e) {
+    lastActivity = Date.now();
+    if (sleepy) wake();
+    if (Date.now() < overrideUntil || !svgEl) return; // a contextual glance is active - don't fight it
+    const rect = svgEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const headCx = rect.left + rect.width * (240 / 480);
+    const headCy = rect.top + rect.height * (174 / 420);
+    setPupil((e.clientX - headCx) / 40, (e.clientY - headCy) / 60);
+  }
+  function onKeyActivity() {
+    lastActivity = Date.now();
+    if (sleepy) wake();
+  }
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("keydown", onKeyActivity);
+
+  // --- sleepy idle ---
+  const IDLE_MS = 9000;
+  idleInterval = setInterval(() => {
+    if (!isAttached()) {
+      clearInterval(idleInterval);
+      return;
+    }
+    if (!sleepy && Date.now() - lastActivity > IDLE_MS) {
+      sleepy = true;
+      eyesRoot.classList.add("is-sleepy");
+      setPupil(0, 1); // rest gently downward as the lids close
+      setMouth("sleepy");
+    }
+  }, 1000);
+
+  function wake() {
+    sleepy = false;
+    eyesRoot.classList.remove("is-sleepy");
+    eyesRoot.classList.add("is-waking");
+    setMouth("neutral");
+    setTimeout(() => eyesRoot.classList.remove("is-waking"), 200);
+  }
+
+  // --- contextual glances, called from init()'s form listeners ---
+  function glanceAt(dx, dy, holdMs) {
+    overrideUntil = Date.now() + holdMs;
+    if (sleepy) wake();
+    setPupil(dx, dy);
+    setMouth(holdMs > 0 ? "focus" : "neutral");
+  }
+
+  function happy() {
+    eyesRoot.classList.add("is-happy");
+    setMouth("smile");
+  }
+
+  return { glanceAt, happy };
+}
+
 export function init() {
+  const eyes = initEyes();
+
   const form = document.getElementById("login-form");
   const errorEl = document.getElementById("login-error");
   const forgotLink = document.getElementById("forgot-link");
   const rememberCheckbox = document.getElementById("remember-me");
+  const passwordInput = document.getElementById("password");
+
+  // Contextual eye states around the password field: focus holds a glance
+  // toward the form for as long as the field is focused (refreshed on
+  // every keystroke so it doesn't lapse back to cursor-follow mid-typing),
+  // and blur releases it back to center/cursor-follow.
+  passwordInput.addEventListener("focus", () => eyes?.glanceAt(1.6, -0.6, 60000));
+  passwordInput.addEventListener("input", () => eyes?.glanceAt(1.2, -0.4, 500));
+  passwordInput.addEventListener("blur", () => eyes?.glanceAt(0, 0, 0));
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -385,6 +566,7 @@ export function init() {
         return;
       }
 
+      eyes?.happy();
       navigate("/dashboard");
     } catch (err) {
       errorEl.textContent = friendlyError(err);
