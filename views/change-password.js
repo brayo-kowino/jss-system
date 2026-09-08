@@ -98,14 +98,16 @@ function renderForcedScreen(profile) {
 function renderInShellScreen(profile) {
   const container = el("div", { class: "page" });
 
-  const header = el("div", { class: "page-header" }, [
-    el("div", {}, [
-      el("h1", { class: "page-header__title" }, "Change Password"),
-      el("p", { class: "page-header__sub text-muted" }, "Update your account password to keep your account secure."),
-    ])
-  ]);
+  // Create a focused, centered column for this single-purpose view
+  const focusCol = el("div", { class: "settings-stack", style: "max-width: 560px; margin: 40px auto 0; width: 100%;" });
 
-  const stack = el("div", { class: "settings-stack", style: "max-width: 600px;" });
+  const header = el("div", { style: "margin-bottom: 32px; text-align: center;" }, [
+    el("div", { style: "display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:50%; background:color-mix(in srgb, var(--color-primary-700) 8%, white); color:var(--color-primary-700); margin-bottom:16px;" }, [
+      icon("lock_person", { style: "font-size: 32px;" })
+    ]),
+    el("h1", { style: "font-size: var(--fs-xl); margin: 0 0 8px; color: var(--color-primary-900);" }, "Change Password"),
+    el("p", { class: "text-muted", style: "margin: 0; font-size: var(--fs-md);" }, "Update your password to keep your account secure."),
+  ]);
 
   const notice = el("div", { class: "notice-banner" }, [
     icon("verified_user"),
@@ -124,7 +126,7 @@ function renderInShellScreen(profile) {
 
   const pw1Input = el("input", { id: "cp-password", type: "password", placeholder: `At least ${MIN_LENGTH} characters`, required: "true", autocomplete: "new-password" });
   const pw1Toggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password" }, [icon("visibility")]);
-  const pw1Field = el("div", { class: "field" }, [
+  const pw1Field = el("div", { class: "field", style: "margin-top: 24px;" }, [
     el("label", { for: "cp-password" }, "New Password"),
     el("div", { class: "field--password" }, [pw1Input, pw1Toggle]),
     el("span", { class: "field-hint" }, `Must be at least ${MIN_LENGTH} characters long`),
@@ -145,7 +147,7 @@ function renderInShellScreen(profile) {
 
   form.append(curPwField, pw1Field, pw2Field, actions);
   card.append(form);
-  stack.append(notice, card);
+  focusCol.append(header, notice, card);
 
   setupPasswordToggles([
     [curPwToggle, curPwInput],
@@ -153,7 +155,7 @@ function renderInShellScreen(profile) {
     [pw2Toggle, pw2Input],
   ]);
 
-  container.append(header, stack);
+  container.append(focusCol);
   return container;
 }
 

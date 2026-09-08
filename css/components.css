@@ -894,7 +894,8 @@ tbody tr:hover { background: var(--color-primary-100); }
 /* Notice banner - e.g. "no delivery provider connected yet" */
 .notice-banner {
   display: flex; align-items: flex-start; gap: var(--sp-3);
-  background: var(--color-primary-100); border: 1px solid rgba(20, 83, 138, 0.15);
+  background: color-mix(in srgb, var(--color-primary-700) 8%, white);
+  border: 1px solid color-mix(in srgb, var(--color-primary-700) 25%, transparent);
   border-radius: var(--radius-md); padding: var(--sp-3) var(--sp-4);
   font-size: var(--fs-sm); color: var(--color-primary-900); margin-bottom: var(--sp-4);
 }
