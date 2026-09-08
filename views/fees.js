@@ -196,9 +196,16 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
 
   function refreshStreams() {
     streamSelect.innerHTML = "";
-    streamSelect.append(el("option", { value: "" }, "Select stream"));
-    for (const s of streamOptions(gradeSelect.value)) {
-      streamSelect.append(el("option", { value: s, ...(s === selection.stream ? { selected: "true" } : {}) }, s));
+    const opts = streamOptions(gradeSelect.value);
+    if (!opts.length && gradeSelect.value) {
+      streamSelect.append(el("option", { value: "" }, "No streams"));
+      streamSelect.disabled = true;
+    } else {
+      streamSelect.disabled = false;
+      streamSelect.append(el("option", { value: "" }, "Select stream"));
+      for (const s of opts) {
+        streamSelect.append(el("option", { value: s, ...(s === selection.stream ? { selected: "true" } : {}) }, s));
+      }
     }
   }
   refreshStreams();
@@ -227,7 +234,8 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
 
 async function loadBalances(profile, balancesMount, paymentsMount, receiptMount) {
   const { grade, stream, academicYear, term } = selection;
-  if (!grade || !stream || !academicYear || !term) {
+  const hasStreams = streamOptions(grade).length > 0;
+  if (!grade || (hasStreams && !stream) || !academicYear || !term) {
     return toast("Pick grade, stream, academic year, and term first.", "error");
   }
   balancesMount.innerHTML = "";
@@ -238,7 +246,7 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
   receiptMount.innerHTML = "";
 
   try {
-    const students = (await listStudents()).filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+    const students = (await listStudents()).filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
     balanceRows = (

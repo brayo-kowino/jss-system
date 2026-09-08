@@ -29,7 +29,7 @@ export async function render({ profile }) {
   allowedClassKeys = null;
   if (!CAN_MARK_ANY_CLASS.includes(profile.role)) {
     const teacher = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
-    allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
+    allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
   }
 
   const wrap = el("div", {});
@@ -52,10 +52,16 @@ export async function render({ profile }) {
 function classOptions() {
   const opts = [];
   for (const c of classes) {
-    for (const s of c.streams || []) {
-      const key = `${c.grade}|${s}`;
+    if (!c.streams || c.streams.length === 0) {
+      const key = `${c.grade}|`;
       if (allowedClassKeys && !allowedClassKeys.has(key)) continue;
-      opts.push({ value: key, label: `${c.grade} ${s}` });
+      opts.push({ value: key, label: c.grade });
+    } else {
+      for (const s of c.streams) {
+        const key = `${c.grade}|${s}`;
+        if (allowedClassKeys && !allowedClassKeys.has(key)) continue;
+        opts.push({ value: key, label: `${c.grade} ${s}` });
+      }
     }
   }
   return opts;
@@ -126,7 +132,7 @@ async function maybeLoad(profile, bodyMount, summaryMount) {
       listStudents(),
       getAttendanceForClassDate(grade, stream, selection.date),
     ]);
-    roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+    roster = students.filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
     currentStatuses = { ...(existing?.records || {}) };
 

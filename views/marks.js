@@ -70,8 +70,12 @@ export async function render({ profile }) {
 function classOptions() {
   const opts = [];
   for (const c of classes) {
-    for (const s of c.streams || []) {
-      opts.push({ value: `${c.grade}|${s}`, label: `${c.grade} ${s}` });
+    if (!c.streams || c.streams.length === 0) {
+      opts.push({ value: `${c.grade}|`, label: c.grade });
+    } else {
+      for (const s of c.streams) {
+        opts.push({ value: `${c.grade}|${s}`, label: `${c.grade} ${s}` });
+      }
     }
   }
   return opts;
@@ -170,7 +174,7 @@ async function maybeLoad(profile, bodyMount) {
 
   try {
     const [students, marks] = await Promise.all([listStudents(), listMarks(assessmentId, subjectCode)]);
-    roster = students.filter((s) => s.grade === grade && s.stream === stream && s.status === "active")
+    roster = students.filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
     marksByStudent = {};
     for (const m of marks) marksByStudent[m.studentId] = m;
