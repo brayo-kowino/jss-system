@@ -502,6 +502,7 @@ async function handleDownload(btn, node, payment) {
   const button = btn?.closest?.("button") || btn;
   if (!button) return;
   const restore = busyButton(button, "Preparing…");
+  await new Promise((resolve) => setTimeout(resolve, 30));
   try {
     await downloadElementAsPdf(node, `receipt_${(payment.studentName || "student").replace(/\s+/g, "_")}_${payment.date}.pdf`);
   } catch {

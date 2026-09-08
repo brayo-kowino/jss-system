@@ -334,6 +334,7 @@ async function handleDownload(btn, result) {
   const statusSpan = document.createElement("span");
   statusSpan.textContent = " Loading…";
   button.append(spinner("sm", "light"), statusSpan);
+  await new Promise((resolve) => setTimeout(resolve, 40));
   try {
     await downloadElementAsPdf(card, `${result.fullName.replace(/\s+/g, "_")}_${result.term}_${result.academicYear}.pdf`, {
       onStatus: (status) => {
@@ -342,6 +343,7 @@ async function handleDownload(btn, result) {
       },
     });
   } catch (err) {
+    console.error("PDF generation error:", err);
     toast("Could not generate PDF - check your connection and try again.", "error");
   } finally {
     button.innerHTML = originalHTML;
