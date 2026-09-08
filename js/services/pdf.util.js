@@ -30,41 +30,17 @@ function yieldToMain(ms = 30) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Safely attempts to inline loaded <img> elements as data URLs so html2canvas
-// doesn't trigger secondary CORS network requests or wait on external timeouts.
-function tryInlineImages(container) {
-  if (!container || typeof document === "undefined") return;
-  try {
-    const images = container.querySelectorAll("img");
-    images.forEach((img) => {
-      try {
-        if (img.src && !img.src.startsWith("data:") && img.complete && img.naturalWidth > 0) {
-          const c = document.createElement("canvas");
-          c.width = img.naturalWidth;
-          c.height = img.naturalHeight;
-          const ctx = c.getContext("2d");
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = c.toDataURL("image/jpeg", 0.95);
-          if (dataUrl && dataUrl.startsWith("data:image/")) {
-            img.src = dataUrl;
-          }
-        }
-      } catch (_) {
-        // If tainted by strict CORS, retain existing URL; html2canvas will handle or timeout cleanly
-      }
-    });
-  } catch (_) {}
-}
-
-// Renders one DOM node to a PDF Blob. Uses optimized high-quality rasterization
-// (scale: 2, ~200 DPI equivalent) and hardware-accelerated JPEG encoding to deliver
-// razor-sharp PDFs in ~1 second without UI freeze or "Page not responding" warnings.
+// Renders one DOM node to a PDF Blob. Uses hardware-accelerated JPEG encoding
+// and A4 page layout to deliver a clean, printable PDF without UI freeze.
 //
-// Report cards are generated in standard A4 portrait format (595×842pt) so they
-// print correctly on any standard printer without white gaps or scaling artifacts.
-// The content is uniformly scaled to fit within A4 with equal margins on all sides,
-// always producing a single clean page. Receipts keep a compact custom page size.
-export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 2500, onStatus } = {}) {
+// Scale 1.5 (~150 DPI) keeps output sharp for professional printing while
+// cutting canvas pixel count by ~44% compared to scale 2, roughly halving
+// html2canvas rendering time.
+//
+// Report cards are generated in standard A4 portrait format so they print
+// correctly on any printer without white gaps. Receipts keep a compact custom
+// page size since they are short slips not printed on full A4 sheets.
+export async function renderElementToPdfBlob(node, { scale = 1.5, imageTimeout = 3000, onStatus } = {}) {
   onStatus?.("loading_libs");
   await yieldToMain(20);
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
@@ -74,8 +50,6 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 2
 
   const isReceipt = node.classList?.contains("receipt");
   const targetWidth = isReceipt ? 440 : 840;
-
-  tryInlineImages(node);
 
   const canvas = await html2canvas(node, {
     scale,
@@ -119,8 +93,16 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 2
         div.textContent = ta.value || ta.placeholder || "";
         ta.parentNode.replaceChild(div, ta);
       });
+
+      // 4. Mark all images as crossOrigin so html2canvas can draw Firebase
+      //    Storage photos (logo, student photo) without tainting the canvas
+      //    or triggering a redundant re-fetch on cache mismatch.
+      clonedElement.querySelectorAll("img").forEach((img) => {
+        img.crossOrigin = "anonymous";
+      });
     },
   });
+
 
   onStatus?.("building_pdf");
   await yieldToMain(20);
