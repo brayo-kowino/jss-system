@@ -70,6 +70,7 @@ async function preloadHeavyModules() {
     import("jspdf").catch(() => null),
     import("jszip").catch(() => null),
     import("chart.js").catch(() => null),
+    import("xlsx/xlsx.mjs").catch(() => null),
   ];
   await timeoutPromise(Promise.allSettled(loads), 8000);
   prewarmPdfLibs();

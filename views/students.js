@@ -29,6 +29,8 @@ import {
 } from "../js/services/student-issue.service.js";
 import {
   buildTemplateCsv,
+  downloadTemplateXlsx,
+  parseStudentsFile,
   parseStudentsCsv,
   validateStudentRows,
   commitStudentRows,
@@ -71,12 +73,43 @@ export async function render({ profile }) {
   }
 
   const wrap = el("div", {});
+
+  if (!classes.length) {
+    wrap.append(
+      el("div", {
+        class: "callout callout--danger",
+        style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:16px 20px; background:#FDF2F2; border:1px solid #F8B4B4; border-radius:8px; flex-wrap:wrap; gap:12px;",
+      }, [
+        el("div", { style: "display:flex; align-items:center; gap:12px;" }, [
+          icon("warning", "text-danger", { style: "font-size:28px;" }),
+          el("div", {}, [
+            el("h4", { style: "margin:0 0 4px; color:#9B1C1C; font-weight:600;" }, "Classes & Streams Setup Required"),
+            el("p", { style: "margin:0; color:#771D1D; font-size:14px;" }, "You must create your school's classes and streams under Academics before you can enroll or import any students."),
+          ]),
+        ]),
+        el("a", {
+          href: "#/academics",
+          class: "btn btn--primary btn--sm",
+          style: "text-decoration:none; display:inline-flex; align-items:center; gap:6px;",
+        }, [icon("school"), "Set Up Classes & Streams"]),
+      ])
+    );
+  }
+
   wrap.append(
     el("div", { class: "page-header" }, [
       el("div", {}, [el("p", {}, `${students.length} registered`)]),
       el("div", { style: "display:flex; gap:8px;" }, [
-        el("button", { class: "btn btn--ghost", id: "import-students-btn" }, [icon("upload_file"), "Import Students"]),
-        el("button", { class: "btn btn--primary", id: "new-admission-btn" }, [icon("person_add"), "New Admission"]),
+        el("button", {
+          class: "btn btn--ghost",
+          id: "import-students-btn",
+          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+        }, [icon("upload_file"), "Import Students"]),
+        el("button", {
+          class: "btn btn--primary",
+          id: "new-admission-btn",
+          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+        }, [icon("person_add"), "New Admission"]),
       ]),
     ])
   );
@@ -122,8 +155,22 @@ export async function render({ profile }) {
   });
 
   setTimeout(() => {
-    document.getElementById("new-admission-btn")?.addEventListener("click", () => openStudentForm(profile));
-    document.getElementById("import-students-btn")?.addEventListener("click", () => openImportModal(profile));
+    document.getElementById("new-admission-btn")?.addEventListener("click", () => {
+      if (!classes.length) {
+        toast("Please set up classes and streams under Academics before adding students.", "error");
+        location.hash = "#/academics";
+        return;
+      }
+      openStudentForm(profile);
+    });
+    document.getElementById("import-students-btn")?.addEventListener("click", () => {
+      if (!classes.length) {
+        toast("Please set up classes and streams under Academics before importing students.", "error");
+        location.hash = "#/academics";
+        return;
+      }
+      openImportModal(profile);
+    });
   });
 
   return wrap;
@@ -914,16 +961,42 @@ const STATUS_LABEL = { ready: "Ready", warning: "Needs review", blocked: "Blocke
 const STATUS_BADGE = { ready: "success", warning: "gold", blocked: "danger" };
 
 function openImportModal(profile) {
+  if (!classes.length) {
+    toast("Please set up classes and streams under Academics before importing students.", "error");
+    location.hash = "#/academics";
+    return;
+  }
   const body = el("div", {});
-  const fileInput = el("input", { type: "file", accept: ".csv,text/csv" });
+  const fileInput = el("input", {
+    type: "file",
+    accept: ".csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv",
+  });
   const previewArea = el("div", {});
   const instructions = el("p", { class: "text-sm text-muted" },
-    "Upload a CSV using the template's columns. Every row is checked before anything is saved - you'll see exactly what's ready to import, what needs a fix, and what looks like a duplicate."
+    "Upload an Excel (.xlsx) or CSV file with the essential details (Name, Class, Stream, Gender, Adm No, Assessment No). Additional details like medical info, address, and parent contacts can be added later from each student's profile."
   );
   body.append(
     instructions,
     el("div", { style: "display:flex; gap:8px; align-items:center; margin-bottom:16px; flex-wrap:wrap;" }, [
-      el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => downloadCsv("students-import-template.csv", buildTemplateCsv(classes)) }, [icon("download"), "Download CSV Template"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        onClick: async (e) => {
+          const restore = busyButton(e.currentTarget, "Preparing…");
+          try {
+            await downloadTemplateXlsx("students-import-template.xlsx", classes);
+          } catch (err) {
+            toast(err.message || "Failed to download Excel template.", "error");
+          } finally {
+            restore();
+          }
+        },
+      }, [icon("download"), "Download Excel Template (.xlsx)"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        onClick: () => downloadCsv("students-import-template.csv", buildTemplateCsv(classes)),
+      }, [icon("download"), "Download CSV Template"]),
       fileInput,
     ]),
     previewArea
@@ -938,20 +1011,25 @@ function openImportModal(profile) {
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files[0];
     if (!file) return;
-    let text;
+    previewArea.innerHTML = "";
+    previewArea.append(el("div", { class: "loading-row" }, [spinner("sm", "dark"), " Reading spreadsheet…"]));
+
+    let result;
     try {
-      text = await file.text();
+      result = await parseStudentsFile(file);
     } catch {
       toast("Could not read that file.", "error");
+      previewArea.innerHTML = "";
       return;
     }
-    const { rows, error } = parseStudentsCsv(text);
+    const { rows, error } = result;
     if (error) {
       previewArea.innerHTML = "";
       previewArea.append(el("div", { class: "empty-state" }, [icon("error", "empty-state__icon"), el("p", {}, error)]));
       return;
     }
     if (!rows.length) {
+      previewArea.innerHTML = "";
       toast("No data rows found in that file.", "error");
       return;
     }
@@ -992,7 +1070,7 @@ function openImportModal(profile) {
     const table = el("table", {}, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, ""), el("th", {}, "Status"), el("th", {}, "Full Name"), el("th", {}, "Adm. No."),
-        el("th", {}, "Gender"), el("th", {}, "Grade"), el("th", {}, "Stream"), el("th", {}, "DOB"), el("th", {}, "Issues"),
+        el("th", {}, "Gender"), el("th", {}, "Grade"), el("th", {}, "Stream"), el("th", {}, "DOB"), el("th", {}, "Assessment No."), el("th", {}, "Issues"),
       ])),
     ]);
     const tbody = el("tbody", {});
@@ -1057,6 +1135,9 @@ function openImportModal(profile) {
       const dobInput = el("input", { type: "text", value: row.raw.dob, placeholder: "YYYY-MM-DD", style: "min-width:100px;" });
       dobInput.addEventListener("change", () => setRaw("dob", dobInput.value));
 
+      const assessInput = el("input", { value: row.raw.kcpeNumber || "", placeholder: "Optional", style: "min-width:110px;" });
+      assessInput.addEventListener("change", () => setRaw("kcpeNumber", assessInput.value));
+
       const issuesCell = el("div", { style: "font-size:var(--fs-xs);" }, row.issues.map((i) => el("div", { class: i.level === "blocked" ? "text-red" : "text-muted" }, i.message)));
 
       let actionControl;
@@ -1084,6 +1165,7 @@ function openImportModal(profile) {
         el("td", { "data-label": "Grade" }, gradeSelect),
         el("td", { "data-label": "Stream" }, streamSelect),
         el("td", { "data-label": "DOB" }, dobInput),
+        el("td", { "data-label": "Assessment No." }, assessInput),
         el("td", { "data-label": "Issues" }, issuesCell),
       );
       return tr;
@@ -1092,6 +1174,11 @@ function openImportModal(profile) {
 }
 
 function openStudentForm(profile, existing = null, onDone) {
+  if (!classes.length && !existing) {
+    toast("Please set up classes and streams under Academics before adding students.", "error");
+    location.hash = "#/academics";
+    return;
+  }
   const isEdit = !!existing;
   const body = el("form", {});
 
@@ -1145,12 +1232,23 @@ function openStudentForm(profile, existing = null, onDone) {
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const fullName = val("s-fullName");
+    const grade = gradeSelect.value;
+    const stream = streamSelect.value;
+
+    if (!fullName) return toast("Full Name is required.", "error");
+    if (!grade) return toast("Please select a Grade.", "error");
+    const cls = classes.find((c) => c.grade === grade);
+    if (cls?.streams?.length && !stream) {
+      return toast(`Stream is required for ${cls.grade}. Please choose a stream.`, "error");
+    }
+
     const restore = busyButton(e.submitter, isEdit ? "Saving…" : "Registering…");
     const photoFile = document.getElementById("s-photo").files[0];
     const parentIds = Array.from(parentChecklist.querySelectorAll("input:checked")).map((c) => c.value);
     const data = {
       admissionNumber: val("s-admissionNumber"),
-      fullName: val("s-fullName"),
+      fullName,
       gender: genderSelect.value,
       dob: val("s-dob"),
       grade: gradeSelect.value,
