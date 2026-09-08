@@ -107,11 +107,11 @@
   word-break: break-word;
 }
 
-/* KPI Color Variations */
-.md3-kpi-chip--blue .md3-kpi-chip__icon { background: #E3F2FD; color: #1565C0; }
-.md3-kpi-chip--red .md3-kpi-chip__icon { background: #FDECEA; color: var(--color-red); }
-.md3-kpi-chip--green .md3-kpi-chip__icon { background: #E8F5E9; color: var(--color-green); }
-.md3-kpi-chip--gold .md3-kpi-chip__icon { background: #FFF8E1; color: #F57F17; }
+/* KPI Color Variations — all use CSS custom properties so they follow the school theme */
+.md3-kpi-chip--blue  .md3-kpi-chip__icon { background: var(--color-primary-100); color: var(--color-primary-700); }
+.md3-kpi-chip--red   .md3-kpi-chip__icon { background: #FDECEA;                  color: var(--color-red); }
+.md3-kpi-chip--green .md3-kpi-chip__icon { background: #E8F5E9;                  color: var(--color-green); }
+.md3-kpi-chip--gold  .md3-kpi-chip__icon { background: var(--color-gold-soft);   color: var(--color-gold); }
 
 /* KPI chip — empty / new-school state */
 .md3-kpi-chip__empty {
