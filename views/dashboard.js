@@ -489,7 +489,7 @@ export async function render({ profile }) {
             el("button", { class: "btn btn--primary btn--sm", onClick: () => navigate("/students") }, [
               el("span", { class: "material-symbols-rounded" }, "person_add"), "Admit Students"
             ]),
-            el("button", { class: "btn btn--outline btn--sm", onClick: () => navigate("/school-settings") }, [
+            el("button", { class: "btn btn--outline btn--sm", onClick: () => navigate("/settings") }, [
               el("span", { class: "material-symbols-rounded" }, "settings"), "School Settings"
             ]),
           ]),
