@@ -69,6 +69,7 @@ function ensureEyeStyles() {
     .learner-eye__lid {
       fill: var(--auth-illustration-gold, #c9a24b);
       transform-origin: center top;
+      transform-box: fill-box;
       transform: scaleY(0);
       transition: transform 0.12s ease-in;
     }
@@ -124,12 +125,12 @@ function buildLearnerSvg() {
         <g class="learner-eye" data-eye="left">
           <ellipse class="learner-eye__white" cx="228" cy="168" rx="6" ry="7" />
           <circle class="learner-eye__pupil" id="learner-pupil-l" cx="228" cy="169" r="2.6" />
-          <rect class="learner-eye__lid" x="221" y="159" width="14" height="16" />
+          <rect class="learner-eye__lid" x="221" y="159" width="14" height="16" rx="7" />
         </g>
         <g class="learner-eye" data-eye="right">
           <ellipse class="learner-eye__white" cx="252" cy="168" rx="6" ry="7" />
           <circle class="learner-eye__pupil" id="learner-pupil-r" cx="252" cy="169" r="2.6" />
-          <rect class="learner-eye__lid" x="245" y="159" width="14" height="16" />
+          <rect class="learner-eye__lid" x="245" y="159" width="14" height="16" rx="7" />
         </g>
       </g>
 
