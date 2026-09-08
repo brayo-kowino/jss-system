@@ -82,6 +82,10 @@ function buildLearnerSvg() {
       </g>
 
       <circle class="learner-head" cx="240" cy="174" r="35" />
+      <g class="learner-eyes">
+        <circle class="learner-eye" cx="226" cy="168" r="4" />
+        <circle class="learner-eye" cx="254" cy="168" r="4" />
+      </g>
 
       <g class="learner-book">
         <path class="learner-book__page-left" d="M240,282 L179,290 L181,313 L240,306 Z" />
