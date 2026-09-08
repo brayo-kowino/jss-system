@@ -246,7 +246,6 @@ export async function deleteSubject(userId, id) {
 
 export async function seedDefaultsIfEmpty() {
   const schoolId = getCurrentSchoolId();
-  const [classes, subjects] = await Promise.all([listClasses(), listSubjects()]);
   // Skip seeding when offline - writes would queue locally but the freshly
   // written docs wouldn't show up in the *existing* Firestore persistence
   // cache that the rest of this session's reads are pulling from (they're
@@ -254,14 +253,8 @@ export async function seedDefaultsIfEmpty() {
   // mismatch where the seed "succeeded" but pickers still look empty. The
   // defaults will be written on the next online session instead.
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
-  if (classes.length === 0 && !isOffline) {
-    const batch = writeBatch(db);
-    for (const c of DEFAULT_CLASSES) {
-      batch.set(doc(db, "classes", scopedId(schoolId, slugify(c.grade))), { ...c, schoolId, createdAt: serverTimestamp() });
-    }
-    await batch.commit();
-    invalidate(classesCacheKey());
-  }
+  // NOTE: Grades are NOT auto-seeded. Admins create them manually.
+  const subjects = await listSubjects();
   if (subjects.length === 0 && !isOffline) {
     const batch = writeBatch(db);
     for (const s of DEFAULT_SUBJECTS) {
