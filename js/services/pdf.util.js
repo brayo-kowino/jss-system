@@ -59,6 +59,11 @@ function tryInlineImages(container) {
 // Renders one DOM node to a PDF Blob. Uses optimized high-quality rasterization
 // (scale: 2, ~200 DPI equivalent) and hardware-accelerated JPEG encoding to deliver
 // razor-sharp PDFs in ~1 second without UI freeze or "Page not responding" warnings.
+//
+// Report cards are generated in standard A4 portrait format (595×842pt) so they
+// print correctly on any standard printer without white gaps or scaling artifacts.
+// The content is uniformly scaled to fit within A4 with equal margins on all sides,
+// always producing a single clean page. Receipts keep a compact custom page size.
 export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 2500, onStatus } = {}) {
   onStatus?.("loading_libs");
   await yieldToMain(20);
@@ -122,16 +127,38 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 2
   const imgData = canvas.toDataURL("image/jpeg", 0.92);
 
   // Standard PDF sizing in points (1px at 96 DPI = 0.75 pt at 72 DPI)
-  const ptWidth = (canvas.width / scale) * 0.75;
-  const ptHeight = (canvas.height / scale) * 0.75;
+  const rawWidthPt = (canvas.width / scale) * 0.75;
+  const rawHeightPt = (canvas.height / scale) * 0.75;
 
-  const pdf = new jsPDF({
-    unit: "pt",
-    format: [ptWidth, ptHeight],
-    compress: true,
-  });
+  // ── Receipts: compact custom page (short slip, not printed on A4) ─────────
+  if (isReceipt) {
+    const pdf = new jsPDF({ unit: "pt", format: [rawWidthPt, rawHeightPt], compress: true });
+    pdf.addImage(imgData, "JPEG", 0, 0, rawWidthPt, rawHeightPt, undefined, "FAST");
+    return pdf.output("blob");
+  }
 
-  pdf.addImage(imgData, "JPEG", 0, 0, ptWidth, ptHeight, undefined, "FAST");
+  // ── Report cards: single A4 portrait page, content scaled to fit ──────────
+  // Scale content to fit within A4 with equal 18pt margins on all four sides.
+  // Both width AND height are constrained so the card always fits on one page,
+  // and the result is centred on the sheet so it looks balanced when printed.
+  const A4_W = 595.28;  // pt
+  const A4_H = 841.89;  // pt
+  const MARGIN = 18;    // pt — margin on every side
+
+  const contentW = A4_W - MARGIN * 2;
+  const contentH = A4_H - MARGIN * 2;
+
+  // Choose the smaller of width-fit and height-fit ratios so content never overflows
+  const ratio = Math.min(contentW / rawWidthPt, contentH / rawHeightPt);
+  const scaledW = rawWidthPt * ratio;
+  const scaledH = rawHeightPt * ratio;
+
+  // Centre within the content area
+  const xOffset = MARGIN + (contentW - scaledW) / 2;
+  const yOffset = MARGIN + (contentH - scaledH) / 2;
+
+  const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
+  pdf.addImage(imgData, "JPEG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
   return pdf.output("blob");
 }
 
