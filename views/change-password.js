@@ -102,25 +102,17 @@ function renderInShellScreen(profile) {
     el("div", {}, [
       el("h1", { class: "page-header__title" }, "Change Password"),
       el("p", { class: "page-header__sub text-muted" }, "Update your account password to keep your account secure."),
-    ]),
-    el("div", { class: "page-header__actions" }, [
-      el("button", { type: "button", class: "btn btn--outline", onClick: () => navigate("/dashboard") }, [
-        icon("arrow_back"),
-        " Back to Dashboard",
-      ]),
-    ]),
+    ])
   ]);
 
-  const card = el("div", { class: "card", style: "max-width: 580px; margin: 0 auto;" });
+  const stack = el("div", { class: "settings-stack", style: "max-width: 600px;" });
 
-  const infoBox = el("div", {
-    class: "badge badge--info",
-    style: "display:flex;align-items:flex-start;gap:10px;padding:12px 16px;margin-bottom:20px;border-radius:var(--radius-md);width:100%;box-sizing:border-box;white-space:normal;line-height:1.5;",
-  }, [
+  const notice = el("div", { class: "notice-banner" }, [
     icon("verified_user"),
-    el("span", {}, "Updating your password will secure your account and automatically register this device as a trusted device."),
+    el("div", {}, "Updating your password will secure your account and automatically register this device as a trusted device."),
   ]);
 
+  const card = el("div", { class: "card settings-card" });
   const form = el("form", { id: "change-password-form", "data-mode": "voluntary" });
 
   const curPwInput = el("input", { id: "cp-current-password", type: "password", placeholder: "Enter your current password", required: "true", autocomplete: "current-password" });
@@ -146,13 +138,14 @@ function renderInShellScreen(profile) {
     el("div", { class: "field-error", id: "change-password-error" }, ""),
   ]);
 
-  const actions = el("div", { style: "display:flex;gap:12px;margin-top:24px;justify-content:flex-end;" }, [
-    el("button", { type: "button", class: "btn btn--outline", onClick: () => navigate("/dashboard") }, "Cancel"),
+  const actions = el("div", { class: "settings-form-actions" }, [
+    el("button", { type: "button", class: "btn btn--ghost", onClick: () => navigate("/dashboard") }, "Cancel"),
     el("button", { type: "submit", class: "btn btn--primary" }, [icon("lock_reset"), " Update Password"]),
   ]);
 
   form.append(curPwField, pw1Field, pw2Field, actions);
-  card.append(infoBox, form);
+  card.append(form);
+  stack.append(notice, card);
 
   setupPasswordToggles([
     [curPwToggle, curPwInput],
@@ -160,7 +153,7 @@ function renderInShellScreen(profile) {
     [pw2Toggle, pw2Input],
   ]);
 
-  container.append(header, card);
+  container.append(header, stack);
   return container;
 }
 
