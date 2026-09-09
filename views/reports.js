@@ -13,6 +13,8 @@ import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
+import { getCurrentSchool } from "../js/services/auth.service.js";
+import { isStarterPlan } from "../js/services/subscription.service.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -372,11 +374,17 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   // Student identity row - a real table so labels/values line up in even
   // columns across the full width, the way a printed official record
   // would, rather than a loose two-column list.
+  // Student photos are reserved for Growth/District plans - Starter schools
+  // see a person-icon placeholder, which also avoids a Cloudinary network
+  // fetch during PDF rendering.
+  const starterPlan = isStarterPlan(getCurrentSchool());
   card.append(
     el("div", { class: "report-card__student" }, [
-      result.photoUrl
-        ? el("img", { class: "report-card__photo", src: result.photoUrl, crossorigin: "anonymous" })
-        : el("div", { class: "report-card__photo" }),
+      starterPlan
+        ? el("div", { class: "report-card__photo report-card__photo--placeholder" }, [el("span", { class: "material-symbols-rounded" }, "person")])
+        : result.photoUrl
+          ? el("img", { class: "report-card__photo", src: result.photoUrl, crossorigin: "anonymous" })
+          : el("div", { class: "report-card__photo" }),
       infoTable([
         ["Name", result.fullName, "Adm No", result.admissionNumber || "N/A"],
         ["Class", `${result.grade}${result.stream ? " " + result.stream : ""}`, "Gender", result.gender || "N/A"],

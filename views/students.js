@@ -40,6 +40,8 @@ import {
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput, datePickerField } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
+import { getCurrentSchool } from "../js/services/auth.service.js";
+import { isStarterPlan } from "../js/services/subscription.service.js";
 
 let students = [];
 let parents = [];
@@ -385,8 +387,11 @@ function loadingRow() {
 
 function buildProfileHeader(profile, student, refreshAll) {
   const wrap = el("div", { class: "profile-header" });
+  const starterPlan = isStarterPlan(getCurrentSchool());
   wrap.append(
-    student.photoUrl ? el("img", { class: "profile-photo", src: student.photoUrl }) : el("div", { class: "profile-photo" }),
+    starterPlan
+      ? el("div", { class: "profile-photo profile-photo--placeholder" }, [el("span", { class: "material-symbols-rounded" }, "person")])
+      : student.photoUrl ? el("img", { class: "profile-photo", src: student.photoUrl }) : el("div", { class: "profile-photo" }),
     el("div", { class: "profile-identity" }, [
       el("h2", {}, student.fullName),
       el("p", { class: "meta" }, `${student.admissionNumber || "No adm. no."} · ${student.grade || "N/A"} ${student.stream || ""} · ${student.gender || "N/A"}`),
@@ -1223,7 +1228,9 @@ function openStudentForm(profile, existing = null, onDone) {
     field("s-previousSchool", "Previous School", existing?.previousSchool),
     field("s-kcpeNumber", "KCPE/Assessment Number", existing?.kcpeNumber),
     el("div", { class: "field" }, [el("label", {}, "Medical Information"), el("textarea", { id: "s-medicalInfo", rows: "2" }, existing?.medicalInfo || "")]),
-    el("div", { class: "field" }, [el("label", {}, "Photo"), el("input", { type: "file", id: "s-photo", accept: "image/*" })]),
+    isStarterPlan(getCurrentSchool())
+      ? el("div", { class: "field" }, [el("label", {}, "Photo"), el("p", { class: "text-sm text-muted", style: "margin:0" }, "Upgrade to Growth to add student photos.")])
+      : el("div", { class: "field" }, [el("label", {}, "Photo"), el("input", { type: "file", id: "s-photo", accept: "image/*" })]),
     el("div", { class: "field" }, [el("label", {}, "Linked Parents/Guardians"), parentChecklist]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Register student"]),
   );
@@ -1244,7 +1251,7 @@ function openStudentForm(profile, existing = null, onDone) {
     }
 
     const restore = busyButton(e.submitter, isEdit ? "Saving…" : "Registering…");
-    const photoFile = document.getElementById("s-photo").files[0];
+    const photoFile = document.getElementById("s-photo")?.files[0];
     const parentIds = Array.from(parentChecklist.querySelectorAll("input:checked")).map((c) => c.value);
     const data = {
       admissionNumber: val("s-admissionNumber"),

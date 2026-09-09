@@ -28,6 +28,14 @@ export const SUBSCRIPTION_PLANS = [
   { value: "district", label: "District" },
 ];
 
+// Plan-based feature gating. Student photos (upload, display, report-card
+// embedding) are reserved for Growth / District plans — Starter schools
+// see a placeholder mascot instead. Reads from the same school doc that
+// auth.service.js keeps live via onSnapshot, so there's no extra fetch.
+export function isStarterPlan(school) {
+  return (school?.subscriptionPlan || "").toLowerCase() === "starter";
+}
+
 // "term" maps to TERM_MONTHS below (kept as a single tweakable constant
 // since Kenyan CBC runs 3 terms/year - 4 months is one term's worth, not a
 // hardcoded date range). Must match the identical constant in

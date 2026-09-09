@@ -50,6 +50,8 @@
   margin-bottom: var(--sp-4);
 }
 .report-card__photo { width: 90px; height: 90px; border-radius: var(--radius-md); object-fit: cover; border: 1px solid var(--color-line); background: var(--color-cream-dim); flex-shrink: 0; }
+.report-card__photo--placeholder { display: flex; align-items: center; justify-content: center; }
+.report-card__photo--placeholder .material-symbols-rounded { font-size: 44px; color: var(--color-ink-soft); opacity: 0.55; }
 
 /* Student identity table: even label/value columns across the full width.
    No fill on the label cells - a bold weight is enough to set them apart

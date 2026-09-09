@@ -31,7 +31,8 @@ import { listAssessments, getAssessmentMaxScore } from "./assessment.service.js"
 import { listMarksByAssessment } from "./marks.service.js";
 import { listStudents } from "./student.service.js";
 import { DEFAULT_GRADING_SCALE } from "./settings.service.js";
-import { getCurrentSchoolId } from "./auth.service.js";
+import { getCurrentSchoolId, getCurrentSchool } from "./auth.service.js";
+import { isStarterPlan } from "./subscription.service.js";
 import { scopedId, toDate } from "../utils.js";
 
 // ---------------------------------------------------------------- Grading --
@@ -414,7 +415,7 @@ export async function computeClassResults({ grade, academicYear, term, gradingSc
       kcpeNumber: student.kcpeNumber || "",
       fullName: student.fullName,
       gender: student.gender || "",
-      photoUrl: student.photoUrl || "",
+      photoUrl: isStarterPlan(getCurrentSchool()) ? "" : (student.photoUrl || ""),
       stream: student.stream || "",
       subjects: subjectResults,
       totalMarks,
@@ -506,7 +507,7 @@ export async function saveResults(userId, { grade, academicYear, term, reportMod
       kcpeNumber: s.kcpeNumber || "",
       fullName: s.fullName || "",
       gender: s.gender || "",
-      photoUrl: s.photoUrl || "",
+      photoUrl: isStarterPlan(getCurrentSchool()) ? "" : (s.photoUrl || ""),
       grade,
       stream: s.stream || "",
       academicYear,
