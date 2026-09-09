@@ -45,7 +45,7 @@ export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
   "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), allRoles: true },
-  "/settings": { view: () => import("../views/settings.js"), roles: ["admin"] },
+  "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings" },
 
   "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
   "/parents": { view: () => import("../views/parents.js"), roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
