@@ -3,12 +3,29 @@ import { getSchoolSettings } from "../js/services/settings.service.js";
 import { listSavedModesForPeriod, reportModeLabel } from "../js/services/grading.service.js";
 import { getRelease, setRelease, isExpired, releaseStatusLabel } from "../js/services/release.service.js";
 import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils.js";
+import { getCurrentSchool } from "../js/services/auth.service.js";
+import { isStarterPlan } from "../js/services/subscription.service.js";
+import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
 
 let classes = [];
 let settings = null;
 let selection = { grade: "", academicYear: "", term: "" };
 
 export async function render({ profile }) {
+  if (isStarterPlan(getCurrentSchool())) {
+    return renderModuleUpgrade({
+      profile,
+      title: "This module is not available for this plan",
+      description: "The Public Results Release portal is reserved for schools on Growth and District plans. Please upgrade your plan to publish student results online, control visibility windows, and automate parent access expiry.",
+      perks: [
+        "Public Parent Results Lookup Portal",
+        "Custom Results Release Windows & Automated Expiry",
+        "Direct Parent Result Link Sharing",
+      ],
+      subject: "Upgrade Release Results Module to Growth Plan",
+    });
+  }
+
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
   selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
   selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";

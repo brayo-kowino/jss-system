@@ -1534,80 +1534,15 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 .sad-mascot__body {
   transform-origin: center bottom;
-  animation: sadMascotBounce 2.4s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
 }
 
 .sad-mascot__shadow {
   transform-origin: 120px 208px;
-  animation: sadMascotShadow 2.4s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+  opacity: 0.22;
 }
 
 .sad-mascot__tear {
-  animation: sadMascotTear 2.4s ease-in-out infinite;
-}
-
-@keyframes sadMascotBounce {
-  0%, 100% {
-    transform: translateY(0) scale(1, 1);
-  }
-  30% {
-    transform: translateY(-22px) scale(0.96, 1.05);
-  }
-  50% {
-    transform: translateY(0) scale(1.05, 0.95);
-  }
-  68% {
-    transform: translateY(-9px) scale(0.98, 1.02);
-  }
-  82% {
-    transform: translateY(0) scale(1.02, 0.98);
-  }
-}
-
-@keyframes sadMascotShadow {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.25;
-  }
-  30% {
-    transform: scale(0.68);
-    opacity: 0.1;
-  }
-  50% {
-    transform: scale(1.14);
-    opacity: 0.35;
-  }
-  68% {
-    transform: scale(0.85);
-    opacity: 0.18;
-  }
-  82% {
-    transform: scale(1.03);
-    opacity: 0.28;
-  }
-}
-
-@keyframes sadMascotTear {
-  0%, 100% {
-    transform: translateY(0);
-    opacity: 0.9;
-  }
-  35% {
-    transform: translateY(2px);
-    opacity: 1;
-  }
-  60% {
-    transform: translateY(6px);
-    opacity: 0.4;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .sad-mascot__body,
-  .sad-mascot__shadow,
-  .sad-mascot__tear {
-    animation: none;
-  }
+  opacity: 0.85;
 }
 
 .upgrade-perks {
