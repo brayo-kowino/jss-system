@@ -477,9 +477,6 @@ export async function render({ profile }) {
     wrap.append(
       el("div", { class: "md3-card dashboard-welcome-card", style: "margin-top: var(--sp-2);" }, [
         el("div", { class: "dashboard-welcome-inner" }, [
-          el("div", { class: "dashboard-welcome-icon" }, [
-            el("span", { class: "material-symbols-rounded" }, "rocket_launch"),
-          ]),
           el("div", { class: "dashboard-welcome-text" }, [
             el("h3", { style: "margin: 0 0 var(--sp-1);" }, "Welcome to your school dashboard!"),
             el("p", { style: "margin: 0; color: var(--color-ink-soft); font-size: var(--fs-sm);" },
