@@ -576,25 +576,39 @@ function buildSubscriptionTab() {
   } else if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
     statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact us at iskify360.tech@gmail.com to get a subscription token, then paste it below."));
   } else if (active) {
-    statusBanner.append(icon("check_circle"), el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`));
+    const isStarter = isStarterPlan(settings);
+    const bannerContent = el("span", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+      el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`),
+    ]);
+    if (isStarter) {
+      bannerContent.append(
+        el("span", {
+          class: "tooltip-wrap",
+          tabindex: "0",
+          role: "button",
+          "aria-label": "Starter plan module availability",
+        }, [
+          el("span", { class: "tooltip-trigger-badge" }, [
+            icon("info"),
+            "Module availability",
+          ]),
+          el("span", { class: "tooltip-bubble", role: "tooltip" }, [
+            el("span", { class: "tooltip-bubble__title" }, [
+              icon("info"),
+              "Starter Plan Availability",
+            ]),
+            el("span", { class: "tooltip-bubble__text" },
+              "Features like Attendance tracking, Public Exam Results Release, and Student Profile Photos are reserved for Growth & District plans."
+            ),
+          ]),
+        ])
+      );
+    }
+    statusBanner.append(icon("check_circle"), bannerContent);
   } else {
     statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact us at iskify360.tech@gmail.com for a new token.`));
   }
   card.append(statusBanner);
-
-  if (active && isStarterPlan(settings)) {
-    const starterNotice = el("div", {
-      class: "notice-banner notice-banner--caution",
-      style: "margin-top:10px; font-size:13px;"
-    }, [
-      icon("info"),
-      el("span", {}, [
-        el("strong", {}, "Starter Plan: "),
-        "Features like Attendance tracking, Public Exam Results Release, and Student Profile Photos are reserved for Growth and District plans.",
-      ]),
-    ]);
-    card.append(starterNotice);
-  }
 
   const form = el("form", { id: "subscription-form", class: "settings-form-grid", style: "margin-top:16px;" }, [
     el("div", { class: "field field--full" }, [
