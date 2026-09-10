@@ -576,28 +576,7 @@ function buildSubscriptionTab() {
   } else if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
     statusBanner.append(icon("info"), el("span", {}, "No active subscription. Contact us at iskify360.tech@gmail.com to get a subscription token, then paste it below."));
   } else if (active) {
-    const isStarter = isStarterPlan(settings);
-    const bannerContent = el("span", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
-      `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`,
-    ]);
-    if (isStarter) {
-      const tooltipMsg = "Some modules may or may not be available for this plan (e.g. Attendance, Release Results, and Student Profile Pictures are reserved for Growth & District plans).";
-      bannerContent.append(
-        el("span", {
-          class: "tooltip-wrap",
-          tabindex: "0",
-          role: "button",
-          "aria-label": tooltipMsg,
-        }, [
-          el("span", { class: "tooltip-trigger-badge" }, [
-            icon("help"),
-            "Module availability",
-          ]),
-          el("span", { class: "tooltip-bubble", role: "tooltip" }, tooltipMsg),
-        ])
-      );
-    }
-    statusBanner.append(icon("check_circle"), bannerContent);
+    statusBanner.append(icon("check_circle"), el("span", {}, `${planLabel} plan is active - ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (expires ${formatDate(settings.subscriptionExpiresAt)}).`));
   } else {
     statusBanner.append(icon("error"), el("span", {}, `Your subscription expired on ${formatDate(settings.subscriptionExpiresAt)}. The system is locked until it's renewed - contact us at iskify360.tech@gmail.com for a new token.`));
   }
@@ -611,7 +590,7 @@ function buildSubscriptionTab() {
       icon("info"),
       el("span", {}, [
         el("strong", {}, "Starter Plan: "),
-        "Some modules may or may not be available for this plan. Features like Attendance tracking, Public Exam Results Release, and Student Profile Photos are reserved for Growth and District plans.",
+        "Features like Attendance tracking, Public Exam Results Release, and Student Profile Photos are reserved for Growth and District plans.",
       ]),
     ]);
     card.append(starterNotice);
