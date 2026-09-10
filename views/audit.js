@@ -70,7 +70,7 @@ function summaryLine() {
   const rangeLabel = (RANGE_LABELS[filters.range] || "").toLowerCase();
   if (!logs.length) return `No actions logged in the selected range (${rangeLabel}).`;
   const distinctUsers = new Set(logs.map((l) => l.userId)).size;
-  return `${logs.length} action(s) logged across ${distinctUsers} user(s) — ${rangeLabel}.`;
+  return `${logs.length} action(s) logged across ${distinctUsers} user(s); ${rangeLabel}.`;
 }
 
 function userLabel(userId) {
