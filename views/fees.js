@@ -159,8 +159,6 @@ export async function render({ profile }) {
       
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures Configured`]),
-        el("div", { class: "fees-pill" }, [icon("receipt_long"), "Instant PDF Receipts"]),
-        el("div", { class: "fees-pill" }, [icon("sync"), "Automated Balance Sync"]),
       ]),
       el("div", { class: "fees-hero__actions" }, [
         el("button", {
