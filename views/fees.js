@@ -156,21 +156,10 @@ export async function render({ profile }) {
         ]),
       ]),
       el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
-      
+      el("p", { class: "fees-hero__desc" }, "Configure grade-level tuition structures, track student fee accounts, and record payment transactions."),
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures Configured`]),
-      ]),
-      el("div", { class: "fees-hero__actions" }, [
-        el("button", {
-          type: "button",
-          class: "btn btn--primary",
-          onClick: () => openStructureModal(profile, null, structuresCard),
-        }, [icon("add"), "Set Fee Structure"]),
-        el("button", {
-          type: "button",
-          class: "btn btn--ghost",
-          onClick: (e) => handleBackfillFeeStatus(e.currentTarget),
-        }, [icon("sync"), "Sync Fee Balances"]),
+        el("div", { class: "fees-pill" }, [icon("account_balance"), "KES Tuition Ledgers"]),
       ]),
     ]),
 
@@ -442,7 +431,7 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   const actions = el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end; gap:8px;" }, [
     el("button", {
       type: "button",
-      class: "btn btn--primary",
+      class: "btn btn--primary btn--sm",
       onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
     }, [icon("search"), "Load Balances & Records"]),
   ]);
