@@ -441,12 +441,6 @@ export async function render({ profile }) {
 
   const heroCard = el("div", { class: "support-hero" }, [
     el("div", { class: "support-hero__content" }, [
-      el("div", { class: "support-hero__status-row" }, [
-        el("div", { class: "support-status-badge" }, [
-          el("span", { class: "support-beacon" }),
-          "Support Desk Online",
-        ]),
-      ]),
       el("h1", { class: "support-hero__title" }, "School Help & Support Center"),
       el(
         "p",
