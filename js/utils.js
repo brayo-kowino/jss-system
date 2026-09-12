@@ -136,6 +136,7 @@ export function el(tag, attrs = {}, children = []) {
     // matched the intended condition.
     if (value === undefined || value === null) continue;
     if (key === "class") node.className = value;
+    else if (key === "html" || key === "innerHTML") node.innerHTML = value;
     else if (key.startsWith("on") && typeof value === "function") {
       node.addEventListener(key.slice(2).toLowerCase(), value);
     } else node.setAttribute(key, value);

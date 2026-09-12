@@ -432,8 +432,21 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "support-page" });
 
+  const mascotWrap = el("div", {
+    class: "support-hero__mascot-wrap",
+    style: "width:165px; height:150px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
+    "aria-hidden": "true",
+  });
+  mascotWrap.innerHTML = buildSupportMascotSvg({ width: 165, height: 150 });
+
   const heroCard = el("div", { class: "support-hero" }, [
     el("div", { class: "support-hero__content" }, [
+      el("div", { class: "support-hero__status-row" }, [
+        el("div", { class: "support-status-badge" }, [
+          el("span", { class: "support-beacon" }),
+          "Support Desk Online",
+        ]),
+      ]),
       el("h1", { class: "support-hero__title" }, "School Help & Support Center"),
       el(
         "p",
@@ -455,10 +468,7 @@ export async function render({ profile }) {
     // Animated Mascot with Speech Bubble
     el("div", { class: "support-hero__mascot-box" }, [
       el("div", { class: "support-speech-bubble" }, "Hi! How can we assist your school today?"),
-      el("div", {
-        style: "width:150px; height:140px; display:flex; align-items:center; justify-content:center;",
-        innerHTML: buildSupportMascotSvg({ width: 150, height: 140 }),
-      }),
+      mascotWrap,
     ]),
   ]);
   wrap.append(heroCard);

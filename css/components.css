@@ -2069,33 +2069,46 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* Mascot SVG Animation classes */
+.support-hero__mascot-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .support-mascot-svg {
-  filter: drop-shadow(0 8px 16px rgba(11, 37, 69, 0.1));
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 8px 16px rgba(11, 37, 69, 0.12));
 }
 
 .support-mascot__body {
   animation: mascotFloat 3.6s ease-in-out infinite;
-  transform-origin: 110px 185px;
 }
 
 .support-mascot__shadow {
+  transform-box: fill-box;
+  transform-origin: center;
   animation: mascotShadow 3.6s ease-in-out infinite;
-  transform-origin: 110px 190px;
 }
 
 .support-mascot__hand-wave {
+  transform-box: fill-box;
+  transform-origin: 20% 80%;
   animation: mascotWave 2.8s ease-in-out infinite;
-  transform-origin: 135px 125px;
 }
 
 .support-mascot__eyes {
+  transform-box: fill-box;
+  transform-origin: center;
   animation: mascotBlink 4.2s infinite;
-  transform-origin: 110px 85px;
 }
 
 .support-mascot__tassel {
+  transform-box: fill-box;
+  transform-origin: 10% 10%;
   animation: mascotTassel 3.6s ease-in-out infinite;
-  transform-origin: 135px 50px;
 }
 
 @keyframes mascotFloat {
