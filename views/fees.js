@@ -156,7 +156,7 @@ export async function render({ profile }) {
         ]),
       ]),
       el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
-      el("p", { class: "fees-hero__desc" }, "Configure grade-level tuition structures, track student fee accounts, and record payment transactions."),
+      el("p", { class: "fees-hero__desc" }, "Fee structures, student balances, and tuition collection records for your school."),
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures Configured`]),
         el("div", { class: "fees-pill" }, [icon("account_balance"), "KES Tuition Ledgers"]),
