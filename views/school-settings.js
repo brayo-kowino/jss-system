@@ -108,7 +108,6 @@ export async function render({ profile }) {
   wrap.append(
     el("div", { class: "settings-header" }, [
       el("div", {}, [
-        el("h1", { class: "settings-header__title" }, "School Settings"),
         el("p", { class: "settings-header__desc" }, "Configure your institution's profile, visual branding, academic schedule, CBC grading scale, and security controls."),
       ]),
       el("div", { class: "settings-header__badge" }, [
