@@ -432,16 +432,8 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "support-page" });
 
-  // 1. Dynamic Hero Card with Animated Scholar Mascot
   const heroCard = el("div", { class: "support-hero" }, [
     el("div", { class: "support-hero__content" }, [
-      el("div", { class: "support-hero__status-row" }, [
-        el("div", { class: "support-status-badge" }, [
-          el("span", { class: "support-beacon" }),
-          "Support Desk Online",
-        ]),
-        el("span", { style: "font-size:var(--fs-xs); color:var(--color-ink-soft); font-weight:500;" }, "Live Monitoring"),
-      ]),
       el("h1", { class: "support-hero__title" }, "School Help & Support Center"),
       el(
         "p",
