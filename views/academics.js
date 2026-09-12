@@ -167,22 +167,11 @@ export async function render({ profile }) {
   // Executive Hero Banner
   const heroBanner = el("div", { class: "academics-hero" }, [
     el("div", { class: "academics-hero__content" }, [
-      el("div", { class: "academics-hero__status-row" }, [
-        el("div", { class: "academics-cycle-badge" }, [
-          icon("account_tree", "text-sm"),
-          "Curriculum Architecture · CBC Structure",
-        ]),
-        infoTooltip(
-          "Classes & Streams",
-          "Classes and streams form the structural foundation of your school. Enrolled learners, teacher timetables, attendance registers, and CBC assessment rubrics all bind directly to these sections.",
-          "right"
-        ),
-      ]),
       el("h1", { class: "academics-hero__title" }, "Classes & Learning Streams"),
       el(
         "p",
         { class: "academics-hero__desc" },
-        "Configure grade cohorts, learning streams, and class sections to structure student enrollments, timetable scheduling, and CBC assessment rubrics."
+        "Classes and streams for your school are configured here. (Streams are not required for single-section classes.)"
       ),
       el("div", { class: "academics-hero__pills" }, [
         el("div", { class: "academics-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
@@ -206,48 +195,11 @@ export async function render({ profile }) {
 
     // Animated Academic Scholar Mascot & Speech Bubble
     el("div", { class: "academics-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Organize your classes, grade levels, and learning streams."),
+      el("div", { class: "support-speech-bubble" }, "Organize your school's grades and streams to enroll students, generate class attendance registers, and record assessment marks."),
       mascotWrap,
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // KPI Analytics Metric Strip
-  const kpiGrid = el("div", { class: "academics-kpi-grid" }, [
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon" }, [icon("school")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${classes.length}`),
-        el("span", { class: "academics-kpi-label" }, "Grade Cohorts"),
-        el("span", { class: "academics-kpi-sub" }, "Enrolled grade levels"),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(201,162,39,0.15); color:var(--color-gold-700,#8c6f12);" }, [icon("meeting_room")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${totalStreams}`),
-        el("span", { class: "academics-kpi-label" }, "Active Streams"),
-        el("span", { class: "academics-kpi-sub" }, `${avgStreams} avg per grade`),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(5,150,105,0.12); color:#059669;" }, [icon("groups")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${activeStudentsCount}`),
-        el("span", { class: "academics-kpi-label" }, "Enrolled Learners"),
-        el("span", { class: "academics-kpi-sub" }, "Active on class rosters"),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(99,102,241,0.12); color:#4f46e5;" }, [icon("verified")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val", style: "font-size:var(--fs-md);" }, "CBC Standard"),
-        el("span", { class: "academics-kpi-label" }, "Curriculum Format"),
-        el("span", { class: "academics-kpi-sub" }, "Pre-Primary to JSS"),
-      ]),
-    ]),
-  ]);
-  wrap.append(kpiGrid);
 
   // Search & Hint Toolbar
   const searchInput = el("input", {
