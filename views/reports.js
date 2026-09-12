@@ -168,20 +168,11 @@ export async function render({ profile }) {
   // Executive Hero Banner
   const heroBanner = el("div", { class: "reports-hero" }, [
     el("div", { class: "reports-hero__content" }, [
-      el("div", { class: "reports-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("verified", "text-xs"),
-          "Official CBC Records · Evaluation & Export",
-          infoTooltip("Official student report cards generated from computed merit rankings with CBC performance levels, teacher remarks, and batch PDF export."),
-        ]),
-      ]),
       el("h1", { class: "reports-hero__title" }, "Student Report Cards"),
-      el("p", { class: "reports-hero__desc" }, "Review student performance reports, record qualitative teacher remarks, and batch export printable PDF cards."),
+      el("p", { class: "reports-hero__desc" }, "Student report cards with CBC performance levels, teacher remarks, and exportable PDF cards for printing."),
       el("div", { class: "reports-hero__pills" }, [
         el("div", { class: "reports-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "reports-pill" }, [icon("calendar_today"), `${selection.academicYear} · ${selection.term}`]),
-        el("div", { class: "reports-pill" }, [icon("grade"), "CBC Performance Levels"]),
-        el("div", { class: "reports-pill" }, [icon("folder_zip"), "Batch PDF Ready"]),
       ]),
     ]),
 
