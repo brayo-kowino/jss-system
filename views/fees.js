@@ -156,11 +156,7 @@ export async function render({ profile }) {
         ]),
       ]),
       el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
-      el(
-        "p",
-        { class: "fees-hero__desc" },
-        "Establish per-grade fee structures, monitor live class collection rates, reconcile student balances, and issue official payment receipts."
-      ),
+      
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures Configured`]),
         el("div", { class: "fees-pill" }, [icon("receipt_long"), "Instant PDF Receipts"]),
