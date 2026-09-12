@@ -94,7 +94,6 @@ export function buildFinanceMascotSvg({ width = 165, height = 150 } = {}) {
           <g class="fees-mascot__coin" transform="translate(142, 70)">
             <circle cx="15" cy="15" r="14" fill="#C9A227" stroke="#8C6F12" stroke-width="1.4" />
             <circle cx="15" cy="15" r="11" fill="#FBBF24" stroke="#D97706" stroke-width="0.8" />
-            <text x="15" y="19" font-size="10" font-weight="900" text-anchor="middle" fill="#78350F" font-family="system-ui, sans-serif">K</text>
             <!-- Glint Star -->
             <path class="fees-mascot__glint" d="M22,7 L23,10 L26,11 L23,12 L22,15 L21,12 L18,11 L21,10 Z" fill="#FFFFFF" />
           </g>
