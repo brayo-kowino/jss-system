@@ -166,17 +166,6 @@ export async function render({ profile }) {
   // Executive Hero Banner
   const heroBanner = el("div", { class: "marks-hero" }, [
     el("div", { class: "marks-hero__content" }, [
-      el("div", { class: "marks-hero__status-row" }, [
-        el("div", { class: "academics-cycle-badge" }, [
-          icon("edit_note", "text-sm"),
-          "Marks Entry & Grading",
-        ]),
-        infoTooltip(
-          "Marks Entry Guidelines",
-          "Select a class, subject, and assessment to record marks. Scores auto-save every 7 seconds. Enter numbers between 0 and the configured Max Score. Locked assessments cannot be edited.",
-          "right"
-        ),
-      ]),
       el("h1", { class: "marks-hero__title" }, "Student Marks Entry"),
       el("p", { class: "marks-hero__desc" }, "Record and audit student assessment marks with real-time validation and background auto-save."),
       el("div", { class: "marks-hero__pills" }, [
