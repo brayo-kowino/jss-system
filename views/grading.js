@@ -157,23 +157,11 @@ export async function render({ profile }) {
   // Executive Hero Banner
   const heroBanner = el("div", { class: "grading-hero" }, [
     el("div", { class: "grading-hero__content" }, [
-      el("div", { class: "grading-hero__status-row" }, [
-        el("div", { class: "academics-cycle-badge" }, [
-          icon("workspace_premium", "text-sm"),
-          "Merit Ranking & Aggregation",
-        ]),
-        infoTooltip(
-          "Grading & Positions Overview",
-          "Computes subject weighted averages and student merit ranks across all streams simultaneously. Saved results are published directly to Report Cards and Analytics.",
-          "right"
-        ),
-      ]),
       el("h1", { class: "grading-hero__title" }, "Class Grading & Positions"),
-      el("p", { class: "grading-hero__desc" }, "Aggregate assessment scores, calculate class subject averages, and generate merit rankings for report cards."),
+      el("p", { class: "grading-hero__desc" }, "CLass-wide subject averages, merit positions, and stream ranking."),
       el("div", { class: "grading-hero__pills" }, [
         el("div", { class: "grading-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "grading-pill" }, [icon("calendar_today"), `${selection.academicYear} · ${selection.term}`]),
-        el("div", { class: "grading-pill" }, [icon("analytics"), "CBC Merit Ranking"]),
       ]),
     ]),
 
