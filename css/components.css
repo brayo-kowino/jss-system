@@ -325,6 +325,19 @@
 .btn--danger { background: var(--color-red); color: var(--color-white); }
 .btn--block { width: 100%; }
 .btn--sm { padding: var(--sp-2) var(--sp-3); font-size: var(--fs-xs); }
+.btn--xs {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  gap: 4px;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.btn--xs .material-symbols-rounded,
+.btn--xs .material-symbols-rounded.icon {
+  font-size: 15px !important;
+}
 .btn--outline { background: transparent; color: var(--color-primary-700); border-color: var(--color-primary-700); }
 .btn--outline:hover:not(:disabled) { background: var(--color-primary-100); }
 
@@ -2876,6 +2889,52 @@ tbody tr:hover { background: var(--color-primary-100); }
   margin-bottom: var(--sp-3);
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Fees Tables & Balanced Columns */
+.fees-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fees-table th,
+.fees-table td {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.fees-table th.col-num,
+.fees-table td.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fees-table th.col-center,
+.fees-table td.col-center {
+  text-align: center;
+}
+
+.fees-table th.col-action-head {
+  text-align: right;
+  padding-right: 18px;
+}
+
+.fees-table td.col-action {
+  text-align: right;
+  padding-right: 18px;
+  white-space: nowrap;
+}
+
+.fees-pay-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(11, 37, 69, 0.08);
 }
 
 /* ==========================================================================

@@ -249,13 +249,13 @@ function renderStructures(container, profile) {
   }
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  const table = el("table", {}, [
+  const table = el("table", { class: "fees-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Grade"),
-      el("th", {}, "Academic Year"),
-      el("th", {}, "Term"),
-      el("th", {}, "Term Fee"),
-      el("th", { style: "text-align:right;" }, "Actions"),
+      el("th", { style: "width:130px;" }, "Grade"),
+      el("th", { style: "width:150px;" }, "Academic Year"),
+      el("th", { style: "width:130px;" }, "Term"),
+      el("th", { class: "col-num", style: "width:160px;" }, "Term Fee"),
+      el("th", { class: "col-action-head", style: "width:160px;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -269,26 +269,26 @@ function renderStructures(container, profile) {
       ]),
       el("td", { "data-label": "Academic Year", style: "font-weight:500;" }, s.academicYear),
       el("td", { "data-label": "Term", style: "font-weight:500;" }, s.term),
-      el("td", { "data-label": "Term Fee" }, [
+      el("td", { class: "col-num", "data-label": "Term Fee" }, [
         el("strong", {
           style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace); font-size:var(--fs-sm);",
         }, formatKES(s.amount)),
       ]),
-      el("td", { class: "row-actions", "data-label": "Actions", style: "text-align:right;" }, [
+      el("td", { class: "col-action", "data-label": "Actions" }, [
         el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
           el("button", {
             type: "button",
             class: "btn btn--ghost btn--xs",
             title: "Edit this structure",
             onClick: () => openStructureModal(profile, s, container),
-          }, [icon("edit"), "Edit"]),
+          }, [icon("edit", "text-xs"), "Edit"]),
           el("button", {
             type: "button",
             class: "btn btn--ghost btn--xs",
             style: "color:var(--color-danger);",
             title: "Delete this structure",
             onClick: () => handleDeleteStructure(profile, s, container),
-          }, [icon("delete"), "Delete"]),
+          }, [icon("delete", "text-xs"), "Delete"]),
         ]),
       ]),
     ]));
@@ -669,15 +669,15 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
 
   // 5. Roster Table
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  const table = el("table", {}, [
+  const table = el("table", { class: "fees-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Adm No."),
-      el("th", {}, "Student Name"),
-      el("th", {}, "Expected"),
-      el("th", {}, "Paid"),
-      el("th", {}, "Balance"),
-      el("th", {}, "Status"),
-      el("th", { style: "text-align:right;" }, "Action"),
+      el("th", { style: "width:115px;" }, "Adm No."),
+      el("th", { style: "min-width:170px;" }, "Student Name"),
+      el("th", { class: "col-num", style: "width:130px;" }, "Expected"),
+      el("th", { class: "col-num", style: "width:130px;" }, "Paid"),
+      el("th", { class: "col-num", style: "width:130px;" }, "Balance"),
+      el("th", { class: "col-center", style: "width:105px;" }, "Status"),
+      el("th", { class: "col-action-head", style: "width:155px;" }, "Action"),
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -717,40 +717,45 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
 
       let statusPill;
       if (isCleared) {
-        statusPill = el("span", { class: "badge badge--success", style: "display:inline-flex; align-items:center; gap:4px;" }, [
+        statusPill = el("span", { class: "badge badge--success", style: "display:inline-flex; align-items:center; gap:4px; font-weight:600;" }, [
           icon("check_circle", "text-xs"), "Cleared",
         ]);
       } else if (isPartial) {
-        statusPill = el("span", { class: "badge badge--warning", style: "display:inline-flex; align-items:center; gap:4px;" }, [
+        statusPill = el("span", { class: "badge badge--warning", style: "display:inline-flex; align-items:center; gap:4px; font-weight:600;" }, [
           icon("schedule", "text-xs"), "Partial",
         ]);
       } else {
-        statusPill = el("span", { class: "badge badge--danger", style: "display:inline-flex; align-items:center; gap:4px;" }, [
+        statusPill = el("span", { class: "badge badge--danger", style: "display:inline-flex; align-items:center; gap:4px; font-weight:600;" }, [
           icon("error_outline", "text-xs"), "Unpaid",
         ]);
       }
+
+      const paidColor = (paid || 0) > 0 ? "#059669" : "var(--color-ink-soft)";
+      const paidWeight = (paid || 0) > 0 ? "600" : "400";
+      const balColor = isCleared ? "#059669" : "#dc2626";
 
       targetTbody.append(el("tr", {}, [
         el("td", { "data-label": "Adm No." }, [
           el("span", { style: "font-family:var(--font-mono, monospace); font-weight:600; color:var(--color-ink-soft); font-size:var(--fs-xs);" }, student.admissionNumber || "—"),
         ]),
         el("td", { "data-label": "Student Name" }, [
-          el("strong", { style: "color:var(--color-primary-900);" }, student.fullName),
+          el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm);" }, student.fullName),
         ]),
-        el("td", { "data-label": "Expected", style: "font-family:var(--font-mono, monospace);" }, formatKES(expected)),
-        el("td", { "data-label": "Paid", style: "font-family:var(--font-mono, monospace); color:var(--color-green);" }, formatKES(paid)),
-        el("td", { "data-label": "Balance" }, [
+        el("td", { class: "col-num", "data-label": "Expected", style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); color:var(--color-ink); font-weight:500;" }, formatKES(expected)),
+        el("td", { class: "col-num", "data-label": "Paid", style: `font-family:var(--font-mono, monospace); font-size:var(--fs-xs); color:${paidColor}; font-weight:${paidWeight};` }, formatKES(paid)),
+        el("td", { class: "col-num", "data-label": "Balance" }, [
           el("strong", {
-            style: `font-family:var(--font-mono, monospace); color:${isCleared ? "var(--color-green)" : "var(--color-danger);"}`,
+            style: `font-family:var(--font-mono, monospace); font-size:var(--fs-xs); color:${balColor};`,
           }, formatKES(balance)),
         ]),
-        el("td", { "data-label": "Status" }, statusPill),
-        el("td", { class: "row-actions", "data-label": "Action", style: "text-align:right;" }, [
+        el("td", { class: "col-center", "data-label": "Status" }, statusPill),
+        el("td", { class: "col-action", "data-label": "Action" }, [
           el("button", {
             type: "button",
-            class: "btn btn--primary btn--xs",
+            class: `btn ${isCleared ? "btn--ghost" : "btn--primary"} btn--xs fees-pay-btn`,
+            title: isCleared ? `Record additional payment for ${student.fullName}` : `Record payment for ${student.fullName}`,
             onClick: () => openPaymentModal(profile, row, container, paymentsMount, receiptMount),
-          }, [icon("payments"), "Record Payment"]),
+          }, [icon(isCleared ? "receipt_long" : "payments", "text-xs"), isCleared ? "Add Payment" : "Record Payment"]),
         ]),
       ]));
     }
@@ -925,14 +930,14 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
   card.append(headerRow);
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  const table = el("table", {}, [
+  const table = el("table", { class: "fees-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Date"),
-      el("th", {}, "Student"),
-      el("th", {}, "Amount"),
-      el("th", {}, "Channel"),
-      el("th", {}, "Reference"),
-      el("th", { style: "text-align:right;" }, "Action"),
+      el("th", { style: "width:130px;" }, "Date"),
+      el("th", { style: "min-width:160px;" }, "Student"),
+      el("th", { class: "col-num", style: "width:130px;" }, "Amount"),
+      el("th", { style: "width:130px;" }, "Channel"),
+      el("th", { style: "width:140px;" }, "Reference"),
+      el("th", { class: "col-action-head", style: "width:120px;" }, "Action"),
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -947,8 +952,8 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
       el("td", { "data-label": "Student" }, [
         el("strong", { style: "color:var(--color-primary-900);" }, p.studentName || "N/A"),
       ]),
-      el("td", { "data-label": "Amount" }, [
-        el("strong", { style: "color:var(--color-green); font-family:var(--font-mono, monospace);" }, formatKES(p.amount)),
+      el("td", { class: "col-num", "data-label": "Amount" }, [
+        el("strong", { style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace); font-size:var(--fs-xs);" }, formatKES(p.amount)),
       ]),
       el("td", { "data-label": "Channel" }, renderPaymentMethodBadge(p.method)),
       el("td", { "data-label": "Reference" }, [
@@ -956,13 +961,13 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
           ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); background:var(--color-cream-dim); padding:2px 6px; border-radius:var(--radius-sm);" }, p.reference)
           : el("span", { class: "text-muted text-xs" }, "—"),
       ]),
-      el("td", { class: "row-actions", "data-label": "Action", style: "text-align:right;" }, [
+      el("td", { class: "col-action", "data-label": "Action" }, [
         el("button", {
           type: "button",
-          class: "btn btn--ghost btn--xs",
+          class: "btn btn--ghost btn--xs fees-pay-btn",
           title: "View printable receipt",
           onClick: () => renderReceipt(receiptMount, p),
-        }, [icon("receipt_long"), "Receipt"]),
+        }, [icon("receipt_long", "text-xs"), "Receipt"]),
       ]),
     ]));
   }
