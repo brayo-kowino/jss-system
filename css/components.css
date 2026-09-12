@@ -3738,6 +3738,346 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* ==========================================================================
+   Marks Entry Module
+   ========================================================================== */
+
+.marks-hero {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
+  background: linear-gradient(135deg, rgba(20, 83, 138, 0.08) 0%, rgba(201, 162, 39, 0.08) 45%, rgba(16, 185, 129, 0.06) 100%);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-5);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.marks-hero__content {
+  flex: 1;
+  min-width: min(100%, 340px);
+}
+
+.marks-hero__status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.marks-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(var(--fs-lg), 2.5vw, var(--fs-lg));
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+
+.marks-hero__desc {
+  margin: 0 0 var(--sp-3) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 580px;
+  line-height: 1.45;
+}
+
+.marks-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.marks-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.marks-pill .material-symbols-rounded {
+  font-size: 15px;
+  color: var(--color-primary-600);
+}
+
+.marks-hero__mascot-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  user-select: none;
+}
+
+.marks-mascot-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 8px 16px rgba(11, 37, 69, 0.12));
+}
+
+@keyframes penGrade {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-16deg); }
+}
+.marks-mascot__pen {
+  transform-origin: 150px 110px;
+  animation: penGrade 2.6s ease-in-out infinite;
+}
+
+@keyframes gradeBadgePulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+.marks-mascot__badge {
+  transform-origin: 68px 116px;
+  animation: gradeBadgePulse 3.2s ease-in-out infinite;
+}
+
+@media (max-width: 860px) {
+  .marks-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .marks-hero__mascot-box {
+    align-self: center;
+    margin-top: var(--sp-3);
+  }
+}
+
+/* Pre-Selection Disclaimers & Getting Started */
+.marks-welcome-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  margin-top: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.marks-welcome-header {
+  text-align: center;
+  max-width: 620px;
+  margin: 0 auto var(--sp-6);
+}
+.marks-welcome-header h3 {
+  margin: var(--sp-2) 0 var(--sp-1);
+  color: var(--color-primary-900);
+  font-family: var(--font-display);
+}
+.marks-welcome-header p {
+  color: var(--color-ink-soft);
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+.marks-steps-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.marks-step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-cream-dim, #f8fafc);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+}
+.marks-step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-primary-900);
+  color: var(--color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.marks-step-text strong {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--color-primary-900);
+}
+.marks-step-text span {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+}
+
+.marks-disclaimers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--sp-4);
+}
+
+.marks-disclaimer-card {
+  padding: var(--sp-4);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-xs);
+}
+.marks-disclaimer-card--info {
+  background: rgba(20, 83, 138, 0.04);
+  border: 1px solid rgba(20, 83, 138, 0.12);
+  border-left: 4px solid var(--color-primary-600);
+}
+.marks-disclaimer-card--warning {
+  background: rgba(201, 162, 39, 0.06);
+  border: 1px solid rgba(201, 162, 39, 0.2);
+  border-left: 4px solid #d97706;
+}
+.marks-disclaimer-card--success {
+  background: rgba(5, 150, 105, 0.04);
+  border: 1px solid rgba(5, 150, 105, 0.15);
+  border-left: 4px solid #059669;
+}
+.marks-disclaimer-card--danger {
+  background: rgba(220, 38, 38, 0.04);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  border-left: 4px solid #dc2626;
+}
+
+.marks-disclaimer-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+.marks-disclaimer-title .material-symbols-rounded {
+  font-size: 18px;
+}
+
+.marks-disclaimer-body {
+  color: var(--color-ink-soft);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* Roster Table Card */
+.marks-roster-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  margin-top: var(--sp-4);
+}
+
+.marks-roster-header {
+  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-line);
+  background: var(--color-cream-dim, #f8fafc);
+}
+
+.marks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-xs);
+}
+
+.marks-table thead {
+  background: var(--color-primary-900);
+  color: var(--color-white);
+}
+
+.marks-table th {
+  padding: 12px 16px;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: none;
+  text-align: left;
+}
+.marks-table th.col-num,
+.marks-table td.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.marks-table th.col-center,
+.marks-table td.col-center {
+  text-align: center;
+}
+
+.marks-table tbody tr {
+  border-bottom: 1px solid var(--color-line);
+  transition: background-color 0.12s ease;
+}
+.marks-table tbody tr:last-child {
+  border-bottom: none;
+}
+.marks-table tbody tr:hover {
+  background-color: rgba(20, 83, 138, 0.025);
+}
+
+.marks-table td {
+  padding: 10px 16px;
+  vertical-align: middle;
+}
+
+.marks-score-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.marks-score-input {
+  width: 82px;
+  padding: 6px 10px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-primary-900);
+  text-align: center;
+  background: var(--color-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.marks-score-input:focus {
+  outline: none;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(20, 83, 138, 0.15);
+}
+.marks-score-input--invalid {
+  border-color: #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+.marks-roster-summary-bar {
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--color-cream-dim, #f8fafc);
+  border-top: 1px solid var(--color-line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+}
+
+/* ==========================================================================
    Utilities
    ========================================================================== */
 @media (max-width: 768px) {
