@@ -171,10 +171,6 @@ export async function render({ profile }) {
       el("div", { class: "marks-hero__pills" }, [
         el("div", { class: "marks-pill" }, [icon("school"), `${classes.length} Classes Available`]),
         el("div", { class: "marks-pill" }, [icon("assignment"), `${allAssessments.length} Assessments Configured`]),
-        el("div", { class: "marks-pill" }, [
-          icon("cloud_sync", "style: color:#059669;"),
-          "7s Auto-Save Active",
-        ]),
       ]),
     ]),
 
