@@ -110,10 +110,6 @@ export async function render({ profile }) {
       el("div", {}, [
         el("p", { class: "settings-header__desc" }, "Configure your institution's profile, visual branding, academic schedule, CBC grading scale, and security controls."),
       ]),
-      el("div", { class: "settings-header__badge" }, [
-        icon("domain"),
-        settings.schoolName || "My School",
-      ]),
     ])
   );
 
