@@ -713,51 +713,25 @@ function buildCalendarTab() {
 function buildGradingTab() {
   const card = el("div", { class: "card settings-card" });
   card.append(
-    el("div", { style: "display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;" }, [
-      el("div", {}, [
-        el("h3", {}, [
-          icon("grading"),
-          "CBC Grading Scale & Evaluation Standards",
-          infoTooltip(
-            "CBC Evaluation Engine",
-            "Maps student percentages to performance levels (EE: Exceeding Expectations, ME: Meeting Expectations, AE: Approaching Expectations, BE: Below Expectations). Points feed cumulative position calculations."
-          ),
-        ]),
-        el("p", { class: "settings-card__sub" }, "Configure performance level thresholds, point weights, and official remarks for report cards."),
-      ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--ghost btn--sm",
-        id: "btn-reset-cbc",
-        title: "Load standard Kenyan CBC 4-level performance bands",
-        onClick: () => resetToCBCStandard(),
-      }, [icon("restart_alt"), "Standard CBC Preset"]),
-    ])
+    el("h3", {}, [
+      icon("grading"),
+      "CBC Grading Scale",
+      infoTooltip(
+        "CBC Evaluation Engine",
+        "Maps student percentages to performance levels. Points feed cumulative position calculations."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Configure performance level thresholds, point weights, and official remarks for report cards.")
   );
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-top:12px;" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, [
-        "Min %",
-        infoTooltip("Minimum Percentage", "Inclusive lower score bound for this grade band."),
-      ]),
-      el("th", {}, [
-        "Max %",
-        infoTooltip("Maximum Percentage", "Inclusive upper score bound for this grade band."),
-      ]),
-      el("th", {}, [
-        "Grade Code",
-        infoTooltip("Grade Code", "e.g. EE, ME, AE, BE or A, B, C, D."),
-      ]),
-      el("th", {}, [
-        "Points",
-        infoTooltip("Performance Points", "Point value summed to compute student total points and class positions."),
-      ]),
-      el("th", {}, [
-        "Official Remark",
-        infoTooltip("Teacher Remark", "Descriptive performance remark displayed on terminal report cards."),
-      ]),
+      el("th", {}, "Min %"),
+      el("th", {}, "Max %"),
+      el("th", {}, "Grade Code"),
+      el("th", {}, "Points"),
+      el("th", {}, "Remark"),
       el("th", { style: "width:44px;" }, ""),
     ])),
   ]);
@@ -776,19 +750,6 @@ function buildGradingTab() {
   );
 
   return card;
-}
-
-function resetToCBCStandard() {
-  const standardCBC = [
-    { min: 80, max: 100, grade: "EE", points: 4, remark: "Exceeding Expectations" },
-    { min: 60, max: 79, grade: "ME", points: 3, remark: "Meeting Expectations" },
-    { min: 40, max: 59, grade: "AE", points: 2, remark: "Approaching Expectations" },
-    { min: 0, max: 39, grade: "BE", points: 1, remark: "Below Expectations" },
-  ];
-  const tbody = document.getElementById("grading-tbody");
-  tbody.innerHTML = "";
-  for (const row of standardCBC) tbody.append(gradingRow(row));
-  toast("Standard CBC performance scale loaded. Click 'Save Grading Scale' to apply.", "info", 3500);
 }
 
 function gradingRow(row = {}) {
