@@ -89,14 +89,6 @@ export function buildFinanceMascotSvg({ width = 165, height = 150 } = {}) {
         <g class="fees-mascot__arm-coin">
           <path d="M136,128 C148,132 154,120 150,108" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
           <circle cx="150" cy="108" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-
-          <!-- Floating Golden Coin -->
-          <g class="fees-mascot__coin" transform="translate(142, 70)">
-            <circle cx="15" cy="15" r="14" fill="#C9A227" stroke="#8C6F12" stroke-width="1.4" />
-            <circle cx="15" cy="15" r="11" fill="#FBBF24" stroke="#D97706" stroke-width="0.8" />
-            <!-- Glint Star -->
-            <path class="fees-mascot__glint" d="M22,7 L23,10 L26,11 L23,12 L22,15 L21,12 L18,11 L21,10 Z" fill="#FFFFFF" />
-          </g>
         </g>
 
         <!-- Head -->
