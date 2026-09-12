@@ -147,12 +147,7 @@ export async function render({ profile }) {
   // Executive Hero Banner (Concise Copy)
   const heroBanner = el("div", { class: "subjects-hero" }, [
     el("div", { class: "subjects-hero__content" }, [
-      el("div", { class: "subjects-hero__status-row" }, [
-        el("div", { class: "academics-cycle-badge" }, [
-          icon("menu_book", "text-sm"),
-          "Curriculum Subjects",
-        ]),
-      ]),
+      
       el("h1", { class: "subjects-hero__title" }, "Learning Areas & Subjects"),
       el("p", { class: "subjects-hero__desc" }, "CBC learning areas, departments, and pathways."),
       el("div", { class: "subjects-hero__pills" }, [
@@ -177,43 +172,6 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // Compact KPI Cards
-  const kpiGrid = el("div", { class: "academics-kpi-grid", style: "margin-bottom:var(--sp-4);" }, [
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon" }, [icon("menu_book")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${subjects.length}`),
-        el("span", { class: "academics-kpi-label" }, "Subjects"),
-        el("span", { class: "academics-kpi-sub" }, "Configured learning areas"),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(201,162,39,0.15); color:var(--color-gold-700,#8c6f12);" }, [icon("corporate_fare")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${deptsCount}`),
-        el("span", { class: "academics-kpi-label" }, "Departments"),
-        el("span", { class: "academics-kpi-sub" }, "Academic faculty areas"),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(99,102,241,0.12); color:#4f46e5;" }, [icon("alt_route")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val" }, `${pathwaysCount}`),
-        el("span", { class: "academics-kpi-label" }, "Pathways"),
-        el("span", { class: "academics-kpi-sub" }, "CBC career pathways"),
-      ]),
-    ]),
-    el("div", { class: "academics-kpi-card" }, [
-      el("div", { class: "academics-kpi-icon", style: "background:rgba(5,150,105,0.12); color:#059669;" }, [icon("verified")]),
-      el("div", { class: "academics-kpi-info" }, [
-        el("span", { class: "academics-kpi-val", style: "font-size:var(--fs-md);" }, "CBC Format"),
-        el("span", { class: "academics-kpi-label" }, "Standard"),
-        el("span", { class: "academics-kpi-sub" }, "Active curriculum"),
-      ]),
-    ]),
-  ]);
-  wrap.append(kpiGrid);
 
   // Search & Filter Toolbar
   const searchInput = el("input", {
