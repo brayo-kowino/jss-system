@@ -34,44 +34,198 @@ let subjects = [];
 let classes = [];
 let staffUsers = [];
 
+/**
+ * Dynamic Academic Staff & Security Administrator mascot with ID badge and security key.
+ */
+export function buildStaffMascotSvg({ width = 125, height = 110 } = {}) {
+  return `
+    <svg class="staff-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Staff Administrator Assistant">
+      <!-- Ground Shadow -->
+      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+
+      <!-- Floating Mascot Body -->
+      <g class="support-mascot__body">
+        <!-- Educational Textbooks Stack Base -->
+        <g class="support-mascot__books">
+          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
+          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
+          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
+          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
+          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
+          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
+        </g>
+
+        <!-- Academic Scholar Robe -->
+        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
+        <!-- Gold Sash -->
+        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
+
+        <!-- Left Arm Holding Staff ID Badge Card -->
+        <g class="staff-mascot__badge">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- ID Card Lanyard -->
+          <path d="M96,124 L72,132" stroke="#C9A227" stroke-width="2" fill="none" />
+          <!-- ID Card Body -->
+          <rect x="54" y="128" width="26" height="34" rx="3" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.2" transform="rotate(-5 67 145)" />
+          <rect x="58" y="132" width="10" height="10" rx="1.5" fill="#14538A" transform="rotate(-5 67 145)" />
+          <rect x="58" y="145" width="18" height="2" rx="0.8" fill="#0B2545" transform="rotate(-5 67 145)" />
+          <rect x="58" y="149" width="14" height="2" rx="0.8" fill="#64748B" transform="rotate(-5 67 145)" />
+          <rect x="58" y="153" width="10" height="2" rx="0.8" fill="#059669" transform="rotate(-5 67 145)" />
+          <!-- Hand Holding Badge -->
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+
+        <!-- Right Arm Raising Golden Security Key with Gleam Animation -->
+        <g class="staff-mascot__key">
+          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <!-- Golden Key -->
+          <circle cx="160" cy="98" r="7" fill="none" stroke="#F59E0B" stroke-width="2.5" />
+          <line x1="164" y1="103" x2="176" y2="115" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" />
+          <line x1="172" y1="111" x2="175" y2="108" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" />
+          <line x1="175" y1="114" x2="178" y2="111" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" />
+          <!-- Star sparkle -->
+          <polygon points="160,86 161.5,89 165,90.5 161.5,92 160,95 158.5,92 155,90.5 158.5,89" fill="#FDE68A" />
+        </g>
+
+        <!-- Head -->
+        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
+        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+
+        <!-- Cheerful Eyebrows -->
+        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+        <!-- Animated Blinking Eyes -->
+        <g class="support-mascot__eyes">
+          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
+          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
+        </g>
+
+        <!-- Warm Smile -->
+        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
+
+        <!-- Graduation Cap (Mortarboard) -->
+        <g transform="rotate(-5 110 58)">
+          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
+          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
+          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
+          <!-- Swaying Tassel -->
+          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
+          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
+        </g>
+      </g>
+    </svg>
+  `;
+}
+
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
   const [t, s, c, u] = await Promise.all([listTeachers(), listSubjects(), listClasses(), listSchoolUsers()]);
   teachers = t; subjects = s; classes = c; staffUsers = u;
 
-  const wrap = el("div", {});
-  buildShell(wrap, profile);
+  const wrap = el("div", { class: "staff-view-wrap" });
+
+  const logins = staffUsers.filter((u) => STAFF_LOGIN_ROLES.includes(u.role));
+  const activeLogins = logins.filter((u) => u.status !== "suspended").length;
+  const activeTeachers = teachers.filter((t) => t.status !== "suspended").length;
+  const unlinkedCount = teachers.filter((t) => !t.userId).length;
+
+  // 1. Executive Hero Banner
+  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
+  mascotWrap.innerHTML = buildStaffMascotSvg({ width: 125, height: 110 });
+
+  const heroBanner = el("div", { class: "staff-hero" }, [
+    el("div", { class: "staff-hero__content" }, [
+      el("div", { class: "staff-hero__status-row" }, [
+        el("span", { class: "academics-cycle-badge" }, [
+          icon("badge", "text-xs"),
+          "Faculty & Role-Based Access Control",
+        ]),
+      ]),
+      el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
+      el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
+      el("div", { class: "staff-hero__pills" }, [
+        el("div", { class: "staff-pill" }, [icon("badge"), `${logins.length} Staff Logins`]),
+        el("div", { class: "staff-pill" }, [icon("groups"), `${teachers.length} Faculty Members`]),
+        el("div", { class: "staff-pill" }, [icon("school"), `${subjects.length} Subjects`]),
+        el("div", { class: "staff-pill" }, [icon("domain"), `${classes.length} Cohorts`]),
+      ]),
+    ]),
+
+    el("div", { class: "staff-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Manage faculty & logins."),
+      mascotWrap,
+    ]),
+  ]);
+  wrap.append(heroBanner);
+
+  // 2. Executive KPI Metrics Strip
+  const kpis = [
+    { label: "System Logins", value: logins.length, icon: "badge", color: "blue" },
+    { label: "Active Faculty", value: activeTeachers, icon: "how_to_reg", color: "green" },
+    { label: "Active Logins", value: activeLogins, icon: "person_check", color: "green" },
+    { label: "Unlinked Roster", value: unlinkedCount, icon: unlinkedCount > 0 ? "link_off" : "link", color: unlinkedCount > 0 ? "gold" : "blue" },
+  ];
+  const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
+  for (const k of kpis) {
+    const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, k.label),
+        el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
+      ]),
+    ]);
+    kpiGrid.append(chip);
+  }
+  wrap.append(kpiGrid);
+
+  // 3. Segmented Tabs
+  const tabNav = el("div", { class: "page-tabs no-print", style: "margin-bottom:var(--sp-4);" });
+  const panelMount = el("div", { id: "staff-panel-mount" });
+
+  function renderTabs() {
+    tabNav.innerHTML = "";
+    const tabs = [
+      { id: "logins", label: `System Logins (${logins.length})`, iconName: "badge" },
+      { id: "roster", label: `Teaching Staff (${teachers.length})`, iconName: "groups" },
+    ];
+    tabs.forEach((tab) => {
+      const btn = el(
+        "button",
+        {
+          type: "button",
+          class: `profile-tab ${activeTab === tab.id ? "profile-tab--active" : ""}`,
+          onClick: () => {
+            if (activeTab === tab.id) return;
+            activeTab = tab.id;
+            renderTabs();
+            renderPanel(panelMount, profile);
+          },
+        },
+        [icon(tab.iconName, "text-xs"), tab.label]
+      );
+      tabNav.append(btn);
+    });
+  }
+
+  renderTabs();
+  wrap.append(tabNav);
+  wrap.append(panelMount);
+
+  renderPanel(panelMount, profile);
+
   return wrap;
 }
 
 export function init() {}
-
-function buildShell(wrap, profile) {
-  wrap.innerHTML = "";
-  wrap.append(
-    el("div", { class: "page-tabs" }, [
-      tabButton("logins", "badge", "System Logins", wrap, profile),
-      tabButton("roster", "groups", "Teaching Staff", wrap, profile),
-    ])
-  );
-  const panel = el("div", {});
-  wrap.append(panel);
-  renderPanel(panel, profile);
-}
-
-function tabButton(id, iconName, label, wrap, profile) {
-  const btn = el(
-    "button",
-    { class: `profile-tab${activeTab === id ? " profile-tab--active" : ""}` },
-    [el("span", { class: "material-symbols-rounded" }, iconName), label]
-  );
-  btn.addEventListener("click", () => {
-    if (activeTab === id) return;
-    activeTab = id;
-    buildShell(wrap, profile);
-  });
-  return btn;
-}
 
 function renderPanel(panel, profile) {
   panel.innerHTML = "";
@@ -80,13 +234,11 @@ function renderPanel(panel, profile) {
 }
 
 function refreshPanel(profile) {
-  const panel = document.querySelector(".page-tabs")?.parentElement?.children?.[1];
+  const panel = document.querySelector("#staff-panel-mount");
   if (panel) renderPanel(panel, profile);
 }
 
 async function refreshAll(profile) {
-  // forceRefresh: true - we just created/edited a teacher record, so skip
-  // straight past the cache instead of possibly showing stale data.
   const [t, u] = await Promise.all([listTeachers(true), listSchoolUsers()]);
   teachers = t; staffUsers = u;
   refreshPanel(profile);
@@ -96,44 +248,131 @@ async function refreshAll(profile) {
 
 function renderLoginsTab(container, profile) {
   const logins = staffUsers.filter((u) => STAFF_LOGIN_ROLES.includes(u.role));
+  let filterText = "";
+  let filterRole = "";
+  let filterStatus = "";
 
-  container.append(
-    el("div", { class: "page-header" }, [
-      el("div", {}, [el("p", {}, `${logins.length} staff with a system login`)]),
-      el("button", { class: "btn btn--primary", id: "new-login-btn" }, [icon("person_add"), "Create Login"]),
-    ])
-  );
+  // 1. Filter Toolbar Card
+  const searchInput = el("input", {
+    placeholder: "Search logins by name or email…",
+    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+  });
+  const roleSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Roles"),
+    ...STAFF_LOGIN_ROLES.map((r) => el("option", { value: r }, roleLabel(r))),
+  ]);
+  const statusSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Statuses"),
+    el("option", { value: "active" }, "Active"),
+    el("option", { value: "suspended" }, "Suspended"),
+  ]);
+
+  const toolbar = el("div", { class: "card", style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+      el("div", { style: "display:flex; align-items:center; gap:10px; flex:1; min-width:min(100%, 300px); flex-wrap:wrap;" }, [
+        el("div", { style: "position:relative; flex:1; min-width:200px;" }, [
+          el("span", {
+            class: "material-symbols-rounded",
+            style: "position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--color-ink-soft); pointer-events:none;",
+          }, "search"),
+          searchInput,
+        ]),
+        roleSelect,
+        statusSelect,
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        id: "new-login-btn",
+        onClick: () => openCreateLoginModal(profile),
+      }, [icon("person_add"), "Create Staff Login"]),
+    ]),
+  ]);
+  container.append(toolbar);
+
+  // 2. Table Card
+  const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
+  const countBadge = el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${logins.length} Users`);
+  const tableHeader = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("badge", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Staff System Logins"),
+      countBadge,
+    ]),
+  ]);
+  tableCard.append(tableHeader);
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  container.append(tableWrap);
+  tableCard.append(tableWrap);
+  container.append(tableCard);
 
-  if (!logins.length) {
-    tableWrap.append(el("div", { class: "empty-state" }, [
-      icon("badge", "empty-state__icon"),
-      el("h3", {}, "No staff logins yet"),
-      el("p", {}, "Create a login for a class teacher, principal, bursar, or any other staff role that needs to sign in."),
-    ]));
-  } else {
-    const table = el("table", {}, [
+  function drawTable() {
+    tableWrap.innerHTML = "";
+    const filtered = logins.filter((u) => {
+      const q = filterText.toLowerCase();
+      const matchText = !q || (u.fullName || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+      const matchRole = !filterRole || u.role === filterRole;
+      const matchStatus = !filterStatus || (filterStatus === "suspended" ? u.status === "suspended" : u.status !== "suspended");
+      return matchText && matchRole && matchStatus;
+    });
+
+    countBadge.textContent = `${filtered.length} Users`;
+
+    if (!filtered.length) {
+      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("badge", "empty-state__icon"),
+        el("h3", {}, "No staff logins found"),
+        el("p", {}, logins.length ? "Try adjusting your search query or filters." : "Create a login for a class teacher, principal, bursar, or any other staff role."),
+      ]));
+      return;
+    }
+
+    const table = el("table", { class: "reports-table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Name"), el("th", {}, "Email"), el("th", {}, "Role"),
-        el("th", {}, "Teaching Record"), el("th", {}, "Status"), el("th", {}, "Actions"),
+        el("th", { style: "min-width:200px;" }, "Staff Member"),
+        el("th", { style: "min-width:200px;" }, "Email / Login ID"),
+        el("th", { style: "width:150px;" }, "Assigned Role"),
+        el("th", { style: "width:160px;" }, "Teaching Profile"),
+        el("th", { style: "width:100px;" }, "Status"),
+        el("th", { class: "col-right", style: "width:90px;" }, "Actions"),
       ])),
     ]);
     const tbody = el("tbody", {});
-    for (const u of logins) {
+    for (const u of filtered) {
       const linkedTeacher = TEACHING_ROLES.includes(u.role) ? teachers.find((t) => t.userId === u.uid) : null;
       tbody.append(el("tr", {}, [
-        el("td", { "data-label": "Name" }, u.fullName || "—"),
-        el("td", { "data-label": "Email" }, u.email || "—"),
-        el("td", { "data-label": "Role" }, roleLabel(u.role)),
-        el("td", { "data-label": "Teaching Record" }, linkedTeacher ? linkedTeacher.fullName : (TEACHING_ROLES.includes(u.role) ? el("span", { class: "text-muted" }, "Not linked") : el("span", { class: "text-muted" }, "—"))),
+        el("td", { "data-label": "Staff Member" }, [
+          el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+            el("div", {
+              style: "width:32px; height:32px; border-radius:50%; background:rgba(20,83,138,0.1); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
+            }, (u.fullName || "U").charAt(0).toUpperCase()),
+            el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, u.fullName || "—"),
+          ]),
+        ]),
+        el("td", { "data-label": "Email / Login ID" }, [
+          el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink);" }, u.email || "—"),
+        ]),
+        el("td", { "data-label": "Assigned Role" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, roleLabel(u.role))),
+        el("td", { "data-label": "Teaching Profile" }, linkedTeacher
+          ? el("span", { class: "badge badge--success", style: "font-size:11px;" }, [icon("link", "text-xs"), ` ${linkedTeacher.fullName}`])
+          : (TEACHING_ROLES.includes(u.role)
+            ? el("span", { class: "badge badge--gold", style: "font-size:11px;" }, "Not linked")
+            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "Non-teaching"))),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${u.status === "suspended" ? "muted" : "success"}` }, u.status === "suspended" ? "Suspended" : "Active")),
-        el("td", { class: "row-actions", "data-label": "Actions" }, [
-          el("button", {
-            class: "btn btn--ghost btn--sm",
-            onClick: () => openLoginActionsModal(profile, u, linkedTeacher),
-          }, [icon("more_vert"), "Actions"]),
+        el("td", { class: "col-right", "data-label": "Actions" }, [
+          el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
+            el("button", {
+              class: "btn btn--ghost btn--sm",
+              style: "padding:4px 8px; font-size:12px;",
+              onClick: () => openLoginActionsModal(profile, u, linkedTeacher),
+            }, [icon("more_vert"), "Actions"]),
+          ]),
         ]),
       ]));
     }
@@ -141,9 +380,11 @@ function renderLoginsTab(container, profile) {
     tableWrap.append(table);
   }
 
-  setTimeout(() => {
-    document.getElementById("new-login-btn")?.addEventListener("click", () => openCreateLoginModal(profile));
-  });
+  drawTable();
+
+  searchInput.addEventListener("input", (e) => { filterText = e.target.value; drawTable(); });
+  roleSelect.addEventListener("change", (e) => { filterRole = e.target.value; drawTable(); });
+  statusSelect.addEventListener("change", (e) => { filterStatus = e.target.value; drawTable(); });
 }
 
 async function toggleLoginStatus(profile, user) {
@@ -349,49 +590,162 @@ function openAssignmentModal(profile, teacher) {
 }
 
 // ============================================================ Roster tab ==
-// Teaching staff who don't (yet) have a system login - a pure roster record.
+// Teaching staff roster & assignments
 
 function renderRosterTab(container, profile) {
-  const roster = teachers.filter((t) => !t.userId);
+  let filterText = "";
+  let filterLink = "";
+  let filterStatus = "";
 
-  container.append(
-    el("div", { class: "page-header" }, [
-      el("div", {}, [el("p", {}, `${roster.length} teaching staff without a login`)]),
-      el("button", { class: "btn btn--primary", id: "new-teacher-btn" }, [icon("person_add"), "Add Teacher"]),
-    ])
-  );
+  // 1. Filter Toolbar Card
+  const searchInput = el("input", {
+    placeholder: "Search teachers by name, TSC no., phone…",
+    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+  });
+  const linkSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Faculty"),
+    el("option", { value: "linked" }, "Linked to Login"),
+    el("option", { value: "unlinked" }, "Unlinked (No Login)"),
+  ]);
+  const statusSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Statuses"),
+    el("option", { value: "active" }, "Active"),
+    el("option", { value: "suspended" }, "Suspended"),
+  ]);
+
+  const toolbar = el("div", { class: "card", style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+      el("div", { style: "display:flex; align-items:center; gap:10px; flex:1; min-width:min(100%, 300px); flex-wrap:wrap;" }, [
+        el("div", { style: "position:relative; flex:1; min-width:200px;" }, [
+          el("span", {
+            class: "material-symbols-rounded",
+            style: "position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--color-ink-soft); pointer-events:none;",
+          }, "search"),
+          searchInput,
+        ]),
+        linkSelect,
+        statusSelect,
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        onClick: () => openTeacherForm(profile),
+      }, [icon("person_add"), "Add Teacher Record"]),
+    ]),
+  ]);
+  container.append(toolbar);
+
+  // 2. Table Card
+  const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
+  const countBadge = el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${teachers.length} Teachers`);
+  const tableHeader = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("groups", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Faculty Roster & Teaching Load"),
+      countBadge,
+    ]),
+  ]);
+  tableCard.append(tableHeader);
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  container.append(tableWrap);
+  tableCard.append(tableWrap);
+  container.append(tableCard);
 
-  if (!roster.length) {
-    tableWrap.append(el("div", { class: "empty-state" }, [
-      icon("groups", "empty-state__icon"),
-      el("h3", {}, "No unlinked teaching staff"),
-      el("p", {}, "Add a teacher who doesn't need to sign in, or check the System Logins tab for staff who already have one."),
-    ]));
-  } else {
-    const table = el("table", {}, [
+  function drawTable() {
+    tableWrap.innerHTML = "";
+    const filtered = teachers.filter((t) => {
+      const q = filterText.toLowerCase();
+      const matchText = !q ||
+        (t.fullName || "").toLowerCase().includes(q) ||
+        (t.tscNumber || "").toLowerCase().includes(q) ||
+        (t.phone || "").toLowerCase().includes(q) ||
+        (t.email || "").toLowerCase().includes(q);
+      const matchLink = !filterLink || (filterLink === "linked" ? !!t.userId : !t.userId);
+      const matchStatus = !filterStatus || (filterStatus === "suspended" ? t.status === "suspended" : t.status !== "suspended");
+      return matchText && matchLink && matchStatus;
+    });
+
+    countBadge.textContent = `${filtered.length} Teachers`;
+
+    if (!filtered.length) {
+      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("groups", "empty-state__icon"),
+        el("h3", {}, "No teacher records found"),
+        el("p", {}, teachers.length ? "Try adjusting your search query or filters." : "Add a teacher record to assign subjects and classes."),
+      ]));
+      return;
+    }
+
+    const table = el("table", { class: "reports-table" }, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "Name"), el("th", {}, "TSC No."), el("th", {}, "Subjects"),
-        el("th", {}, "Classes"), el("th", {}, "Status"), el("th", {}, "Actions"),
+        el("th", { style: "min-width:200px;" }, "Teacher Name"),
+        el("th", { style: "width:140px;" }, "TSC No."),
+        el("th", { style: "min-width:180px;" }, "Subjects Taught"),
+        el("th", { style: "min-width:160px;" }, "Assigned Classes"),
+        el("th", { style: "width:130px;" }, "Login Link"),
+        el("th", { style: "width:100px;" }, "Status"),
+        el("th", { class: "col-right", style: "width:90px;" }, "Actions"),
       ])),
     ]);
     const tbody = el("tbody", {});
-    for (const t of roster) {
-      const subjNames = (t.subjectCodes || []).map((c) => subjects.find((s) => s.code === c)?.name).filter(Boolean).join(", ");
-      const classNames = (t.classAssignments || []).map((a) => `${a.grade} ${a.stream}`).join(", ");
+    for (const t of filtered) {
+      const subjNames = (t.subjectCodes || [])
+        .map((c) => subjects.find((s) => s.code === c)?.name || c)
+        .filter(Boolean);
+      const classNames = (t.classAssignments || []).map((a) => `${a.grade} ${a.stream}`);
+      const isLinked = !!t.userId;
+
       tbody.append(el("tr", {}, [
-        el("td", { "data-label": "Name" }, t.fullName),
-        el("td", { class: "numeric", "data-label": "TSC No." }, t.tscNumber || "N/A"),
-        el("td", { "data-label": "Subjects" }, subjNames || el("span", { class: "text-muted" }, "None")),
-        el("td", { "data-label": "Classes" }, classNames || el("span", { class: "text-muted" }, "None")),
-        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${t.status === "active" ? "success" : "muted"}` }, t.status || "active")),
-        el("td", { class: "row-actions", "data-label": "Actions" }, [
-          el("button", {
-            class: "btn btn--ghost btn--sm",
-            onClick: () => openTeacherActionsModal(profile, t),
-          }, [icon("more_vert"), "Actions"]),
+        el("td", { "data-label": "Teacher Name" }, [
+          el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+            el("div", {
+              style: "width:32px; height:32px; border-radius:50%; background:rgba(20,83,138,0.1); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
+            }, (t.fullName || "T").charAt(0).toUpperCase()),
+            el("div", {}, [
+              el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, t.fullName || "—"),
+              t.phone ? el("div", { style: "font-size:11px; color:var(--color-ink-soft);" }, t.phone) : null,
+            ].filter(Boolean)),
+          ]),
+        ]),
+        el("td", { "data-label": "TSC No." }, [
+          el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber || "—"),
+        ]),
+        el("td", { "data-label": "Subjects Taught" }, [
+          subjNames.length
+            ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" },
+                subjNames.map((name) => el("span", { class: "badge badge--neutral", style: "font-size:11px; padding:2px 6px;" }, name))
+              )
+            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "None assigned"),
+        ]),
+        el("td", { "data-label": "Assigned Classes" }, [
+          classNames.length
+            ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" },
+                classNames.map((c) => el("span", { class: "badge badge--muted", style: "font-size:11px; padding:2px 6px;" }, c))
+              )
+            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "None assigned"),
+        ]),
+        el("td", { "data-label": "Login Link" }, isLinked
+          ? el("span", { class: "badge badge--success", style: "font-size:11px;" }, [icon("check_circle", "text-xs"), " Linked"])
+          : el("span", { class: "badge badge--gold", style: "font-size:11px;" }, [icon("link_off", "text-xs"), " Unlinked"])
+        ),
+        el("td", { "data-label": "Status" }, el("span", {
+          class: `badge badge--${t.status === "suspended" ? "muted" : "success"}`,
+          style: "font-size:11px;",
+        }, t.status === "suspended" ? "Suspended" : "Active")),
+        el("td", { class: "col-right", "data-label": "Actions" }, [
+          el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
+            el("button", {
+              class: "btn btn--ghost btn--sm",
+              style: "padding:4px 8px; font-size:12px;",
+              onClick: () => openTeacherActionsModal(profile, t),
+            }, [icon("more_vert"), "Actions"]),
+          ]),
         ]),
       ]));
     }
@@ -399,9 +753,11 @@ function renderRosterTab(container, profile) {
     tableWrap.append(table);
   }
 
-  setTimeout(() => {
-    document.getElementById("new-teacher-btn")?.addEventListener("click", () => openTeacherForm(profile));
-  });
+  drawTable();
+
+  searchInput.addEventListener("input", (e) => { filterText = e.target.value; drawTable(); });
+  linkSelect.addEventListener("change", (e) => { filterLink = e.target.value; drawTable(); });
+  statusSelect.addEventListener("change", (e) => { filterStatus = e.target.value; drawTable(); });
 }
 
 function openTeacherActionsModal(profile, teacher) {
@@ -425,18 +781,37 @@ function openTeacherActionsModal(profile, teacher) {
         if (close) close();
         await toggleTeacherStatus(profile, teacher);
       }
-    }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"]),
-    el("button", {
-      class: "btn btn--primary btn--block",
-      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
-      onClick: () => {
-        if (close) close();
-        openCreateLoginModal(profile, teacher);
-      }
-    }, [icon("badge"), "Create Staff System Login"])
+    }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"])
   );
 
-  close = openModal(`Teacher Actions: ${teacher.fullName}`, body);
+  if (!teacher.userId) {
+    body.append(
+      el("button", {
+        class: "btn btn--primary btn--block",
+        style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+        onClick: () => {
+          if (close) close();
+          openCreateLoginModal(profile, teacher);
+        }
+      }, [icon("badge"), "Create Staff System Login"])
+    );
+  } else {
+    const linkedUser = staffUsers.find((u) => u.uid === teacher.userId);
+    if (linkedUser) {
+      body.append(
+        el("button", {
+          class: "btn btn--secondary btn--block",
+          style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+          onClick: () => {
+            if (close) close();
+            openLoginActionsModal(profile, linkedUser, teacher);
+          }
+        }, [icon("manage_accounts"), "Manage Linked Login Account"])
+      );
+    }
+  }
+
+  close = openModal(`Teacher: ${teacher.fullName}`, body);
 }
 
 function openLoginActionsModal(profile, user, linkedTeacher) {
