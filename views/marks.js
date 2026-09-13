@@ -176,7 +176,7 @@ export async function render({ profile }) {
 
     // Mascot & Speech Bubble
     el("div", { class: "marks-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Select class, subject, and assessment to record marks."),
+      el("div", { class: "support-speech-bubble" }, "Make sure to add an assessment or exam first before navigating to this page."),
       mascotWrap,
     ]),
   ]);
