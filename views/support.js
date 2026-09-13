@@ -450,7 +450,6 @@ export async function render({ profile }) {
       el("div", { class: "support-hero__pills" }, [
         el("div", { class: "support-pill" }, [icon("timer"), "Typical Response: < 2 Hours"]),
         el("div", { class: "support-pill" }, [icon("verified"), "Mon–Fri, 8:00 AM – 5:00 PM EAT"]),
-        el("div", { class: "support-pill" }, [icon("task_alt"), "100% Ticket Tracking"]),
       ]),
       el("button", {
         type: "button",
