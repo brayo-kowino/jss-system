@@ -152,53 +152,6 @@ export function buildNotificationsMascotSvg({ width = 165, height = 150 } = {}) 
   `;
 }
 
-/**
- * Operational disclaimers grid for notifications.
- */
-function renderWelcomeDisclaimers(container) {
-  const welcomeCard = el("div", { class: "notifications-welcome-card" }, [
-    el("div", { class: "notifications-welcome-header" }, [
-      icon("campaign", "text-primary", "style: font-size:36px;"),
-      el("h3", {}, "Multi-Channel School Communications"),
-      el("p", {}, "Broadcast real-time SMS and email updates to parents, send fee balance reminders, and publish school newsletters."),
-    ]),
-
-    // Important Operational Disclaimers Grid
-    el("div", { class: "notifications-disclaimers-grid" }, [
-      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--warning" }, [
-        el("div", { class: "notifications-disclaimer-title" }, [
-          icon("key", "text-amber"),
-          "Notification Provider Credentials",
-        ]),
-        el("p", { class: "notifications-disclaimer-body" }, "SMS dispatch requires Africa's Talking API credentials, and Email requires Gmail App Password under School Settings. Messages stay queued until connected."),
-      ]),
-      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--info" }, [
-        el("div", { class: "notifications-disclaimer-title" }, [
-          icon("payments", "text-primary"),
-          "Automated Fee Balance Audience",
-        ]),
-        el("p", { class: "notifications-disclaimer-body" }, "The Fee Balance Reminder evaluates student tuition ledgers dynamically, targeting only parents of active learners with outstanding balances > KES 0."),
-      ]),
-      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--success" }, [
-        el("div", { class: "notifications-disclaimer-title" }, [
-          icon("verified", "text-green"),
-          "Parent Contact Reachability",
-        ]),
-        el("p", { class: "notifications-disclaimer-body" }, "SMS messages reach guardians with active telephone numbers, and email messages require recorded email addresses in the Parents directory."),
-      ]),
-      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--danger" }, [
-        el("div", { class: "notifications-disclaimer-title" }, [
-          icon("history", "text-red"),
-          "Broadcast Logs & Re-Queuing",
-        ]),
-        el("p", { class: "notifications-disclaimer-body" }, "Deleting a broadcast permanently purges its record from history. You can click the status icon on any row to toggle between Delivered and Queued."),
-      ]),
-    ]),
-  ]);
-
-  container.append(welcomeCard);
-}
-
 export async function render({ profile }) {
   [notifications, newsletters, settings, classes, students, parents] = await Promise.all([
     listNotifications(),
@@ -215,31 +168,29 @@ export async function render({ profile }) {
 
   // Mascot container
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildNotificationsMascotSvg({ width: 155, height: 140 });
+  mascotWrap.innerHTML = buildNotificationsMascotSvg({ width: 125, height: 110 });
 
-  // Executive Hero Banner
+  // Executive Hero Banner (Clean & Modern)
   const heroBanner = el("div", { class: "notifications-hero" }, [
     el("div", { class: "notifications-hero__content" }, [
       el("div", { class: "notifications-hero__status-row" }, [
         el("span", { class: "academics-cycle-badge" }, [
           icon("campaign", "text-xs"),
-          "Parent & Staff Communications · Multi-Channel Dispatch",
-          infoTooltip("Broadcast SMS and Email alerts, manage automatic delivery queues, and publish rich termly school newsletters."),
+          "Multi-Channel Dispatch",
         ]),
       ]),
-      el("h1", { class: "notifications-hero__title" }, "School Notifications & Newsletters"),
-      el("p", { class: "notifications-hero__desc" }, "Broadcast parent SMS and email alerts, track delivery queues, and publish school newsletters."),
+      el("h1", { class: "notifications-hero__title" }, "Notifications & Newsletters"),
+      el("p", { class: "notifications-hero__desc" }, "Broadcast parent SMS and email alerts, track delivery queues, and publish newsletters."),
       el("div", { class: "notifications-hero__pills" }, [
-        el("div", { class: "notifications-pill" }, [icon("send"), `${notifications.length} Broadcasts Sent`]),
+        el("div", { class: "notifications-pill" }, [icon("send"), `${notifications.length} Sent`]),
         el("div", { class: "notifications-pill" }, [icon("newspaper"), `${newsletters.length} Newsletters`]),
-        el("div", { class: "notifications-pill" }, [icon("contacts"), `${parents.length} Registered Parents`]),
-        el("div", { class: "notifications-pill" }, [icon("cell_tower"), "SMS & Email Dispatch"]),
+        el("div", { class: "notifications-pill" }, [icon("contacts"), `${parents.length} Parents`]),
       ]),
     ]),
 
     // Mascot & Speech Bubble
     el("div", { class: "notifications-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Broadcast alerts, send parent reminders, and publish school newsletters."),
+      el("div", { class: "support-speech-bubble" }, "Dispatch alerts & news."),
       mascotWrap,
     ]),
   ]);
@@ -252,8 +203,8 @@ export async function render({ profile }) {
   function renderTabs() {
     tabNav.innerHTML = "";
     const tabs = [
-      { id: "notifications", label: "Broadcast Notifications", iconName: "notifications" },
-      { id: "newsletters", label: "School Newsletters", iconName: "newspaper" },
+      { id: "notifications", label: `Broadcasts (${notifications.length})`, iconName: "notifications" },
+      { id: "newsletters", label: `Newsletters (${newsletters.length})`, iconName: "newspaper" },
     ];
     tabs.forEach((tab) => {
       const btn = el(
@@ -306,48 +257,71 @@ async function refresh(profile) {
 function renderNotificationsTab(panel, profile) {
   const canManage = CAN_MANAGE.includes(profile.role);
 
-  renderWelcomeDisclaimers(panel);
-
   const hasProvider = settings.notificationProviders?.gmail?.appPassword || settings.notificationProviders?.africasTalking?.apiKey;
 
   if (!hasProvider) {
     panel.append(
-      el("div", { class: "notice-banner" }, [
+      el("div", { class: "notice-banner", style: "margin-bottom:var(--sp-4);" }, [
         el("span", { class: "material-symbols-rounded" }, "info"),
         el(
           "span",
           {},
-          "No SMS or email provider is connected yet! Go to Settings -> Notification Providers to configure one, otherwise your messages will stay queued indefinitely."
+          "No SMS or email provider connected yet. Configure Africa's Talking or Gmail in Settings -> Notifications."
         ),
       ])
     );
   }
 
-  if (canManage) {
-    const templateGrid = el("div", { class: "template-grid" });
-    const templates = [
-      { category: "fees", label: "Fee Balance Reminder", icon: "payments" },
-      { category: "results", label: "Results Published", icon: "grading" },
-      { category: "term_closing", label: "Term Closing", icon: "event_busy" },
-      { category: "term_opening", label: "Term Opening", icon: "event_available" },
-      { category: "general", label: "Custom Announcement", icon: "campaign" },
-    ];
-    for (const t of templates) {
-      const chip = el("button", { type: "button", class: "template-chip" }, [
-        el("span", { class: "material-symbols-rounded" }, t.icon),
-        t.label,
-      ]);
-      chip.addEventListener("click", () => openComposeModal(profile, { category: t.category }));
-      templateGrid.append(chip);
-    }
-    panel.append(templateGrid);
-  }
-
+  // 1. KPI Metrics Grid
   panel.append(renderNotificationKpis());
 
+  // 2. Clean Quick Templates Toolbar
+  if (canManage) {
+    const templateBar = el("div", { class: "card", style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);" }, [
+      el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;" }, [
+        el("div", { style: "display:flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+          el("span", { style: "font-weight:700; font-size:var(--fs-xs); text-transform:uppercase; letter-spacing:0.04em; color:var(--color-ink-soft); margin-right:4px;" }, "Quick Templates:"),
+          ...[
+            { category: "fees", label: "Fee Reminder", icon: "payments" },
+            { category: "results", label: "Results Published", icon: "grading" },
+            { category: "term_closing", label: "Term Closing", icon: "event_busy" },
+            { category: "term_opening", label: "Term Opening", icon: "event_available" },
+          ].map((t) => {
+            const chip = el("button", { type: "button", class: "template-chip" }, [
+              el("span", { class: "material-symbols-rounded" }, t.icon),
+              t.label,
+            ]);
+            chip.addEventListener("click", () => openComposeModal(profile, { category: t.category }));
+            return chip;
+          }),
+        ]),
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          onClick: () => openComposeModal(profile, { category: "general" }),
+        }, [icon("campaign"), "Custom Broadcast"]),
+      ]),
+    ]);
+    panel.append(templateBar);
+  }
+
+  // 3. Table Card
+  const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
+  const tableHeader = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("history", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Broadcast History"),
+      el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${notifications.length} Sent`),
+    ]),
+  ]);
+  tableCard.append(tableHeader);
+
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  panel.append(tableWrap);
+  tableCard.append(tableWrap);
   renderNotificationsTable(tableWrap, profile, canManage);
+  panel.append(tableCard);
 }
 
 function renderNotificationKpis() {
@@ -357,22 +331,22 @@ function renderNotificationKpis() {
   const contactable = parents.filter((p) => p.phone || p.email).length;
 
   const kpis = [
-    { label: "Sent This History", value: total, icon: "notifications", color: "blue" },
+    { label: "Total Sent", value: total, icon: "send", color: "blue" },
     { label: "Delivered", value: delivered, icon: "mark_email_read", color: "green" },
-    { label: "Queued", value: queued, icon: "hourglass_top", color: "gold" },
-    { label: "Contactable Parents", value: contactable, icon: "contacts", color: "purple" },
+    { label: "Queued", value: queued, icon: "schedule", color: "gold" },
+    { label: "Reachable Parents", value: `${contactable}/${parents.length}`, icon: "contacts", color: "blue" },
   ];
 
-  const grid = el("div", { class: "kpi-grid", style: "margin-bottom:20px;" });
+  const grid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
-    const card = el("div", { class: `kpi-card kpi-card--${k.color}` }, [
-      el("div", { class: "kpi-card__icon" }, [el("span", { class: "material-symbols-rounded" }, k.icon)]),
-      el("div", { class: "kpi-card__body" }, [
-        el("div", { class: "kpi-card__value" }, String(k.value)),
-        el("div", { class: "kpi-card__label" }, k.label),
+    const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, k.label),
+        el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
       ]),
     ]);
-    grid.append(card);
+    grid.append(chip);
   }
   return grid;
 }
@@ -389,8 +363,8 @@ function renderNotificationsTable(container, profile, canManage) {
     container.append(
       el("div", { class: "empty-state" }, [
         el("span", { class: "material-symbols-rounded empty-state__icon" }, "notifications"),
-        el("h3", {}, "Nothing sent yet"),
-        el("p", {}, canManage ? "Use a quick template above, or send a custom announcement." : "Nothing has been sent to parents yet."),
+        el("h3", {}, "No broadcasts sent yet"),
+        el("p", {}, canManage ? "Use a quick template above or compose a custom announcement." : "No announcements have been broadcast to parents yet."),
       ])
     );
     return;
@@ -398,14 +372,14 @@ function renderNotificationsTable(container, profile, canManage) {
 
   const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Title"),
-      el("th", {}, "Category"),
-      el("th", {}, "Audience"),
-      el("th", { class: "numeric" }, "Recipients"),
-      el("th", {}, "Channel"),
-      el("th", {}, "Sent"),
-      el("th", {}, "Status"),
-      canManage ? el("th", { class: "col-right" }, "Actions") : "",
+      el("th", { style: "min-width:220px;" }, "Title"),
+      el("th", { style: "width:140px;" }, "Category"),
+      el("th", { style: "width:130px;" }, "Audience"),
+      el("th", { class: "numeric", style: "width:100px;" }, "Recipients"),
+      el("th", { style: "width:110px;" }, "Channel"),
+      el("th", { style: "width:130px;" }, "Sent"),
+      el("th", { style: "width:110px;" }, "Status"),
+      canManage ? el("th", { class: "col-right", style: "width:90px;" }, "Actions") : "",
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -425,8 +399,8 @@ function renderNotificationsTable(container, profile, canManage) {
       ]),
       el("td", { "data-label": "Audience" }, audienceLabel(n)),
       el("td", { class: "numeric", "data-label": "Recipients" }, String(n.recipientCount ?? 0)),
-      el("td", { "data-label": "Channel" }, (CHANNELS.find((c) => c.value === n.channel)?.label) || n.channel || "N/A"),
-      el("td", { "data-label": "Sent" }, n.createdAt ? formatDate(n.createdAt) : "N/A"),
+      el("td", { "data-label": "Channel" }, el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, (CHANNELS.find((c) => c.value === n.channel)?.label) || n.channel || "N/A")),
+      el("td", { "data-label": "Sent" }, n.createdAt ? formatDate(n.createdAt) : "—"),
       el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${n.status === "delivered" ? "success" : "gold"}` }, n.status === "delivered" ? "Delivered" : "Queued")),
     ];
 
@@ -653,14 +627,18 @@ async function openComposeModal(profile, opts = {}) {
 function renderNewslettersTab(panel, profile) {
   const canManage = CAN_MANAGE.includes(profile.role);
 
-  const header = el("div", { class: "page-header", style: "padding:0 0 16px;" }, [
-    el("div", {}, [el("p", {}, `${newsletters.length} newsletter(s)`)]),
+  const header = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--sp-4); flex-wrap:wrap; gap:8px;",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("newspaper", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "School Newsletters"),
+      el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${newsletters.length} Published`),
+    ]),
+    canManage
+      ? el("button", { class: "btn btn--primary btn--sm", onClick: () => openNewsletterForm(profile) }, [icon("add"), "New Newsletter"])
+      : "",
   ]);
-  if (canManage) {
-    header.append(
-      el("button", { class: "btn btn--primary", onClick: () => openNewsletterForm(profile) }, [icon("add"), "New Newsletter"])
-    );
-  }
   panel.append(header);
 
   if (!newsletters.length) {
