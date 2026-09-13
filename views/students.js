@@ -199,24 +199,6 @@ export async function render({ profile }) {
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
   mascotWrap.innerHTML = buildStudentsMascotSvg({ width: 125, height: 110 });
 
-  const heroBanner = el("div", { class: "students-hero" }, [
-    el("div", { class: "students-hero__content" }, [
-      el("h1", { class: "students-hero__title" }, "Student Directory & Admissions"),
-      el("p", { class: "students-hero__desc" }, "Manage learner profiles, track academic cohorts, record transfers, and log student affairs."),
-      el("div", { class: "students-hero__pills" }, [
-        totalOpenIssues > 0
-          ? el("div", { class: "students-pill", style: "border-color:rgba(220,38,38,0.3); color:#DC2626;" }, [icon("report"), `${totalOpenIssues} Open Alerts`])
-          : el("div", { class: "students-pill" }, [icon("verified"), "Records In Order"]),
-      ]),
-    ]),
-
-    el("div", { class: "students-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Learner profiles & admissions."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // 2. Executive KPI Metrics Strip (using .md3-kpi-grid & .md3-kpi-chip)
   const kpis = [
     { label: "Total Registered", value: students.length, icon: "groups", color: "blue" },

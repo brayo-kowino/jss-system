@@ -194,7 +194,7 @@ export async function render({ profile }) {
 
     // Animated Academic Scholar Mascot & Speech Bubble
     el("div", { class: "academics-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "You should configure your school's gradesbefore enrolling students or recording assessment marks."),
+      el("div", { class: "support-speech-bubble" }, "You should configure your school's grades before enrolling students or recording assessment marks."),
       mascotWrap,
     ]),
   ]);
