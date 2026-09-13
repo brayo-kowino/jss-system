@@ -416,6 +416,7 @@ export async function computeClassResults({ grade, academicYear, term, gradingSc
       fullName: student.fullName,
       gender: student.gender || "",
       photoUrl: isStarterPlan(getCurrentSchool()) ? "" : (student.photoUrl || ""),
+      grade: student.grade || grade,
       stream: student.stream || "",
       subjects: subjectResults,
       totalMarks,

@@ -603,7 +603,7 @@ async function showDetail(student, profile, isStreamPreview) {
   }, [
     el("div", {}, [
       el("h4", { style: "margin:0 0 2px; color:var(--color-primary-900);" }, student.fullName),
-      el("div", { class: "text-muted text-xs" }, `Adm No: ${student.admissionNumber || "—"} · ${student.grade} ${student.stream || ""}`),
+      el("div", { class: "text-muted text-xs" }, `Adm No: ${student.admissionNumber || "—"} · ${student.grade || selection.grade || "—"} ${student.stream || ""}`.trim()),
     ]),
     el("div", { style: "display:flex; gap:8px; align-items:center;" }, [
       el("span", { class: "badge badge--success", style: "font-weight:700; font-size:12px;" }, `${positionScopeLabel(isStreamPreview)} ${isStreamPreview ? student.classPosition : student.overallPosition}/${isStreamPreview ? student.streamClassSize : student.classSize}`),
