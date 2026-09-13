@@ -152,12 +152,6 @@ export async function render({ profile }) {
       ]),
       el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
       el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
-      el("div", { class: "staff-hero__pills" }, [
-        el("div", { class: "staff-pill" }, [icon("badge"), `${logins.length} Staff Logins`]),
-        el("div", { class: "staff-pill" }, [icon("groups"), `${teachers.length} Faculty Members`]),
-        el("div", { class: "staff-pill" }, [icon("school"), `${subjects.length} Subjects`]),
-        el("div", { class: "staff-pill" }, [icon("domain"), `${classes.length} Cohorts`]),
-      ]),
     ]),
 
     el("div", { class: "staff-hero__mascot-box" }, [
