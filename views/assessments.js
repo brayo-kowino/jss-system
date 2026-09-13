@@ -44,6 +44,105 @@ let statsCache = new Map();
 let filters = { search: "", type: "all", term: "all", year: "all", status: "all", grade: "all", subject: "all" };
 let sort = { key: "date", dir: "desc" };
 
+/**
+ * Dynamic Academic Scholar Mascot with Exam Test Paper and golden fountain pen.
+ */
+export function buildAssessmentsMascotSvg({ width = 125, height = 110 } = {}) {
+  return `
+    <svg class="assessments-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Assessments Assistant">
+      <!-- Ground Shadow -->
+      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+
+      <!-- Floating Mascot Body -->
+      <g class="support-mascot__body">
+        <!-- Educational Textbooks Stack Base -->
+        <g class="support-mascot__books">
+          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
+          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
+          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
+          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
+          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
+          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
+        </g>
+
+        <!-- Academic Scholar Robe -->
+        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
+        <!-- Gold Sash -->
+        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
+
+        <!-- Left Arm Holding Exam / CAT Assessment Paper -->
+        <g class="assessments-mascot__paper">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- Exam Booklet -->
+          <rect x="50" y="122" width="30" height="38" rx="2.5" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.4" transform="rotate(-6 65 141)" />
+          <!-- Folded Corner -->
+          <polygon points="73,122 80,129 73,129" fill="#E2E8F0" stroke="#0D3559" stroke-width="0.8" transform="rotate(-6 65 141)" />
+          <!-- Header Bar -->
+          <rect x="54" y="127" width="16" height="4" rx="1" fill="#14538A" transform="rotate(-6 65 141)" />
+          <!-- Test check lines -->
+          <line x1="54" y1="135" x2="68" y2="135" stroke="#0B2545" stroke-width="1.2" stroke-linecap="round" transform="rotate(-6 65 141)" />
+          <line x1="54" y1="140" x2="72" y2="140" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 65 141)" />
+          <line x1="54" y1="145" x2="66" y2="145" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 65 141)" />
+          <!-- Green 100% Score Tag -->
+          <rect x="54" y="149" width="18" height="6" rx="1.5" fill="#059669" transform="rotate(-6 65 141)" />
+          <line x1="57" y1="152" x2="69" y2="152" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" transform="rotate(-6 65 141)" />
+          <!-- Hand Holding Exam -->
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+
+        <!-- Right Arm Raising Golden Grading Pen with Gleam Animation -->
+        <g class="assessments-mascot__pen">
+          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <!-- Pen Body -->
+          <path d="M152,112 L168,88 L173,91 L157,115 Z" fill="#C9A227" stroke="#8C6F12" stroke-width="1" />
+          <!-- Golden Nib -->
+          <polygon points="168,88 174,78 173,91" fill="#F59E0B" stroke="#D97706" stroke-width="1" />
+          <line x1="171" y1="89" x2="173" y2="80" stroke="#78350F" stroke-width="0.8" />
+          <!-- Sparkle star at nib tip -->
+          <polygon points="174,73 175.5,76 179,77.5 175.5,79 174,82 172.5,79 169,77.5 172.5,76" fill="#FDE68A" />
+        </g>
+
+        <!-- Head -->
+        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
+        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+
+        <!-- Cheerful Eyebrows -->
+        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+        <!-- Animated Blinking Eyes -->
+        <g class="support-mascot__eyes">
+          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
+          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
+        </g>
+
+        <!-- Warm Smile -->
+        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
+
+        <!-- Graduation Cap (Mortarboard) -->
+        <g transform="rotate(-5 110 58)">
+          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
+          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
+          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
+          <!-- Swaying Tassel -->
+          <g class="support-mascot__tassel">
+            <path d="M110,48.5 Q135,46 142,66" stroke="#FAF6F0" stroke-width="2.2" fill="none" />
+            <polygon points="139,66 145,66 143,77 141,77" fill="#FAF6F0" />
+          </g>
+        </g>
+      </g>
+    </svg>
+  `;
+}
+
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
   [assessments, classes, subjects, students, settings] = await Promise.all([
@@ -55,40 +154,68 @@ export async function render({ profile }) {
   ]);
   expectedById = buildExpectedIndex();
   statsCache = new Map();
-  // Filters may reference a term/year/grade that no longer exists - that's fine,
-  // it'll just show 0 results until cleared.
   const canManage = CAN_MANAGE.includes(profile.role);
 
   const wrap = el("div", {});
 
-  const header = el("div", { class: "page-header" }, [
-    el("div", {}, [el("h1", {}, ""), el("p", {}, summaryLine())]),
-  ]);
-  if (canManage) {
-    header.append(
-      el("button", { class: "btn btn--primary", id: "new-assessment-btn" }, [
-        el("span", { class: "material-symbols-rounded" }, "add"),
-        " Add Assessment",
-      ])
-    );
-  }
-  wrap.append(header);
+  // 1. Executive Hero Banner
+  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
+  mascotWrap.innerHTML = buildAssessmentsMascotSvg({ width: 125, height: 110 });
 
-  const kpiMount = el("div", {});
+  const heroBanner = el("div", { class: "assessments-hero" }, [
+    el("div", { class: "assessments-hero__content" }, [
+      el("div", { class: "assessments-hero__status-row" }, [
+        el("span", { class: "academics-cycle-badge" }, [
+          icon("assignment", "text-xs"),
+          "Evaluation Framework · CBC Assessments",
+        ]),
+      ]),
+      el("h1", { class: "assessments-hero__title" }, "Assessments & Examinations"),
+      el("p", { class: "assessments-hero__desc" }, "Configure CATs, assignments, exams, custom subject maximums, and evaluation schedules."),
+      el("div", { class: "assessments-hero__pills" }, [
+        el("div", { class: "assessments-pill" }, [icon("assignment"), `${assessments.length} Assessments`]),
+        el("div", { class: "assessments-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
+        el("div", { class: "assessments-pill" }, [icon("school"), `${subjects.length} Subjects`]),
+        el("div", { class: "assessments-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
+      ]),
+    ]),
+
+    el("div", { class: "assessments-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Schedule CATs & exams."),
+      mascotWrap,
+    ]),
+  ]);
+  wrap.append(heroBanner);
+
+  // 2. Executive KPI Metrics Strip
+  const kpiMount = el("div", { style: "margin-bottom:var(--sp-4);" });
   wrap.append(kpiMount);
   renderKpis(kpiMount);
 
-  const filterMount = el("div", { class: "card", style: "margin-bottom:16px;" });
+  // 3. Consolidated Filter Toolbar Card
+  const filterMount = el("div", { class: "card", style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);" });
   wrap.append(filterMount);
   renderFilters(filterMount, profile);
 
-  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  wrap.append(tableWrap);
-  renderTable(tableWrap, profile, canManage);
+  // 4. Configured Assessments Table Card
+  const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
+  const countBadge = el("span", { class: "badge badge--neutral", id: "assessments-count-badge", style: "font-size:11px;" }, `${assessments.length} Assessments`);
+  const tableHeader = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("assignment", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Configured Assessments"),
+      countBadge,
+    ]),
+  ]);
+  tableCard.append(tableHeader);
 
-  setTimeout(() => {
-    document.getElementById("new-assessment-btn")?.addEventListener("click", () => openAssessmentForm(profile));
-  });
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
+  tableCard.append(tableWrap);
+  wrap.append(tableCard);
+
+  renderTable(tableWrap, profile, canManage);
 
   return wrap;
 }
@@ -159,9 +286,6 @@ function getFilteredSorted() {
 
   const dir = sort.dir === "asc" ? 1 : -1;
   list = list.slice().sort((a, b) => {
-    // "sat"/"mean" aren't offered as sortable columns (no marks fetched
-    // upfront to sort by anymore), but fall back gracefully via whatever's
-    // already in statsCache in case that ever changes.
     const sa = statsCache.get(a.id) || {};
     const sb = statsCache.get(b.id) || {};
     switch (sort.key) {
@@ -181,14 +305,6 @@ function getFilteredSorted() {
   return list;
 }
 
-function summaryLine() {
-  const filteredCount = getFilteredSorted().length;
-  if (filteredCount === assessments.length) {
-    return `${assessments.length} assessment(s) configured`;
-  }
-  return `Showing ${filteredCount} of ${assessments.length} assessment(s)`;
-}
-
 // ------------------------------------------------------------------ KPIs --
 
 function renderKpis(container) {
@@ -198,10 +314,6 @@ function renderKpis(container) {
   const locked = assessments.filter((a) => a.status === "locked").length;
   const upcoming = assessments.filter((a) => a.date && a.date >= today).length;
 
-  // "Overall Mean" used to live here, but it required every assessment's
-  // marks to be loaded upfront to average - no longer cheap now that marks
-  // are fetched lazily per-assessment. Dropped rather than fetched eagerly
-  // just for this one number.
   const kpis = [
     { label: "Total Assessments", value: assessments.length, icon: "assignment", color: "blue" },
     { label: "Open for Entry", value: open, icon: "edit_note", color: "green" },
@@ -214,10 +326,10 @@ function renderKpis(container) {
     { class: "md3-kpi-grid" },
     kpis.map((k) =>
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, k.icon)]),
-        el("div", {}, [
+        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+        el("div", { class: "md3-kpi-chip__data" }, [
           el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, String(k.value)),
+          el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
         ]),
       ])
     )
@@ -225,78 +337,98 @@ function renderKpis(container) {
   container.append(grid);
 }
 
-// Per-assessment weight is no longer editable here - Grading & Positions
-// derives it dynamically per compute from the Report Mode dropdown (Final/
-// Average, Midterm Only, Endterm Only), overwriting whatever's stored the
-// moment results are computed. A "does this add up to 100" check against
-// the raw stored weight would therefore be checking a number nothing
-// actually uses - see computeClassResults() in grading.service.js for the
-// real, live weight logic and its own capacity-mismatch check, which runs
-// against the *effective* weights instead.
-
 // --------------------------------------------------------------- filters --
-
-function selectField(label, id, options, current, labelFn) {
-  return el("div", { class: "field" }, [
-    el("label", {}, label),
-    el(
-      "select",
-      { id },
-      options.map((v) => el("option", { value: v, ...(v === current ? { selected: "true" } : {}) }, labelFn(v)))
-    ),
-  ]);
-}
 
 function renderFilters(container, profile) {
   container.innerHTML = "";
-  const row = el("div", { class: "filter-toolbar" });
+  const canManage = CAN_MANAGE.includes(profile.role);
 
-  row.append(
-    el("div", { class: "field" }, [
-      el("label", {}, "Search"),
-      el("input", { id: "f-search", placeholder: "Search by name…", value: filters.search }),
-    ]),
-    selectField("Type", "f-type", ["all", ...ASSESSMENT_TYPES], filters.type, (v) => (v === "all" ? "All Types" : v)),
-    selectField(
-      "Term",
-      "f-term",
-      ["all", ...(settings.terms || ["Term 1", "Term 2", "Term 3"])],
-      filters.term,
-      (v) => (v === "all" ? "All Terms" : v)
-    ),
-    selectField("Academic Year", "f-year", ["all", ...uniqueYears()], filters.year, (v) => (v === "all" ? "All Years" : v)),
-    selectField(
-      "Status",
-      "f-status",
-      ["all", "open", "locked"],
-      filters.status,
-      (v) => (v === "all" ? "All Statuses" : v[0].toUpperCase() + v.slice(1))
-    ),
-    selectField(
-      "Class",
-      "f-grade",
-      ["all", ...classes.map((c) => c.grade)],
-      filters.grade,
-      (v) => (v === "all" ? "All Classes" : v)
-    ),
-    selectField(
-      "Subject",
-      "f-subject",
-      ["all", ...subjects.map((s) => s.code)],
-      filters.subject,
-      (v) => (v === "all" ? "All Subjects" : subjectName(v))
-    )
-  );
+  const searchInput = el("input", {
+    id: "f-search",
+    placeholder: "Search assessments by name…",
+    value: filters.search,
+    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+  });
 
-  const actions = el("div", { class: "filter-actions" }, [
-    el("button", { class: "btn btn--ghost btn--sm", id: "clear-filters" }, [icon("filter_alt_off"), "Clear filters"]),
-    el("button", { class: "btn btn--ghost btn--sm", id: "export-csv" }, [
-      el("span", { class: "material-symbols-rounded" }, "download"),
-      " Export CSV",
-    ]),
+  const typeSelect = el("select", {
+    id: "f-type",
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "all" }, "All Types"),
+    ...ASSESSMENT_TYPES.map((t) => el("option", { value: t, ...(t === filters.type ? { selected: "true" } : {}) }, t)),
   ]);
 
-  container.append(row, actions);
+  const termSelect = el("select", {
+    id: "f-term",
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "all" }, "All Terms"),
+    ...(settings.terms || ["Term 1", "Term 2", "Term 3"]).map((t) => el("option", { value: t, ...(t === filters.term ? { selected: "true" } : {}) }, t)),
+  ]);
+
+  const yearSelect = el("select", {
+    id: "f-year",
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "all" }, "All Years"),
+    ...uniqueYears().map((y) => el("option", { value: y, ...(y === filters.year ? { selected: "true" } : {}) }, y)),
+  ]);
+
+  const gradeSelect = el("select", {
+    id: "f-grade",
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "all" }, "All Grades"),
+    ...classes.map((c) => el("option", { value: c.grade, ...(c.grade === filters.grade ? { selected: "true" } : {}) }, c.grade)),
+  ]);
+
+  const statusSelect = el("select", {
+    id: "f-status",
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "all" }, "All Statuses"),
+    el("option", { value: "open", ...(filters.status === "open" ? { selected: "true" } : {}) }, "Open"),
+    el("option", { value: "locked", ...(filters.status === "locked" ? { selected: "true" } : {}) }, "Locked"),
+  ]);
+
+  const toolbar = el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px; flex:1; min-width:min(100%, 320px); flex-wrap:wrap;" }, [
+      el("div", { style: "position:relative; flex:1; min-width:200px;" }, [
+        el("span", {
+          class: "material-symbols-rounded",
+          style: "position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--color-ink-soft); pointer-events:none;",
+        }, "search"),
+        searchInput,
+      ]),
+      typeSelect,
+      termSelect,
+      yearSelect,
+      gradeSelect,
+      statusSelect,
+    ]),
+    el("div", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        id: "clear-filters",
+        title: "Clear all filters",
+      }, [icon("filter_alt_off"), "Clear"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        id: "export-csv",
+        title: "Export assessments to CSV",
+      }, [icon("download"), "Export CSV"]),
+      canManage ? el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        id: "new-assessment-btn",
+        onClick: () => openAssessmentForm(profile),
+      }, [icon("add"), "Add Assessment"]) : null,
+    ].filter(Boolean)),
+  ]);
+
+  container.append(toolbar);
 
   setTimeout(() => {
     document.getElementById("f-search")?.addEventListener("input", (e) => {
@@ -347,8 +479,11 @@ function rerender(profile) {
   const canManage = CAN_MANAGE.includes(profile.role);
   const tableWrap = document.querySelector(".table-wrap");
   if (tableWrap) renderTable(tableWrap, profile, canManage);
-  const countEl = document.querySelector(".page-header p");
-  if (countEl) countEl.textContent = summaryLine();
+  const countBadge = document.getElementById("assessments-count-badge");
+  if (countBadge) {
+    const filteredCount = getFilteredSorted().length;
+    countBadge.textContent = `${filteredCount} Assessments`;
+  }
 }
 
 async function refresh(profile) {
@@ -363,9 +498,6 @@ async function refresh(profile) {
 async function exportCsv() {
   const list = getFilteredSorted();
   if (!list.length) return toast("Nothing to export with current filters.", "error");
-  // Stats (Students Sat / Mean %) are only fetched here, on demand, rather
-  // than upfront for the whole page - one listMarksByAssessment() call per
-  // assessment in the current filtered view, run in parallel.
   const statsList = await Promise.all(list.map((a) => getAssessmentStats(a)));
   const header = ["Name", "Type", "Term", "Academic Year", "Date", "Out Of", "Out Of Overrides", "Mode", "Classes", "Subjects", "Students Sat", "Expected", "Mean %", "Status"];
   const rows = list.map((a, i) => {
@@ -405,7 +537,11 @@ async function exportCsv() {
 // -------------------------------------------------------------- table ui --
 
 function emptyState(title, message) {
-  return el("div", { class: "empty-state" }, [el("h3", {}, title), el("p", {}, message)]);
+  return el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+    icon("assignment", "empty-state__icon"),
+    el("h3", {}, title),
+    el("p", {}, message),
+  ]);
 }
 
 function sortableTh(label, key, profile) {
@@ -431,87 +567,107 @@ function renderTable(container, profile, canManage) {
 
   if (!assessments.length) {
     container.append(
-      emptyState(
-        "No assessments yet",
-        canManage ? "Click '+ Add Assessment' to set up your first CAT, assignment, or exam." : "Nothing has been scheduled yet."
-      )
+      el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("assignment", "empty-state__icon"),
+        el("h3", {}, "No assessments configured yet"),
+        el("p", {}, canManage ? "Click '+ Add Assessment' to set up your first CAT, assignment, or exam." : "Nothing has been scheduled yet for this term."),
+        canManage ? el("button", {
+          class: "btn btn--primary btn--sm",
+          style: "margin-top:12px;",
+          onClick: () => openAssessmentForm(profile),
+        }, [icon("add"), "Add First Assessment"]) : null,
+      ].filter(Boolean))
     );
     return;
   }
 
   const list = getFilteredSorted();
+  const countBadge = document.getElementById("assessments-count-badge");
+  if (countBadge) countBadge.textContent = `${list.length} Assessments`;
+
   if (!list.length) {
-    container.append(emptyState("No matches", "Try adjusting or clearing your filters."));
+    container.append(
+      el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("search_off", "empty-state__icon"),
+        el("h3", {}, "No matching assessments"),
+        el("p", {}, "Try adjusting or clearing your active filters to see other assessments."),
+      ])
+    );
     return;
   }
 
-// 1. Update headers (removed the separate Term / Year column)
   const headCells = [
     sortableTh("Assessment", "name", profile),
     sortableTh("Type", "type", profile),
     sortableTh("Date", "date", profile),
-    el("th", {}, "Out Of"),
-    el("th", {}, "Mode"),
-    el("th", {}, "Classes"),
-    el("th", {}, "Subjects"),
-    el("th", {}, "Status"),
-    el("th", {}, "Actions"),
+    el("th", { style: "width:110px;" }, "Out Of"),
+    el("th", { style: "width:110px;" }, "Mode"),
+    el("th", { style: "min-width:140px;" }, "Classes"),
+    el("th", { style: "min-width:140px;" }, "Subjects"),
+    el("th", { style: "width:100px;" }, "Status"),
+    el("th", { class: "col-right", style: "width:160px;" }, "Actions"),
   ];
 
-  const table = el("table", {}, [el("thead", {}, el("tr", {}, headCells))]);
+  const table = el("table", { class: "reports-table" }, [el("thead", {}, el("tr", {}, headCells))]);
   const tbody = el("tbody", {});
 
   for (const a of list) {
-    // 2. Rich Assessment Name Cell (combines Name, Icon, and Term/Year)
     const nameCell = el("td", { "data-label": "Assessment" }, [
-      el("div", { style: "display:flex; align-items:center; gap:12px;" }, [
-        el("div", { style: "background:var(--color-primary-100); color:var(--color-primary-700); border-radius:8px; width:40px; height:40px; display:grid; place-items:center;" }, [
-           el("span", { class: "material-symbols-rounded" }, "assignment")
-        ]),
+      el("div", { style: "display:flex; align-items:center; gap:10px;" }, [
+        el("div", {
+          style: "background:rgba(20,83,138,0.1); color:var(--color-primary-700); border-radius:8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
+        }, [icon("assignment", "text-sm")]),
         el("div", {}, [
           el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, a.name),
-          el("div", { class: "text-xs text-muted" }, `${a.term || "N/A"} ${a.academicYear || ""}`)
-        ])
-      ])
+          el("div", { class: "text-xs text-muted" }, `${a.term || "N/A"} · ${a.academicYear || ""}`),
+        ]),
+      ]),
     ]);
 
     const cells = [
       nameCell,
-      el("td", { "data-label": "Type" }, el("span", { class: "badge badge--muted" }, a.type)),
-      el("td", { "data-label": "Date" }, a.date ? formatDate(a.date) : "N/A"),
-      el("td", { class: "numeric", "data-label": "Out Of" }, Object.keys(a.subjectMaxScores || {}).length
-          ? el("span", { title: Object.entries(a.subjectMaxScores).map(([code, v]) => `${subjectName(code)}: ${v}`).join(", ") }, `${a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE} (varies)`)
-          : (a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE)
-      ),
-      el("td", { "data-label": "Mode" }, el("span", { class: `badge badge--${(a.contributionMode || "weighted") === "direct" ? "gold" : "muted"}` }, (a.contributionMode || "weighted") === "direct" ? "Direct add" : "Weighted")),
+      el("td", { "data-label": "Type" }, el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, a.type)),
+      el("td", { "data-label": "Date" }, a.date ? formatDate(a.date) : "—"),
+      el("td", { class: "numeric", "data-label": "Out Of" }, [
+        el("span", {
+          style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);",
+          title: Object.keys(a.subjectMaxScores || {}).length ? Object.entries(a.subjectMaxScores).map(([code, v]) => `${subjectName(code)}: ${v}`).join(", ") : "",
+        }, Object.keys(a.subjectMaxScores || {}).length ? `${a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE} (varies)` : `${a.maxScore ?? DEFAULT_ASSESSMENT_MAX_SCORE}`),
+      ]),
+      el("td", { "data-label": "Mode" }, el("span", {
+        class: `badge badge--${(a.contributionMode || "weighted") === "direct" ? "gold" : "muted"}`,
+        style: "font-size:11px;",
+      }, (a.contributionMode || "weighted") === "direct" ? "Direct add" : "Weighted")),
       el("td", { "data-label": "Classes" }, (a.grades || []).length
-          ? el("div", { class: "chip-list" }, a.grades.map((g) => el("span", { class: "chip" }, g)))
-          : el("span", { class: "text-muted" }, "All")
+        ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" }, a.grades.map((g) => el("span", { class: "badge badge--muted", style: "font-size:11px; padding:2px 6px;" }, g)))
+        : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "All grades")
       ),
       el("td", { "data-label": "Subjects" }, (a.subjects || []).length
-          ? el("div", { class: "chip-list" }, a.subjects.map((code) => el("span", { class: "chip" }, subjectName(code))))
-          : el("span", { class: "text-muted" }, "All")
+        ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" }, a.subjects.map((code) => el("span", { class: "badge badge--neutral", style: "font-size:11px; padding:2px 6px;" }, subjectName(code))))
+        : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "All subjects")
       ),
-      el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${a.status === "locked" ? "danger" : "success"}` }, a.status || "open")),
+      el("td", { "data-label": "Status" }, el("span", {
+        class: `badge badge--${a.status === "locked" ? "danger" : "success"}`,
+        style: "font-size:11px;",
+      }, a.status === "locked" ? "Locked" : "Open")),
     ];
 
-    // 3. Slim actions cell: the one thing everyone needs (Results) stays
-    // visible; anything more advanced (edit/duplicate/lock/delete) lives
-    // behind a single "More" button that opens an action-list modal.
-    const actionsCell = el("td", { class: "row-actions", "data-label": "Actions" }, [
-      el("button", { class: "btn btn--tonal btn--sm", title: "View Results", onClick: () => openResultsModal(a) }, [
-        el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, "analytics"),
-        " Results"
-      ]),
+    const actionsCell = el("td", { class: "col-right", "data-label": "Actions" }, [
+      el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
+        el("button", {
+          class: "btn btn--tonal btn--sm",
+          style: "padding:4px 8px; font-size:12px;",
+          title: "View Results Breakdown",
+          onClick: () => openResultsModal(a),
+        }, [icon("analytics", "text-xs"), " Results"]),
+        canManage ? el("button", {
+          class: "btn btn--ghost btn--sm",
+          style: "padding:4px 8px; font-size:12px;",
+          title: "More options",
+          onClick: () => openActionsMenu(profile, a),
+        }, [icon("more_vert")]) : null,
+      ].filter(Boolean)),
     ]);
-
-    if (canManage) {
-      actionsCell.append(
-        el("button", { class: "btn btn--ghost btn--sm", title: "More actions", style: "padding:6px;", onClick: () => openActionsMenu(profile, a) }, [
-          el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, "more_vert"),
-        ])
-      );
-    }
 
     cells.push(actionsCell);
     tbody.append(el("tr", {}, cells));
@@ -522,65 +678,47 @@ function renderTable(container, profile, canManage) {
 
 // ------------------------------------------------------------- more menu --
 
-function actionMenuItem({ icon: iconName, label, desc, danger = false, onClick }) {
-  return el(
-    "button",
-    {
-      class: `action-menu__item${danger ? " action-menu__item--danger" : ""}`,
-      onClick,
-    },
-    [
-      el("span", { class: "material-symbols-rounded" }, iconName),
-      el("div", { class: "action-menu__item-text" }, [
-        el("div", { class: "action-menu__item-label" }, label),
-        desc ? el("div", { class: "action-menu__item-desc" }, desc) : "",
-      ]),
-    ]
-  );
-}
-
 function openActionsMenu(profile, a) {
-  const menu = el("div", { class: "action-menu" }, [
-    actionMenuItem({
-      icon: "edit",
-      label: "Edit assessment",
-      desc: "Change name, date, weighting, classes or subjects.",
+  let close;
+  const isLocked = a.status === "locked";
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+
+  body.append(
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
       onClick: () => {
-        close();
+        if (close) close();
         openAssessmentForm(profile, a);
       },
-    }),
-    actionMenuItem({
-      icon: "content_copy",
-      label: "Duplicate",
-      desc: "Create a copy to reuse for another term or class.",
+    }, [icon("edit"), "Edit Assessment Configuration"]),
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
       onClick: () => {
-        close();
+        if (close) close();
         duplicateAssessment(profile, a);
       },
-    }),
-    actionMenuItem({
-      icon: a.status === "locked" ? "lock_open" : "lock",
-      label: a.status === "locked" ? "Reopen" : "Lock",
-      desc: a.status === "locked" ? "Allow marks to be edited again." : "Prevent further changes to marks.",
+    }, [icon("content_copy"), "Duplicate Assessment"]),
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isLocked ? "color:var(--color-red);" : ""}`,
       onClick: (ev) => {
-        close();
+        if (close) close();
         toggleLock(profile, a, ev.currentTarget);
       },
-    }),
-    el("div", { class: "action-menu__divider" }),
-    actionMenuItem({
-      icon: "delete",
-      label: "Delete assessment",
-      desc: "This can't be undone.",
-      danger: true,
+    }, [icon(isLocked ? "lock_open" : "lock"), isLocked ? "Reopen Assessment" : "Lock Assessment"]),
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); color:var(--color-red);",
       onClick: () => {
-        close();
+        if (close) close();
         confirmDelete(profile, a);
       },
-    }),
-  ]);
-  const close = openModal(a.name, menu);
+    }, [icon("delete"), "Delete Assessment"])
+  );
+
+  close = openModal(`Assessment: ${a.name}`, body);
 }
 
 // ------------------------------------------------------------ lock/unlock --
@@ -603,8 +741,9 @@ async function toggleLock(profile, a, button) {
 async function duplicateAssessment(profile, a) {
   const body = el("div", {});
   body.append(
-    el("p", {}, `Create a copy of "${a.name}"? You can rename it and adjust the date afterwards.`),
-    el("div", { style: "display:flex; gap:8px; margin-top:16px;" }, [
+    el("p", { style: "margin-bottom:var(--sp-3);" }, `Create a duplicate copy of "${a.name}"? You can adjust its name and date immediately afterwards.`),
+    el("div", { style: "display:flex; justify-content:flex-end; gap:8px;" }, [
+      el("button", { class: "btn btn--ghost", onClick: () => close() }, [icon("close"), "Cancel"]),
       el(
         "button",
         {
@@ -633,9 +772,8 @@ async function duplicateAssessment(profile, a) {
             }
           },
         },
-        "Duplicate"
+        [icon("content_copy"), "Duplicate"]
       ),
-      el("button", { class: "btn btn--ghost", onClick: () => close() }, [icon("close"), "Cancel"]),
     ])
   );
   const close = openModal("Duplicate Assessment", body);
@@ -649,7 +787,7 @@ function subjectName(code) {
 
 async function openResultsModal(a) {
   const body = el("div", { style: "display:grid; place-items:center; padding:32px;" }, [spinner("md", "dark")]);
-  openModal(`Results: ${a.name}`, body);
+  const close = openModal(`Results Breakdown: ${a.name}`, body);
 
   let s;
   try {
@@ -662,25 +800,43 @@ async function openResultsModal(a) {
 
   body.setAttribute("style", "");
   body.innerHTML = "";
-  renderResultsBody(body, s);
+  renderResultsBody(body, s, a, close);
 }
 
-function renderResultsBody(body, s) {
+function renderResultsBody(body, s, a, close) {
   const meanGrade = s.meanPercent != null ? gradeFor(s.meanPercent, settings.gradingScale) : null;
-  const completionPct = s.expected ? Math.round((s.sat / s.expected) * 100) : s.sat ? 100 : 0;
+  const completionPct = s.expected ? Math.round((s.sat / s.expected) * 100) : (s.sat ? 100 : 0);
 
-  const summary = el("div", { class: "results-summary" }, [
-    summaryItem("Students Sat", s.expected ? `${s.sat}/${s.expected}` : `${s.sat}`),
-    summaryItem("Completion", `${completionPct}%`),
-    summaryItem("Subjects Entered", `${s.subjectsCovered}/${subjects.length}`),
-    summaryItem("Mean Score", s.meanPercent != null ? `${s.meanPercent.toFixed(1)}%` : "N/A"),
-    summaryItem("Mean Grade", meanGrade?.grade || "N/A"),
-  ]);
-  body.append(summary);
+  const kpis = [
+    { label: "Students Sat", value: s.expected ? `${s.sat} / ${s.expected}` : String(s.sat), icon: "groups", color: "blue" },
+    { label: "Completion", value: `${completionPct}%`, icon: "done_all", color: completionPct >= 80 ? "green" : "gold" },
+    { label: "Subjects Entered", value: `${s.subjectsCovered} / ${subjects.length}`, icon: "menu_book", color: "blue" },
+    { label: "Mean Score", value: s.meanPercent != null ? `${s.meanPercent.toFixed(1)}%` : "N/A", icon: "analytics", color: "green" },
+    { label: "Mean Grade", value: meanGrade?.grade || "N/A", icon: "school", color: "gold" },
+  ];
+
+  const grid = el(
+    "div",
+    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
+    kpis.map((k) =>
+      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+        el("div", { class: "md3-kpi-chip__data" }, [
+          el("div", { class: "md3-kpi-chip__label" }, k.label),
+          el("div", { class: "md3-kpi-chip__value numeric" }, k.value),
+        ]),
+      ])
+    )
+  );
+  body.append(grid);
 
   if (!s.bySubject.size) {
     body.append(
-      emptyState("No marks entered yet", "Once marks are captured for this assessment, per-subject performance will appear here.")
+      el("div", { class: "empty-state", style: "padding:var(--sp-5);" }, [
+        icon("assignment_late", "empty-state__icon"),
+        el("h3", {}, "No marks entered yet"),
+        el("p", {}, "Once marks are captured for this assessment, per-subject breakdown will appear here."),
+      ])
     );
   } else {
     const rows = Array.from(s.bySubject.entries())
@@ -694,14 +850,14 @@ function renderResultsBody(body, s) {
       }))
       .sort((x, y) => y.mean - x.mean);
 
-    const table = el("table", {}, [
+    const table = el("table", { class: "reports-table" }, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, "Subject"),
-        el("th", {}, "Entries"),
-        el("th", {}, "Mean %"),
-        el("th", {}, "Highest"),
-        el("th", {}, "Lowest"),
-        el("th", {}, "Grade"),
+        el("th", { class: "numeric", style: "width:80px;" }, "Entries"),
+        el("th", { class: "numeric", style: "width:90px;" }, "Mean %"),
+        el("th", { class: "numeric", style: "width:90px;" }, "Highest"),
+        el("th", { class: "numeric", style: "width:90px;" }, "Lowest"),
+        el("th", { style: "width:80px;" }, "Grade"),
       ])),
     ]);
     const tbody = el("tbody", {});
@@ -709,12 +865,20 @@ function renderResultsBody(body, s) {
       const g = gradeFor(r.mean, settings.gradingScale);
       tbody.append(
         el("tr", {}, [
-          el("td", { "data-label": "Subject" }, r.name),
+          el("td", { "data-label": "Subject" }, [
+            el("span", { style: "font-weight:600; color:var(--color-primary-900);" }, r.name),
+          ]),
           el("td", { class: "numeric", "data-label": "Entries" }, String(r.count)),
-          el("td", { class: "numeric", "data-label": "Mean %" }, `${r.mean.toFixed(1)}%`),
-          el("td", { class: "numeric", "data-label": "Highest" }, `${r.max.toFixed(1)}%`),
-          el("td", { class: "numeric", "data-label": "Lowest" }, `${r.min.toFixed(1)}%`),
-          el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--muted" }, g?.grade || "N/A")),
+          el("td", { class: "numeric", "data-label": "Mean %" }, [
+            el("span", { style: "font-family:var(--font-mono); font-weight:600;" }, `${r.mean.toFixed(1)}%`),
+          ]),
+          el("td", { class: "numeric", "data-label": "Highest" }, [
+            el("span", { style: "font-family:var(--font-mono); color:var(--color-green-700);" }, `${r.max.toFixed(1)}%`),
+          ]),
+          el("td", { class: "numeric", "data-label": "Lowest" }, [
+            el("span", { style: "font-family:var(--font-mono); color:var(--color-ink-soft);" }, `${r.min.toFixed(1)}%`),
+          ]),
+          el("td", { "data-label": "Grade" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, g?.grade || "N/A")),
         ])
       );
     }
@@ -723,26 +887,20 @@ function renderResultsBody(body, s) {
   }
 
   body.append(
-    el("div", { style: "display:flex; gap:8px;" }, [
+    el("div", { style: "display:flex; justify-content:flex-end; gap:8px;" }, [
       el(
         "button",
         {
-          class: "btn btn--primary",
+          class: "btn btn--primary btn--sm",
           onClick: () => {
+            if (close) close();
             navigate("/marks");
           },
         },
-        "Go to Marks Entry"
+        [icon("edit_note"), "Go to Marks Entry"]
       ),
     ])
   );
-}
-
-function summaryItem(label, value) {
-  return el("div", { class: "results-summary__item" }, [
-    el("div", { class: "results-summary__value" }, String(value)),
-    el("div", { class: "results-summary__label" }, label),
-  ]);
 }
 
 // --------------------------------------------------------------- editing --
@@ -927,7 +1085,7 @@ function openAssessmentForm(profile, existing = null) {
     el("div", { class: "field" }, [el("label", {}, "Classes (leave all unchecked to apply to every grade)"), gradeChecklist]),
     el("div", { class: "field" }, [el("label", {}, "Subjects (leave all unchecked to apply to every subject)"), subjectChecklist]),
     overridesDetails,
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "add"), isEdit ? "Save changes" : "Add assessment"])
+    el("button", { type: "submit", class: "btn btn--primary btn--block", style: "margin-top:14px;" }, [icon(isEdit ? "save" : "add"), isEdit ? "Save changes" : "Add assessment"])
   );
   refreshModeHint();
   modeSelect.addEventListener("change", refreshModeHint);

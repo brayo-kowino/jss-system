@@ -5142,6 +5142,107 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* ==========================================================================
+   Assessments Hero & Dynamic Evaluation Mascot
+   ========================================================================== */
+.assessments-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.assessments-hero__content {
+  flex: 1;
+  min-width: min(100%, 300px);
+}
+
+.assessments-hero__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.assessments-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+
+.assessments-hero__desc {
+  margin: 0 0 var(--sp-2) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 560px;
+  line-height: 1.4;
+}
+
+.assessments-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assessments-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.assessments-pill .material-symbols-rounded {
+  font-size: 14px;
+  color: var(--color-primary-600);
+}
+
+.assessments-hero__mascot-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+}
+
+.assessments-mascot-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 6px 12px rgba(11, 37, 69, 0.1));
+}
+
+@keyframes penGleam {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.9; }
+  50% { transform: scale(1.15) rotate(8deg); opacity: 1; filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.8)); }
+}
+.assessments-mascot__pen {
+  transform-origin: 155px 95px;
+  animation: penGleam 2.8s ease-in-out infinite;
+}
+
+@media (max-width: 860px) {
+  .assessments-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .assessments-hero__mascot-box {
+    align-self: center;
+    margin-top: var(--sp-2);
+  }
+}
+
+/* ==========================================================================
    Utilities
    ========================================================================== */
 @media (max-width: 768px) {
