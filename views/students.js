@@ -56,6 +56,97 @@ const PAGE_SIZE = 50;
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred" };
 
+/**
+ * Dynamic Academic Registrar mascot with student folio and graduation diploma.
+ */
+export function buildStudentsMascotSvg({ width = 125, height = 110 } = {}) {
+  return `
+    <svg class="students-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Student Registrar Assistant">
+      <!-- Ground Shadow -->
+      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+
+      <!-- Floating Mascot Body -->
+      <g class="support-mascot__body">
+        <!-- Educational Textbooks Stack Base -->
+        <g class="support-mascot__books">
+          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
+          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
+          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
+          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
+          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
+          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
+        </g>
+
+        <!-- Academic Scholar Robe -->
+        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
+        <!-- Gold Sash -->
+        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
+
+        <!-- Left Arm Holding Student Portfolio Folio -->
+        <g class="students-mascot__folio">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- Blue Student Folio Binder -->
+          <rect x="52" y="124" width="32" height="26" rx="3" fill="#0B2545" stroke="#14538A" stroke-width="1.2" transform="rotate(-6 68 137)" />
+          <rect x="56" y="128" width="18" height="3" rx="1" fill="#C9A227" transform="rotate(-6 68 137)" />
+          <rect x="56" y="133" width="22" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
+          <rect x="56" y="137" width="15" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
+          <!-- Golden Star Seal -->
+          <polygon points="76,140 77.5,143 81,143.5 78.5,146 79,149.5 76,148 73,149.5 73.5,146 71,143.5 74.5,143" fill="#F59E0B" transform="rotate(-6 68 137)" />
+          <!-- Hand Holding Folio -->
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+
+        <!-- Right Arm Raising Rolled Diploma with Animated Tilt -->
+        <g class="students-mascot__diploma">
+          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <!-- Rolled Diploma Parchment -->
+          <rect x="144" y="94" width="26" height="11" rx="2" fill="#FAF6F0" stroke="#8C6F12" stroke-width="1.2" transform="rotate(-25 157 100)" />
+          <!-- Red Ribbon Tied Around Diploma -->
+          <rect x="154" y="93" width="5" height="13" rx="1" fill="#DC2626" transform="rotate(-25 157 100)" />
+          <!-- Ribbon Streamers -->
+          <path d="M157,105 Q161,114 158,121" stroke="#DC2626" stroke-width="2" fill="none" />
+          <path d="M156,105 Q152,113 155,120" stroke="#DC2626" stroke-width="2" fill="none" />
+        </g>
+
+        <!-- Head -->
+        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
+        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+
+        <!-- Cheerful Eyebrows -->
+        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+        <!-- Animated Blinking Eyes -->
+        <g class="support-mascot__eyes">
+          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
+          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
+        </g>
+
+        <!-- Warm Smile -->
+        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
+
+        <!-- Graduation Cap (Mortarboard) -->
+        <g transform="rotate(-5 110 58)">
+          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
+          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
+          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
+          <!-- Swaying Tassel -->
+          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
+          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
+        </g>
+      </g>
+    </svg>
+  `;
+}
+
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
   const [studentsRes, parentsRes, classesRes, settingsRes, openIssuesRes] = await Promise.all([
@@ -74,7 +165,13 @@ export async function render({ profile }) {
     openIssueCounts.set(issue.studentId, (openIssueCounts.get(issue.studentId) || 0) + 1);
   }
 
-  const wrap = el("div", {});
+  const activeCount = students.filter((s) => s.status === "active").length;
+  const boysCount = students.filter((s) => (s.gender || "").toLowerCase() === "male").length;
+  const girlsCount = students.filter((s) => (s.gender || "").toLowerCase() === "female").length;
+  let totalOpenIssues = 0;
+  for (const count of openIssueCounts.values()) totalOpenIssues += count;
+
+  const wrap = el("div", { class: "students-view-wrap" });
 
   if (!classes.length) {
     wrap.append(
@@ -98,47 +195,131 @@ export async function render({ profile }) {
     );
   }
 
-  wrap.append(
-    el("div", { class: "page-header" }, [
-      el("div", {}, [el("p", {}, `${students.length} registered`)]),
-      el("div", { style: "display:flex; gap:8px;" }, [
-        el("button", {
-          class: "btn btn--ghost",
-          id: "import-students-btn",
-          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
-        }, [icon("upload_file"), "Import Students"]),
-        el("button", {
-          class: "btn btn--primary",
-          id: "new-admission-btn",
-          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
-        }, [icon("person_add"), "New Admission"]),
-      ]),
-    ])
-  );
+  // 1. Executive Hero Banner
+  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
+  mascotWrap.innerHTML = buildStudentsMascotSvg({ width: 125, height: 110 });
 
-  // Filters
-  const filters = el("div", { style: "display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap;" });
+  const heroBanner = el("div", { class: "students-hero" }, [
+    el("div", { class: "students-hero__content" }, [
+      el("div", { class: "students-hero__status-row" }, [
+        el("span", { class: "academics-cycle-badge" }, [
+          icon("school", "text-xs"),
+          "Learner Directory · CBC Enrolment",
+        ]),
+      ]),
+      el("h1", { class: "students-hero__title" }, "Student Directory & Admissions"),
+      el("p", { class: "students-hero__desc" }, "Manage learner profiles, track academic cohorts, record transfers, and log student affairs."),
+      el("div", { class: "students-hero__pills" }, [
+        el("div", { class: "students-pill" }, [icon("groups"), `${students.length} Registered`]),
+        el("div", { class: "students-pill" }, [icon("how_to_reg"), `${activeCount} Active`]),
+        el("div", { class: "students-pill" }, [icon("domain"), `${classes.length} Cohorts`]),
+        totalOpenIssues > 0
+          ? el("div", { class: "students-pill", style: "border-color:rgba(220,38,38,0.3); color:#DC2626;" }, [icon("report"), `${totalOpenIssues} Open Alerts`])
+          : el("div", { class: "students-pill" }, [icon("verified"), "Records In Order"]),
+      ]),
+    ]),
+
+    el("div", { class: "students-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Learner profiles & admissions."),
+      mascotWrap,
+    ]),
+  ]);
+  wrap.append(heroBanner);
+
+  // 2. Executive KPI Metrics Strip (using .md3-kpi-grid & .md3-kpi-chip)
+  const kpis = [
+    { label: "Total Registered", value: students.length, icon: "groups", color: "blue" },
+    { label: "Active Learners", value: activeCount, icon: "how_to_reg", color: "green" },
+    { label: "Boys / Girls", value: `${boysCount}B / ${girlsCount}G`, icon: "wc", color: "gold" },
+    { label: "Welfare Alerts", value: totalOpenIssues, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
+  ];
+  const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
+  for (const k of kpis) {
+    const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+      el("div", { class: "md3-kpi-chip__data" }, [
+        el("div", { class: "md3-kpi-chip__label" }, k.label),
+        el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
+      ]),
+    ]);
+    kpiGrid.append(chip);
+  }
+  wrap.append(kpiGrid);
+
+  // 3. Filter Toolbar & Action Buttons (Consolidated Card)
   const searchInput = el("input", {
-    placeholder: "Search by name, adm./KCPE no., phone, or parent name…",
-    style: "max-width:320px;padding:10px;border:1px solid var(--color-line);border-radius:6px;",
+    placeholder: "Search by name, adm no., phone, or parent…",
+    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
-  const gradeSelect = el("select", { style: "padding:10px;border:1px solid var(--color-line);border-radius:6px;" }, [
-    el("option", { value: "" }, "All grades"),
+  const gradeSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Grades"),
     ...classes.map((c) => el("option", { value: c.grade }, c.grade)),
   ]);
-  const statusSelect = el("select", { style: "padding:10px;border:1px solid var(--color-line);border-radius:6px;" }, [
-    el("option", { value: "" }, "All statuses"),
+  const statusSelect = el("select", {
+    style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
+  }, [
+    el("option", { value: "" }, "All Statuses"),
     el("option", { value: "active" }, "Active"),
     el("option", { value: "transferred" }, "Transferred"),
     el("option", { value: "suspended" }, "Suspended"),
     el("option", { value: "archived" }, "Archived"),
   ]);
-  filters.append(searchInput, gradeSelect, statusSelect);
-  wrap.append(filters);
+
+  const filterToolbar = el("div", {
+    class: "card",
+    style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);",
+  }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+      // Left side: Search & Dropdowns
+      el("div", { style: "display:flex; align-items:center; gap:10px; flex:1; min-width:min(100%, 300px); flex-wrap:wrap;" }, [
+        el("div", { style: "position:relative; flex:1; min-width:220px;" }, [
+          el("span", {
+            class: "material-symbols-rounded",
+            style: "position:absolute; left:9px; top:50%; transform:translateY(-50%); font-size:18px; color:var(--color-ink-soft); pointer-events:none;",
+          }, "search"),
+          searchInput,
+        ]),
+        gradeSelect,
+        statusSelect,
+      ]),
+      // Right side: Admission & Import actions
+      el("div", { style: "display:flex; align-items:center; gap:8px; flex-shrink:0;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          id: "import-students-btn",
+          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+        }, [icon("upload_file"), "Import Students"]),
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          id: "new-admission-btn",
+          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+        }, [icon("person_add"), "New Admission"]),
+      ]),
+    ]),
+  ]);
+  wrap.append(filterToolbar);
+
+  // 4. Modern Table Card
+  const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
+  const tableHeader = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      icon("badge", "text-primary"),
+      el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Learner Directory"),
+      el("span", { class: "badge badge--neutral", id: "students-count-badge", style: "font-size:11px;" }, `${students.length} Learners`),
+    ]),
+  ]);
+  tableCard.append(tableHeader);
 
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  wrap.append(tableWrap);
+  tableCard.append(tableWrap);
   renderTable(tableWrap, profile);
+  wrap.append(tableCard);
 
   searchInput.addEventListener("input", (e) => {
     filterText = e.target.value.toLowerCase();
@@ -197,12 +378,15 @@ function renderTable(container, profile) {
     return matchesText && matchesGrade && matchesStatus;
   });
 
+  const countBadge = document.getElementById("students-count-badge");
+  if (countBadge) countBadge.textContent = `${filtered.length} Learners`;
+
   if (!filtered.length) {
     container.innerHTML = "";
-    container.append(el("div", { class: "empty-state" }, [
+    container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
       icon("school", "empty-state__icon"),
-      el("h3", {}, "No students found"),
-      el("p", {}, students.length ? "Try adjusting your filters." : "Click '+ New Admission' to register the first student."),
+      el("h3", {}, "No learners found"),
+      el("p", {}, students.length ? "Try adjusting your search query or filters." : "Click '+ New Admission' to register your first student."),
     ]));
     return;
   }
@@ -217,33 +401,48 @@ function renderTable(container, profile) {
   const pageStart = (currentPage - 1) * PAGE_SIZE;
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
-  const table = el("table", {}, [
+  const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Adm. No."), el("th", {}, "Name"), el("th", {}, "Class"),
-      el("th", {}, "Gender"), el("th", {}, "Status"), el("th", {}, "Admitted"), el("th", {}, ""), el("th", {}, "Actions"),
+      el("th", { style: "width:110px;" }, "Adm. No."),
+      el("th", { style: "min-width:200px;" }, "Student Name"),
+      el("th", { style: "width:140px;" }, "Class / Stream"),
+      el("th", { style: "width:90px;" }, "Gender"),
+      el("th", { style: "width:110px;" }, "Status"),
+      el("th", { style: "width:120px;" }, "Admitted"),
+      el("th", { style: "width:80px;" }, "Alerts"),
+      el("th", { class: "col-right", style: "width:100px;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const s of pageItems) {
     const openCount = openIssueCounts.get(s.id) || 0;
-    const nameCell = el("td", { "data-label": "Name" }, [
+    const nameCell = el("td", { "data-label": "Student Name" }, [
       el("a", {
         href: "#",
-        style: "font-weight:600;",
+        style: "font-weight:600; color:var(--color-primary-900); text-decoration:none;",
         onClick: (e) => { e.preventDefault(); openStudentProfile(profile, s, "overview"); },
       }, s.fullName),
     ]);
     tbody.append(el("tr", {}, [
-      el("td", { class: "numeric", "data-label": "Adm. No." }, s.admissionNumber || "N/A"),
+      el("td", { class: "numeric", "data-label": "Adm. No." }, el("span", { style: "font-family:var(--font-mono); font-weight:600; font-size:var(--fs-xs);" }, s.admissionNumber || "—")),
       nameCell,
-      el("td", { "data-label": "Class" }, `${s.grade || "N/A"} ${s.stream || ""}`),
-      el("td", { "data-label": "Gender" }, s.gender || "N/A"),
+      el("td", { "data-label": "Class / Stream" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, `${s.grade || "N/A"}${s.stream ? " · " + s.stream : ""}`)),
+      el("td", { "data-label": "Gender" }, s.gender || "—"),
       el("td", { "data-label": "Status" }, statusBadge(s.status)),
-      el("td", { "data-label": "Admitted" }, formatDate(s.admissionDate)),
-      el("td", { "data-label": "Issues" }, openCount
-        ? el("span", { class: "badge badge--danger", title: `${openCount} open issue(s)`, style: "cursor:pointer;", onClick: () => openStudentProfile(profile, s, "activity") }, [icon("report", ""), ` ${openCount}`])
-        : ""),
-      el("td", { class: "row-actions", "data-label": "Actions" }, rowActions(s, profile)),
+      el("td", { "data-label": "Admitted" }, s.admissionDate ? formatDate(s.admissionDate) : "—"),
+      el("td", { "data-label": "Alerts" }, openCount
+        ? el("span", { class: "badge badge--danger", title: `${openCount} open issue(s)`, style: "cursor:pointer;", onClick: () => openStudentProfile(profile, s, "activity") }, [icon("report", "text-xs"), ` ${openCount}`])
+        : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "—")),
+      el("td", { class: "col-right", "data-label": "Actions" }, [
+        el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
+          el("button", {
+            class: "btn btn--ghost btn--sm",
+            style: "padding:4px 8px; font-size:12px;",
+            title: "View profile",
+            onClick: () => openStudentProfile(profile, s, "overview"),
+          }, [icon("account_circle"), "Profile"]),
+        ]),
+      ]),
     ]));
   }
   table.append(tbody);
