@@ -1076,12 +1076,6 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "issues-hero" }, [
     el("div", { class: "issues-hero__content" }, [
-      el("div", { class: "issues-hero__status-row" }, [
-        el("span", { class: "badge badge--neutral", style: "display:inline-flex; align-items:center; gap:5px;" }, [
-          icon("assignment_late", "style=font-size:14px; color:var(--color-primary-600);"),
-          "Student Operations · Front-Desk Discrepancy Log",
-        ]),
-      ]),
       el("h1", { class: "issues-hero__title" }, "Student Issues & Discrepancies"),
       el(
         "p",
