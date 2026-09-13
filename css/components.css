@@ -5590,7 +5590,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe);
+  background: linear-gradient(135deg, #f4f5f5, #ddd6fe);
   color: #287bd9;
   font-weight: 700;
   font-size: 12px;
