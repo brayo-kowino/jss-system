@@ -5237,6 +5237,245 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 
+/* ==========================================================================
+   Student Issues Hero & Dynamic Discrepancy Desk Mascot
+   ========================================================================== */
+.issues-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.issues-hero__content {
+  flex: 1;
+  min-width: min(100%, 300px);
+}
+
+.issues-hero__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.issues-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+
+.issues-hero__desc {
+  margin: 0 0 var(--sp-2) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 580px;
+  line-height: 1.4;
+}
+
+.issues-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.issues-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.issues-pill .material-symbols-rounded {
+  font-size: 14px;
+  color: var(--color-primary-600);
+}
+.issues-pill--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+.issues-pill--danger .material-symbols-rounded {
+  color: #dc2626;
+}
+
+.issues-hero__mascot-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+}
+
+.issues-mascot-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 6px 12px rgba(11, 37, 69, 0.1));
+}
+
+@keyframes lensGleam {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.95; }
+  50% { transform: scale(1.1) rotate(12deg); opacity: 1; filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7)); }
+}
+.issues-mascot__lens {
+  transform-origin: 155px 105px;
+  animation: lensGleam 3.2s ease-in-out infinite;
+}
+
+@media (max-width: 860px) {
+  .issues-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .issues-hero__mascot-box {
+    align-self: center;
+    margin-top: var(--sp-2);
+  }
+}
+
+/* Category chips */
+.issue-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.issue-category-chip--gold {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.issue-category-chip--purple {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+.issue-category-chip--blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.issue-category-chip--green {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+.issue-category-chip--cyan {
+  background: #ecfeff;
+  color: #0e7490;
+  border: 1px solid #a5f3fc;
+}
+.issue-category-chip--gray {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.issue-category-chip .material-symbols-rounded {
+  font-size: 14px;
+}
+
+/* Student avatar in table */
+.student-avatar-chip {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  color: #0369a1;
+  font-weight: 700;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  border: 1px solid #7dd3fc;
+}
+
+.issue-desc-cell {
+  max-width: 380px;
+  white-space: normal;
+  line-height: 1.45;
+  font-size: var(--fs-sm);
+  color: var(--color-ink);
+}
+
+.resolution-quote {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #f0fdf4;
+  border-left: 3px solid #16a34a;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: var(--fs-xs);
+  color: #15803d;
+  line-height: 1.4;
+}
+
+.quick-note-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: all var(--transition);
+  user-select: none;
+}
+.quick-note-chip:hover {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-300);
+  color: var(--color-primary-800);
+}
+
+.student-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  margin-top: 4px;
+}
+.student-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-line-soft, #f1f5f9);
+  transition: background var(--transition);
+}
+.student-search-item:last-child {
+  border-bottom: none;
+}
+.student-search-item:hover, .student-search-item--active {
+  background: var(--color-cream);
+}
 
 /* ==========================================================================
    Utilities
