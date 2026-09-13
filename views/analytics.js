@@ -184,29 +184,6 @@ function resetChart() {
   }
 }
 
-function renderKpis() {
-  const kpis = [
-    { label: "Enrolled Students", value: String(students.length), icon: "school", color: "blue" },
-    { label: "Teaching Faculty", value: String(teachers.length), icon: "groups", color: "green" },
-    { label: "Curriculum Subjects", value: String(subjects.length), icon: "menu_book", color: "gold" },
-    { label: "Class Cohorts", value: String(classes.length), icon: "domain", color: "blue" },
-  ];
-
-  return el(
-    "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
-    kpis.map((k) =>
-      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
-        el("div", { class: "md3-kpi-chip__data" }, [
-          el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, k.value),
-        ]),
-      ])
-    )
-  );
-}
-
 export async function render({ profile }) {
   [classes, subjects, settings, students, teachers, parents] = await Promise.all([
     listClasses(),
@@ -228,12 +205,6 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "analytics-hero" }, [
     el("div", { class: "analytics-hero__content" }, [
-      el("div", { class: "analytics-hero__status-row" }, [
-        el("span", { class: "badge badge--neutral", style: "display:inline-flex; align-items:center; gap:5px;" }, [
-          icon("insights", "style=font-size:14px; color:var(--color-primary-600);"),
-          "Institutional Intelligence · Academic & Operational Analytics",
-        ]),
-      ]),
       el("h1", { class: "analytics-hero__title" }, "School Performance & Intelligence Analytics"),
       el(
         "p",
@@ -253,10 +224,7 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // 2. Executive KPI Metrics Strip
-  wrap.append(renderKpis());
-
+  
   // 3. Consolidated Modern Navigation & Filter Toolbar
   const reportMount = el("div", { style: "margin-top:var(--sp-4);" });
 
