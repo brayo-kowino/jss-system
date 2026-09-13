@@ -434,37 +434,6 @@ function renderTable(profile) {
   return tableCard;
 }
 
-function buildKpis() {
-  const total = issues.length;
-  const openCount = issues.filter((i) => i.status === "open").length;
-  const resolvedCount = issues.filter((i) => i.status === "resolved").length;
-  const rate = total > 0 ? Math.round((resolvedCount / total) * 100) : 100;
-
-  return [
-    { label: "Total Logged Issues", value: String(total), icon: "assignment_late", color: "blue" },
-    { label: "Awaiting Resolution", value: String(openCount), icon: "pending_actions", color: openCount > 0 ? "red" : "green" },
-    { label: "Resolved Discrepancies", value: String(resolvedCount), icon: "check_circle", color: "green" },
-    { label: "Resolution Rate", value: `${rate}%`, icon: "speed", color: "gold" },
-  ];
-}
-
-function renderKpiGrid() {
-  const kpis = buildKpis();
-  return el(
-    "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
-    kpis.map((k) =>
-      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
-        el("div", { class: "md3-kpi-chip__data" }, [
-          el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, k.value),
-        ]),
-      ])
-    )
-  );
-}
-
 /**
  * Modal to log a new front-desk student discrepancy.
  */
@@ -1099,10 +1068,6 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // 2. Executive KPI Metrics Strip
-  kpiGridEl = el("div", {}, [renderKpiGrid()]);
-  wrap.append(kpiGridEl);
 
   // 3. Consolidated Modern Filter & Action Toolbar
   const searchInput = el("input", {
