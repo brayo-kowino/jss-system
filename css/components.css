@@ -115,7 +115,64 @@
 .md3-kpi-chip--gold  .md3-kpi-chip__icon { background: color-mix(in srgb, var(--color-gold) 15%, white);        color: var(--color-gold); }
 
 
-/* KPI chip — empty / new-school state */
+/* KPI chip — empty / new-school state & action badges */
+.md3-kpi-chip__val-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2, 8px);
+  min-width: 0;
+}
+.md3-kpi-chip__val-row .md3-kpi-chip__value {
+  flex-shrink: 0;
+}
+.md3-kpi-chip__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-600);
+  cursor: pointer;
+  transition: all var(--transition, 0.2s ease);
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.md3-kpi-chip__action .material-symbols-rounded {
+  font-size: 13px !important;
+}
+.md3-kpi-chip__action:hover {
+  background: var(--color-primary-700);
+  color: var(--color-white);
+  border-color: var(--color-primary-700);
+  transform: translateY(-1px);
+}
+.md3-kpi-chip--gold .md3-kpi-chip__action {
+  background: color-mix(in srgb, var(--color-gold) 15%, white);
+  color: #92400e;
+  border-color: color-mix(in srgb, var(--color-gold) 35%, transparent);
+}
+.md3-kpi-chip--gold .md3-kpi-chip__action:hover {
+  background: var(--color-gold);
+  color: var(--color-ink-inverted);
+}
+.md3-kpi-chip--green .md3-kpi-chip__action {
+  background: #E8F5E9;
+  color: var(--color-green);
+  border-color: color-mix(in srgb, var(--color-green) 35%, transparent);
+}
+.md3-kpi-chip--green .md3-kpi-chip__action:hover {
+  background: var(--color-green);
+  color: var(--color-white);
+}
+
 .md3-kpi-chip__empty {
   display: flex;
   flex-direction: column;
@@ -144,9 +201,34 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: var(--sp-8, 48px) var(--sp-5);
-  gap: var(--sp-2);
-  min-height: 200px;
+  padding: var(--sp-6, 32px) var(--sp-4, 16px);
+  gap: var(--sp-2, 8px);
+  min-height: 220px;
+}
+.card-empty-state__halo {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-cream-dim, #f1f5f9);
+  color: var(--color-ink-soft);
+  margin-bottom: var(--sp-1, 4px);
+}
+.card-empty-state__halo .material-symbols-rounded {
+  font-size: 24px;
+}
+.card-empty-state__halo--blue {
+  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  color: var(--color-primary-700);
+}
+.card-empty-state__halo--green {
+  background: #E8F5E9;
+  color: var(--color-green);
+}
+.card-empty-state__halo--gold {
+  background: color-mix(in srgb, var(--color-gold) 15%, white);
+  color: var(--color-gold);
 }
 .card-empty-state__icon {
   font-size: 40px !important;
@@ -155,20 +237,290 @@
 }
 .card-empty-state__title {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-md, 15px);
   font-weight: 600;
-  color: var(--color-ink-soft);
+  color: var(--color-ink);
 }
 .card-empty-state__sub {
   margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--color-ink-muted, var(--color-ink-soft));
-  max-width: 280px;
-  line-height: 1.5;
-  opacity: 0.8;
+  font-size: var(--fs-sm, 13px);
+  color: var(--color-ink-soft);
+  max-width: 300px;
+  line-height: 1.45;
+}
+.card-empty-state__btn {
+  margin-top: var(--sp-2, 8px);
 }
 
-/* Dashboard welcome card (new-school onboarding) */
+/* ==========================================================================
+   School Setup Launchpad (Brand-New School Onboarding Cockpit)
+   ========================================================================== */
+.dashboard-launchpad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5, 20px);
+  margin-bottom: var(--sp-6, 24px);
+}
+
+.launchpad-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-6, 24px);
+  background: linear-gradient(135deg, var(--color-white) 0%, var(--color-cream-dim, #f8fafc) 100%);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg, 14px);
+  padding: var(--sp-6, 24px);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.launchpad-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary-700), var(--color-gold));
+}
+
+.launchpad-hero__info {
+  flex: 1;
+  min-width: 280px;
+}
+
+.launchpad-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary-700);
+  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: var(--sp-2, 8px);
+}
+
+.launchpad-hero__badge .material-symbols-rounded {
+  font-size: 15px;
+}
+
+.launchpad-hero__title {
+  margin: 0 0 var(--sp-1, 4px);
+  font-size: clamp(1.2rem, 1.8vw, 1.5rem);
+  font-weight: 700;
+  color: var(--color-ink);
+  font-family: var(--font-display, inherit);
+}
+
+.launchpad-hero__subtitle {
+  margin: 0;
+  font-size: var(--fs-sm, 13.5px);
+  color: var(--color-ink-soft);
+  line-height: 1.5;
+  max-width: 650px;
+}
+
+.launchpad-hero__progress-box {
+  width: 250px;
+  flex-shrink: 0;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md, 10px);
+  padding: var(--sp-4, 16px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.launchpad-hero__progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.launchpad-hero__progress-title {
+  font-size: var(--fs-xs, 12px);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.launchpad-hero__progress-pct {
+  font-size: var(--fs-xs, 12px);
+  font-weight: 700;
+  color: var(--color-primary-700);
+}
+
+.launchpad-hero__progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--color-line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.launchpad-hero__progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-700), var(--color-green, #10b981));
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* 4-Step Onboarding Pipeline Grid */
+.launchpad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-4, 16px);
+}
+
+.launchpad-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg, 12px);
+  padding: var(--sp-5, 20px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+}
+
+.launchpad-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-600);
+}
+
+.launchpad-card--completed {
+  border-color: rgba(46, 125, 70, 0.3);
+  background: linear-gradient(to bottom, #fbfdfb 0%, var(--color-white) 100%);
+}
+
+.launchpad-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.launchpad-card__icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.launchpad-card__icon span {
+  font-size: 22px;
+}
+
+.launchpad-card__icon--blue {
+  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  color: var(--color-primary-700);
+}
+
+.launchpad-card__icon--gold {
+  background: color-mix(in srgb, var(--color-gold) 15%, white);
+  color: var(--color-gold);
+}
+
+.launchpad-card__icon--green {
+  background: #E8F5E9;
+  color: var(--color-green);
+}
+
+.launchpad-card__icon--purple {
+  background: #F3E8FF;
+  color: #7E22CE;
+}
+
+.launchpad-card__step-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--color-cream-dim, #f1f5f9);
+  color: var(--color-ink-soft);
+}
+
+.launchpad-card--completed .launchpad-card__step-badge {
+  background: #E8F5E9;
+  color: var(--color-green);
+}
+
+.launchpad-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1, 4px);
+}
+
+.launchpad-card__title {
+  margin: 0;
+  font-size: var(--fs-md, 15px);
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.launchpad-card__desc {
+  margin: 0 0 var(--sp-4, 16px);
+  font-size: var(--fs-xs, 12.5px);
+  color: var(--color-ink-soft);
+  line-height: 1.45;
+}
+
+.launchpad-card__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2, 8px);
+  padding-top: var(--sp-3, 12px);
+  border-top: 1px solid var(--color-line);
+}
+
+.launchpad-card__status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.launchpad-card--completed .launchpad-card__status {
+  color: var(--color-green);
+}
+
+.launchpad-card__status .material-symbols-rounded {
+  font-size: 15px;
+}
+
+@media (max-width: 768px) {
+  .launchpad-hero {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--sp-4, 16px);
+  }
+  .launchpad-hero__progress-box {
+    width: 100%;
+  }
+  .launchpad-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dashboard welcome card (legacy fallback) */
 .dashboard-welcome-inner {
   display: flex;
   align-items: center;

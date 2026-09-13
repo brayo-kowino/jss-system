@@ -452,11 +452,10 @@ service cloud.firestore {
     }
 
     // FCM tokens for background OS push notifications. A user can only register
-    // or revoke their own tokens. The edge function (dispatch-push.ts) reads
-    // them to broadcast pushes via the service account, bypassing this rule.
+    // or revoke tokens bound to their own uid. When multiple accounts use the
+    // same device/browser, the incoming user reclaims the device's token.
     match /fcm_tokens/{tokenId} {
-      allow read, create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
-      allow update: if isSignedIn() && request.auth.uid == resource.data.uid && request.resource.data.uid == request.auth.uid;
+      allow read, create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow delete: if isSignedIn() && request.auth.uid == resource.data.uid;
     }
 
