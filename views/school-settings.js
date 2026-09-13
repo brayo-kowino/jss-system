@@ -207,31 +207,6 @@ export async function render({ profile }) {
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
   mascotWrap.innerHTML = buildSettingsMascotSvg({ width: 125, height: 110 });
 
-  const heroBanner = el("div", { class: "settings-hero" }, [
-    el("div", { class: "settings-hero__content" }, [
-      el("div", { class: "settings-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("settings", "text-xs"),
-          "System Administration · Institutional Configuration",
-        ]),
-      ]),
-      el("h1", { class: "settings-hero__title" }, "Institutional Settings & Controls"),
-      el("p", { class: "settings-hero__desc" }, "Configure school profile, visual branding, leadership, academic calendar, CBC grading scale, and security."),
-      el("div", { class: "settings-hero__pills" }, [
-        el("div", { class: "settings-pill" }, [icon("domain"), settings?.schoolName || "Institution Profile"]),
-        el("div", { class: "settings-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
-        el("div", { class: "settings-pill" }, [icon("tune"), `${TABS.length} Configuration Domains`]),
-        el("div", { class: "settings-pill" }, [icon("grading"), `${settings?.gradingScale?.length || 4} CBC Grading Levels`]),
-      ]),
-    ]),
-
-    el("div", { class: "settings-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Customize school profile & controls."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // 2. Executive KPI Metrics Strip
   const kpis = [
     { label: "Institution Profile", value: settings?.schoolName ? "Configured" : "Default", icon: "domain", color: "blue" },
@@ -241,7 +216,7 @@ export async function render({ profile }) {
   ];
   const kpiGrid = el(
     "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
+    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4); font-size:14px;" },
     kpis.map((k) =>
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
         el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
