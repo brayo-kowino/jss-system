@@ -306,6 +306,8 @@ async function refresh(profile) {
 function renderNotificationsTab(panel, profile) {
   const canManage = CAN_MANAGE.includes(profile.role);
 
+  renderWelcomeDisclaimers(panel);
+
   const hasProvider = settings.notificationProviders?.gmail?.appPassword || settings.notificationProviders?.africasTalking?.apiKey;
 
   if (!hasProvider) {
@@ -358,22 +360,25 @@ function renderNotificationKpis() {
     { label: "Sent This History", value: total, icon: "notifications", color: "blue" },
     { label: "Delivered", value: delivered, icon: "mark_email_read", color: "green" },
     { label: "Queued", value: queued, icon: "hourglass_top", color: "gold" },
-    { label: "Parents Reachable", value: `${contactable}/${parents.length}`, icon: "contact_phone", color: "gold" },
+    { label: "Contactable Parents", value: contactable, icon: "contacts", color: "purple" },
   ];
 
-  return el(
-    "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:16px;" },
-    kpis.map((k) =>
-      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, k.icon)]),
-        el("div", {}, [
-          el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, String(k.value)),
-        ]),
-      ])
-    )
-  );
+  const grid = el("div", { class: "kpi-grid", style: "margin-bottom:20px;" });
+  for (const k of kpis) {
+    const card = el("div", { class: `kpi-card kpi-card--${k.color}` }, [
+      el("div", { class: "kpi-card__icon" }, [el("span", { class: "material-symbols-rounded" }, k.icon)]),
+      el("div", { class: "kpi-card__body" }, [
+        el("div", { class: "kpi-card__value" }, String(k.value)),
+        el("div", { class: "kpi-card__label" }, k.label),
+      ]),
+    ]);
+    grid.append(card);
+  }
+  return grid;
+}
+
+function categoryMeta(cat) {
+  return CATEGORIES.find((c) => c.value === cat) || { label: cat || "General", icon: "campaign" };
 }
 
 function audienceLabel(n) {
@@ -395,16 +400,16 @@ function renderNotificationsTable(container, profile, canManage) {
     return;
   }
 
-  const table = el("table", {}, [
+  const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Title"),
       el("th", {}, "Category"),
       el("th", {}, "Audience"),
-      el("th", {}, "Recipients"),
+      el("th", { class: "numeric" }, "Recipients"),
       el("th", {}, "Channel"),
       el("th", {}, "Sent"),
       el("th", {}, "Status"),
-      canManage ? el("th", {}, "Actions") : "",
+      canManage ? el("th", { class: "col-right" }, "Actions") : "",
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -430,23 +435,24 @@ function renderNotificationsTable(container, profile, canManage) {
     ];
 
     if (canManage) {
-      const actionsCell = el("td", { class: "row-actions", "data-label": "Actions" });
-      actionsCell.append(
-        el(
-          "button",
-          {
-            class: "btn btn--ghost btn--sm",
-            title: n.status === "delivered" ? "Mark as queued" : "Mark as delivered",
-            onClick: (ev) => toggleStatus(profile, n, ev.currentTarget),
-          },
-          [el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, n.status === "delivered" ? "undo" : "mark_email_read")]
-        ),
-        el(
-          "button",
-          { class: "btn btn--ghost btn--sm", title: "Delete", style: "padding:6px; color:var(--color-red); border-color:transparent;", onClick: () => confirmDeleteNotification(profile, n) },
-          [el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, "delete")]
-        )
-      );
+      const actionsCell = el("td", { class: "col-right", "data-label": "Actions" }, [
+        el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
+          el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              title: n.status === "delivered" ? "Mark as queued" : "Mark as delivered",
+              onClick: (ev) => toggleStatus(profile, n, ev.currentTarget),
+            },
+            [el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, n.status === "delivered" ? "undo" : "mark_email_read")]
+          ),
+          el(
+            "button",
+            { class: "btn btn--ghost btn--sm", title: "Delete", style: "padding:6px; color:var(--color-red); border-color:transparent;", onClick: () => confirmDeleteNotification(profile, n) },
+            [el("span", { class: "material-symbols-rounded", style: "font-size:18px;" }, "delete")]
+          ),
+        ]),
+      ]);
       row.push(actionsCell);
     }
 

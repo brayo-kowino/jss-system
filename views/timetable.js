@@ -229,11 +229,11 @@ export async function render({ profile }) {
     el("div", { class: "timetable-hero__content" }, [
       el("div", { class: "timetable-hero__status-row" }, [
       el("h1", { class: "timetable-hero__title" }, "School Timetable & Scheduling"),
-      el("p", { class: "timetable-hero__desc" }, "Manage weekly periods, class timetables, and teacher allocations."),
+      el("p", { class: "timetable-hero__desc" }, "Manage weekly periods, class timetables, and teacher allocations"),
       el("div", { class: "timetable-hero__pills" }, [
         el("div", { class: "timetable-pill" }, [icon("schedule"), `${periods.length} Daily Periods`]),
         el("div", { class: "timetable-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
-        teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,
+        teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,]),
       ].filter(Boolean)),
     ]),
 
