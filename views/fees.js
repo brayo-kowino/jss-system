@@ -157,6 +157,12 @@ export async function render({ profile }) {
       ]),
       el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
       el("p", { class: "fees-hero__desc" }, "Fee structures, student balances, and tuition collection records for your school."),
+      el("div", { class: "fees-hero__pills" }, [
+        el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
+        el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
+        el("div", { class: "fees-pill" }, [icon("payments"), "KES Invoicing & Receipts"]),
+        el("div", { class: "fees-pill" }, [icon("calendar_month"), `${currentYear} · ${currentTerm}`]),
+      ]),
     ]),
 
     // Animated Mascot & Comic Speech Bubble
@@ -166,6 +172,28 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
+
+  // Top-Level Executive KPI Strip
+  const topKpis = [
+    { label: "Fee Structures", value: structures.length, icon: "price_change", color: "blue" },
+    { label: "Grade Cohorts", value: classes.length, icon: "domain", color: "green" },
+    { label: "Billing Currency", value: "KES", icon: "payments", color: "gold" },
+    { label: "Active Period", value: `${currentTerm}`, icon: "calendar_today", color: "blue" },
+  ];
+  const topKpiGrid = el(
+    "div",
+    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
+    topKpis.map((k) =>
+      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+        el("div", { class: "md3-kpi-chip__data" }, [
+          el("div", { class: "md3-kpi-chip__label" }, k.label),
+          el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
+        ]),
+      ])
+    )
+  );
+  wrap.append(topKpiGrid);
 
   const structuresCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
   wrap.append(structuresCard);

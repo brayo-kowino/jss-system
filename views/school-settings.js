@@ -98,23 +98,164 @@ function passwordField(id, label, value = "", tooltip = null, placeholder = "") 
   ]);
 }
 
+/**
+ * Dynamic Institutional Administrator Mascot with blueprint folder and golden control gear.
+ */
+export function buildSettingsMascotSvg({ width = 125, height = 110 } = {}) {
+  return `
+    <svg class="settings-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Settings Administrator Assistant">
+      <!-- Ground Shadow -->
+      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+
+      <!-- Floating Mascot Body -->
+      <g class="support-mascot__body">
+        <!-- Educational Textbooks Stack Base -->
+        <g class="support-mascot__books">
+          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
+          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
+          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
+          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
+          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
+          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
+        </g>
+
+        <!-- Academic Scholar Robe -->
+        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
+        <!-- Gold Sash -->
+        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
+
+        <!-- Left Arm Holding Institutional Blueprint / Settings Folio -->
+        <g class="settings-mascot__folio">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- Folio Body -->
+          <rect x="52" y="124" width="28" height="36" rx="2.5" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.4" transform="rotate(-6 66 142)" />
+          <!-- Blue header tag -->
+          <rect x="55" y="128" width="14" height="4" rx="1" fill="#14538A" transform="rotate(-6 66 142)" />
+          <!-- Checklist lines -->
+          <line x1="55" y1="136" x2="72" y2="136" stroke="#0B2545" stroke-width="1.2" stroke-linecap="round" transform="rotate(-6 66 142)" />
+          <line x1="55" y1="141" x2="69" y2="141" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 66 142)" />
+          <line x1="55" y1="146" x2="73" y2="146" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 66 142)" />
+          <!-- Green check seal -->
+          <circle cx="68" cy="152" r="3" fill="#059669" transform="rotate(-6 66 142)" />
+          <!-- Hand Holding Folio -->
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+
+        <!-- Right Arm Raising Golden Settings Gear with Gleam Animation -->
+        <g class="settings-mascot__gear">
+          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <!-- Golden Gear / Cog -->
+          <circle cx="160" cy="98" r="10" fill="#F59E0B" stroke="#D97706" stroke-width="2" />
+          <circle cx="160" cy="98" r="4.5" fill="#FAF6F0" stroke="#D97706" stroke-width="1.5" />
+          <!-- Gear Teeth -->
+          <rect x="157" y="85" width="6" height="4" rx="1" fill="#D97706" />
+          <rect x="157" y="107" width="6" height="4" rx="1" fill="#D97706" />
+          <rect x="147" y="95" width="4" height="6" rx="1" fill="#D97706" />
+          <rect x="169" y="95" width="4" height="6" rx="1" fill="#D97706" />
+          <!-- Star sparkle -->
+          <polygon points="160,82 161.5,85 165,86.5 161.5,88 160,91 158.5,88 155,86.5 158.5,85" fill="#FDE68A" />
+        </g>
+
+        <!-- Head -->
+        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
+        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+
+        <!-- Cheerful Eyebrows -->
+        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+        <!-- Animated Blinking Eyes -->
+        <g class="support-mascot__eyes">
+          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
+          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
+        </g>
+
+        <!-- Warm Smile -->
+        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
+
+        <!-- Graduation Cap (Mortarboard) -->
+        <g transform="rotate(-5 110 58)">
+          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
+          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
+          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
+          <!-- Swaying Tassel -->
+          <g class="support-mascot__tassel">
+            <path d="M110,48.5 Q135,46 142,66" stroke="#FAF6F0" stroke-width="2.2" fill="none" />
+            <polygon points="139,66 145,66 143,77 141,77" fill="#FAF6F0" />
+          </g>
+        </g>
+      </g>
+    </svg>
+  `;
+}
+
 export async function render({ profile }) {
   settings = await getSchoolSettings();
   activeThemeId = settings.themeId || matchThemeId(settings.themeColor, settings.secondaryColor);
 
   const wrap = el("div", { class: "settings-page" });
 
-  // Refined header with institutional title and quick context badge
-  wrap.append(
-    el("div", { class: "settings-header" }, [
-      el("div", {}, [
-        el("p", { class: "settings-header__desc" }, "Configure your institution's profile, visual branding, academic schedule, CBC grading scale, and security controls."),
+  // 1. Executive Hero Banner
+  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
+  mascotWrap.innerHTML = buildSettingsMascotSvg({ width: 125, height: 110 });
+
+  const heroBanner = el("div", { class: "settings-hero" }, [
+    el("div", { class: "settings-hero__content" }, [
+      el("div", { class: "settings-hero__status-row" }, [
+        el("span", { class: "academics-cycle-badge" }, [
+          icon("settings", "text-xs"),
+          "System Administration · Institutional Configuration",
+        ]),
       ]),
-    ])
+      el("h1", { class: "settings-hero__title" }, "Institutional Settings & Controls"),
+      el("p", { class: "settings-hero__desc" }, "Configure school profile, visual branding, leadership, academic calendar, CBC grading scale, and security."),
+      el("div", { class: "settings-hero__pills" }, [
+        el("div", { class: "settings-pill" }, [icon("domain"), settings?.schoolName || "Institution Profile"]),
+        el("div", { class: "settings-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
+        el("div", { class: "settings-pill" }, [icon("tune"), `${TABS.length} Configuration Domains`]),
+        el("div", { class: "settings-pill" }, [icon("grading"), `${settings?.gradingScale?.length || 4} CBC Grading Levels`]),
+      ]),
+    ]),
+
+    el("div", { class: "settings-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Customize school profile & controls."),
+      mascotWrap,
+    ]),
+  ]);
+  wrap.append(heroBanner);
+
+  // 2. Executive KPI Metrics Strip
+  const kpis = [
+    { label: "Institution Profile", value: settings?.schoolName ? "Configured" : "Default", icon: "domain", color: "blue" },
+    { label: "Academic Year", value: `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`, icon: "calendar_month", color: "green" },
+    { label: "Grading Scale", value: `${settings?.gradingScale?.length || 4} Performance Levels`, icon: "grading", color: "gold" },
+    { label: "Security & Access", value: (profile.role === "admin" || profile.role === "super_admin") ? "Admin Controls" : "Standard", icon: "security", color: "blue" },
+  ];
+  const kpiGrid = el(
+    "div",
+    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
+    kpis.map((k) =>
+      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
+        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
+        el("div", { class: "md3-kpi-chip__data" }, [
+          el("div", { class: "md3-kpi-chip__label" }, k.label),
+          el("div", { class: "md3-kpi-chip__value" }, k.value),
+        ]),
+      ])
+    )
   );
+  wrap.append(kpiGrid);
 
   const panels = {};
-  const tabsNav = el("div", { class: "profile-tabs" });
+  const tabsNav = el("div", { class: "profile-tabs no-print", style: "margin-bottom:var(--sp-4);" });
 
   for (const t of TABS) {
     panels[t.id] = el("div", { class: "settings-tab-panel", id: `panel-${t.id}` });
