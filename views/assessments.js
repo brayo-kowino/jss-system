@@ -164,16 +164,9 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "assessments-hero" }, [
     el("div", { class: "assessments-hero__content" }, [
-      el("div", { class: "assessments-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("assignment", "text-xs"),
-          "Evaluation Framework · CBC Assessments",
-        ]),
-      ]),
       el("h1", { class: "assessments-hero__title" }, "Assessments & Examinations"),
       el("p", { class: "assessments-hero__desc" }, "Configure CATs, assignments, exams, custom subject maximums, and evaluation schedules."),
       el("div", { class: "assessments-hero__pills" }, [
-        el("div", { class: "assessments-pill" }, [icon("assignment"), `${assessments.length} Assessments`]),
         el("div", { class: "assessments-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "assessments-pill" }, [icon("school"), `${subjects.length} Subjects`]),
         el("div", { class: "assessments-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
