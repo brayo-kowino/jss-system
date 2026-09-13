@@ -5685,6 +5685,140 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* ==========================================================================
+   School Analytics Hero & Dynamic Data Analyst Mascot
+   ========================================================================== */
+.analytics-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+
+.analytics-hero__content {
+  flex: 1;
+  min-width: min(100%, 300px);
+}
+
+.analytics-hero__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.analytics-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+
+.analytics-hero__desc {
+  margin: 0 0 var(--sp-2) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 580px;
+  line-height: 1.4;
+}
+
+.analytics-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.analytics-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.analytics-pill .material-symbols-rounded {
+  font-size: 14px;
+  color: var(--color-primary-600);
+}
+
+.analytics-hero__mascot-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+}
+
+.analytics-mascot-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 6px 12px rgba(11, 37, 69, 0.1));
+}
+
+@keyframes chartGleam {
+  0%, 100% { transform: scale(1) translateY(0); opacity: 0.95; }
+  50% { transform: scale(1.1) translateY(-2px); opacity: 1; filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.8)); }
+}
+.analytics-mascot__bars {
+  animation: chartGleam 3.2s ease-in-out infinite;
+}
+
+@media (max-width: 860px) {
+  .analytics-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .analytics-hero__mascot-box {
+    align-self: center;
+    margin-top: var(--sp-2);
+  }
+}
+
+/* Rank Badges */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  line-height: 1;
+}
+.rank-badge--1 {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+.rank-badge--2 {
+  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  color: #334155;
+  border: 1px solid #94a3b8;
+}
+.rank-badge--3 {
+  background: linear-gradient(135deg, #ffedd5, #fed7aa);
+  color: #9a3412;
+  border: 1px solid #f97316;
+}
+.rank-badge--other {
+  background: var(--color-cream);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-line);
+}
+
+/* ==========================================================================
    Utilities
    ========================================================================== */
 @media (max-width: 768px) {
