@@ -51,7 +51,7 @@ function infoTooltip(title, text, align = "center") {
 /**
  * Animated Scholar Accountant mascot with ledger, waving gold coin, and swaying tassel.
  */
-export function buildFinanceMascotSvg({ width = 165, height = 150 } = {}) {
+export function buildFinanceMascotSvg({ width = 125, height = 110 } = {}) {
   return `
     <svg class="fees-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Finance Assistant">
       <!-- Ground Shadow -->
@@ -139,10 +139,10 @@ export async function render({ profile }) {
   // 1. Executive Finance Hero Banner
   const mascotWrap = el("div", {
     class: "fees-hero__mascot-wrap",
-    style: "width:165px; height:150px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
+    style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;",
     "aria-hidden": "true",
   });
-  mascotWrap.innerHTML = buildFinanceMascotSvg({ width: 165, height: 150 });
+  mascotWrap.innerHTML = buildFinanceMascotSvg({ width: 125, height: 110 });
 
   const currentYear = settings.currentAcademicYear || new Date().getFullYear();
   const currentTerm = settings.currentTerm || "Term 3";
@@ -156,7 +156,7 @@ export async function render({ profile }) {
         ]),
       ]),
       el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
-      el("p", { class: "fees-hero__desc" }, "Fee structures, student balances, and tuition collection records for your school."),
+      el("p", { class: "fees-hero__desc" }, "Fee structures, student balances, and tuition collection records."),
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
         el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
@@ -167,7 +167,7 @@ export async function render({ profile }) {
 
     // Animated Mascot & Comic Speech Bubble
     el("div", { class: "fees-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Manage fees, track balances, and generate receipts."),
+      el("div", { class: "support-speech-bubble" }, "Manage fees & receipts."),
       mascotWrap,
     ]),
   ]);
