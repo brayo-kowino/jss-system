@@ -181,38 +181,6 @@ function getFilteredParents() {
   });
 }
 
-function buildKpis() {
-  const total = parents.length;
-  const linkedCount = parents.filter((p) => (p.linkedStudentIds || []).length > 0).length;
-  const unlinkedCount = total - linkedCount;
-  const withPhone = parents.filter((p) => Boolean((p.phone || "").trim())).length;
-  const reachRate = total > 0 ? Math.round((withPhone / total) * 100) : 100;
-
-  return [
-    { label: "Registered Guardians", value: String(total), icon: "family_restroom", color: "blue" },
-    { label: "Linked to Students", value: String(linkedCount), icon: "link", color: "green" },
-    { label: "Pending Link", value: String(unlinkedCount), icon: "link_off", color: unlinkedCount > 0 ? "gold" : "green" },
-    { label: "Direct Phone Reach", value: `${reachRate}%`, icon: "contact_phone", color: "gold" },
-  ];
-}
-
-function renderKpiGrid() {
-  const kpis = buildKpis();
-  return el(
-    "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
-    kpis.map((k) =>
-      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
-        el("div", { class: "md3-kpi-chip__data" }, [
-          el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, k.value),
-        ]),
-      ])
-    )
-  );
-}
-
 function renderRow(p, profile) {
   const initials = getInitials(p.fullName);
   const linkedStudentObjects = (p.linkedStudentIds || [])
@@ -482,17 +450,7 @@ function renderTable(profile) {
             `Showing ${filtered.length} of ${parents.length}`
           ),
         ]),
-        el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
-          el(
-            "button",
-            {
-              type: "button",
-              class: "btn btn--primary btn--sm",
-              onClick: () => openParentForm(profile),
-            },
-            [icon("person_add"), "Add Parent"]
-          ),
-        ]),
+        
       ]
     ),
     el("div", { class: "table-wrap table-wrap--responsive" }, [
@@ -1034,10 +992,6 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // 2. Executive KPI Metrics Strip
-  kpiGridEl = el("div", {}, [renderKpiGrid()]);
-  wrap.append(kpiGridEl);
 
   // 3. Consolidated Modern Filter & Action Toolbar
   const searchInput = el("input", {
