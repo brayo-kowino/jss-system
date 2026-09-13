@@ -160,8 +160,6 @@ export async function render({ profile }) {
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
         el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
-        el("div", { class: "fees-pill" }, [icon("payments"), "KES Invoicing & Receipts"]),
-        el("div", { class: "fees-pill" }, [icon("calendar_month"), `${currentYear} · ${currentTerm}`]),
       ]),
     ]),
 
