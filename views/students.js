@@ -201,18 +201,9 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "students-hero" }, [
     el("div", { class: "students-hero__content" }, [
-      el("div", { class: "students-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("school", "text-xs"),
-          "Learner Directory · CBC Enrolment",
-        ]),
-      ]),
       el("h1", { class: "students-hero__title" }, "Student Directory & Admissions"),
       el("p", { class: "students-hero__desc" }, "Manage learner profiles, track academic cohorts, record transfers, and log student affairs."),
       el("div", { class: "students-hero__pills" }, [
-        el("div", { class: "students-pill" }, [icon("groups"), `${students.length} Registered`]),
-        el("div", { class: "students-pill" }, [icon("how_to_reg"), `${activeCount} Active`]),
-        el("div", { class: "students-pill" }, [icon("domain"), `${classes.length} Cohorts`]),
         totalOpenIssues > 0
           ? el("div", { class: "students-pill", style: "border-color:rgba(220,38,38,0.3); color:#DC2626;" }, [icon("report"), `${totalOpenIssues} Open Alerts`])
           : el("div", { class: "students-pill" }, [icon("verified"), "Records In Order"]),

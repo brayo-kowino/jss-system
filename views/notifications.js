@@ -173,18 +173,9 @@ export async function render({ profile }) {
   // Executive Hero Banner (Clean & Modern)
   const heroBanner = el("div", { class: "notifications-hero" }, [
     el("div", { class: "notifications-hero__content" }, [
-      el("div", { class: "notifications-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("campaign", "text-xs"),
-          "Multi-Channel Dispatch",
-        ]),
-      ]),
       el("h1", { class: "notifications-hero__title" }, "Notifications & Newsletters"),
       el("p", { class: "notifications-hero__desc" }, "Broadcast parent SMS and email alerts, track delivery queues, and publish newsletters."),
       el("div", { class: "notifications-hero__pills" }, [
-        el("div", { class: "notifications-pill" }, [icon("send"), `${notifications.length} Sent`]),
-        el("div", { class: "notifications-pill" }, [icon("newspaper"), `${newsletters.length} Newsletters`]),
-        el("div", { class: "notifications-pill" }, [icon("contacts"), `${parents.length} Parents`]),
       ]),
     ]),
 
