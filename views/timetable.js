@@ -167,42 +167,65 @@ function renderWelcomeDisclaimers(container, mode = "class") {
 
   const welcomeCard = el("div", { class: "timetable-welcome-card" }, [
     el("div", { class: "timetable-welcome-header" }, [
-      icon("schedule", "text-primary", "style: font-size:36px;"),
+      el("div", { class: "marks-welcome-icon-halo" }, [
+        icon("schedule"),
+      ]),
       el("h3", {}, mode === "teacher" ? "Select a Faculty Member to View Schedule" : "Select a Class to View Schedule"),
       el("p", {}, mode === "teacher"
         ? "Choose a teacher above to inspect their assigned instructional periods, subject rooms, and free slots."
         : "Choose a Grade and Stream above to view or assign weekly lessons, teachers, and break periods."),
     ]),
 
-    // Important Operational Disclaimers Grid
-    el("div", { class: "timetable-disclaimers-grid" }, [
-      el("div", { class: "timetable-disclaimer-card timetable-disclaimer-card--info" }, [
-        el("div", { class: "timetable-disclaimer-title" }, [
-          icon("lock", "text-primary"),
-          "Automated Conflict Prevention",
+    // Operational Guidelines Section Header
+    el("div", { class: "guidance-section-header" }, [
+      icon("verified_user"),
+      el("span", {}, "Scheduling Protocols & Conflict Safeguards"),
+    ]),
+
+    // Modern Guidance Cards Grid (Zero left borders)
+    el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("lock")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Intelligence"),
         ]),
-        el("p", { class: "timetable-disclaimer-body" }, "Timetable actively monitors teacher allocations. If a teacher is already assigned in the same period and day, double-booking is blocked automatically."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Automated Conflict Prevention"),
+          el("p", { class: "guidance-card__body" }, "Timetable actively monitors teacher allocations. If a teacher is already assigned in the same period and day, double-booking is blocked automatically."),
+        ]),
       ]),
-      el("div", { class: "timetable-disclaimer-card timetable-disclaimer-card--warning" }, [
-        el("div", { class: "timetable-disclaimer-title" }, [
-          icon("free_breakfast", "text-amber"),
-          "School-Wide Break Periods",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("free_breakfast")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Schedule"),
         ]),
-        el("p", { class: "timetable-disclaimer-body" }, "Periods configured as 'Break' automatically span all streams and grades school-wide. Instructional subject lessons cannot be booked during break intervals."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "School-Wide Break Periods"),
+          el("p", { class: "guidance-card__body" }, "Periods configured as 'Break' automatically span all streams and grades school-wide. Instructional subject lessons cannot be booked during break intervals."),
+        ]),
       ]),
-      el("div", { class: "timetable-disclaimer-card timetable-disclaimer-card--success" }, [
-        el("div", { class: "timetable-disclaimer-title" }, [
-          icon("verified", "text-green"),
-          "Qualified Subject Teachers",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Staff"),
         ]),
-        el("p", { class: "timetable-disclaimer-body" }, "The slot assignment dialog groups and highlights teachers assigned to the chosen subject first, ensuring CBC subject specialization."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Qualified Subject Teachers"),
+          el("p", { class: "guidance-card__body" }, "The slot assignment dialog groups and highlights teachers assigned to the chosen subject first, ensuring CBC subject specialization."),
+        ]),
       ]),
-      el("div", { class: "timetable-disclaimer-card timetable-disclaimer-card--danger" }, [
-        el("div", { class: "timetable-disclaimer-title" }, [
-          icon("warning", "text-red"),
-          "Period Modifications & Deletion",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("warning")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Integrity"),
         ]),
-        el("p", { class: "timetable-disclaimer-body" }, "Altering period start or end times updates all class schedules school-wide. Deleting an active period permanently unlinks all assigned lesson slots."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Period Modifications & Deletion"),
+          el("p", { class: "guidance-card__body" }, "Altering period start or end times updates all class schedules school-wide. Deleting an active period permanently unlinks all assigned lesson slots."),
+        ]),
       ]),
     ]),
   ]);

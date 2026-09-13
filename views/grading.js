@@ -247,40 +247,63 @@ function renderWelcomeDisclaimers(container) {
 
   const welcomeCard = el("div", { class: "grading-welcome-card" }, [
     el("div", { class: "grading-welcome-header" }, [
-      icon("workspace_premium", "text-gold", "style: font-size:36px;"),
+      el("div", { class: "marks-welcome-icon-halo" }, [
+        icon("workspace_premium"),
+      ]),
       el("h3", {}, "Ready to Compute Class Rankings?"),
       el("p", {}, "Select a Grade, Academic Year, Term, and Report Mode above, then click 'Compute Results' to aggregate subject averages and student positions."),
     ]),
 
-    // Important Operational Disclaimers Grid
-    el("div", { class: "grading-disclaimers-grid" }, [
-      el("div", { class: "grading-disclaimer-card grading-disclaimer-card--info" }, [
-        el("div", { class: "grading-disclaimer-title" }, [
-          icon("account_tree", "text-primary"),
-          "Grade-Wide Multi-Stream Scope",
+    // Operational Guidelines Section Header
+    el("div", { class: "guidance-section-header" }, [
+      icon("verified_user"),
+      el("span", {}, "Academic Computation Protocols & Standards"),
+    ]),
+
+    // Modern Guidance Cards Grid (Zero left borders)
+    el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("account_tree")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Cohort Scope"),
         ]),
-        el("p", { class: "grading-disclaimer-body" }, "Computation evaluates every stream in the selected grade cohort simultaneously. Students receive both an Overall Cohort Rank (1/N) and a Stream Rank (1/n)."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Grade-Wide Multi-Stream Scope"),
+          el("p", { class: "guidance-card__body" }, "Computation evaluates every stream in the selected grade cohort simultaneously. Students receive both an Overall Cohort Rank (1/N) and a Stream Rank (1/n)."),
+        ]),
       ]),
-      el("div", { class: "grading-disclaimer-card grading-disclaimer-card--warning" }, [
-        el("div", { class: "grading-disclaimer-title" }, [
-          icon("balance", "style: color:#d97706;"),
-          "100% Subject Weight Requirement",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("balance")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Weighting"),
         ]),
-        el("p", { class: "grading-disclaimer-body" }, "Assessments for each subject must add up to 100% (or 100 max score for direct mode). Incomplete assessment weights will flag results as 'Partial'."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "100% Subject Weight Requirement"),
+          el("p", { class: "guidance-card__body" }, "Assessments for each subject must add up to 100% (or 100 max score for direct mode). Incomplete assessment weights will flag results as 'Partial'."),
+        ]),
       ]),
-      el("div", { class: "grading-disclaimer-card grading-disclaimer-card--danger" }, [
-        el("div", { class: "grading-disclaimer-title" }, [
-          icon("save", "style: color:#dc2626;"),
-          "In-Memory Computation & Saving",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("save")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Publishing"),
         ]),
-        el("p", { class: "grading-disclaimer-body" }, "Clicking 'Compute Results' calculates rankings in memory for review. You must click 'Save Results' to publish grades to Report Cards and Analytics."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "In-Memory Computation & Saving"),
+          el("p", { class: "guidance-card__body" }, "Clicking 'Compute Results' calculates rankings in memory for review. You must click 'Save Results' to publish grades to Report Cards and Analytics."),
+        ]),
       ]),
-      el("div", { class: "grading-disclaimer-card grading-disclaimer-card--success" }, [
-        el("div", { class: "grading-disclaimer-title" }, [
-          icon("military_tech", "style: color:#059669;"),
-          "Standard CBC Ties & Ranking Rules",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("military_tech")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Standard"),
         ]),
-        el("p", { class: "grading-disclaimer-body" }, "Learners with identical total marks share the same rank (e.g. Tied for 1st). The subsequent rank skips accordingly according to CBC evaluation standards."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Standard CBC Ties & Ranking Rules"),
+          el("p", { class: "guidance-card__body" }, "Learners with identical total marks share the same rank (e.g. Tied for 1st). The subsequent rank skips accordingly according to CBC evaluation standards."),
+        ]),
       ]),
     ]),
   ]);

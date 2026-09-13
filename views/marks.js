@@ -307,7 +307,9 @@ function renderWelcomeDisclaimers(container) {
 
   const welcomeCard = el("div", { class: "marks-welcome-card" }, [
     el("div", { class: "marks-welcome-header" }, [
-      icon("edit_note", "text-gold", "style: font-size:36px;"),
+      el("div", { class: "marks-welcome-icon-halo" }, [
+        icon("edit_note"),
+      ]),
       el("h3", {}, "Ready to Enter Student Marks?"),
       el("p", {}, "Use the 3 dropdowns above to select a Class, Subject, and Assessment to populate the active student roster."),
     ]),
@@ -337,35 +339,56 @@ function renderWelcomeDisclaimers(container) {
       ]),
     ]),
 
-    // Important Operational Disclaimers Grid
-    el("div", { class: "marks-disclaimers-grid" }, [
-      el("div", { class: "marks-disclaimer-card marks-disclaimer-card--info" }, [
-        el("div", { class: "marks-disclaimer-title" }, [
-          icon("rule", "text-primary"),
-          "Score Range Validation",
+    // Operational Guidelines Section Header
+    el("div", { class: "guidance-section-header" }, [
+      icon("verified_user"),
+      el("span", {}, "Operational Protocols & Entry Guidelines"),
+    ]),
+
+    // Redesigned Instruction Cards Grid (Zero left borders)
+    el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("rule")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Validation"),
         ]),
-        el("p", { class: "marks-disclaimer-body" }, "Entered scores must be between 0 and the configured Max Score for the assessment. Decimal values (e.g. 27.5) are supported."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Score Range Validation"),
+          el("p", { class: "guidance-card__body" }, "Entered scores must be between 0 and the configured Max Score for the assessment. Decimal values (e.g. 27.5) are supported."),
+        ]),
       ]),
-      el("div", { class: "marks-disclaimer-card marks-disclaimer-card--success" }, [
-        el("div", { class: "marks-disclaimer-title" }, [
-          icon("cloud_sync", "style: color:#059669;"),
-          "7-Second Auto-Save Loop",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("cloud_sync")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "Auto-Sync"),
         ]),
-        el("p", { class: "marks-disclaimer-body" }, "Marks auto-save in the background every 7 seconds. Unsaved edits display a gold badge. Ensure network connectivity before navigating away."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "7-Second Auto-Save Loop"),
+          el("p", { class: "guidance-card__body" }, "Marks auto-save in the background every 7 seconds. Unsaved edits display a gold badge. Ensure network connectivity before navigating away."),
+        ]),
       ]),
-      el("div", { class: "marks-disclaimer-card marks-disclaimer-card--warning" }, [
-        el("div", { class: "marks-disclaimer-title" }, [
-          icon("lock", "style: color:#d97706;"),
-          "Locked Assessments are Read-Only",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("lock")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Read-Only"),
         ]),
-        el("p", { class: "marks-disclaimer-body" }, "When an assessment is locked by school administrators, marks are frozen to safeguard report cards. Only administrators can unlock them."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Locked Assessments are Read-Only"),
+          el("p", { class: "guidance-card__body" }, "When an assessment is locked by school administrators, marks are frozen to safeguard report cards. Only administrators can unlock them."),
+        ]),
       ]),
-      el("div", { class: "marks-disclaimer-card marks-disclaimer-card--danger" }, [
-        el("div", { class: "marks-disclaimer-title" }, [
-          icon("content_paste", "style: color:#dc2626;"),
-          "Bulk Paste Formatting",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("content_paste")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Bulk Tool"),
         ]),
-        el("p", { class: "marks-disclaimer-body" }, "Paste scores in bulk as 'AdmissionNumber, Score' on each line. Verify admission numbers match enrolled students before saving."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Bulk Paste Formatting"),
+          el("p", { class: "guidance-card__body" }, "Paste scores in bulk as 'AdmissionNumber, Score' on each line. Verify admission numbers match enrolled students before saving."),
+        ]),
       ]),
     ]),
   ]);

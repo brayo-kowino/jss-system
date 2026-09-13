@@ -267,40 +267,63 @@ function renderWelcomeDisclaimers(container) {
 
   const welcomeCard = el("div", { class: "reports-welcome-card" }, [
     el("div", { class: "reports-welcome-header" }, [
-      icon("description", "text-primary", "style: font-size:36px;"),
+      el("div", { class: "marks-welcome-icon-halo" }, [
+        icon("description"),
+      ]),
       el("h3", {}, "Ready to Review Student Report Cards?"),
       el("p", {}, "Select a Grade Cohort, Stream, Academic Year, and Term above, then click 'Load Report Cards' to review student performance and export batch PDFs."),
     ]),
 
-    // Important Operational Disclaimers Grid
-    el("div", { class: "reports-disclaimers-grid" }, [
-      el("div", { class: "reports-disclaimer-card reports-disclaimer-card--info" }, [
-        el("div", { class: "reports-disclaimer-title" }, [
-          icon("analytics", "text-primary"),
-          "Grading & Computation Prerequisite",
+    // Operational Guidelines Section Header
+    el("div", { class: "guidance-section-header" }, [
+      icon("verified_user"),
+      el("span", {}, "Report Generation Protocols & Guidelines"),
+    ]),
+
+    // Modern Guidance Cards Grid (Zero left borders)
+    el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("analytics")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Prerequisite"),
         ]),
-        el("p", { class: "reports-disclaimer-body" }, "Report cards pull directly from computed rankings saved in Grading & Positions (#/grading). If student marks or weights were recently updated, re-compute and save in Grading first."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Grading & Computation Prerequisite"),
+          el("p", { class: "guidance-card__body" }, "Report cards pull directly from computed rankings saved in Grading & Positions (#/grading). If student marks or weights were recently updated, re-compute and save in Grading first."),
+        ]),
       ]),
-      el("div", { class: "reports-disclaimer-card reports-disclaimer-card--warning" }, [
-        el("div", { class: "reports-disclaimer-title" }, [
-          icon("account_tree", "text-amber"),
-          "Multi-Stream & Cohort Ranking Scope",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("account_tree")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Rankings"),
         ]),
-        el("p", { class: "reports-disclaimer-body" }, "Selecting 'All streams' displays Overall Cohort positions (1/N) across all learners in the grade. Selecting a specific stream displays that stream's localized class positions (1/n)."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Multi-Stream & Cohort Ranking Scope"),
+          el("p", { class: "guidance-card__body" }, "Selecting 'All streams' displays Overall Cohort positions (1/N) across all learners in the grade. Selecting a specific stream displays that stream's localized class positions (1/n)."),
+        ]),
       ]),
-      el("div", { class: "reports-disclaimer-card reports-disclaimer-card--danger" }, [
-        el("div", { class: "reports-disclaimer-title" }, [
-          icon("folder_zip", "text-red"),
-          "Client-Side Sequential PDF Generation",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("folder_zip")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Batch PDF"),
         ]),
-        el("p", { class: "reports-disclaimer-body" }, "'Download All (ZIP)' compiles high-resolution print-ready PDFs one student at a time directly in your browser to avoid memory bottlenecks. Keep this browser tab active and in focus during export."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Client-Side Sequential PDF Generation"),
+          el("p", { class: "guidance-card__body" }, "'Download All (ZIP)' compiles high-resolution print-ready PDFs one student at a time directly in your browser to avoid memory bottlenecks. Keep this browser tab active and in focus during export."),
+        ]),
       ]),
-      el("div", { class: "reports-disclaimer-card reports-disclaimer-card--success" }, [
-        el("div", { class: "reports-disclaimer-title" }, [
-          icon("verified", "text-green"),
-          "Qualitative Remarks & Signatures",
+
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Records"),
         ]),
-        el("p", { class: "reports-disclaimer-body" }, "Click 'View Report Card' on any student to record class teacher and principal remarks. Remarks save directly to the student's record and appear on printed copies and PDF exports."),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Qualitative Remarks & Signatures"),
+          el("p", { class: "guidance-card__body" }, "Click 'View Report Card' on any student to record class teacher and principal remarks. Remarks save directly to the student's record and appear on printed copies and PDF exports."),
+        ]),
       ]),
     ]),
   ]);
