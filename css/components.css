@@ -115,64 +115,7 @@
 .md3-kpi-chip--gold  .md3-kpi-chip__icon { background: color-mix(in srgb, var(--color-gold) 15%, white);        color: var(--color-gold); }
 
 
-/* KPI chip — empty / new-school state & action badges */
-.md3-kpi-chip__val-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2, 8px);
-  min-width: 0;
-}
-.md3-kpi-chip__val-row .md3-kpi-chip__value {
-  flex-shrink: 0;
-}
-.md3-kpi-chip__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0.02em;
-  background: var(--color-primary-100);
-  color: var(--color-primary-700);
-  border: 1px solid var(--color-primary-600);
-  cursor: pointer;
-  transition: all var(--transition, 0.2s ease);
-  line-height: 1;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.md3-kpi-chip__action .material-symbols-rounded {
-  font-size: 13px !important;
-}
-.md3-kpi-chip__action:hover {
-  background: var(--color-primary-700);
-  color: var(--color-white);
-  border-color: var(--color-primary-700);
-  transform: translateY(-1px);
-}
-.md3-kpi-chip--gold .md3-kpi-chip__action {
-  background: color-mix(in srgb, var(--color-gold) 15%, white);
-  color: #92400e;
-  border-color: color-mix(in srgb, var(--color-gold) 35%, transparent);
-}
-.md3-kpi-chip--gold .md3-kpi-chip__action:hover {
-  background: var(--color-gold);
-  color: var(--color-ink-inverted);
-}
-.md3-kpi-chip--green .md3-kpi-chip__action {
-  background: #E8F5E9;
-  color: var(--color-green);
-  border-color: color-mix(in srgb, var(--color-green) 35%, transparent);
-}
-.md3-kpi-chip--green .md3-kpi-chip__action:hover {
-  background: var(--color-green);
-  color: var(--color-white);
-}
-
+/* KPI chip — empty / legacy fallback state */
 .md3-kpi-chip__empty {
   display: flex;
   flex-direction: column;
@@ -219,15 +162,15 @@
   font-size: 24px;
 }
 .card-empty-state__halo--blue {
-  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  background: var(--color-primary-100);
   color: var(--color-primary-700);
 }
 .card-empty-state__halo--green {
-  background: #E8F5E9;
+  background: rgba(46, 125, 70, 0.12);
   color: var(--color-green);
 }
 .card-empty-state__halo--gold {
-  background: color-mix(in srgb, var(--color-gold) 15%, white);
+  background: rgba(201, 162, 39, 0.14);
   color: var(--color-gold);
 }
 .card-empty-state__icon {
@@ -267,23 +210,13 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-6, 24px);
-  background: linear-gradient(135deg, var(--color-white) 0%, var(--color-cream-dim, #f8fafc) 100%);
+  background: var(--color-white);
   border: 1px solid var(--color-line);
+  border-top: 3px solid var(--color-primary-700);
   border-radius: var(--radius-lg, 14px);
   padding: var(--sp-6, 24px);
   box-shadow: var(--shadow-sm);
   position: relative;
-  overflow: hidden;
-}
-
-.launchpad-hero::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--color-primary-700), var(--color-gold));
 }
 
 .launchpad-hero__info {
@@ -300,7 +233,7 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--color-primary-700);
-  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  background: var(--color-primary-100);
   padding: 4px 10px;
   border-radius: 999px;
   margin-bottom: var(--sp-2, 8px);
@@ -329,11 +262,10 @@
 .launchpad-hero__progress-box {
   width: 250px;
   flex-shrink: 0;
-  background: var(--color-white);
+  background: var(--color-cream-dim, #f8fafc);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md, 10px);
   padding: var(--sp-4, 16px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .launchpad-hero__progress-header {
@@ -367,7 +299,7 @@
 
 .launchpad-hero__progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-primary-700), var(--color-green, #10b981));
+  background: var(--color-primary-700);
   border-radius: 999px;
   transition: width 0.4s ease;
 }
@@ -397,8 +329,8 @@
 }
 
 .launchpad-card--completed {
-  border-color: rgba(46, 125, 70, 0.3);
-  background: linear-gradient(to bottom, #fbfdfb 0%, var(--color-white) 100%);
+  border-color: rgba(46, 125, 70, 0.35);
+  background: var(--color-white);
 }
 
 .launchpad-card__header {
@@ -423,23 +355,18 @@
 }
 
 .launchpad-card__icon--blue {
-  background: color-mix(in srgb, var(--color-primary-700) 12%, white);
+  background: var(--color-primary-100);
   color: var(--color-primary-700);
 }
 
 .launchpad-card__icon--gold {
-  background: color-mix(in srgb, var(--color-gold) 15%, white);
+  background: rgba(201, 162, 39, 0.14);
   color: var(--color-gold);
 }
 
 .launchpad-card__icon--green {
-  background: #E8F5E9;
+  background: rgba(46, 125, 70, 0.12);
   color: var(--color-green);
-}
-
-.launchpad-card__icon--purple {
-  background: #F3E8FF;
-  color: #7E22CE;
 }
 
 .launchpad-card__step-badge {
@@ -454,7 +381,7 @@
 }
 
 .launchpad-card--completed .launchpad-card__step-badge {
-  background: #E8F5E9;
+  background: rgba(46, 125, 70, 0.12);
   color: var(--color-green);
 }
 

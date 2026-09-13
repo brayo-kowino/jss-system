@@ -299,89 +299,50 @@ export async function render({ profile }) {
   const kpis = [
     {
       label: "Active Students",
-      value: studentsCount,
       displayValue: String(studentsCount),
-      actionLabel: studentsCount === 0 ? "Admit" : null,
-      actionIcon: "add",
-      actionRoute: "/students",
       icon: "school",
       color: "blue",
     },
     {
       label: "Active Staff",
-      value: teachers || 0,
       displayValue: String(teachers || 0),
-      actionLabel: (teachers || 0) === 0 ? "Staff" : null,
-      actionIcon: "add",
-      actionRoute: "/teachers",
       icon: "badge",
       color: "gold",
     },
     {
       label: "Attendance Today",
-      value: attendanceToday && attendanceToday !== "N/A" ? attendanceToday : null,
       displayValue: attendanceToday && attendanceToday !== "N/A" ? attendanceToday : "—",
-      actionLabel: attendanceToday === "N/A" ? "Roll Call" : null,
-      actionIcon: "fact_check",
-      actionRoute: "/attendance",
       icon: "how_to_reg",
       color: "green",
     },
     {
       label: "Term Revenue",
       currency: "KES",
-      value: feesCollected || 0,
       displayValue: Number(feesCollected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      actionLabel: !feesCollected ? "Record" : null,
-      actionIcon: "add",
-      actionRoute: "/fees",
       icon: "account_balance_wallet",
       color: "gold",
     },
   ];
 
   for (const kpi of kpis) {
-    const valWrap = kpi.currency
+    const valContent = kpi.currency
       ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
           el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
           el("span", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue),
         ])
       : el("div", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue);
 
-    const valRow = el("div", { class: "md3-kpi-chip__val-row" }, [
-      valWrap,
-      kpi.actionLabel
-        ? el("button", {
-            class: "md3-kpi-chip__action",
-            type: "button",
-            title: `Quick Action: ${kpi.actionLabel}`,
-            onClick: (e) => {
-              e.stopPropagation();
-              navigate(kpi.actionRoute);
-            }
-          }, [
-            el("span", { class: "material-symbols-rounded" }, kpi.actionIcon),
-            el("span", {}, kpi.actionLabel)
-          ])
-        : null
-    ].filter(Boolean));
-
-    const chip = el("div", {
-      class: `md3-kpi-chip md3-kpi-chip--${kpi.color}`,
-      style: kpi.actionRoute ? "cursor: pointer;" : "",
-      onClick: () => {
-        if (kpi.actionRoute) navigate(kpi.actionRoute);
-      }
-    }, [
-      el("div", { class: "md3-kpi-chip__icon" }, [
-        el("span", { class: "material-symbols-rounded" }, kpi.icon)
-      ]),
-      el("div", { class: "md3-kpi-chip__data" }, [
-        el("div", { class: "md3-kpi-chip__label" }, kpi.label),
-        valRow
+    kpiGrid.append(
+      el("div", { class: `md3-kpi-chip md3-kpi-chip--${kpi.color}` }, [
+        el("div", { class: "md3-kpi-chip__icon" }, [
+          el("span", { class: "material-symbols-rounded" }, kpi.icon)
+        ]),
+        el("div", { class: "md3-kpi-chip__data" }, [
+          el("div", { class: "md3-kpi-chip__label" }, kpi.label),
+          valContent
+        ])
       ])
-    ]);
-    kpiGrid.append(chip);
+    );
   }
   wrap.append(kpiGrid);
 
@@ -432,7 +393,7 @@ export async function render({ profile }) {
         title: "Fee Structure & Finance",
         desc: "Define term fee tiers, lunch or boarding items, and configure M-Pesa / Bank accounts.",
         icon: "account_balance_wallet",
-        color: "purple",
+        color: "gold",
         route: "/fees",
         btnLabel: hasFees ? "Fee Ledger" : "Setup Fees",
         completed: hasFees,
@@ -446,10 +407,6 @@ export async function render({ profile }) {
     const launchpad = el("div", { class: "dashboard-launchpad" }, [
       el("div", { class: "launchpad-hero" }, [
         el("div", { class: "launchpad-hero__info" }, [
-          el("div", { class: "launchpad-hero__badge" }, [
-            el("span", { class: "material-symbols-rounded" }, "rocket_launch"),
-            el("span", {}, "School Setup Launchpad"),
-          ]),
           el("h2", { class: "launchpad-hero__title" }, `Welcome to ${settings.schoolName || "Your School"}!`),
           el("p", { class: "launchpad-hero__subtitle" },
             `Your school management portal is initialized for ${settings.currentTerm || "Term 1"} ${settings.currentAcademicYear || new Date().getFullYear()}. Complete these foundational setup steps to activate your academic dashboard and live analytics.`
