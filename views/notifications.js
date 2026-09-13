@@ -37,6 +37,168 @@ let classes = [];
 let students = [];
 let parents = [];
 
+/**
+ * Contextual help tooltip using dark-slate bubble styling.
+ */
+function infoTooltip(title, text, align = "center") {
+  const alignClass = align === "right" ? " tooltip-bubble--right" : (align === "left" ? " tooltip-bubble--left" : "");
+  return el("span", {
+    class: "tooltip-wrap tooltip-wrap--inline",
+    tabindex: "0",
+    role: "button",
+    "aria-label": title,
+  }, [
+    el("span", { class: "tooltip-trigger-icon material-symbols-rounded" }, "help"),
+    el("span", { class: `tooltip-bubble tooltip-bubble--wide${alignClass}`, role: "tooltip" }, [
+      el("span", { class: "tooltip-bubble__title" }, [
+        icon("info"),
+        title,
+      ]),
+      el("span", { class: "tooltip-bubble__text" }, text),
+    ]),
+  ]);
+}
+
+/**
+ * Dynamic Academic Communications Officer mascot with broadcast horn and verified delivery envelope.
+ */
+export function buildNotificationsMascotSvg({ width = 165, height = 150 } = {}) {
+  return `
+    <svg class="notifications-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Notifications Assistant">
+      <!-- Ground Shadow -->
+      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+
+      <!-- Floating Mascot Body -->
+      <g class="support-mascot__body">
+        <!-- Educational Textbooks Stack Base -->
+        <g class="support-mascot__books">
+          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
+          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
+          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
+          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
+          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
+          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
+        </g>
+
+        <!-- Academic Scholar Robe -->
+        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
+        <!-- Gold Sash -->
+        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
+
+        <!-- Left Arm Holding Delivery Envelope -->
+        <g class="notifications-mascot__envelope">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <!-- Mail Envelope -->
+          <rect x="54" y="126" width="30" height="22" rx="2" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.2" transform="rotate(-8 69 137)" />
+          <path d="M54,126 L69,139 L84,126" stroke="#14538A" stroke-width="1.2" fill="none" transform="rotate(-8 69 137)" />
+          <!-- Green Verified Delivery Badge -->
+          <circle cx="78" cy="142" r="5" fill="#059669" />
+          <polyline points="76,142 77.5,143.5 80.5,140.5" stroke="#FFFFFF" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+          <!-- Hand Holding Envelope -->
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+
+        <!-- Right Arm Raising Broadcast Megaphone / Horn (Animated) -->
+        <g class="notifications-mascot__horn">
+          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <!-- Megaphone Handle -->
+          <line x1="150" y1="110" x2="158" y2="120" stroke="#14538A" stroke-width="4" stroke-linecap="round" />
+          <!-- Megaphone Body Cone -->
+          <path d="M152,102 L176,90 L176,120 L152,112 Z" fill="#F59E0B" stroke="#B45309" stroke-width="1.2" />
+          <ellipse cx="176" cy="105" rx="4" ry="15" fill="#FDE68A" stroke="#B45309" stroke-width="1" />
+          <!-- Megaphone Rear Cap -->
+          <rect x="146" y="104" width="7" height="6" rx="1.5" fill="#0D3559" />
+          <!-- Acoustic Broadcast Waves -->
+          <path d="M185,97 C190,102 190,108 185,113" stroke="#F59E0B" stroke-width="1.8" fill="none" stroke-linecap="round" />
+          <path d="M190,92 C198,100 198,110 190,118" stroke="#D97706" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.8" />
+        </g>
+
+        <!-- Head -->
+        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
+        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
+
+        <!-- Cheerful Eyebrows -->
+        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
+
+        <!-- Animated Blinking Eyes -->
+        <g class="support-mascot__eyes">
+          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
+          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
+          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
+          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
+          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
+        </g>
+
+        <!-- Warm Smile -->
+        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
+
+        <!-- Graduation Cap (Mortarboard) -->
+        <g transform="rotate(-5 110 58)">
+          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
+          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
+          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
+          <!-- Swaying Tassel -->
+          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
+          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
+        </g>
+      </g>
+    </svg>
+  `;
+}
+
+/**
+ * Operational disclaimers grid for notifications.
+ */
+function renderWelcomeDisclaimers(container) {
+  const welcomeCard = el("div", { class: "notifications-welcome-card" }, [
+    el("div", { class: "notifications-welcome-header" }, [
+      icon("campaign", "text-primary", "style: font-size:36px;"),
+      el("h3", {}, "Multi-Channel School Communications"),
+      el("p", {}, "Broadcast real-time SMS and email updates to parents, send fee balance reminders, and publish school newsletters."),
+    ]),
+
+    // Important Operational Disclaimers Grid
+    el("div", { class: "notifications-disclaimers-grid" }, [
+      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--warning" }, [
+        el("div", { class: "notifications-disclaimer-title" }, [
+          icon("key", "text-amber"),
+          "Notification Provider Credentials",
+        ]),
+        el("p", { class: "notifications-disclaimer-body" }, "SMS dispatch requires Africa's Talking API credentials, and Email requires Gmail App Password under School Settings. Messages stay queued until connected."),
+      ]),
+      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--info" }, [
+        el("div", { class: "notifications-disclaimer-title" }, [
+          icon("payments", "text-primary"),
+          "Automated Fee Balance Audience",
+        ]),
+        el("p", { class: "notifications-disclaimer-body" }, "The Fee Balance Reminder evaluates student tuition ledgers dynamically, targeting only parents of active learners with outstanding balances > KES 0."),
+      ]),
+      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--success" }, [
+        el("div", { class: "notifications-disclaimer-title" }, [
+          icon("verified", "text-green"),
+          "Parent Contact Reachability",
+        ]),
+        el("p", { class: "notifications-disclaimer-body" }, "SMS messages reach guardians with active telephone numbers, and email messages require recorded email addresses in the Parents directory."),
+      ]),
+      el("div", { class: "notifications-disclaimer-card notifications-disclaimer-card--danger" }, [
+        el("div", { class: "notifications-disclaimer-title" }, [
+          icon("history", "text-red"),
+          "Broadcast Logs & Re-Queuing",
+        ]),
+        el("p", { class: "notifications-disclaimer-body" }, "Deleting a broadcast permanently purges its record from history. You can click the status icon on any row to toggle between Delivered and Queued."),
+      ]),
+    ]),
+  ]);
+
+  container.append(welcomeCard);
+}
+
 export async function render({ profile }) {
   [notifications, newsletters, settings, classes, students, parents] = await Promise.all([
     listNotifications(),
@@ -49,53 +211,80 @@ export async function render({ profile }) {
 
   markNotificationsAsSeen(profile.uid);
 
-  const wrap = el("div", {});
-  wrap.append(el("div", { class: "page-header" }, [el("div", {}, [el("h1", {}, "")])]));
+  const wrap = el("div", { class: "notifications-view-wrap" });
 
-  const tabs = el("div", { class: "page-tabs" }, [
-    tabButton("notifications", "notifications", "Notifications", profile),
-    tabButton("newsletters", "newspaper", "Newsletters", profile),
+  // Mascot container
+  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
+  mascotWrap.innerHTML = buildNotificationsMascotSvg({ width: 155, height: 140 });
+
+  // Executive Hero Banner
+  const heroBanner = el("div", { class: "notifications-hero" }, [
+    el("div", { class: "notifications-hero__content" }, [
+      el("div", { class: "notifications-hero__status-row" }, [
+        el("span", { class: "academics-cycle-badge" }, [
+          icon("campaign", "text-xs"),
+          "Parent & Staff Communications · Multi-Channel Dispatch",
+          infoTooltip("Broadcast SMS and Email alerts, manage automatic delivery queues, and publish rich termly school newsletters."),
+        ]),
+      ]),
+      el("h1", { class: "notifications-hero__title" }, "School Notifications & Newsletters"),
+      el("p", { class: "notifications-hero__desc" }, "Broadcast parent SMS and email alerts, track delivery queues, and publish school newsletters."),
+      el("div", { class: "notifications-hero__pills" }, [
+        el("div", { class: "notifications-pill" }, [icon("send"), `${notifications.length} Broadcasts Sent`]),
+        el("div", { class: "notifications-pill" }, [icon("newspaper"), `${newsletters.length} Newsletters`]),
+        el("div", { class: "notifications-pill" }, [icon("contacts"), `${parents.length} Registered Parents`]),
+        el("div", { class: "notifications-pill" }, [icon("cell_tower"), "SMS & Email Dispatch"]),
+      ]),
+    ]),
+
+    // Mascot & Speech Bubble
+    el("div", { class: "notifications-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Broadcast alerts, send parent reminders, and publish school newsletters."),
+      mascotWrap,
+    ]),
   ]);
-  wrap.append(tabs);
+  wrap.append(heroBanner);
 
-  const panel = el("div", {});
-  wrap.append(panel);
-  renderPanel(panel, profile);
+  // Segmented Tabs
+  const tabNav = el("div", { class: "page-tabs no-print", style: "margin-bottom:var(--sp-4);" });
+  const panelMount = el("div", { id: "notifications-panel-mount" });
+
+  function renderTabs() {
+    tabNav.innerHTML = "";
+    const tabs = [
+      { id: "notifications", label: "Broadcast Notifications", iconName: "notifications" },
+      { id: "newsletters", label: "School Newsletters", iconName: "newspaper" },
+    ];
+    tabs.forEach((tab) => {
+      const btn = el(
+        "button",
+        {
+          type: "button",
+          class: `profile-tab ${activeTab === tab.id ? "profile-tab--active" : ""}`,
+          onClick: () => {
+            if (activeTab === tab.id) return;
+            activeTab = tab.id;
+            renderTabs();
+            renderPanel(panelMount, profile);
+          },
+        },
+        [icon(tab.iconName, "text-xs"), tab.label]
+      );
+      tabNav.append(btn);
+    });
+  }
+
+  renderTabs();
+  wrap.append(tabNav);
+  wrap.append(panelMount);
+
+  renderPanel(panelMount, profile);
 
   return wrap;
 }
 
 export function init() {
   prewarmPdfLibs();
-}
-
-function tabButton(id, iconName, label, profile) {
-  const btn = el(
-    "button",
-    { class: `profile-tab${activeTab === id ? " profile-tab--active" : ""}` },
-    [el("span", { class: "material-symbols-rounded" }, iconName), label]
-  );
-  btn.addEventListener("click", () => {
-    if (activeTab === id) return;
-    activeTab = id;
-    rerenderShell(profile);
-  });
-  return btn;
-}
-
-function rerenderShell(profile) {
-  const main = document.querySelector(".page-tabs")?.parentElement;
-  if (!main) return;
-  main.innerHTML = "";
-  main.append(el("div", { class: "page-header" }, [el("div", {}, [el("h1", {}, "")])]));
-  const tabs = el("div", { class: "page-tabs" }, [
-    tabButton("notifications", "notifications", "Notifications", profile),
-    tabButton("newsletters", "newspaper", "Newsletters", profile),
-  ]);
-  main.append(tabs);
-  const panel = el("div", {});
-  main.append(panel);
-  renderPanel(panel, profile);
 }
 
 function renderPanel(panel, profile) {
@@ -106,7 +295,7 @@ function renderPanel(panel, profile) {
 
 async function refresh(profile) {
   [notifications, newsletters] = await Promise.all([listNotifications(), listNewsletters()]);
-  const panel = document.querySelector(".page-tabs")?.nextElementSibling;
+  const panel = document.querySelector("#notifications-panel-mount");
   if (panel) renderPanel(panel, profile);
 }
 
