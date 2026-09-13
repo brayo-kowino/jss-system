@@ -377,10 +377,6 @@ function renderNotificationKpis() {
   return grid;
 }
 
-function categoryMeta(cat) {
-  return CATEGORIES.find((c) => c.value === cat) || { label: cat || "General", icon: "campaign" };
-}
-
 function audienceLabel(n) {
   if (!n.audience || n.audience.type === "all") return "All Parents";
   if (n.audience.type === "grade") return n.audience.grade || "Grade";
