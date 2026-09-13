@@ -203,6 +203,60 @@ export async function render({ profile }) {
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
   mascotWrap.innerHTML = buildAnalyticsMascotSvg({ width: 125, height: 110 });
 
+  const heroBanner = el("div", { class: "analytics-hero" }, [
+    el("div", { class: "analytics-hero__content" }, [
+      el("div", { class: "analytics-hero__status-row" }, [
+        el("span", { class: "analytics-pill analytics-pill--live" }, "● Institutional Intelligence · Academic & Operational Analytics"),
+      ]),
+      el("h1", { class: "analytics-hero__title" }, "School Performance & Intelligence Analytics"),
+      el("p", { class: "analytics-hero__desc" }, "Analyze academic merit rankings, fee collection efficiency, curriculum mastery trends, and faculty teaching allocations."),
+      el("div", { class: "analytics-hero__pills" }, [
+        el("div", { class: "analytics-pill" }, [icon("school"), `${students.length} Students`]),
+        el("div", { class: "analytics-pill" }, [icon("badge"), `${teachers.length} Teachers`]),
+        el("div", { class: "analytics-pill" }, [icon("groups"), `${classes.length} Cohorts`]),
+        el("div", { class: "analytics-pill" }, [icon("event_repeat"), `${selection.academicYear} · ${selection.term}`]),
+      ]),
+    ]),
+    el("div", { class: "analytics-hero__mascot-box" }, [
+      el("div", { class: "support-speech-bubble" }, "Visualizing academic trends, revenue collection & workloads!"),
+      mascotWrap,
+    ]),
+  ]);
+  wrap.append(heroBanner);
+
+  // 2. Numeric KPI Metric Chips
+  const kpiRow = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" }, [
+    el("div", { class: "md3-kpi-chip" }, [
+      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(20,83,138,0.1); color:var(--color-primary-700);" }, [icon("school")]),
+      el("div", { class: "md3-kpi-chip__content" }, [
+        el("div", { class: "md3-kpi-chip__value" }, String(students.length)),
+        el("div", { class: "md3-kpi-chip__label" }, "Enrolled Students"),
+      ]),
+    ]),
+    el("div", { class: "md3-kpi-chip" }, [
+      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(11,37,69,0.08); color:var(--color-primary-900);" }, [icon("badge")]),
+      el("div", { class: "md3-kpi-chip__content" }, [
+        el("div", { class: "md3-kpi-chip__value" }, String(teachers.length)),
+        el("div", { class: "md3-kpi-chip__label" }, "Teaching Faculty"),
+      ]),
+    ]),
+    el("div", { class: "md3-kpi-chip" }, [
+      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(46,125,70,0.12); color:var(--color-green);" }, [icon("menu_book")]),
+      el("div", { class: "md3-kpi-chip__content" }, [
+        el("div", { class: "md3-kpi-chip__value" }, String(subjects.length)),
+        el("div", { class: "md3-kpi-chip__label" }, "Curriculum Subjects"),
+      ]),
+    ]),
+    el("div", { class: "md3-kpi-chip" }, [
+      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(201,162,39,0.15); color:var(--color-gold);" }, [icon("groups")]),
+      el("div", { class: "md3-kpi-chip__content" }, [
+        el("div", { class: "md3-kpi-chip__value" }, String(classes.length)),
+        el("div", { class: "md3-kpi-chip__label" }, "Class Cohorts"),
+      ]),
+    ]),
+  ]);
+  wrap.append(kpiRow);
+
   // 3. Consolidated Modern Navigation & Filter Toolbar
   const reportMount = el("div", { style: "margin-top:var(--sp-4);" });
 
