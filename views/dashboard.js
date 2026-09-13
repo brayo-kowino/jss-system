@@ -350,9 +350,7 @@ export async function render({ profile }) {
     // School Launchpad for Brand-New Schools
     const classesCount = classesList ? classesList.length : 0;
     const hasClasses = classesCount > 0;
-    const hasStaff = (teachers || 0) > 0;
     const hasStudents = studentsCount > 0;
-    const hasFees = (feesCollected || 0) > 0;
 
     const steps = [
       {
@@ -368,17 +366,6 @@ export async function render({ profile }) {
       },
       {
         step: "Step 2",
-        title: "Teaching Faculty & Staff",
-        desc: "Register teachers, designate class tutors, and assign learning areas across streams.",
-        icon: "badge",
-        color: "gold",
-        route: "/teachers",
-        btnLabel: hasStaff ? "View Faculty" : "Add Teachers",
-        completed: hasStaff,
-        statusText: hasStaff ? `${teachers} staff registered` : "No staff added",
-      },
-      {
-        step: "Step 3",
         title: "Learner Admissions",
         desc: "Admit students individually or in bulk via Excel/CSV, assign admission numbers, and link parents.",
         icon: "person_add",
@@ -387,17 +374,6 @@ export async function render({ profile }) {
         btnLabel: hasStudents ? "View Students" : "Admit Learners",
         completed: hasStudents,
         statusText: hasStudents ? `${studentsCount} learners admitted` : "Awaiting learners",
-      },
-      {
-        step: "Step 4",
-        title: "Fee Structure & Finance",
-        desc: "Define term fee tiers, lunch or boarding items, and configure M-Pesa / Bank accounts.",
-        icon: "account_balance_wallet",
-        color: "gold",
-        route: "/fees",
-        btnLabel: hasFees ? "Fee Ledger" : "Setup Fees",
-        completed: hasFees,
-        statusText: hasFees ? `KES ${Number(feesCollected).toLocaleString("en-KE")} collected` : "Structure not set",
       },
     ];
 
