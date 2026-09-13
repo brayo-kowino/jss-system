@@ -228,19 +228,12 @@ export async function render({ profile }) {
   const heroBanner = el("div", { class: "timetable-hero" }, [
     el("div", { class: "timetable-hero__content" }, [
       el("div", { class: "timetable-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("schedule", "text-xs"),
-          "Academic Master Scheduling · Conflict-Free Matrix",
-          infoTooltip("Weekly instructional timetable with conflict detection, period bell schedules, and teacher workload distribution."),
-        ]),
-      ]),
       el("h1", { class: "timetable-hero__title" }, "School Timetable & Scheduling"),
-      el("p", { class: "timetable-hero__desc" }, "Manage weekly instructional periods, class timetables, and teacher allocation matrix."),
+      el("p", { class: "timetable-hero__desc" }, "Manage weekly periods, class timetables, and teacher allocations."),
       el("div", { class: "timetable-hero__pills" }, [
         el("div", { class: "timetable-pill" }, [icon("schedule"), `${periods.length} Daily Periods`]),
         el("div", { class: "timetable-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
         teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,
-        el("div", { class: "timetable-pill" }, [icon("lock"), "Conflict Detection Active"]),
       ].filter(Boolean)),
     ]),
 
