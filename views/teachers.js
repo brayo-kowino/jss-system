@@ -155,7 +155,7 @@ export async function render({ profile }) {
     ]),
 
     el("div", { class: "staff-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Manage faculty & logins."),
+      el("div", { class: "support-speech-bubble" }, "Did you know? You can create a login for any staff like a bursar, registrar, or principal, and allow them access the system without giving them a teaching profile."),
       mascotWrap,
     ]),
   ]);
