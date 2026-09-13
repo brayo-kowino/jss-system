@@ -203,27 +203,6 @@ export async function render({ profile }) {
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
   mascotWrap.innerHTML = buildAnalyticsMascotSvg({ width: 125, height: 110 });
 
-  const heroBanner = el("div", { class: "analytics-hero" }, [
-    el("div", { class: "analytics-hero__content" }, [
-      el("div", { class: "analytics-hero__status-row" }, [
-        el("span", { class: "analytics-pill analytics-pill--live" }, "● Institutional Intelligence · Academic & Operational Analytics"),
-      ]),
-      el("h1", { class: "analytics-hero__title" }, "School Performance & Intelligence Analytics"),
-      el("p", { class: "analytics-hero__desc" }, "Analyze academic merit rankings, fee collection efficiency, curriculum mastery trends, and faculty teaching allocations."),
-      el("div", { class: "analytics-hero__pills" }, [
-        el("div", { class: "analytics-pill" }, [icon("school"), `${students.length} Students`]),
-        el("div", { class: "analytics-pill" }, [icon("badge"), `${teachers.length} Teachers`]),
-        el("div", { class: "analytics-pill" }, [icon("groups"), `${classes.length} Cohorts`]),
-        el("div", { class: "analytics-pill" }, [icon("event_repeat"), `${selection.academicYear} · ${selection.term}`]),
-      ]),
-    ]),
-    el("div", { class: "analytics-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Visualizing academic trends, revenue collection & workloads!"),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // 2. Numeric KPI Metric Chips
   const kpiRow = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" }, [
     el("div", { class: "md3-kpi-chip" }, [
