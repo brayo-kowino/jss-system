@@ -203,28 +203,6 @@ export async function render({ profile }) {
   const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
   mascotWrap.innerHTML = buildAnalyticsMascotSvg({ width: 125, height: 110 });
 
-  const heroBanner = el("div", { class: "analytics-hero" }, [
-    el("div", { class: "analytics-hero__content" }, [
-      el("h1", { class: "analytics-hero__title" }, "School Performance & Intelligence Analytics"),
-      el(
-        "p",
-        { class: "analytics-hero__desc" },
-        "Comprehensive analytical insights across academic merit rankings, CBC subject performance, revenue collection, and faculty teaching workloads."
-      ),
-      el("div", { class: "analytics-hero__pills" }, [
-        el("div", { class: "analytics-pill" }, [icon("school"), `${students.length} Enrolled Learners`]),
-        el("div", { class: "analytics-pill" }, [icon("groups"), `${teachers.length} Active Faculty`]),
-        el("div", { class: "analytics-pill" }, [icon("domain"), `${classes.length} Class Cohorts`]),
-        el("div", { class: "analytics-pill" }, [icon("calendar_month"), `${selection.academicYear} · ${selection.term}`]),
-      ]),
-    ]),
-    el("div", { class: "analytics-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Visualizing academic trends, revenue collection & workloads!"),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-  
   // 3. Consolidated Modern Navigation & Filter Toolbar
   const reportMount = el("div", { style: "margin-top:var(--sp-4);" });
 
