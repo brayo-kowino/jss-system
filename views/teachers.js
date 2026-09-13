@@ -144,12 +144,6 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "staff-hero" }, [
     el("div", { class: "staff-hero__content" }, [
-      el("div", { class: "staff-hero__status-row" }, [
-        el("span", { class: "academics-cycle-badge" }, [
-          icon("badge", "text-xs"),
-          "Faculty & Role-Based Access Control",
-        ]),
-      ]),
       el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
       el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
     ]),
