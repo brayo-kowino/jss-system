@@ -963,12 +963,6 @@ export async function render({ profile }) {
 
   const heroBanner = el("div", { class: "parents-hero" }, [
     el("div", { class: "parents-hero__content" }, [
-      el("div", { class: "parents-hero__status-row" }, [
-        el("span", { class: "badge badge--neutral", style: "display:inline-flex; align-items:center; gap:5px;" }, [
-          icon("family_restroom", "style=font-size:14px; color:var(--color-primary-600);"),
-          "Community & Welfare · Parent & Guardian Registry",
-        ]),
-      ]),
       el("h1", { class: "parents-hero__title" }, "Parents & Guardians Directory"),
       el(
         "p",
