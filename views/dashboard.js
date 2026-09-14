@@ -34,9 +34,13 @@ let chartDataCache = {
   revenueData: [],
   hasRevenueData: false
 };
+let currentSettings = null;
+let activeProfile = null;
 
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
+  currentSettings = settings;
+  activeProfile = profile;
 
   const [teachersResult, attendanceStat, feesCollectedResult, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult, classesList] = await Promise.all([
     safeCount("teachers"),
@@ -244,8 +248,16 @@ export async function render({ profile }) {
        ]));
     }
   } else {
-    termProgress.append(el("strong", { style: "font-size: 20px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, "Not Set"));
-    termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, "Configure in Settings"));
+    termProgress.style.cursor = "pointer";
+    termProgress.title = "Click to configure Academic Calendar in Settings";
+    termProgress.addEventListener("click", () => navigate("/settings?tab=calendar"));
+    termProgress.append(
+      el("strong", { style: "font-size: 20px; line-height: 1; color: var(--color-primary-700); margin-bottom: 4px; display: flex; align-items: center; gap: 4px;" }, [
+        "Not Set",
+        el("span", { class: "material-symbols-rounded", style: "font-size: 18px;" }, "arrow_forward")
+      ])
+    );
+    termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-primary-700); text-decoration: underline;" }, "Configure in Settings"));
   }
 
   const divider = el("div", { class: "hero-divider", style: "display: flex; gap: 4px; margin: 0 var(--sp-4); padding: 4px 0;" }, [
@@ -350,11 +362,21 @@ export async function render({ profile }) {
     // School Launchpad for Brand-New Schools
     const classesCount = classesList ? classesList.length : 0;
     const hasClasses = classesCount > 0;
-    const hasStudents = studentsCount > 0;
-
+    const hasCalendarConfig = Boolean(settings?.closingDate && settings?.openingDate && settings?.principalName);
     const steps = [
       {
         step: "Step 1",
+        title: "School Calendar & Identity",
+        desc: "Set current term, milestone dates, and Principal signature for official report cards.",
+        icon: "calendar_month",
+        color: "gold",
+        route: "/settings?tab=calendar",
+        btnLabel: hasCalendarConfig ? "View Calendar" : "Configure Dates",
+        completed: hasCalendarConfig,
+        statusText: hasCalendarConfig ? "Term & Signatories set" : "Dates required",
+      },
+      {
+        step: "Step 2",
         title: "Academic Classes & Streams",
         desc: "Configure grade cohorts (Grade 7, 8, 9), stream divisions, and core CBC learning areas.",
         icon: "account_tree",
@@ -365,7 +387,7 @@ export async function render({ profile }) {
         statusText: hasClasses ? `${classesCount} class(es) configured` : "Setup required",
       },
       {
-        step: "Step 2",
+        step: "Step 3",
         title: "Learner Admissions",
         desc: "Admit students individually or in bulk via Excel/CSV, assign admission numbers, and link parents.",
         icon: "person_add",
@@ -572,7 +594,190 @@ export async function render({ profile }) {
   return wrap;
 }
 
-export function init() {
+// ===========================================================================
+// School Setup Readiness & Pop-up Nudge
+// ===========================================================================
+
+function checkSettingsReadiness(settings) {
+  const missingItems = [];
+
+  // 1. Academic Calendar
+  const hasCalendarDates = Boolean(settings?.closingDate && settings?.openingDate);
+  if (!hasCalendarDates) {
+    missingItems.push({
+      tab: "calendar",
+      title: "Academic Calendar & Term Dates",
+      desc: "Configure current term, closing date, and reopening date for accurate report cards, fee cycles, and milestone tracking.",
+      icon: "event_note",
+      badge: "Crucial for Reports",
+    });
+  }
+
+  // 2. Leadership & Signatories
+  const hasLeadership = Boolean(settings?.principalName?.trim());
+  if (!hasLeadership) {
+    missingItems.push({
+      tab: "leadership",
+      title: "School Leadership & Signatories",
+      desc: "Add the Principal's name to appear on official student report card signature lines, certificates, and newsletters.",
+      icon: "badge",
+      badge: "Printed on Report Cards",
+    });
+  }
+
+  // 3. School Profile & Contacts
+  const hasProfile = Boolean(settings?.schoolName?.trim() && (settings?.phone?.trim() || settings?.email?.trim()));
+  if (!hasProfile) {
+    missingItems.push({
+      tab: "profile",
+      title: "School Profile & Contact Details",
+      desc: "Confirm legal school name, administrative telephone, and official email for document letterheads and receipts.",
+      icon: "account_balance",
+      badge: "Official Letterhead",
+    });
+  }
+
+  // 4. Branding & Crest
+  const hasLogo = Boolean(settings?.logoUrl?.trim());
+  if (!hasLogo) {
+    missingItems.push({
+      tab: "branding",
+      title: "School Crest / Logo",
+      desc: "Upload official school crest to brand report cards, student portal, and payment receipts.",
+      icon: "palette",
+      badge: "Visual Identity",
+    });
+  }
+
+  return {
+    isComplete: missingItems.length === 0,
+    missingItems,
+  };
+}
+
+function isSetupNudgeDismissed(schoolId) {
+  try {
+    return sessionStorage.getItem(`jss_setup_nudge_dismissed_${schoolId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function dismissSetupNudge(schoolId) {
+  try {
+    sessionStorage.setItem(`jss_setup_nudge_dismissed_${schoolId}`, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function showSetupNudgeModal({ profile, settings, missingItems, schoolId }) {
+  if (document.querySelector(".setup-nudge-modal")) return;
+
+  const backdrop = el("div", { class: "modal-backdrop", style: "z-index: 105;" });
+  const modal = el("div", { class: "modal setup-nudge-modal", role: "dialog", "aria-modal": "true" });
+
+  function close(dismiss = true) {
+    if (dismiss) dismissSetupNudge(schoolId);
+    document.removeEventListener("keydown", handleKeyDown);
+    backdrop.remove();
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Escape") close(true);
+  }
+  document.addEventListener("keydown", handleKeyDown);
+
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close(true);
+  });
+
+  // Header
+  const header = el("div", { class: "setup-nudge__header" }, [
+    el("div", { class: "setup-nudge__icon-wrap" }, [
+      el("span", { class: "material-symbols-rounded" }, "settings_suggest"),
+    ]),
+    el("h2", { class: "setup-nudge__title" }, "Complete Your School Setup"),
+    el("p", { class: "setup-nudge__subtitle" },
+      "A quick setup ensures terminal report cards, fee invoices, and marks entries use your accurate term dates and official letterhead."
+    ),
+    el("button", {
+      type: "button",
+      class: "setup-nudge__close",
+      "aria-label": "Close",
+      onClick: () => close(true),
+    }, [el("span", { class: "material-symbols-rounded" }, "close")]),
+  ]);
+
+  // Body: itemized checklist
+  const body = el("div", { class: "setup-nudge__body" });
+
+  for (const item of missingItems) {
+    const itemCard = el("div", {
+      class: "setup-nudge__item",
+      role: "button",
+      tabindex: "0",
+      title: `Go to ${item.title}`,
+      onClick: () => {
+        close(true);
+        navigate(`/settings?tab=${item.tab}`);
+      },
+    }, [
+      el("div", { class: "setup-nudge__item-icon" }, [
+        el("span", { class: "material-symbols-rounded" }, item.icon),
+      ]),
+      el("div", { class: "setup-nudge__item-content" }, [
+        el("div", { class: "setup-nudge__item-header" }, [
+          el("span", { class: "setup-nudge__item-title" }, item.title),
+          el("span", { class: "setup-nudge__item-badge" }, item.badge),
+        ]),
+        el("p", { class: "setup-nudge__item-desc" }, item.desc),
+      ]),
+      el("span", { class: "material-symbols-rounded setup-nudge__item-arrow" }, "arrow_forward"),
+    ]);
+    body.append(itemCard);
+  }
+
+  // Footer
+  const primaryTab = missingItems[0]?.tab || "calendar";
+  const footer = el("div", { class: "setup-nudge__footer" }, [
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm",
+      onClick: () => close(true),
+    }, "Remind Me Later"),
+    el("button", {
+      type: "button",
+      class: "btn btn--primary btn--sm",
+      onClick: () => {
+        close(true);
+        navigate(`/settings?tab=${primaryTab}`);
+      },
+    }, [
+      "Configure Settings Now",
+      el("span", { class: "material-symbols-rounded" }, "arrow_forward"),
+    ]),
+  ]);
+
+  modal.append(header, body, footer);
+  backdrop.append(modal);
+  document.body.append(backdrop);
+}
+
+export function init({ profile } = {}) {
+  const p = profile || activeProfile;
+  const isAdmin = p?.role === "admin" || p?.role === "super_admin";
+  const schoolId = getCurrentSchoolId();
+
+  if (isAdmin && currentSettings && schoolId && !isSetupNudgeDismissed(schoolId)) {
+    const { isComplete, missingItems } = checkSettingsReadiness(currentSettings);
+    if (!isComplete && missingItems.length > 0) {
+      setTimeout(() => {
+        showSetupNudgeModal({ profile: p, settings: currentSettings, missingItems, schoolId });
+      }, 600);
+    }
+  }
+
   const { primary, accent } = getBrandColors();
 
   // 1. Initialize Real Revenue Line Chart

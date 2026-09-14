@@ -98,6 +98,19 @@ function passwordField(id, label, value = "", tooltip = null, placeholder = "") 
   ]);
 }
 
+function getActiveTabFromUrl() {
+  const hash = location.hash || "";
+  const queryIndex = hash.indexOf("?");
+  if (queryIndex !== -1) {
+    const params = new URLSearchParams(hash.slice(queryIndex));
+    const tab = params.get("tab");
+    if (tab && TABS.some((t) => t.id === tab)) {
+      return tab;
+    }
+  }
+  return "profile";
+}
+
 export async function render({ profile }) {
   settings = await getSchoolSettings();
   activeThemeId = settings.themeId || matchThemeId(settings.themeColor, settings.secondaryColor);
@@ -106,6 +119,7 @@ export async function render({ profile }) {
 
   const panels = {};
   const tabsNav = el("div", { class: "profile-tabs no-print", style: "margin-bottom:var(--sp-4);" });
+  const activeTab = getActiveTabFromUrl();
 
   for (const t of TABS) {
     panels[t.id] = el("div", { class: "settings-tab-panel", id: `panel-${t.id}` });
@@ -114,7 +128,7 @@ export async function render({ profile }) {
         "button",
         {
           type: "button",
-          class: `profile-tab${t.id === "profile" ? " profile-tab--active" : ""}`,
+          class: `profile-tab${t.id === activeTab ? " profile-tab--active" : ""}`,
           "data-tab": t.id,
           onClick: () => switchTab(t.id, tabsNav, panels),
         },
@@ -123,8 +137,7 @@ export async function render({ profile }) {
     );
   }
 
-  panels.profile.style.display = "";
-  for (const t of TABS.slice(1)) panels[t.id].style.display = "none";
+  for (const t of TABS) panels[t.id].style.display = t.id === activeTab ? "" : "none";
 
   panels.profile.append(buildProfileTab());
   panels.branding.append(buildBrandingTab());
@@ -151,6 +164,14 @@ function switchTab(tabId, tabsNav, panels) {
     btn.classList.toggle("profile-tab--active", btn.dataset.tab === tabId);
   }
   for (const t of TABS) panels[t.id].style.display = t.id === tabId ? "" : "none";
+  try {
+    const newHash = `#settings?tab=${encodeURIComponent(tabId)}`;
+    if (location.hash !== newHash) {
+      history.replaceState(null, "", newHash);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // ===========================================================================
