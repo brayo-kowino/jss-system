@@ -1134,7 +1134,9 @@ function currentTitle(path) {
   return "";
 }
 
+import { signOutWithFeedback, showSignoutOverlay } from "./signout-modal.js";
+export { signOutWithFeedback, showSignoutOverlay };
+
 async function handleLogout() {
-  await logout();
-  navigate("/login");
+  await signOutWithFeedback();
 }

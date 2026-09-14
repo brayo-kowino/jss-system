@@ -216,11 +216,15 @@ export async function renderRoute() {
       if (isStale()) return;
       app.innerHTML = "";
       app.appendChild(content);
+      document.querySelectorAll(".signout-modal-backdrop").forEach((el) => el.remove());
       await view.init?.();
       return;
     }
 
-    if (!profile) return navigate("/login");
+    if (!profile) {
+      document.querySelectorAll(".signout-modal-backdrop").forEach((el) => el.remove());
+      return navigate("/login");
+    }
 
     // Every account starts life with mustChangePassword: true (set by
     // createUserAccount / createSchool alongside its temp password). Until

@@ -225,8 +225,8 @@ export function init({ profile } = {}) {
   if (signOutLink) {
     signOutLink.addEventListener("click", async (e) => {
       e.preventDefault();
-      await logout();
-      navigate("/login");
+      const { signOutWithFeedback } = await import("../js/components/signout-modal.js");
+      await signOutWithFeedback();
     });
   }
 }

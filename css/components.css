@@ -1326,6 +1326,59 @@ tbody tr:hover { background: var(--color-primary-100); }
   }
 }
 
+/* Signout Progress Modal */
+.signout-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  cursor: wait;
+}
+
+.signout-modal-card {
+  background: var(--color-white);
+  border-radius: var(--radius-xl, 16px);
+  padding: 36px 32px 32px;
+  width: min(90vw, 360px);
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--color-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: setupModalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.signout-modal-card .spinner {
+  width: 48px;
+  height: 48px;
+  border-width: 4px;
+  border-color: rgba(20, 83, 138, 0.15);
+  border-top-color: var(--color-primary-700);
+  margin-bottom: var(--sp-4);
+}
+
+.signout-modal-title {
+  margin: 0 0 var(--sp-2);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+.signout-modal-sub {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  line-height: 1.45;
+}
+
 /* Toast */
 #toast-root {
   position: fixed; bottom: var(--sp-5); right: var(--sp-5);

@@ -113,8 +113,8 @@ export function renderApprovalGate(gate, onDone) {
 
   cancelBtn.addEventListener("click", async () => {
     unsubscribe();
-    await logout();
-    window.location.hash = "#/login";
+    const { signOutWithFeedback } = await import("./signout-modal.js");
+    await signOutWithFeedback();
   });
 }
 
@@ -197,8 +197,8 @@ export function renderTwoFactorGate(gate, onDone) {
   });
 
   cancelBtn.addEventListener("click", async () => {
-    await logout();
-    window.location.hash = "#/login";
+    const { signOutWithFeedback } = await import("./signout-modal.js");
+    await signOutWithFeedback();
   });
 
   backupLink.addEventListener("click", (e) => {
