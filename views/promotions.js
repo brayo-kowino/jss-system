@@ -1,4 +1,4 @@
-// Promotion Engine view — 3-step wizard for end-of-year class progression.
+// Promotion Module view — 3-step wizard for end-of-year class progression.
 //
 // Step 1: Configure — choose Auto or Manual mode.
 // Step 2: Review   — inspect every planned move, edit overrides, exclude.
@@ -45,7 +45,7 @@ export async function render({ profile }) {
   const wrap = el("div", { class: "page-container promotion-page" });
   wrapRef = wrap;
 
-  wrap.append(mobileOnlyNotice("The promotion engine works best on a larger screen where you can review the full table."));
+  wrap.append(mobileOnlyNotice("The promotion module works best on a larger screen where you can review the full table."));
   renderStep(wrap);
 
   return wrap;
