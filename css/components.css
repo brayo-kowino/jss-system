@@ -6680,149 +6680,372 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* =======================================================================
-   Promotion Engine
+   Promotion Engine — Native Design System
    ======================================================================= */
 
-/* Step indicator bar */
-.promotion-steps {
+/* Hero Banner */
+.promotions-hero {
+  position: relative;
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-5);
-  padding: 0 var(--sp-2);
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
+  background: linear-gradient(135deg, rgba(20, 83, 138, 0.08) 0%, rgba(201, 162, 39, 0.07) 50%, rgba(46, 125, 70, 0.06) 100%);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
 }
-.promotion-step {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-line);
-  color: var(--color-ink-soft);
-  font-size: var(--fs-sm);
-  font-weight: 500;
+.promotions-hero__content {
   flex: 1;
-  justify-content: center;
-  transition: all 0.2s;
+  min-width: min(100%, 340px);
 }
-.promotion-step--active {
-  background: var(--color-primary-700);
-  color: #fff;
-  border-color: var(--color-primary-700);
+.promotions-hero__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
+  border: 1px solid rgba(20, 83, 138, 0.2);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  margin-bottom: var(--sp-2);
+  letter-spacing: 0.02em;
+}
+.promotions-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-family: var(--font-body);
+  font-weight: 700;
+  color: var(--color-primary-900);
+  letter-spacing: -0.02em;
+}
+.promotions-hero__desc {
+  margin: 0 0 var(--sp-3) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 620px;
+  line-height: 1.5;
+}
+.promotions-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.promotions-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.promotions-pill .icon {
+  font-size: 16px;
+  color: var(--color-primary-700);
+}
+.promotions-pill--season {
+  background: rgba(46, 125, 70, 0.08);
+  color: var(--color-green);
+  border-color: rgba(46, 125, 70, 0.25);
   font-weight: 600;
 }
-.promotion-step--done {
-  background: rgba(5, 150, 105, 0.08);
-  color: #059669;
-  border-color: #059669;
+.promotions-pill--season .icon {
+  color: var(--color-green);
 }
-.promotion-step__number {
+
+/* Stepper Component */
+.promotion-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  background: var(--color-white);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.promotion-step-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  color: var(--color-ink-soft);
+  font-size: var(--fs-sm);
+  transition: all 0.2s ease;
+  min-width: 0;
+}
+.promotion-step-node--active {
+  background: rgba(20, 83, 138, 0.08);
+  color: var(--color-primary-900);
+  font-weight: 600;
+}
+.promotion-step-node--done {
+  color: var(--color-green);
+  font-weight: 500;
+}
+.promotion-step-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.06);
-  font-weight: 700;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-ink-soft);
   font-size: var(--fs-xs);
+  font-weight: 700;
+  flex-shrink: 0;
 }
-.promotion-step--active .promotion-step__number {
-  background: rgba(255,255,255,0.2);
-  color: #fff;
+.promotion-step-node--active .promotion-step-badge {
+  background: var(--color-primary-700);
+  color: #ffffff;
 }
-.promotion-step--done .promotion-step__number {
-  background: #059669;
-  color: #fff;
+.promotion-step-node--done .promotion-step-badge {
+  background: var(--color-green);
+  color: #ffffff;
 }
-.promotion-step__label {
-  white-space: nowrap;
+.promotion-step-node--done .promotion-step-badge .icon {
+  font-size: 16px;
 }
-
-/* Mode selection */
-.promotion-mode-group {
+.promotion-step-meta {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  min-width: 0;
 }
-.promotion-mode-option {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  border: 1.5px solid var(--color-line);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+.promotion-step-meta__step {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-ink-soft);
+  font-weight: 600;
+  line-height: 1.1;
 }
-.promotion-mode-option:hover {
-  border-color: var(--color-primary-700);
-  background: rgba(20, 83, 138, 0.03);
-}
-.promotion-mode-option input[type="radio"] {
-  margin-top: 4px;
-  accent-color: var(--color-primary-700);
-}
-.promotion-mode-option label {
-  cursor: pointer;
-  flex: 1;
-}
-.promotion-mode-option label p {
-  margin: 4px 0 0;
+.promotion-step-meta__label {
   font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.promotion-step-connector {
+  width: 24px;
+  height: 2px;
+  background: var(--color-line);
+  flex-shrink: 0;
+}
+.promotion-step-connector--done {
+  background: var(--color-green);
 }
 
-/* Grade progression preview */
-.promotion-progression {
+/* Card Header (Balanced, Clean, Native) */
+.promotion-card-header {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-}
-
-/* Manual mode fields */
-.promotion-manual-fields {
-  margin-top: var(--sp-3);
-}
-
-/* Summary bar */
-.promotion-summary-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--color-surface-raised);
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--sp-4) var(--sp-5);
   border-bottom: 1px solid var(--color-line);
+  background: var(--color-white);
+  gap: 12px;
+  flex-wrap: wrap;
 }
-.promotion-summary-bar .badge {
+.promotion-card-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.promotion-header-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: rgba(20, 83, 138, 0.08);
+  color: var(--color-primary-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.promotion-header-icon-wrap .icon {
+  font-size: 22px;
+}
+.promotion-card-title {
+  font-family: var(--font-body) !important;
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  color: var(--color-primary-900) !important;
+  margin: 0 !important;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.promotion-card-subtitle {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  margin: 3px 0 0;
+  line-height: 1.35;
+}
+
+/* Native Search & Metric Toolbar */
+.promotion-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--sp-3) var(--sp-4);
+  background: #f8fafc;
+  border-bottom: 1px solid var(--color-line);
+  flex-wrap: wrap;
+}
+.promotion-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  max-width: 400px;
+}
+.promotion-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px !important;
+  color: var(--color-ink-soft);
+  pointer-events: none;
+}
+.promotion-search-input {
+  width: 100%;
+  padding: 8px 34px 8px 36px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-sm);
+  background: var(--color-white);
+  color: var(--color-ink);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.promotion-search-input:focus {
+  border-color: var(--color-primary-700);
+  box-shadow: 0 0 0 3px rgba(20, 83, 138, 0.12);
+}
+.promotion-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s;
+}
+.promotion-search-clear:hover {
+  background: rgba(0, 0, 0, 0.15);
+  color: var(--color-ink);
+}
+.promotion-search-clear .icon {
+  font-size: 14px;
+}
+
+.promotion-summary-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.promotion-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.promotion-chip .icon {
+  font-size: 14px;
+}
+.promotion-chip--success {
+  background: rgba(46, 125, 70, 0.1);
+  color: var(--color-green);
+  border: 1px solid rgba(46, 125, 70, 0.25);
+}
+.promotion-chip--primary {
+  background: rgba(20, 83, 138, 0.1);
+  color: var(--color-primary-700);
+  border: 1px solid rgba(20, 83, 138, 0.25);
+}
+.promotion-chip--warning {
+  background: rgba(201, 162, 39, 0.15);
+  color: #8C6F12;
+  border: 1px solid rgba(201, 162, 39, 0.35);
+}
+.promotion-chip--muted {
+  background: rgba(92, 106, 115, 0.1);
+  color: var(--color-ink-soft);
+  border: 1px solid rgba(92, 106, 115, 0.2);
 }
 
-/* Review table */
+/* Review Table */
+.promotion-table-wrap {
+  overflow-x: auto;
+}
 .promotion-review-table {
   width: 100%;
+  border-collapse: collapse;
   font-size: var(--fs-sm);
 }
+.promotion-review-table thead th {
+  background: #f1f5f9;
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  border-bottom: 1.5px solid var(--color-line);
+  text-align: left;
+}
 .promotion-review-row td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--color-line);
   vertical-align: middle;
-  padding: var(--sp-2) var(--sp-3);
+  color: var(--color-ink);
+  transition: background 0.1s ease;
+}
+.promotion-review-row:hover td {
+  background: rgba(20, 83, 138, 0.02);
 }
 .promotion-row--warning {
-  background: rgba(245, 158, 11, 0.06);
+  background: rgba(245, 158, 11, 0.04);
 }
 .promotion-row--warning td:first-child {
-  border-left: 3px solid #F59E0B;
+  border-left: 3.5px solid #F59E0B;
 }
 .promotion-row--graduate {
-  background: rgba(20, 83, 138, 0.04);
+  background: rgba(20, 83, 138, 0.03);
 }
 .promotion-row--graduate td:first-child {
-  border-left: 3px solid var(--color-primary-700);
+  border-left: 3.5px solid var(--color-primary-700);
 }
 .promotion-row--excluded {
-  opacity: 0.5;
+  opacity: 0.55;
 }
 .promotion-row--excluded td {
   text-decoration: line-through;
@@ -6832,33 +7055,208 @@ tbody tr:hover { background: var(--color-primary-100); }
   text-decoration: none;
 }
 
-/* Commit summary */
-.promotion-commit-summary {
-  background: var(--color-surface-raised);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-md);
-  padding: var(--sp-3);
+.promotion-warning-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #B45309;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 4px;
 }
-.promotion-commit-row {
+.promotion-warning-tag .icon {
+  font-size: 13px;
+  color: #D97706;
+}
+
+.promotion-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+.promotion-action-btn:hover {
+  background: var(--color-primary-100);
+  color: var(--color-primary-900);
+  border-color: var(--color-primary-600);
+}
+.promotion-action-btn--danger:hover {
+  background: rgba(179, 38, 30, 0.08);
+  color: var(--color-red);
+  border-color: rgba(179, 38, 30, 0.3);
+}
+.promotion-action-btn .icon {
+  font-size: 17px;
+}
+
+/* Empty search in table */
+.promotion-empty-search {
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--color-ink-soft);
+}
+.promotion-empty-search .icon {
+  font-size: 36px;
+  color: var(--color-ink-soft);
+  opacity: 0.6;
+  margin-bottom: var(--sp-2);
+}
+
+/* Step 1: Mode Selection Cards */
+.promotion-mode-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.promotion-mode-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.promotion-mode-card:hover {
+  border-color: var(--color-primary-600);
+  box-shadow: var(--shadow-sm);
+}
+.promotion-mode-card--active {
+  border-color: var(--color-primary-700);
+  background: rgba(20, 83, 138, 0.03);
+  box-shadow: 0 0 0 1px var(--color-primary-700);
+}
+.promotion-mode-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--color-primary-700);
+}
+.promotion-mode-card__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: rgba(20, 83, 138, 0.08);
+  color: var(--color-primary-700);
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.promotion-mode-card__content {
+  flex: 1;
+}
+.promotion-mode-card__title {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--color-primary-900);
+  margin: 0 0 3px 0;
+}
+.promotion-mode-card__desc {
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  line-height: 1.45;
+}
+
+/* Flow progression map */
+.promotion-progression-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: var(--sp-3);
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+}
+.promotion-progression-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-primary-900);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.promotion-progression-badge--grad {
+  background: rgba(20, 83, 138, 0.08);
+  color: var(--color-primary-700);
+  border-color: rgba(20, 83, 138, 0.25);
+}
+.promotion-progression-arrow {
+  color: var(--color-ink-soft);
+  font-size: 18px;
+}
+
+/* Step 3: Commit Section */
+.promotion-commit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.promotion-commit-panel {
+  padding: var(--sp-4);
+  background: #f8fafc;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+}
+.promotion-commit-panel__title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin: 0 0 var(--sp-3) 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.promotion-commit-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: var(--sp-2) 0;
 }
-.promotion-commit-row + .promotion-commit-row {
+.promotion-commit-item + .promotion-commit-item {
   border-top: 1px solid var(--color-line);
 }
-.promotion-commit-row .icon {
-  color: var(--color-primary-700);
+.promotion-commit-item .icon {
   font-size: 20px;
+  color: var(--color-primary-700);
 }
-.promotion-commit-row--muted .icon {
+.promotion-commit-item--grad .icon {
+  color: #059669;
+}
+.promotion-commit-item--muted .icon {
   color: var(--color-ink-soft);
 }
 
 /* Progress bar */
 .promotion-progress-wrap {
   margin-top: var(--sp-4);
+  padding: var(--sp-4);
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
@@ -6879,24 +7277,27 @@ tbody tr:hover { background: var(--color-primary-100); }
 .promotion-progress-text {
   font-size: var(--fs-xs);
   color: var(--color-ink-soft);
+  font-weight: 500;
 }
 
-/* Success result */
+/* Success Result */
 .promotion-result-success {
   display: flex;
   align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  background: rgba(5, 150, 105, 0.06);
-  border: 1px solid rgba(5, 150, 105, 0.2);
-  border-radius: var(--radius-md);
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  background: rgba(46, 125, 70, 0.06);
+  border: 1.5px solid rgba(46, 125, 70, 0.25);
+  border-radius: var(--radius-lg);
+  margin-top: var(--sp-3);
 }
 .promotion-result-success > .icon {
-  color: #059669;
-  font-size: 32px;
+  color: var(--color-green);
+  font-size: 36px;
+  flex-shrink: 0;
 }
 
-/* Promotion banner (dashboard + configure page) */
+/* Promotion banner (Dashboard + Configure) */
 .promotion-banner {
   display: flex;
   align-items: center;
@@ -6905,44 +7306,38 @@ tbody tr:hover { background: var(--color-primary-100); }
   border-radius: var(--radius-md);
   border: 1.5px solid var(--color-primary-700);
   background: rgba(20, 83, 138, 0.04);
-  margin-bottom: var(--sp-4);
 }
 .promotion-banner--dashboard {
   margin-top: var(--sp-4);
   margin-bottom: 0;
 }
 .promotion-banner--ready {
-  border-color: #059669;
-  background: rgba(5, 150, 105, 0.04);
+  border-color: var(--color-green);
+  background: rgba(46, 125, 70, 0.05);
   margin-bottom: var(--sp-4);
 }
 .promotion-banner--ready .icon:first-child {
-  color: #059669;
-}
-
-/* Graduated badge */
-.badge--primary {
-  background: var(--color-primary-700);
-  color: #fff;
+  color: var(--color-green);
 }
 
 /* Responsive */
-@media (max-width: 600px) {
-  .promotion-steps {
-    gap: var(--sp-1);
-  }
-  .promotion-step__label {
+@media (max-width: 680px) {
+  .promotion-step-meta {
     display: none;
   }
-  .promotion-step {
-    padding: var(--sp-2);
+  .promotion-step-node {
+    justify-content: center;
+    padding: 6px;
+  }
+  .promotion-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .promotion-search-wrap {
+    max-width: 100%;
   }
   .promotion-banner {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--sp-2);
   }
-  .promotion-summary-bar {
-    flex-direction: column;
-  }
-}
+}

@@ -131,7 +131,9 @@ export function generatePromotionPlan(students, classes, options = {}) {
       if (available.length > 0 && !available.includes(fromStream)) {
         // Student's stream doesn't exist in the destination grade
         toStream = available[0]; // Default to first available
-        warning = `Stream "${fromStream}" not found in ${toGrade}. Assigned to "${toStream}".`;
+        warning = fromStream
+          ? `Stream "${fromStream}" not in ${toGrade} · Assigned to "${toStream}"`
+          : `No stream previously assigned · Assigned to "${toStream}"`;
       }
     }
 
