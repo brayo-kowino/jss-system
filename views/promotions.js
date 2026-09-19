@@ -809,7 +809,7 @@ function buildCommitStep() {
     icon("warning"),
     el("div", {}, [
       el("div", { class: "alert__title", style: "font-weight:700;" }, "Irreversible Academic Progression"),
-      el("div", { class: "alert__body", style: "font-size:var(--fs-xs); margin-top:2px;" }, "Committing will update learner grade records in Firestore and permanently add graduating cohorts to the alumni register. Confirm that all term marks and reports have been concluded."),
+      el("div", { class: "alert__body", style: "font-size:var(--fs-xs); margin-top:2px;" }, "Committing will update learner grade records in the database and permanently add graduating cohorts to the alumni register. Confirm that all term marks and reports have been concluded."),
     ]),
   ]);
   body.append(warningAlert);
@@ -871,7 +871,7 @@ function buildCommitStep() {
               el("h3", { style: "margin:0 0 var(--sp-1); font-size:1.15rem; color:var(--color-green);" }, "Academic Promotion Successfully Committed"),
               el("p", { style: "margin:0 0 6px; font-size:var(--fs-sm); color:var(--color-ink);" }, `${result.promoted} learners promoted to their next classes, and ${result.graduated} graduates archived to Alumni.`),
               el("p", { style: "margin:0 0 6px; font-size:var(--fs-sm); font-weight:600; color:var(--color-primary-900);" }, `The active school year is now ${newYear}, ${firstTerm}.`),
-              el("p", { class: "text-muted", style: "font-size:11px; margin:0;" }, `Completed in ${result.batches} atomic Firestore batch${result.batches !== 1 ? "es" : ""}.`),
+              el("p", { class: "text-muted", style: "font-size:11px; margin:0;" }, `Completed in ${result.batches} database batch${result.batches !== 1 ? "es" : ""}.`),
             ]),
           ]),
           el("div", { style: "display:flex; gap:var(--sp-3); margin-top:var(--sp-4);" }, [
