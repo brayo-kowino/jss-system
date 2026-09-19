@@ -87,8 +87,7 @@ function buildHeroHeader() {
         icon("calendar_month"),
         `Academic Cycle · ${currentYear} ${currentTerm}`,
       ]),
-      el("h1", { class: "promotions-hero__title" }, "Student Promotion Engine"),
-      el("p", { class: "promotions-hero__desc" }, "Review cohort grade advancements, manage stream assignments, and transition terminal classes to alumni status with transparent academic year progression."),
+      el("p", { class: "promotions-hero__desc" }, "Review and advance learners to the next academic year. This process will update each learner's class, stream, and graduation status according to your selections."),
       el("div", { class: "promotions-hero__pills" }, [
         el("span", { class: "promotions-pill" }, [icon("meeting_room"), `${classes.length} Configured Classes`]),
         el("span", { class: "promotions-pill" }, [icon("groups"), `${activeCount} Active Learners`]),
