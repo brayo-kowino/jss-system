@@ -861,7 +861,6 @@ function buildCommitStep() {
         progressWrap.style.display = "none";
         commitBtn.style.display = "none";
         backBtn.style.display = "none";
-
         resultWrap.style.display = "";
         resultWrap.innerHTML = "";
         resultWrap.append(
