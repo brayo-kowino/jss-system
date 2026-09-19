@@ -1,7 +1,7 @@
 // Students collection.
 // { schoolId, admissionNumber, fullName, gender, dob, grade, stream,
 //   parentIds:[], address, phone, previousSchool, kcpeNumber, photoUrl,
-//   medicalInfo, status: "active"|"transferred"|"suspended"|"archived",
+//   medicalInfo, status: "active"|"transferred"|"suspended"|"archived"|"graduated",
 //   admissionDate, createdAt }
 import {
   collection,

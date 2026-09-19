@@ -497,6 +497,18 @@ service cloud.firestore {
       allow delete: if false; // app never deletes students, only archives/transfers via update
     }
 
+    // Alumni - graduated student records, created by the promotion engine.
+    // Read: any staff (for alumni lookups/reports). Write: only roles that
+    // can manage students (the promotion engine runs under their session).
+    // Updates and deletes are blocked - alumni records are immutable once
+    // created, preserving a permanent graduation record.
+    match /alumni/{docId} {
+      allow read:   if isStaff() && ownsExisting();
+      allow create: if canManageStudents() && ownsIncoming();
+      allow update: if false;  // alumni records are immutable
+      allow delete: if false;  // never delete alumni
+    }
+
     // Parents - same write group as students, since registering/editing a
     // student also links/unlinks the child on the parent doc
     // (linkStudentToParent/unlinkStudentFromParent) as part of that same

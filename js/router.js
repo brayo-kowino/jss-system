@@ -76,6 +76,7 @@ export const routes = {
   "/notifications": { view: () => import("../views/notifications.js"), allRoles: true, title: "Notifications" },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
   "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
+  "/promotions": { view: () => import("../views/promotions.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Promotions" },
 };
 
 // Cache of resolved modules keyed by path, so revisiting a route already

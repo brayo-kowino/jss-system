@@ -6678,3 +6678,271 @@ tbody tr:hover { background: var(--color-primary-100); }
     gap: var(--sp-2);
   }
 }
+
+/* =======================================================================
+   Promotion Engine
+   ======================================================================= */
+
+/* Step indicator bar */
+.promotion-steps {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+  padding: 0 var(--sp-2);
+}
+.promotion-step {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-line);
+  color: var(--color-ink-soft);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  flex: 1;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.promotion-step--active {
+  background: var(--color-primary-700);
+  color: #fff;
+  border-color: var(--color-primary-700);
+  font-weight: 600;
+}
+.promotion-step--done {
+  background: rgba(5, 150, 105, 0.08);
+  color: #059669;
+  border-color: #059669;
+}
+.promotion-step__number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.06);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+}
+.promotion-step--active .promotion-step__number {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+.promotion-step--done .promotion-step__number {
+  background: #059669;
+  color: #fff;
+}
+.promotion-step__label {
+  white-space: nowrap;
+}
+
+/* Mode selection */
+.promotion-mode-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.promotion-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.promotion-mode-option:hover {
+  border-color: var(--color-primary-700);
+  background: rgba(20, 83, 138, 0.03);
+}
+.promotion-mode-option input[type="radio"] {
+  margin-top: 4px;
+  accent-color: var(--color-primary-700);
+}
+.promotion-mode-option label {
+  cursor: pointer;
+  flex: 1;
+}
+.promotion-mode-option label p {
+  margin: 4px 0 0;
+  font-size: var(--fs-sm);
+}
+
+/* Grade progression preview */
+.promotion-progression {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* Manual mode fields */
+.promotion-manual-fields {
+  margin-top: var(--sp-3);
+}
+
+/* Summary bar */
+.promotion-summary-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--color-surface-raised);
+  border-bottom: 1px solid var(--color-line);
+}
+.promotion-summary-bar .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Review table */
+.promotion-review-table {
+  width: 100%;
+  font-size: var(--fs-sm);
+}
+.promotion-review-row td {
+  vertical-align: middle;
+  padding: var(--sp-2) var(--sp-3);
+}
+.promotion-row--warning {
+  background: rgba(245, 158, 11, 0.06);
+}
+.promotion-row--warning td:first-child {
+  border-left: 3px solid #F59E0B;
+}
+.promotion-row--graduate {
+  background: rgba(20, 83, 138, 0.04);
+}
+.promotion-row--graduate td:first-child {
+  border-left: 3px solid var(--color-primary-700);
+}
+.promotion-row--excluded {
+  opacity: 0.5;
+}
+.promotion-row--excluded td {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-ink-soft);
+}
+.promotion-row--excluded td:last-child {
+  text-decoration: none;
+}
+
+/* Commit summary */
+.promotion-commit-summary {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+}
+.promotion-commit-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+}
+.promotion-commit-row + .promotion-commit-row {
+  border-top: 1px solid var(--color-line);
+}
+.promotion-commit-row .icon {
+  color: var(--color-primary-700);
+  font-size: 20px;
+}
+.promotion-commit-row--muted .icon {
+  color: var(--color-ink-soft);
+}
+
+/* Progress bar */
+.promotion-progress-wrap {
+  margin-top: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.promotion-progress-track {
+  height: 8px;
+  background: var(--color-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.promotion-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary-700);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+.promotion-progress-text {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+}
+
+/* Success result */
+.promotion-result-success {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: rgba(5, 150, 105, 0.06);
+  border: 1px solid rgba(5, 150, 105, 0.2);
+  border-radius: var(--radius-md);
+}
+.promotion-result-success > .icon {
+  color: #059669;
+  font-size: 32px;
+}
+
+/* Promotion banner (dashboard + configure page) */
+.promotion-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--color-primary-700);
+  background: rgba(20, 83, 138, 0.04);
+  margin-bottom: var(--sp-4);
+}
+.promotion-banner--dashboard {
+  margin-top: var(--sp-4);
+  margin-bottom: 0;
+}
+.promotion-banner--ready {
+  border-color: #059669;
+  background: rgba(5, 150, 105, 0.04);
+  margin-bottom: var(--sp-4);
+}
+.promotion-banner--ready .icon:first-child {
+  color: #059669;
+}
+
+/* Graduated badge */
+.badge--primary {
+  background: var(--color-primary-700);
+  color: #fff;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .promotion-steps {
+    gap: var(--sp-1);
+  }
+  .promotion-step__label {
+    display: none;
+  }
+  .promotion-step {
+    padding: var(--sp-2);
+  }
+  .promotion-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+  }
+  .promotion-summary-bar {
+    flex-direction: column;
+  }
+}

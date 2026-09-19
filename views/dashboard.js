@@ -292,6 +292,34 @@ export async function render({ profile }) {
   ]);
   wrap.append(header);
 
+  // Promotion season banner — shown when the school is in its final term
+  // (typically Term 3) to nudge admin/academic roles to prepare promotions.
+  const promoRoles = ["admin", "principal", "deputy_principal", "academic_master"];
+  const terms = settings.terms || ["Term 1", "Term 2", "Term 3"];
+  const isLastTerm = terms.length > 0 && (settings.currentTerm || "") === terms[terms.length - 1];
+  const promoDismissKey = `jss_promo_banner_dismissed_${getCurrentSchoolId()}_${settings.currentAcademicYear || ""}`;
+  const promoDismissed = (() => { try { return localStorage.getItem(promoDismissKey) === "1"; } catch { return false; } })();
+
+  if (isLastTerm && promoRoles.includes(profile.role) && !promoDismissed) {
+    const promoBanner = el("div", { class: "promotion-banner promotion-banner--dashboard" }, [
+      el("span", { class: "material-symbols-rounded", style: "font-size:28px; color:var(--color-primary-700);" }, "assignment_turned_in"),
+      el("div", { style: "flex:1;" }, [
+        el("strong", {}, "End of Year — Ready to promote students?"),
+        el("p", { style: "margin:4px 0 0; color:var(--color-ink-soft);" },
+          `${settings.currentTerm} is underway. When results are finalized, use the Promotion Engine to advance students to the next academic year.`
+        ),
+      ]),
+      el("button", { class: "btn btn--primary btn--sm", onClick: () => navigate("/promotions") }, [
+        el("span", { class: "material-symbols-rounded" }, "trending_up"), "Go to Promotions"
+      ]),
+      el("button", { class: "btn btn--ghost btn--sm", title: "Dismiss", onClick: () => {
+        try { localStorage.setItem(promoDismissKey, "1"); } catch {}
+        promoBanner.remove();
+      }}, [el("span", { class: "material-symbols-rounded" }, "close")]),
+    ]);
+    wrap.append(promoBanner);
+  }
+
   if (showingStaleData) {
     wrap.append(
       el("div", { class: "notice-banner" }, [

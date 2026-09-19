@@ -54,7 +54,7 @@ let filterStatus = "";
 let currentPage = 1;
 const PAGE_SIZE = 50;
 
-const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred" };
+const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
 /**
  * Dynamic Academic Registrar mascot with student folio and graduation diploma.
@@ -236,6 +236,7 @@ export async function render({ profile }) {
     el("option", { value: "" }, "All Statuses"),
     el("option", { value: "active" }, "Active"),
     el("option", { value: "transferred" }, "Transferred"),
+    el("option", { value: "graduated" }, "Graduated"),
     el("option", { value: "suspended" }, "Suspended"),
     el("option", { value: "archived" }, "Archived"),
   ]);
@@ -458,7 +459,7 @@ function renderPagination(totalItems, totalPages, tableWrap, profile) {
 }
 
 function statusBadge(status) {
-  const map = { active: "success", transferred: "gold", suspended: "danger", archived: "muted" };
+  const map = { active: "success", transferred: "gold", suspended: "danger", archived: "muted", graduated: "primary" };
   return el("span", { class: `badge badge--${map[status] || "muted"}` }, status || "active");
 }
 
