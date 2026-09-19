@@ -98,7 +98,6 @@ function buildConfigureStep() {
   section.append(
     el("div", { class: "card__header" }, [
       el("div", { class: "card__header-text" }, [
-        el("h2", { class: "card__title" }, [icon("trending_up"), " Promotion Engine"]),
         el("p", { class: "card__subtitle" }, `${currentYear} Academic Year · ${settings.currentTerm || "Term 3"}`),
       ]),
     ])

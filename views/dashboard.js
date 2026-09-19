@@ -304,7 +304,7 @@ export async function render({ profile }) {
     const promoBanner = el("div", { class: "promotion-banner promotion-banner--dashboard" }, [
       el("span", { class: "material-symbols-rounded", style: "font-size:28px; color:var(--color-primary-700);" }, "assignment_turned_in"),
       el("div", { style: "flex:1;" }, [
-        el("strong", {}, "End of Year — Ready to promote students?"),
+        el("strong", {}, "End of Year, Ready to promote students?"),
         el("p", { style: "margin:4px 0 0; color:var(--color-ink-soft);" },
           `${settings.currentTerm} is underway. When results are finalized, use the Promotion Engine to advance students to the next academic year.`
         ),
