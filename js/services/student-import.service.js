@@ -298,15 +298,14 @@ function parseDob(value) {
 }
 
 let placeholderCounter = 0;
-function placeholderAdmissionNumber() {
-  placeholderCounter += 1;
-  return `PENDING-${Date.now().toString(36).toUpperCase()}-${placeholderCounter}`;
-}
 
 // rawRows: from parseStudentsCsv. classes: from listClasses(). existingStudents: from listStudents().
 // Returns annotated rows; also resolves in-file duplicate admission numbers against each other,
 // not just against what's already saved.
-export function validateStudentRows(rawRows, { classes = [], existingStudents = [] } = {}) {
+export function validateStudentRows(rawRows, { classes = [], existingStudents = [], schoolName = "" } = {}) {
+  // Generate a prefix based on school initials (e.g. "Sirandumb Primary" -> "SP"), fallback to "NUM"
+  const initials = schoolName.split(/\s+/).map(w => w[0]?.toUpperCase()).filter(c => /[A-Z]/.test(c)).join('').substring(0, 4);
+  const prefix = initials || "NUM";
   const admissionIndex = new Map(existingStudents.map((s) => [String(s.admissionNumber || "").toLowerCase(), s]));
   const seenInFile = new Set();
 
@@ -367,7 +366,8 @@ export function validateStudentRows(rawRows, { classes = [], existingStudents = 
     let duplicateOf = null;
     let autoAssigned = false;
     if (!data.admissionNumber) {
-      data.admissionNumber = placeholderAdmissionNumber();
+      placeholderCounter += 1;
+      data.admissionNumber = `${prefix}-${Date.now().toString(36).toUpperCase()}-${placeholderCounter}`;
       autoAssigned = true;
       issues.push({ field: "admissionNumber", level: "warning", message: "No admission number given - a placeholder was assigned; update it before printing records." });
     } else {

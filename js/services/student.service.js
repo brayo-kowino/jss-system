@@ -44,27 +44,49 @@ export async function listStudents(forceRefresh = false) {
   return cached(studentsCacheKey(), 3 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "students"), where("schoolId", "==", getCurrentSchoolId())));
     
-    // Background auto-heal for phantom streams from legacy imports
+    // Background auto-heal for phantom streams and legacy PENDING admission numbers
     let classMap = null;
+    let settings = null;
     try {
       const { listClasses } = await import("./academic.service.js");
-      const classes = await listClasses();
+      const { getSchoolSettings } = await import("./settings.service.js");
+      const [classes, schoolSettings] = await Promise.all([listClasses(), getSchoolSettings()]);
       classMap = new Map(classes.map(c => [c.grade, c]));
+      settings = schoolSettings;
     } catch(e) {}
+
+    const prefix = settings?.schoolName 
+      ? settings.schoolName.split(/\s+/).map(w => w[0]?.toUpperCase()).filter(c => /[A-Z]/.test(c)).join('').substring(0, 4) 
+      : "NUM";
 
     const results = [];
     for (const d of snap.docs) {
       const data = d.data();
+      let needsUpdate = false;
+      const updates = {};
       
-      // If the matched class explicitly has NO streams configured, but the student 
-      // somehow has one (e.g. from an old Excel upload like "CHAMPIONS"), scrub it.
+      // 1. Scrub phantom streams from streamless classes
       if (classMap) {
         const cls = classMap.get(data.grade);
         if (cls && (!cls.streams || cls.streams.length === 0) && data.stream) {
-          updateDoc(d.ref, { stream: "" }).catch(() => null);
+          updates.stream = "";
           data.stream = "";
+          needsUpdate = true;
         }
       }
+
+      // 2. Retroactively fix 'PENDING-' admission numbers to the new initial-based prefix
+      if (data.admissionNumber && data.admissionNumber.startsWith("PENDING-")) {
+        const newAdm = data.admissionNumber.replace("PENDING-", `${prefix}-`);
+        updates.admissionNumber = newAdm;
+        data.admissionNumber = newAdm;
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        updateDoc(d.ref, updates).catch(() => null);
+      }
+
       results.push({ id: d.id, ...data });
     }
 

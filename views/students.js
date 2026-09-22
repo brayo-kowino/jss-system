@@ -1224,7 +1224,7 @@ function openImportModal(profile) {
   });
 
   function annotate() {
-    const annotated = validateStudentRows(rawRows, { classes, existingStudents: students });
+    const annotated = validateStudentRows(rawRows, { classes, existingStudents: students, schoolName: settings?.schoolName || "" });
     for (const row of annotated) {
       if (row.status === "blocked") { row.action = "skip"; continue; }
       const override = actionOverrides.get(row.rowNumber);
