@@ -671,7 +671,7 @@ function checkSettingsReadiness(settings) {
       title: "Academic Calendar & Term Dates",
       desc: "Configure current term, closing date, and reopening date for accurate report cards, fee cycles, and milestone tracking.",
       icon: "event_note",
-      badge: "Crucial for Reports",
+      badge: "Needed for Reports",
     });
   }
 
