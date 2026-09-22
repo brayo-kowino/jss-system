@@ -349,6 +349,10 @@ export function validateStudentRows(rawRows, { classes = [], existingStudents = 
         issues.push({ field: "stream", level: "blocked", message: `"${raw.stream}" isn't a valid stream of ${cls.grade} (${cls.streams.join(", ")}).` });
         data.stream = "";
       }
+    } else {
+      // Force stream to be empty if the class has NO streams configured.
+      // This prevents phantom streams like "CHAMPIONS" from an uploaded file from breaking queries.
+      data.stream = "";
     }
 
     // --- Date of birth (optional, best-effort parse) ---

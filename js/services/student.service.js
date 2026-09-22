@@ -43,7 +43,32 @@ export async function listStudents(forceRefresh = false) {
   if (forceRefresh) invalidate(studentsCacheKey());
   return cached(studentsCacheKey(), 3 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "students"), where("schoolId", "==", getCurrentSchoolId())));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+    
+    // Background auto-heal for phantom streams from legacy imports
+    let classMap = null;
+    try {
+      const { listClasses } = await import("./academic.service.js");
+      const classes = await listClasses();
+      classMap = new Map(classes.map(c => [c.grade, c]));
+    } catch(e) {}
+
+    const results = [];
+    for (const d of snap.docs) {
+      const data = d.data();
+      
+      // If the matched class explicitly has NO streams configured, but the student 
+      // somehow has one (e.g. from an old Excel upload like "CHAMPIONS"), scrub it.
+      if (classMap) {
+        const cls = classMap.get(data.grade);
+        if (cls && (!cls.streams || cls.streams.length === 0) && data.stream) {
+          updateDoc(d.ref, { stream: "" }).catch(() => null);
+          data.stream = "";
+        }
+      }
+      results.push({ id: d.id, ...data });
+    }
+
+    return results.sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
   });
 }
 
