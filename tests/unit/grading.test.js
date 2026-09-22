@@ -22,7 +22,7 @@ describe("CBC Grading Engine & Position Calculations", () => {
       // 69.61 falls between 69 and 70 if integer bounds are improperly coded
       const result = gradeFor(69.61, DEFAULT_GRADING_SCALE);
       expect(result).not.toBeNull();
-      expect(["ME1", "ME2", "EE2"]).toContain(result.grade);
+      expect(result.grade).toBe("EE1");
     });
 
     it("evaluates borderline scores at exact band thresholds", () => {

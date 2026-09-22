@@ -16,14 +16,14 @@ import { uploadToCloudinary } from "./cloudinary.service.js";
 import { cached, invalidate } from "./query-cache.js";
 
 export const DEFAULT_GRADING_SCALE = [
-  { min: 90, max: 100, grade: "EE1", points: 8, remark: "Exceeding Expectations" },
-  { min: 75, max: 89, grade: "EE2", points: 7, remark: "Exceeding Expectations" },
-  { min: 58, max: 74, grade: "ME1", points: 6, remark: "Meeting Expectations" },
-  { min: 41, max: 57, grade: "ME2", points: 5, remark: "Meeting Expectations" },
-  { min: 31, max: 40, grade: "AE1", points: 4, remark: "Approaching Expectations" },
-  { min: 21, max: 30, grade: "AE2", points: 3, remark: "Approaching Expectations" },
-  { min: 11, max: 20, grade: "BE1", points: 2, remark: "Below Expectations" },
-  { min: 0, max: 10, grade: "BE2", points: 1, remark: "Below Expectations" },
+  { min: 63, max: 72, grade: "EE1", points: 8, remark: "Exceeding Expectation 1" },
+  { min: 54, max: 62, grade: "EE2", points: 7, remark: "Exceeding Expectation 2" },
+  { min: 45, max: 53, grade: "ME1", points: 6, remark: "Meeting Expectation 1" },
+  { min: 36, max: 44, grade: "ME2", points: 5, remark: "Meeting Expectation 2" },
+  { min: 27, max: 35, grade: "AE1", points: 4, remark: "Approaching Expectation 1" },
+  { min: 18, max: 26, grade: "AE2", points: 3, remark: "Approaching Expectation 2" },
+  { min: 9, max: 17, grade: "BE1", points: 2, remark: "Below Expectation 1" },
+  { min: 1, max: 8, grade: "BE2", points: 1, remark: "Below Expectation 2" },
 ];
 
 export const DEFAULT_SETTINGS = {
