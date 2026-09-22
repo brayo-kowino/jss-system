@@ -76,6 +76,7 @@ export function applyBranding(settings) {
   root.setProperty("--color-primary-700", primary);
   root.setProperty("--color-primary-900", shade(primary, -30));
   root.setProperty("--color-primary-600", shade(primary, 25));
+  root.setProperty("--color-primary-100", `color-mix(in srgb, ${primary} 12%, white)`);
   root.setProperty("--color-gold", accent);
   root.setProperty("--color-gold-soft", shade(accent, 60));
   document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;

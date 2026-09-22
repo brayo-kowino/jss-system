@@ -32,8 +32,17 @@ export function qsa(selector, scope = document) {
 }
 
 // Material Symbols icon helper. Usage: icon("edit") or icon("edit", "text-gold")
-export function icon(name, extraClass = "") {
-  return el("span", { class: `material-symbols-rounded icon${extraClass ? ` ${extraClass}` : ""}` }, name);
+export function icon(name, extraClass = "", attrs = {}) {
+  let finalAttrs = { class: `material-symbols-rounded icon${extraClass ? (extraClass.startsWith('style') ? '' : ` ${extraClass}`) : ""}` };
+  if (typeof extraClass === 'string' && (extraClass.startsWith('style=') || extraClass.startsWith('style:'))) {
+    finalAttrs.style = extraClass.replace(/^style[=:]\s*/, '').replace(/^['"]|['"]$/g, '');
+  }
+  if (typeof attrs === 'string' && (attrs.startsWith('style=') || attrs.startsWith('style:'))) {
+    finalAttrs.style = (finalAttrs.style ? finalAttrs.style + ';' : '') + attrs.replace(/^style[=:]\s*/, '').replace(/^['"]|['"]$/g, '');
+  } else if (typeof attrs === 'object') {
+    finalAttrs = { ...finalAttrs, ...attrs };
+  }
+  return el("span", finalAttrs, name);
 }
 
 // Honest heads-up for views whose layout (wide grids, side-by-side charts,
@@ -221,11 +230,14 @@ export function getBrandColors() {
   return { primary, accent };
 }
 
-export function hexToRgba(hex = "#14538A", alpha = 0.1) {
-  const clean = hex.replace("#", "").trim();
-  const n = parseInt(clean, 16);
+export function hexToRgba(hex, alpha = 0.1) {
+  let cleanHex = hex || getBrandColors().primary;
+  let clean = cleanHex.replace("#", "").trim();
+  let n = parseInt(clean, 16);
   if (isNaN(n) || (clean.length !== 6 && clean.length !== 3)) {
-    return `rgba(20, 83, 138, ${alpha})`;
+    // If even the fallback fails, return hardcoded blue
+    clean = "14538A";
+    n = parseInt(clean, 16);
   }
   let r, g, b;
   if (clean.length === 3) {

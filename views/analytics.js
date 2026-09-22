@@ -205,29 +205,29 @@ export async function render({ profile }) {
 
   // 2. Numeric KPI Metric Chips
   const kpiRow = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" }, [
-    el("div", { class: "md3-kpi-chip" }, [
-      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(20,83,138,0.1); color:var(--color-primary-700);" }, [icon("school")]),
+    el("div", { class: "md3-kpi-chip md3-kpi-chip--blue" }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon("school")]),
       el("div", { class: "md3-kpi-chip__content" }, [
         el("div", { class: "md3-kpi-chip__value" }, String(students.length)),
         el("div", { class: "md3-kpi-chip__label" }, "Enrolled Students"),
       ]),
     ]),
-    el("div", { class: "md3-kpi-chip" }, [
-      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(11,37,69,0.08); color:var(--color-primary-900);" }, [icon("badge")]),
+    el("div", { class: "md3-kpi-chip md3-kpi-chip--blue" }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon("badge")]),
       el("div", { class: "md3-kpi-chip__content" }, [
         el("div", { class: "md3-kpi-chip__value" }, String(teachers.length)),
         el("div", { class: "md3-kpi-chip__label" }, "Teaching Faculty"),
       ]),
     ]),
-    el("div", { class: "md3-kpi-chip" }, [
-      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(46,125,70,0.12); color:var(--color-green);" }, [icon("menu_book")]),
+    el("div", { class: "md3-kpi-chip md3-kpi-chip--green" }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon("menu_book")]),
       el("div", { class: "md3-kpi-chip__content" }, [
         el("div", { class: "md3-kpi-chip__value" }, String(subjects.length)),
         el("div", { class: "md3-kpi-chip__label" }, "Curriculum Subjects"),
       ]),
     ]),
-    el("div", { class: "md3-kpi-chip" }, [
-      el("div", { class: "md3-kpi-chip__icon", style: "background:rgba(201,162,39,0.15); color:var(--color-gold);" }, [icon("groups")]),
+    el("div", { class: "md3-kpi-chip md3-kpi-chip--gold" }, [
+      el("div", { class: "md3-kpi-chip__icon" }, [icon("groups")]),
       el("div", { class: "md3-kpi-chip__content" }, [
         el("div", { class: "md3-kpi-chip__value" }, String(classes.length)),
         el("div", { class: "md3-kpi-chip__label" }, "Class Cohorts"),

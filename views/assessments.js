@@ -608,7 +608,7 @@ function renderTable(container, profile, canManage) {
     const nameCell = el("td", { "data-label": "Assessment" }, [
       el("div", { style: "display:flex; align-items:center; gap:10px;" }, [
         el("div", {
-          style: "background:rgba(20,83,138,0.1); color:var(--color-primary-700); border-radius:8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
+          style: "background:var(--color-primary-100); color:var(--color-primary-700); border-radius:8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
         }, [icon("assignment", "text-sm")]),
         el("div", {}, [
           el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, a.name),

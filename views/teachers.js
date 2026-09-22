@@ -338,7 +338,7 @@ function renderLoginsTab(container, profile) {
         el("td", { "data-label": "Staff Member" }, [
           el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
             el("div", {
-              style: "width:32px; height:32px; border-radius:50%; background:rgba(20,83,138,0.1); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
+              style: "width:32px; height:32px; border-radius:50%; background:var(--color-primary-100); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
             }, (u.fullName || "U").charAt(0).toUpperCase()),
             el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, u.fullName || "—"),
           ]),
@@ -693,7 +693,7 @@ function renderRosterTab(container, profile) {
         el("td", { "data-label": "Teacher Name" }, [
           el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
             el("div", {
-              style: "width:32px; height:32px; border-radius:50%; background:rgba(20,83,138,0.1); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
+              style: "width:32px; height:32px; border-radius:50%; background:var(--color-primary-100); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;",
             }, (t.fullName || "T").charAt(0).toUpperCase()),
             el("div", {}, [
               el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, t.fullName || "—"),

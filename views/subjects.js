@@ -16,8 +16,8 @@ let selectedDept = "All";
 
 const DEPT_CONFIG = {
   Sciences: { icon: "science", bg: "rgba(5, 150, 105, 0.1)", color: "#047857" },
-  Languages: { icon: "translate", bg: "rgba(20, 83, 138, 0.1)", color: "#14538a" },
-  Humanities: { icon: "public", bg: "rgba(201, 162, 39, 0.15)", color: "#8c6f12" },
+  Languages: { icon: "translate", bg: "var(--color-primary-100)", color: "var(--color-primary-700)" },
+  Humanities: { icon: "public", bg: "color-mix(in srgb, var(--color-gold) 15%, white)", color: "var(--color-gold)" },
   "Technical & Applied": { icon: "build", bg: "rgba(234, 88, 12, 0.1)", color: "#c2410c" },
   "Creative Arts": { icon: "palette", bg: "rgba(147, 51, 234, 0.1)", color: "#7e22ce" },
 };
