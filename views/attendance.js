@@ -112,7 +112,7 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
 
   if (!opts.length) {
     if (!allowedClassKeys) {
-      container.append(el("p", { class: "text-muted" }, "No classes with streams have been set up yet. Go to Academics to add them."));
+      container.append(el("p", { class: "text-muted" }, "No classes have been set up yet. Go to Academics to add them."));
     } else {
       container.append(el("p", { class: "text-muted" }, "You have no class assigned. Contact the administrator."));
     }

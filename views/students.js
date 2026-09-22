@@ -1097,19 +1097,26 @@ function openTransferForm(profile, student, onDone) {
     el("option", { value: c.grade, ...(c.grade === student.grade ? { selected: "true" } : {}) }, c.grade)
   ));
   const streamSelect = el("select", { id: "t-stream" });
+  const streamField = el("div", { class: "field" }, [el("label", {}, "Stream"), streamSelect]);
   function fillStreams(grade) {
     streamSelect.innerHTML = "";
     const cls = classes.find((c) => c.grade === grade);
-    (cls?.streams || []).forEach((s) =>
-      streamSelect.append(el("option", { value: s, ...(s === student.stream ? { selected: "true" } : {}) }, s))
-    );
+    const streams = cls?.streams || [];
+    if (streams.length === 0) {
+      streamField.style.display = "none";
+    } else {
+      streamField.style.display = "";
+      streams.forEach((s) =>
+        streamSelect.append(el("option", { value: s, ...(s === student.stream ? { selected: "true" } : {}) }, s))
+      );
+    }
   }
   fillStreams(student.grade);
   gradeSelect.addEventListener("change", (e) => fillStreams(e.target.value));
 
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Stream"), streamSelect]),
+    streamField,
     el("div", { style: "display:flex; gap:8px;" }, [
       el("button", { class: "btn btn--primary", onClick: async (e) => {
         const restore = busyButton(e.currentTarget, "Moving…");

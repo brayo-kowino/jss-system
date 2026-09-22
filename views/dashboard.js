@@ -292,30 +292,64 @@ export async function render({ profile }) {
   ]);
   wrap.append(header);
 
-  // Promotion season banner — shown when the school is in its final term
-  // (typically Term 3) to nudge admin/academic roles to prepare promotions.
+  // Promotion season banner — shown when the school is in its final term AND
+  // the term is nearing completion (≥75% elapsed) or has already ended. This
+  // avoids the banner appearing on day 1 of Term 3 when promotions are still
+  // weeks away. Falls back to a simple "is last term" check when the school
+  // hasn't configured calendar dates (termBegins / closingDate).
   const promoRoles = ["admin", "principal", "deputy_principal", "academic_master"];
   const terms = settings.terms || ["Term 1", "Term 2", "Term 3"];
   const isLastTerm = terms.length > 0 && (settings.currentTerm || "") === terms[terms.length - 1];
   const promoDismissKey = `jss_promo_banner_dismissed_${getCurrentSchoolId()}_${settings.currentAcademicYear || ""}`;
   const promoDismissed = (() => { try { return localStorage.getItem(promoDismissKey) === "1"; } catch { return false; } })();
 
-  if (isLastTerm && promoRoles.includes(profile.role) && !promoDismissed) {
+  // Compute whether the term is far enough along to warrant the nudge
+  let promoTimingReady = false;
+  if (isLastTerm && settings.closingDate) {
+    const closes = new Date(settings.closingDate);
+    const today = new Date();
+    closes.setHours(0,0,0,0);
+    today.setHours(0,0,0,0);
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const diffDays = Math.ceil((closes - today) / msPerDay);
+    let tLen = 90;
+    if (settings.termBegins) {
+      const begins = new Date(settings.termBegins);
+      begins.setHours(0,0,0,0);
+      const diffTotal = Math.ceil((closes - begins) / msPerDay);
+      if (diffTotal > 0) tLen = diffTotal;
+    }
+    const daysPassed = tLen - diffDays;
+    const termPct = Math.max(0, Math.round((daysPassed / tLen) * 100));
+    // Show when ≥75% done or the term has already closed
+    promoTimingReady = termPct >= 75 || diffDays < 0;
+  } else if (isLastTerm) {
+    // No calendar dates configured — show for the entire last term (legacy)
+    promoTimingReady = true;
+  }
+
+  if (promoTimingReady && promoRoles.includes(profile.role) && !promoDismissed) {
     const promoBanner = el("div", { class: "promotion-banner promotion-banner--dashboard" }, [
-      el("span", { class: "material-symbols-rounded", style: "font-size:28px; color:var(--color-primary-700);" }, "assignment_turned_in"),
-      el("div", { style: "flex:1;" }, [
-        el("strong", {}, "End of Year, Ready to promote students?"),
-        el("p", { style: "margin:4px 0 0; color:var(--color-ink-soft);" },
-          `${settings.currentTerm} is underway. When results are finalized, use the Promotion Engine to advance students to the next academic year.`
+      el("div", { class: "promotion-banner__icon-wrap" }, [
+        el("span", { class: "material-symbols-rounded" }, "school"),
+      ]),
+      el("div", { class: "promotion-banner__body" }, [
+        el("div", { class: "promotion-banner__title" }, "End-of-Year Promotions"),
+        el("p", { class: "promotion-banner__desc" },
+          `${settings.currentTerm} is winding down. Once results are finalized, use the Promotion Engine to advance students to the next academic year.`
         ),
       ]),
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => navigate("/promotions") }, [
-        el("span", { class: "material-symbols-rounded" }, "trending_up"), "Go to Promotions"
+      el("div", { class: "promotion-banner__actions" }, [
+        el("button", { class: "btn btn--primary btn--sm", onClick: () => navigate("/promotions") }, [
+          el("span", { class: "material-symbols-rounded" }, "trending_up"), "Go to Promotions"
+        ]),
+        el("button", { class: "btn btn--ghost btn--sm promotion-banner__dismiss", title: "Dismiss for this year", onClick: () => {
+          try { localStorage.setItem(promoDismissKey, "1"); } catch {}
+          promoBanner.style.opacity = "0";
+          promoBanner.style.transform = "translateY(-8px)";
+          setTimeout(() => promoBanner.remove(), 250);
+        }}, [el("span", { class: "material-symbols-rounded" }, "close")]),
       ]),
-      el("button", { class: "btn btn--ghost btn--sm", title: "Dismiss", onClick: () => {
-        try { localStorage.setItem(promoDismissKey, "1"); } catch {}
-        promoBanner.remove();
-      }}, [el("span", { class: "material-symbols-rounded" }, "close")]),
     ]);
     wrap.append(promoBanner);
   }

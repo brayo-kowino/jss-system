@@ -142,6 +142,7 @@ export function el(tag, attrs = {}, children = []) {
     } else node.setAttribute(key, value);
   }
   for (const child of [].concat(children)) {
+    if (child == null) continue;
     node.append(child instanceof Node ? child : document.createTextNode(child));
   }
   return node;

@@ -309,7 +309,7 @@ export async function render({ profile }) {
       const classGridMount = el("div", { style: "margin-top:16px;" });
       tabContentMount.append(classCard, classGridMount);
       renderClassPicker(classCard, profile, classGridMount);
-      if (classSelection.grade && classSelection.stream) {
+      if (classSelection.grade) {
         await loadClassGrid(profile, classGridMount);
       } else {
         renderWelcomeDisclaimers(classGridMount, "class");
@@ -451,7 +451,11 @@ async function handleDeletePeriod(profile, period, container) {
 function classOptions() {
   const opts = [];
   for (const c of classes) {
-    for (const s of c.streams || []) opts.push({ grade: c.grade, stream: s });
+    if (!c.streams || c.streams.length === 0) {
+      opts.push({ grade: c.grade, stream: "" });
+    } else {
+      for (const s of c.streams) opts.push({ grade: c.grade, stream: s });
+    }
   }
   return opts;
 }
@@ -465,13 +469,13 @@ function renderClassPicker(container, profile, gridMount) {
     ...opts.map((o) => el("option", {
       value: `${o.grade}|${o.stream}`,
       ...(`${o.grade}|${o.stream}` === `${classSelection.grade}|${classSelection.stream}` ? { selected: "true" } : {})
-    }, `${o.grade} ${o.stream}`)),
+    }, o.stream ? `${o.grade} ${o.stream}` : o.grade)),
   ]);
 
   select.addEventListener("change", async () => {
     const [grade, stream] = select.value.split("|");
     classSelection = { grade: grade || "", stream: stream || "" };
-    if (!classSelection.grade || !classSelection.stream) {
+    if (!classSelection.grade) {
       renderWelcomeDisclaimers(gridMount, "class");
     } else {
       await loadClassGrid(profile, gridMount);
@@ -503,7 +507,7 @@ function renderClassPicker(container, profile, gridMount) {
 }
 
 async function loadClassGrid(profile, gridMount) {
-  if (!classSelection.grade || !classSelection.stream) {
+  if (!classSelection.grade) {
     renderWelcomeDisclaimers(gridMount, "class");
     return;
   }
@@ -578,7 +582,7 @@ async function openAssignModal(profile, day, period, gridMount) {
   body.append(
     el("div", { class: "callout callout--info", style: "margin-bottom:12px; padding:8px 12px; font-size:12px;" }, [
       icon("schedule", "text-xs"),
-      `${classSelection.grade} ${classSelection.stream} · ${day} · ${period.name} (${period.startTime}–${period.endTime})`,
+      `${classSelection.grade}${classSelection.stream ? " " + classSelection.stream : ""} · ${day} · ${period.name} (${period.startTime}–${period.endTime})`,
     ]),
     el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
     el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
