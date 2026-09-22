@@ -456,10 +456,13 @@ function openCreateLoginModal(profile, presetTeacher = null) {
           classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), `${c.grade} ${stream}`]));
         }
       }
+      const tscField = selectedRole === "class_teacher"
+        ? el("div", { class: "field" }, [el("label", {}, "TSC Number (Optional)"), el("input", { id: "cl-tscNumber", type: "text" })])
+        : null;
+
       fieldsMount.append(
         el("div", { class: "field" }, [el("label", {}, "Full Name"), el("input", { id: "cl-fullName", type: "text" })]),
-        el("div", { class: "field" }, [el("label", {}, "TSC Number"), el("input", { id: "cl-tscNumber", type: "text" })]),
-        el("div", { class: "field" }, [el("label", {}, "Phone"), el("input", { id: "cl-phone", type: "text" })]),
+        tscField,
         el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
         el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
       );
@@ -509,8 +512,8 @@ function openCreateLoginModal(profile, presetTeacher = null) {
             }
           }
           teacherId = await createTeacher(profile.uid, {
-            fullName: val("cl-fullName"), teacherNumber: "", tscNumber: val("cl-tscNumber"),
-            phone: val("cl-phone"), email, subjectCodes, classAssignments,
+            fullName: val("cl-fullName"), teacherNumber: "", tscNumber: document.getElementById("cl-tscNumber")?.value || "",
+            phone: "", email, subjectCodes, classAssignments,
           });
         }
       }
@@ -868,11 +871,16 @@ function openTeacherForm(profile, existing = null) {
     }
   }
 
+  const tscField = field("t-tscNumber", "TSC Number (Optional)", existing?.tscNumber);
+  tscField.style.display = selectedClasses.size > 0 ? "block" : "none";
+  classChecklist.addEventListener("change", () => {
+    tscField.style.display = classChecklist.querySelector("input:checked") ? "block" : "none";
+  });
+
   body.append(
     field("t-fullName", "Full Name", existing?.fullName),
     field("t-teacherNumber", "Teacher Number", existing?.teacherNumber),
-    field("t-tscNumber", "TSC Number", existing?.tscNumber),
-    field("t-phone", "Phone", existing?.phone),
+    tscField,
     field("t-email", "Email", existing?.email, "email"),
     el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
     el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
@@ -892,8 +900,8 @@ function openTeacherForm(profile, existing = null) {
     const data = {
       fullName: val("t-fullName"),
       teacherNumber: val("t-teacherNumber"),
-      tscNumber: val("t-tscNumber"),
-      phone: val("t-phone"),
+      tscNumber: document.getElementById("t-tscNumber")?.value || "",
+      phone: "",
       email: val("t-email"),
       subjectCodes,
       classAssignments,
