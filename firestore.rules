@@ -539,14 +539,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Teacher accounts/assignments - PII (phone, TSC number, email) that
-    // no longer needs to be world-readable to every staff role. Read is
-    // admin/principal (Teachers page), academic_master (Analytics), or the
-    // teacher's own linked record (marks/attendance entry resolves "which
-    // subjects/classes am I assigned" via getTeacherByUserId). Write stays
-    // admin/principal only, matching the Teachers page.
+    // Teacher accounts/assignments - PII (phone, TSC number, email).
+    // `get` (single-doc fetch): any staff in the same school.
+    // `list` (collection query): admin/principal/academic_master can list
+    // the full roster; any other staff role can query their own linked
+    // record via getTeacherByUserId or getTeacherByEmail (marks entry,
+    // timetable, attendance all need this). Write stays admin/principal
+    // only, matching the Teachers page.
     match /teachers/{docId} {
-      allow read: if isStaff() && ownsExisting();
+      allow get: if isStaff() && ownsExisting();
+      allow list: if isStaff() && isFullyVerified() && isSubscriptionActive()
+        && mySchoolId() != null;
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
