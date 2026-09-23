@@ -950,9 +950,29 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   } else {
     // Plot current subjects
     const subjects = [...result.subjects].sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Add Mean Score Benchmark Line
+    const avgScore = result.meanMarks || 0;
+    if (avgScore > 0) {
+      chartWrap.style.position = "relative";
+      const ghostCol = el("div", {
+        style: "position: absolute; top: 16px; bottom: 0; left: 8px; right: 8px; display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; z-index: 0;"
+      });
+      const ghostGain = el("div", { class: "report-card__chart-gain" });
+      const ghostVal = el("div", { class: "report-card__chart-val" });
+      const ghostBarWrap = el("div", {
+        style: `height: ${avgScore}%; width: 100%; border-top: 1.5px dashed var(--color-primary-600); position: relative;`
+      }, [
+        el("span", { style: "position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: bold; color: var(--color-primary-600); background: #fff; padding: 0 4px;" }, `MEAN: ${avgScore.toFixed(0)}`)
+      ]);
+      const ghostLbl = el("div", { class: "report-card__chart-lbl" });
+      ghostCol.append(ghostGain, ghostVal, ghostBarWrap, ghostLbl);
+      chartWrap.append(ghostCol);
+    }
+
     subjects.forEach(sub => {
       const barHeight = Math.max(0, Math.min(100, sub.average));
-      const col = el("div", { class: "report-card__chart-col" });
+      const col = el("div", { class: "report-card__chart-col", style: "z-index: 1;" });
       
       let gainNode = el("div", { class: "report-card__chart-gain" }, "");
       if (sub.midtScore != null && sub.endScore != null) {
@@ -967,7 +987,26 @@ function buildCard(result, feeSummary, priorHistory, profile) {
         class: "report-card__chart-bar",
         style: `height: ${barHeight}%; background: var(--color-primary-600);` 
       });
-      const lblStr = sub.name.length > 4 ? sub.name.substring(0, 3).toUpperCase() : sub.name.toUpperCase();
+      
+      // Smart abbreviations to prevent CRE duplication
+      let subName = sub.name.toUpperCase();
+      let lblStr = subName;
+      if (subName.includes("CREATIVE") || subName.includes("ART")) lblStr = "CRA";
+      else if (subName.includes("CHRISTIAN") || subName === "CRE") lblStr = "CRE";
+      else if (subName.includes("AGRICULTURE")) lblStr = "AGR";
+      else if (subName.includes("ENGLISH")) lblStr = "ENG";
+      else if (subName.includes("KISWAHILI")) lblStr = "KIS";
+      else if (subName.includes("MATH")) lblStr = "MAT";
+      else if (subName.includes("INTEGRATED") || subName.includes("SCIENCE")) lblStr = "SCI";
+      else if (subName.includes("SOCIAL")) lblStr = "SOC";
+      else if (subName.includes("PRE-TECHNICAL") || subName.includes("PRE TECH")) lblStr = "PRE";
+      else if (subName.includes("COMPUTER")) lblStr = "COM";
+      else if (subName.includes("HOME")) lblStr = "HOM";
+      else if (subName.includes("PHYSICAL") || subName.includes("PHE")) lblStr = "PHE";
+      else if (subName.includes("BUSINESS")) lblStr = "BUS";
+      else if (subName.includes("LIFE")) lblStr = "LIF";
+      else if (lblStr.length > 4) lblStr = lblStr.substring(0, 3);
+      
       const lblNode = el("div", { class: "report-card__chart-lbl" }, lblStr);
       col.append(gainNode, valNode, barNode, lblNode);
       chartWrap.append(col);
