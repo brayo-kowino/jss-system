@@ -87,10 +87,15 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
       clonedElement.style.maxWidth = `${targetWidth}px`;
       clonedElement.style.minWidth = `${targetWidth}px`;
       clonedElement.style.boxShadow = "none";
-      clonedElement.style.border = "none";
       clonedElement.style.borderRadius = "0";
       clonedElement.style.margin = "0";
-      clonedElement.style.padding = isReceipt ? "16px" : "12px 16px 16px 16px";
+      if (!isReceipt) {
+        clonedElement.style.border = "3px double var(--color-primary-900)";
+        clonedElement.style.padding = "24px";
+      } else {
+        clonedElement.style.border = "none";
+        clonedElement.style.padding = "16px";
+      }
       clonedElement.style.transform = "none";
       clonedElement.style.zoom = "1";
 
