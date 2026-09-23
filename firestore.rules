@@ -262,8 +262,11 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
         get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('status', '') != 'suspended' &&
         !(get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionStatus', '') in ['revoked', 'suspended', 'expired']) &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionExpiresAt', null) is timestamp &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionExpiresAt', null) > request.time
+        (
+          !("subscriptionExpiresAt" in get(/databases/$(database)/documents/schools/$(mySchoolId())).data) ||
+          get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt == null ||
+          get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
+        )
       );
     }
 
