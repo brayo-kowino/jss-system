@@ -71,6 +71,8 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
 
   const canvas = await html2canvas(node, {
     scale,
+    width: targetWidth,
+    windowWidth: targetWidth,
     backgroundColor: "#ffffff",
     useCORS: true,
     allowTaint: false,
