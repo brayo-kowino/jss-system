@@ -451,9 +451,14 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       }
       const classChecklist = el("div", { class: "checklist" });
       for (const c of classes) {
-        for (const stream of c.streams || []) {
-          const key = `${c.grade}|${stream}`;
-          classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), `${c.grade} ${stream}`]));
+        if (!c.streams || c.streams.length === 0) {
+          const key = `${c.grade}|`;
+          classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), c.grade]));
+        } else {
+          for (const stream of c.streams) {
+            const key = `${c.grade}|${stream}`;
+            classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), `${c.grade} ${stream}`]));
+          }
         }
       }
       const tscField = selectedRole === "class_teacher"
@@ -506,9 +511,14 @@ function openCreateLoginModal(profile, presetTeacher = null) {
           const subjectCodes = subjects.filter((s) => document.getElementById(`cl-subj-${s.code}`)?.checked).map((s) => s.code);
           const classAssignments = [];
           for (const c of classes) {
-            for (const stream of c.streams || []) {
-              const key = `${c.grade}|${stream}`;
-              if (document.getElementById(`cl-class-${key}`)?.checked) classAssignments.push({ grade: c.grade, stream });
+            if (!c.streams || c.streams.length === 0) {
+              const key = `${c.grade}|`;
+              if (document.getElementById(`cl-class-${key}`)?.checked) classAssignments.push({ grade: c.grade, stream: "" });
+            } else {
+              for (const stream of c.streams) {
+                const key = `${c.grade}|${stream}`;
+                if (document.getElementById(`cl-class-${key}`)?.checked) classAssignments.push({ grade: c.grade, stream });
+              }
             }
           }
           teacherId = await createTeacher(profile.uid, {
@@ -547,11 +557,18 @@ function openAssignmentModal(profile, teacher) {
   const classChecklist = el("div", { class: "checklist" });
   const selectedClasses = new Set((teacher.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
   for (const c of classes) {
-    for (const stream of c.streams || []) {
-      const key = `${c.grade}|${stream}`;
+    if (!c.streams || c.streams.length === 0) {
+      const key = `${c.grade}|`;
       classChecklist.append(el("label", { class: "checklist-item" }, [
-        el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }), `${c.grade} ${stream}`,
+        el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }), c.grade,
       ]));
+    } else {
+      for (const stream of c.streams) {
+        const key = `${c.grade}|${stream}`;
+        classChecklist.append(el("label", { class: "checklist-item" }, [
+          el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }), `${c.grade} ${stream}`,
+        ]));
+      }
     }
   }
   body.append(
@@ -864,10 +881,16 @@ function openTeacherForm(profile, existing = null) {
   const classChecklist = el("div", { class: "checklist" });
   const selectedClasses = new Set((existing?.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
   for (const c of classes) {
-    for (const stream of c.streams || []) {
-      const key = `${c.grade}|${stream}`;
+    if (!c.streams || c.streams.length === 0) {
+      const key = `${c.grade}|`;
       const checkbox = el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) });
-      classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, `${c.grade} ${stream}`]));
+      classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, c.grade]));
+    } else {
+      for (const stream of c.streams) {
+        const key = `${c.grade}|${stream}`;
+        const checkbox = el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) });
+        classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, `${c.grade} ${stream}`]));
+      }
     }
   }
 
