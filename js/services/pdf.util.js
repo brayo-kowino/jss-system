@@ -12,10 +12,7 @@ function loadLibs() {
 
 export function prewarmPdfLibs() {
   if (typeof window === "undefined") return;
-  const schedule = typeof window.requestIdleCallback === "function" ? window.requestIdleCallback : (cb) => setTimeout(cb, 500);
-  schedule(() => {
-    loadLibs().catch(() => {});
-  });
+  loadLibs().catch(() => {});
 }
 
 let zipLibPromise = null;
@@ -52,6 +49,26 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3
   const isReceipt = node.classList?.contains("receipt");
   const targetWidth = isReceipt ? 440 : 840;
 
+  // Pre-convert any loaded images in the live node to base64 Data URIs.
+  // This guarantees offline rendering, eliminates cross-origin network fetches,
+  // and prevents html2canvas from timing out or failing.
+  const liveImgs = node.querySelectorAll("img");
+  const inlinedMap = new Map();
+  for (const img of liveImgs) {
+    if (img.src && !img.src.startsWith("data:") && img.complete && img.naturalWidth > 0) {
+      try {
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        inlinedMap.set(img.src, c.toDataURL("image/png"));
+      } catch (err) {
+        // Tainted image or CORS restricted; will handle in onclone
+      }
+    }
+  }
+
   const canvas = await html2canvas(node, {
     scale,
     backgroundColor: "#ffffff",
@@ -73,6 +90,7 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3
       clonedElement.style.margin = "0";
       clonedElement.style.padding = isReceipt ? "16px" : "24px";
       clonedElement.style.transform = "none";
+      clonedElement.style.zoom = "1";
 
       // 2. Expand all table containers to be fully visible (no horizontal scrollbar clipping)
       const wraps = clonedElement.querySelectorAll(".table-wrap, table, .report-card__student, .report-card__header");
@@ -95,12 +113,41 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3
         ta.parentNode.replaceChild(div, ta);
       });
 
-      // 4. Mark all images as crossOrigin so html2canvas can draw Firebase
-      //    Storage photos (logo, student photo) without tainting the canvas
-      //    or triggering a redundant re-fetch on cache mismatch.
+      // 4. Mark all images as crossOrigin or inline pre-converted data URIs
       clonedElement.querySelectorAll("img").forEach((img) => {
-        img.crossOrigin = "anonymous";
+        const inlined = inlinedMap.get(img.src);
+        if (inlined) {
+          img.src = inlined;
+        } else {
+          img.crossOrigin = "anonymous";
+        }
       });
+
+      // 5. Sanitize any modern CSS color functions (color(srgb ...), oklch, color-mix)
+      // that crash html2canvas's legacy color parser
+      try {
+        const colorCanvas = clonedDoc.createElement("canvas");
+        colorCanvas.width = 1;
+        colorCanvas.height = 1;
+        const colorCtx = colorCanvas.getContext("2d");
+        const allNodes = [clonedElement, ...clonedElement.querySelectorAll("*")];
+        const colorProps = ["color", "backgroundColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"];
+
+        for (const el of allNodes) {
+          const comp = window.getComputedStyle(el);
+          for (const prop of colorProps) {
+            const val = comp[prop];
+            if (val && (val.startsWith("color(") || val.startsWith("oklch(") || val.includes("color-mix("))) {
+              try {
+                colorCtx.fillStyle = val;
+                colorCtx.fillRect(0, 0, 1, 1);
+                const [r, g, b, a] = colorCtx.getImageData(0, 0, 1, 1).data;
+                el.style[prop] = `rgba(${r}, ${g}, ${b}, ${a / 255})`;
+              } catch (_) {}
+            }
+          }
+        }
+      } catch (_) {}
     },
   });
 

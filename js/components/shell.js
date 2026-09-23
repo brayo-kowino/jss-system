@@ -47,6 +47,14 @@ function shade(hex, amt) {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
+function tint(hex, ratio = 0.12) {
+  const n = parseInt((hex || "#14538A").replace("#", ""), 16);
+  const r = Math.round(((n >> 16) & 255) * ratio + 255 * (1 - ratio));
+  const g = Math.round(((n >> 8) & 255) * ratio + 255 * (1 - ratio));
+  const b = Math.round((n & 255) * ratio + 255 * (1 - ratio));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
 // Captured once, before any school branding has had a chance to overwrite
 // it, so there's a real generic title to fall back to for contexts with no
 // resolved school (e.g. super_admin/Platform Admin).
@@ -76,7 +84,7 @@ export function applyBranding(settings) {
   root.setProperty("--color-primary-700", primary);
   root.setProperty("--color-primary-900", shade(primary, -30));
   root.setProperty("--color-primary-600", shade(primary, 25));
-  root.setProperty("--color-primary-100", `color-mix(in srgb, ${primary} 12%, white)`);
+  root.setProperty("--color-primary-100", tint(primary, 0.12));
   root.setProperty("--color-gold", accent);
   root.setProperty("--color-gold-soft", shade(accent, 60));
   document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;

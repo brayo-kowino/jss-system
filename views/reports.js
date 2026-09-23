@@ -193,6 +193,7 @@ export function buildReportsMascotSvg({ width = 165, height = 150 } = {}) {
 }
 
 export async function render({ profile }) {
+  prewarmPdfLibs();
   if (profile.role === "subject_teacher" || NO_PORTAL_YET.includes(profile.role)) {
     return el("div", { class: "empty-state", style: "padding:var(--sp-8) var(--sp-4);" }, [
       icon("lock", "empty-state__icon", "style: font-size:48px; color:var(--color-ink-soft);"),
@@ -795,7 +796,8 @@ async function handleDownload(btn, result) {
     });
   } catch (err) {
     console.error("PDF generation error:", err);
-    toast("Could not generate PDF - check your connection and try again.", "error");
+    toast("Direct PDF export encountered an issue. Opening Print to Save as PDF...", "info");
+    window.print();
   } finally {
     button.innerHTML = originalHTML;
     button.disabled = false;
