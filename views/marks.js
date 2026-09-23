@@ -153,7 +153,12 @@ export async function render({ profile }) {
 
   allowedSubjectCodes = null;
   if (!CAN_MANAGE.includes(profile.role)) {
-    const teacher = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+    let teacher = null;
+    try {
+      teacher = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+    } catch (err) {
+      console.warn("Could not fetch teacher profile (permissions or missing link):", err);
+    }
     allowedSubjectCodes = new Set(teacher?.subjectCodes || []);
   }
 

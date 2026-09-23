@@ -258,13 +258,13 @@ service cloud.firestore {
     // exists to close. Suspend/Reactivate now goes through
     // school-status.ts instead, same shape as activate/revoke.
     function isSubscriptionActive() {
-      return mySchoolId() == null 
-        || 'subscriptionActiveUntil' in request.auth.token
-        || (
-             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.status != 'suspended' &&
-             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt != null &&
-             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
-           );
+      return mySchoolId() == null || 'subscriptionActiveUntil' in request.auth.token || (
+        exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('status', '') != 'suspended' &&
+        !(get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionStatus', '') in ['revoked', 'suspended', 'expired']) &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionExpiresAt', null) is timestamp &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionExpiresAt', null) > request.time
+      );
     }
 
     // Fields nobody can touch directly through a normal document write on
@@ -549,7 +549,7 @@ service cloud.firestore {
     // subjects/classes am I assigned" via getTeacherByUserId). Write stays
     // admin/principal only, matching the Teachers page.
     match /teachers/{docId} {
-      allow read: if isStaff() && ownsExisting();
+      allow read: if (canManageTeachers() || resource.data.userId == request.auth.uid || resource.data.email == request.auth.token.email) && ownsExisting();
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
