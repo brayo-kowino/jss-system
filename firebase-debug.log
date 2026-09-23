@@ -1,0 +1,15 @@
+[debug] [2026-09-23T09:00:37.333Z] ----------------------------------------------------------------------
+[debug] [2026-09-23T09:00:37.365Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Brian\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:rules
+[debug] [2026-09-23T09:00:37.367Z] CLI Version:   15.15.0
+[debug] [2026-09-23T09:00:37.367Z] Platform:      win32
+[debug] [2026-09-23T09:00:37.367Z] Node Version:  v24.14.0
+[debug] [2026-09-23T09:00:37.368Z] Time:          Wed Sep 23 2026 12:00:37 GMT+0300 (East Africa Time)
+[debug] [2026-09-23T09:00:37.368Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-09-23T09:00:37.377Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-09-23T09:00:47.238Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\Brian\AppData\Roaming\npm\node_modules\firebase-tools\lib\utils.js:309:49)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.
