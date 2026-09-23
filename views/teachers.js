@@ -470,9 +470,19 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       );
       if (tscField) fieldsMount.append(tscField);
       fieldsMount.append(
-        el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
-        el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
-      );
+          el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
+          el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
+          el("div", { class: "field" }, [
+            el("label", {}, "Home-Room Class (Optional)"),
+            el("select", { id: "cl-homeroom" }, [
+              el("option", { value: "" }, "None (Subject Teacher only)"),
+              ...classes.flatMap((c) => {
+                if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|` }, c.grade)];
+                return c.streams.map(s => el("option", { value: `${c.grade}|${s}` }, `${c.grade} ${s}`));
+              })
+            ])
+          ])
+        );
     }
 
     if (!isTeaching) {
@@ -928,11 +938,11 @@ function openTeacherForm(profile, existing = null) {
     el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
       el("div", { class: "field" }, [
         el("label", {}, "Home-Room Class (Optional)"),
-        el("select", { id: "m-homeroom" }, [
+        el("select", { id: "t-homeroom" }, [
           el("option", { value: "" }, "None (Subject Teacher only)"),
           ...classes.flatMap((c) => {
-            if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(teacher?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
-            return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(teacher?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
+            if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(existing?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
+            return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(existing?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
           })
         ])
       ]),
@@ -959,7 +969,7 @@ function openTeacherForm(profile, existing = null) {
         classAssignments,
         homeroom: document.getElementById("t-homeroom") ? document.getElementById("t-homeroom").value : "",
       };
-    try {
+      try {
       if (isEdit) {
         await updateTeacher(profile.uid, existing.id, data);
         toast("Teacher updated.", "success");
