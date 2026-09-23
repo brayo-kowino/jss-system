@@ -3,7 +3,7 @@ let libsPromise = null;
 function loadLibs() {
   if (!libsPromise) {
     libsPromise = Promise.all([
-      import("html2canvas"),
+      import("html2canvas-pro"),
       import("jspdf"),
     ]);
   }
@@ -125,31 +125,7 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
         }
       });
 
-      // 5. Sanitize any modern CSS color functions (color(srgb ...), oklch, color-mix)
-      // that crash html2canvas's legacy color parser
-      try {
-        const colorCanvas = clonedDoc.createElement("canvas");
-        colorCanvas.width = 1;
-        colorCanvas.height = 1;
-        const colorCtx = colorCanvas.getContext("2d");
-        const allNodes = [clonedElement, ...clonedElement.querySelectorAll("*")];
-        const colorProps = ["color", "backgroundColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"];
 
-        for (const el of allNodes) {
-          const comp = window.getComputedStyle(el);
-          for (const prop of colorProps) {
-            const val = comp[prop];
-            if (val && (val.startsWith("color(") || val.startsWith("oklch(") || val.includes("color-mix("))) {
-              try {
-                colorCtx.fillStyle = val;
-                colorCtx.fillRect(0, 0, 1, 1);
-                const [r, g, b, a] = colorCtx.getImageData(0, 0, 1, 1).data;
-                el.style[prop] = `rgba(${r}, ${g}, ${b}, ${a / 255})`;
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
     },
   });
 
