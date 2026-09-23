@@ -547,7 +547,10 @@ service cloud.firestore {
     // timetable, attendance all need this). Write stays admin/principal
     // only, matching the Teachers page.
     match /teachers/{docId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        (isStaff() && mySchoolId() != null && (resource == null || resource.data.schoolId == mySchoolId()))
+      );
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
