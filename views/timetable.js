@@ -687,9 +687,16 @@ async function renderTeacherPicker(container, profile, gridMount) {
   } else {
     let own = null;
     try {
-      own = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+      own = await getTeacherByUserId(profile.uid);
     } catch (err) {
-      console.error("Could not resolve own teacher record:", err);
+      console.warn("timetable: getTeacherByUserId failed:", err);
+    }
+    if (!own && profile.email) {
+      try {
+        own = await getTeacherByEmail(profile.email);
+      } catch (err) {
+        console.warn("timetable: getTeacherByEmail failed:", err);
+      }
     }
     if (!own) {
       container.append(el("div", { class: "callout callout--warning" }, [

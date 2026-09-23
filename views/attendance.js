@@ -45,7 +45,19 @@ export async function render({ profile }) {
 
   allowedClassKeys = null;
   if (!CAN_MARK_ANY_CLASS.includes(profile.role)) {
-    const teacher = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+    let teacher = null;
+    try {
+      teacher = await getTeacherByUserId(profile.uid);
+    } catch (err) {
+      console.warn("attendance: getTeacherByUserId failed:", err);
+    }
+    if (!teacher && profile.email) {
+      try {
+        teacher = await getTeacherByEmail(profile.email);
+      } catch (err) {
+        console.warn("attendance: getTeacherByEmail failed:", err);
+      }
+    }
     allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
   }
 

@@ -155,9 +155,16 @@ export async function render({ profile }) {
   if (!CAN_MANAGE.includes(profile.role)) {
     let teacher = null;
     try {
-      teacher = (await getTeacherByUserId(profile.uid)) || (await getTeacherByEmail(profile.email));
+      teacher = await getTeacherByUserId(profile.uid);
     } catch (err) {
-      console.warn("Could not fetch teacher profile (permissions or missing link):", err);
+      console.warn("Could not fetch teacher profile by uid:", err);
+    }
+    if (!teacher && profile.email) {
+      try {
+        teacher = await getTeacherByEmail(profile.email);
+      } catch (err) {
+        console.warn("Could not fetch teacher profile by email:", err);
+      }
     }
     allowedSubjectCodes = new Set(teacher?.subjectCodes || []);
   }
