@@ -466,8 +466,10 @@ function openCreateLoginModal(profile, presetTeacher = null) {
         : null;
 
       fieldsMount.append(
-        el("div", { class: "field" }, [el("label", {}, "Full Name"), el("input", { id: "cl-fullName", type: "text" })]),
-        tscField,
+        el("div", { class: "field" }, [el("label", {}, "Full Name"), el("input", { id: "cl-fullName", type: "text" })])
+      );
+      if (tscField) fieldsMount.append(tscField);
+      fieldsMount.append(
         el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
         el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
       );
