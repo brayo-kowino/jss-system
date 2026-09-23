@@ -907,34 +907,74 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   tableWrap.append(table);
   card.append(tableWrap);
 
-  // Performance history
+  // Performance Chart
+  card.append(el("h4", { class: "report-card__section-title" }, priorHistory.length ? "Performance Trend" : "Current Subject Performance"));
+  
+  const chartWrap = el("div", { class: "report-card__chart" });
+
   if (priorHistory.length) {
-    card.append(el("h4", { class: "report-card__section-title" }, "Performance History"));
-    const histWrap = el("div", { class: "table-wrap", style: "margin-bottom:16px;" });
-    const histTable = el("table", {}, [
-      el("thead", {}, el("tr", {}, [el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Mean"), el("th", {}, "Points"), el("th", {}, "Grade"), el("th", {}, "Position"), el("th", {}, "Scope")])),
-    ]);
-    const histBody = el("tbody", {});
-    for (const h of priorHistory) {
-      const hPos = isStreamView ? h.classPosition : h.overallPosition;
-      const hSize = isStreamView ? h.streamClassSize : h.classSize;
-      histBody.append(el("tr", {}, [
-        el("td", {}, `${h.term} '${String(h.academicYear).slice(-2)}`),
-        el("td", {}, `${h.grade}${h.stream ? " " + h.stream : ""}`),
-        el("td", {}, `${h.meanMarks?.toFixed(2) ?? "N/A"}%`),
-        el("td", {}, String(h.totalPoints ?? "N/A")),
-        el("td", {}, h.meanGrade || "N/A"),
-        el("td", {}, hPos ? `${hPos}/${hSize}` : "N/A"),
-        el("td", {}, positionScopeTag(isStreamView)),
-      ]));
-    }
-    histTable.append(histBody);
-    histWrap.append(histTable);
-    card.append(histWrap);
+    // Plot priorHistory + current result
+    const historyPoints = priorHistory.map(h => ({
+      label: `${h.term} '${String(h.academicYear).slice(-2)}`,
+      value: h.meanMarks || 0
+    })).concat([{
+      label: "Current",
+      value: result.meanMarks || 0,
+      highlight: true
+    }]);
+
+    let prevValue = null;
+    historyPoints.forEach(pt => {
+      const barHeight = Math.max(0, Math.min(100, pt.value));
+      const col = el("div", { class: "report-card__chart-col" });
+      
+      let gainNode = el("div", { class: "report-card__chart-gain" }, "");
+      if (prevValue !== null) {
+        const diff = pt.value - prevValue;
+        const color = diff > 0 ? "var(--color-success)" : diff < 0 ? "var(--color-danger)" : "var(--color-muted)";
+        const sign = diff > 0 ? "+" : "";
+        gainNode = el("div", { class: "report-card__chart-gain", style: `color: ${color};` }, `${sign}${diff.toFixed(1)}`);
+      }
+
+      const valNode = el("div", { class: "report-card__chart-val" }, `${pt.value.toFixed(1)}%`);
+      const barNode = el("div", { 
+        class: "report-card__chart-bar",
+        style: `height: ${barHeight}%; background: ${pt.highlight ? "var(--color-primary)" : "var(--color-primary-light)"};` 
+      });
+      const lblNode = el("div", { class: "report-card__chart-lbl" }, pt.label);
+      
+      col.append(gainNode, valNode, barNode, lblNode);
+      chartWrap.append(col);
+      prevValue = pt.value;
+    });
+  } else {
+    // Plot current subjects
+    const subjects = [...result.subjects].sort((a, b) => a.name.localeCompare(b.name));
+    subjects.forEach(sub => {
+      const barHeight = Math.max(0, Math.min(100, sub.average));
+      const col = el("div", { class: "report-card__chart-col" });
+      
+      let gainNode = el("div", { class: "report-card__chart-gain" }, "");
+      if (sub.midtScore != null && sub.endScore != null) {
+        const diff = sub.endScore - sub.midtScore;
+        const color = diff > 0 ? "var(--color-success)" : diff < 0 ? "var(--color-danger)" : "var(--color-muted)";
+        const sign = diff > 0 ? "+" : "";
+        gainNode = el("div", { class: "report-card__chart-gain", style: `color: ${color};` }, `${sign}${diff.toFixed(1)}`);
+      }
+      
+      const valNode = el("div", { class: "report-card__chart-val" }, `${sub.average.toFixed(0)}`);
+      const barNode = el("div", { 
+        class: "report-card__chart-bar",
+        style: `height: ${barHeight}%; background: var(--color-primary);` 
+      });
+      const lblStr = sub.name.length > 4 ? sub.name.substring(0, 3).toUpperCase() : sub.name.toUpperCase();
+      const lblNode = el("div", { class: "report-card__chart-lbl" }, lblStr);
+      col.append(gainNode, valNode, barNode, lblNode);
+      chartWrap.append(col);
+    });
   }
 
-  // CBC Grading Key & Performance Level Descriptors
-  card.append(gradingKeyTable(settings?.gradingScale));
+  card.append(chartWrap);
 
   // Remarks
   const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
@@ -986,10 +1026,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
 
 // CBC Grading Key & Performance Level Descriptors table:
 // Explains every grade band, score range, points, and descriptor clearly.
-function gradingKeyTable(gradingScale) {
-  const scale = (gradingScale && gradingScale.length ? gradingScale : DEFAULT_GRADING_SCALE)
-    .slice()
-    .sort((a, b) => b.min - a.min);
+
 
   const table = el("table", { class: "report-card__grading-table" }, [
     el("thead", {}, el("tr", {}, [
@@ -1063,9 +1100,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
         el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
         el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Principal"}`),
       ]),
-      el("div", { class: "report-card__stamp-box" }, [
-        el("span", {}, "Official School Stamp"),
-      ]),
+
     ]);
     box.append(footer);
   } else {
