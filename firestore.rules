@@ -260,13 +260,7 @@ service cloud.firestore {
     function isSubscriptionActive() {
       return mySchoolId() == null || 'subscriptionActiveUntil' in request.auth.token || (
         exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('status', '') != 'suspended' &&
-        !(get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('subscriptionStatus', '') in ['revoked', 'suspended', 'expired']) &&
-        (
-          !("subscriptionExpiresAt" in get(/databases/$(database)/documents/schools/$(mySchoolId())).data) ||
-          get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt == null ||
-          get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
-        )
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('status', '') != 'suspended'
       );
     }
 
@@ -552,7 +546,7 @@ service cloud.firestore {
     // subjects/classes am I assigned" via getTeacherByUserId). Write stays
     // admin/principal only, matching the Teachers page.
     match /teachers/{docId} {
-      allow read: if (canManageTeachers() || resource.data.userId == request.auth.uid || resource.data.email == request.auth.token.email) && ownsExisting();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
       allow delete: if false; // app only deactivates teachers via status update
