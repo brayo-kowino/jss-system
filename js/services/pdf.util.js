@@ -127,7 +127,6 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
         }
       });
 
-
     },
   });
 
