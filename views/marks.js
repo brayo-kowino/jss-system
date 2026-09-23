@@ -12,6 +12,7 @@ let classes = [];
 let allSubjects = [];
 let allAssessments = [];
 let allowedSubjectCodes = null; // null = unrestricted (admin/academic_master)
+let allowedClassKeys = null; // null = unrestricted (admin/academic_master)
 let selection = { classKey: "", subjectCode: "", assessmentId: "" };
 let loadedSelection = { classKey: "", subjectCode: "", assessmentId: "" };
 let roster = []; // students in the selected class
@@ -152,6 +153,7 @@ export async function render({ profile }) {
   [classes, allSubjects, allAssessments] = await Promise.all([listClasses(), listSubjects(), listAssessments()]);
 
   allowedSubjectCodes = null;
+  allowedClassKeys = null;
   if (!CAN_MANAGE.includes(profile.role)) {
     let teacher = null;
     try {
@@ -167,6 +169,7 @@ export async function render({ profile }) {
       }
     }
     allowedSubjectCodes = new Set(teacher?.subjectCodes || []);
+    allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
   }
 
   const wrap = el("div", { class: "marks-view-wrap" });
@@ -210,10 +213,14 @@ function classOptions() {
   const opts = [];
   for (const c of classes) {
     if (!c.streams || c.streams.length === 0) {
-      opts.push({ value: `${c.grade}|`, label: c.grade });
+      const key = `${c.grade}|`;
+      if (allowedClassKeys && !allowedClassKeys.has(key)) continue;
+      opts.push({ value: key, label: c.grade });
     } else {
       for (const s of c.streams) {
-        opts.push({ value: `${c.grade}|${s}`, label: `${c.grade} ${s}` });
+        const key = `${c.grade}|${s}`;
+        if (allowedClassKeys && !allowedClassKeys.has(key) && !allowedClassKeys.has(`${c.grade}|`)) continue;
+        opts.push({ value: key, label: `${c.grade} ${s}` });
       }
     }
   }
@@ -224,9 +231,10 @@ function renderPicker(container, profile, bodyMount) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid" });
 
+  const classChoices = classOptions();
   const classSelect = el("select", { id: "m-class" }, [
     el("option", { value: "" }, "Select class"),
-    ...classOptions().map((o) => el("option", { value: o.value, ...(o.value === selection.classKey ? { selected: "true" } : {}) }, o.label)),
+    ...classChoices.map((o) => el("option", { value: o.value, ...(o.value === selection.classKey ? { selected: "true" } : {}) }, o.label)),
   ]);
 
   const subjectChoices = allSubjects.filter((s) => !allowedSubjectCodes || allowedSubjectCodes.has(s.code));
@@ -252,6 +260,19 @@ function renderPicker(container, profile, bodyMount) {
     ])
   );
   container.append(row);
+
+  if (!classChoices.length) {
+    const emptyClassNotice = el("div", {
+      class: "callout callout--warning",
+      style: "margin-top:var(--sp-3); padding:10px 14px; font-size:var(--fs-xs);",
+    }, [
+      icon("warning", "text-amber"),
+      el("span", {}, !allowedClassKeys
+        ? "No classes have been configured yet. Visit Academics > Classes & Streams to add them."
+        : "You currently have no classes or streams assigned to your teaching account. Contact the school administrator to assign your classes."),
+    ]);
+    container.append(emptyClassNotice);
+  }
 
   if (!subjectChoices.length) {
     const emptyNotice = el("div", {
