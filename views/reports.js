@@ -1024,37 +1024,6 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   return card;
 }
 
-// CBC Grading Key & Performance Level Descriptors table:
-// Explains every grade band, score range, points, and descriptor clearly.
-
-
-  const table = el("table", { class: "report-card__grading-table" }, [
-    el("thead", {}, el("tr", {}, [
-      el("th", { style: "width:13%; text-align:left;" }, "CBC Grade"),
-      ...scale.map((s) => el("th", { class: "col-center" }, s.grade)),
-    ])),
-    el("tbody", {}, [
-      el("tr", {}, [
-        el("td", { style: "font-weight:600; text-align:left;" }, "Marks Range"),
-        ...scale.map((s) => el("td", { class: "col-center" }, `${s.min}–${s.max}`)),
-      ]),
-      el("tr", {}, [
-        el("td", { style: "font-weight:600; text-align:left;" }, "Points"),
-        ...scale.map((s) => el("td", { class: "col-center" }, String(s.points ?? "—"))),
-      ]),
-      el("tr", {}, [
-        el("td", { style: "font-weight:600; text-align:left;" }, "Descriptor"),
-        ...scale.map((s) => el("td", { class: "col-center", style: "font-size:10px;" }, s.remark || "—")),
-      ]),
-    ]),
-  ]);
-
-  return el("div", { class: "table-wrap", style: "margin-bottom:12px;" }, [
-    el("h4", { class: "report-card__section-title" }, "Performance Level Descriptors & Grading Key"),
-    table,
-  ]);
-}
-
 // Performance summary as a table: one header row of labels, one row of
 // values, so it lines up as columns rather than a grid of boxed stats.
 function summaryTable(pairs) {
