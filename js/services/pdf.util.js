@@ -92,6 +92,17 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
       if (!isReceipt) {
         clonedElement.style.border = "3px double var(--color-primary-900)";
         clonedElement.style.padding = "24px";
+        
+        // Force A4 aspect ratio so the border stretches to the bottom of the page
+        clonedElement.style.minHeight = "1188px"; 
+        clonedElement.style.display = "flex";
+        clonedElement.style.flexDirection = "column";
+        
+        // Push the footer dates exactly to the bottom edge of the border
+        const datesEl = clonedElement.querySelector(".report-card__dates");
+        if (datesEl) {
+          datesEl.style.marginTop = "auto";
+        }
       } else {
         clonedElement.style.border = "none";
         clonedElement.style.padding = "16px";
