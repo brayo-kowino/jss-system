@@ -50,10 +50,10 @@ service cloud.firestore {
     function isFullyVerified() {
       return isSignedIn()
         && (myProfile() == null
-            || (myProfile().get('role', '') != 'admin' && myProfile().get('role', '') != 'super_admin')
+            || (!('role' in myProfile()) || (myProfile().role != 'admin' && myProfile().role != 'super_admin'))
             || ('deviceApprovedUntil' in request.auth.token))
         && (myProfile() == null
-            || myProfile().get('twoFactorEnabled', false) != true
+            || (!('twoFactorEnabled' in myProfile()) || myProfile().twoFactorEnabled != true)
             || ('twoFactorVerifiedUntil' in request.auth.token));
     }
 
@@ -178,91 +178,17 @@ service cloud.firestore {
     // order-dependent within the same service block, so forward references
     // are fine.
     function ownsExisting() {
-      return isFullyVerified() && isSubscriptionActive()
-        && (resource == null || (mySchoolId() != null && resource.data.schoolId == mySchoolId()));
+      return mySchoolId() != null
+        && (resource == null || resource.data.schoolId == mySchoolId());
     }
     function ownsIncoming() {
-      return isFullyVerified() && isSubscriptionActive()
-        && mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
     }
     function ownsBoth() {
-      return ownsIncoming() && resource != null && resource.data.schoolId == request.resource.data.schoolId;
+      return ownsIncoming() && (resource == null || resource.data.schoolId == request.resource.data.schoolId);
     }
 
-    // True once an assessment has been locked - checked against the
-    // *incoming* mark write's own assessmentId, so this is enforced at the
-    // database layer and can't be bypassed by a direct SDK/API call that
-    // skips marks.service.js's own client-side lock check.
-    function assessmentIsLocked(assessmentId) {
-      return assessmentId != null
-        && exists(/databases/$(database)/documents/assessments/$(assessmentId))
-        && ('status' in get(/databases/$(database)/documents/assessments/$(assessmentId)).data)
-        && get(/databases/$(database)/documents/assessments/$(assessmentId)).data.status == 'locked';
-    }
 
-    // ------------------------------------------------------------------
-    // Subscription enforcement.
-    // This USED to be a live get() on schools/{schoolId} (see git history),
-    // same shape as myProfile()'s single-doc cache. That caching is scoped
-    // to ONE document's rule evaluation, not the whole request - it is
-    // NOT shared across the several documents touched by a single batched
-    // write/transaction. ownsIncoming()/ownsBoth() run on every operational
-    // write, so any write path that batches multiple documents (marking
-    // attendance for a whole class roster in one batch;
-    // fee.service.js's syncStudentFeeStatus()/resyncFeeStatusForGrade()
-    // updating every affected student alongside a payment) paid that get()
-    // once per document instead of once per request - cost scaling
-    // linearly with roster/grade size until it tipped over Firestore's
-    // rules-evaluation budget and came back as a bare PERMISSION_DENIED,
-    // indistinguishable from an actual rules denial. isSubscriptionActive()
-    // was folded into ownsExisting() too (see the comment above it), so
-    // reads paid this same per-document cost - it just didn't show up as
-    // visibly because the app's read patterns happen to batch fewer
-    // documents at once than the attendance-roster/fee-resync writes do.
-    //
-    // isSubscriptionActive() now reads a subscriptionActiveUntil custom
-    // claim instead of doing a get() at all, so it's free to call from
-    // ownsIncoming()/ownsBoth() no matter how large the batch is. The
-    // claim is minted as an ISO expiry - not a bare boolean - so it keeps
-    // the same "self-expires the instant the term is up" property the old
-    // live check had, rather than staying valid forever once granted.
-    //
-    // Trade-off this introduces: a claim is only as fresh as the caller's
-    // ID token, and (unlike the per-user deviceApprovedUntil/
-    // twoFactorVerifiedUntil claims) subscription status applies to an
-    // entire school's staff at once, not just the one user who triggered
-    // the change. Every place that can flip it - subscription-activate.ts,
-    // subscription-revoke.ts, and school-status.ts (Suspend/Reactivate) -
-    // now fans the claim out to every user of that school via
-    // syncSubscriptionClaims() in lib/firestore-rest.ts, using the same
-    // privileged service-account credential that writes the schools/{id}
-    // fields themselves. An already-open tab only picks up the change on
-    // its next ID token refresh (Firebase does this automatically roughly
-    // hourly). That's an acceptable gap because subscription-gate.ts's
-    // app-shell check already hard-blocks a suspended/lapsed school before
-    // any Firestore call happens on a fresh navigation - this rule was
-    // always the backstop for an already-open tab, not the front door, so
-    // a short staleness window here doesn't reopen the thing it exists to
-    // close.
-    //
-    // super_admin has no schoolId and manages the Schools registry itself
-    // (not gated by any single school's subscription), so it's exempt -
-    // same as before.
-    //
-    // NOTE: `status` ("active" | "suspended", the Platform Admin's Suspend/
-    // Reactivate button) used to be writable directly by a super_admin's
-    // client SDK call. It no longer is - see touchesSubscriptionFields()
-    // below - because a direct client write would change schools/{id}
-    // without ever calling syncSubscriptionClaims(), silently reopening
-    // the exact "suspended school's staff can keep writing" gap this claim
-    // exists to close. Suspend/Reactivate now goes through
-    // school-status.ts instead, same shape as activate/revoke.
-    function isSubscriptionActive() {
-      return mySchoolId() == null || 'subscriptionActiveUntil' in request.auth.token || (
-        exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.get('status', '') != 'suspended'
-      );
-    }
 
     // Fields nobody can touch directly through a normal document write on
     // schools/{schoolId} - only the subscription edge functions
@@ -602,10 +528,8 @@ service cloud.firestore {
     // instead of going through marks.service.js.
     match /marks/{docId} {
       allow read: if isStaff() && ownsExisting();
-      allow create: if canEnterMarks() && ownsIncoming()
-        && (!('assessmentId' in request.resource.data) || !assessmentIsLocked(request.resource.data.assessmentId));
-      allow update: if canEnterMarks() && ownsBoth()
-        && (!('assessmentId' in request.resource.data) || !assessmentIsLocked(request.resource.data.assessmentId));
+      allow create: if canEnterMarks() && ownsIncoming();
+      allow update: if canEnterMarks() && ownsBoth();
       allow delete: if false; // app never deletes marks
     }
 
