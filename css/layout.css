@@ -1061,23 +1061,33 @@
   align-items: center;
   justify-content: center;
   margin-bottom: var(--sp-5);
-  animation: logoEntrance 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both,
-             floatBounce 2.6s 0.9s infinite ease-in-out;
+  animation: logoEntrance 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes runningRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .splash-ring {
   position: absolute;
   border-radius: 50%;
-  border: 1.5px solid rgba(201, 162, 39, 0.45);
-  width: 130px;
-  height: 130px;
-  animation: ringPulse 2.4s ease-out infinite;
+  border: 3px solid transparent;
+  border-top-color: rgba(201, 162, 39, 0.9);
+  border-right-color: rgba(201, 162, 39, 0.9);
+  width: 140px;
+  height: 140px;
+  animation: runningRing 1.4s linear infinite;
 }
 .splash-ring--2 {
-  width: 130px;
-  height: 130px;
-  border-color: rgba(30, 111, 181, 0.35);
-  animation-delay: 0.9s;
+  width: 154px;
+  height: 154px;
+  border-width: 2px;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: rgba(30, 111, 181, 0.9);
+  border-left-color: rgba(30, 111, 181, 0.9);
+  animation: runningRing 2s linear infinite reverse;
 }
 
 .seal--splash {
