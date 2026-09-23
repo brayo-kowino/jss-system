@@ -8,12 +8,12 @@ import { el, icon, toast, busyButton } from "../js/utils.js";
 // Anyone not in this list (parent/student/admin/super_admin) isn't managed
 // from this page - admin accounts are created once, at school setup, by
 // the platform super_admin (see createSchool in school.service.js).
-const STAFF_LOGIN_ROLES = ["class_teacher", "subject_teacher", "academic_master", "principal", "deputy_principal", "bursar", "registrar"];
+const STAFF_LOGIN_ROLES = ["subject_teacher", "class_teacher", "academic_master", "principal", "deputy_principal", "bursar", "registrar"];
 
 // Which of those roles actually teach and so carry a linked `teachers` doc
 // (subjects/classes/TSC number). The rest (principal, deputy_principal,
 // bursar, registrar) are logins only - no teaching-record fields at all.
-const TEACHING_ROLES = ["class_teacher", "subject_teacher", "academic_master"];
+const TEACHING_ROLES = ["subject_teacher", "class_teacher", "academic_master"];
 
 // Mirrors firestore.rules' users/{uid} create clause: admin can create a
 // login for any staff role, principal only for class_teacher/subject_teacher.

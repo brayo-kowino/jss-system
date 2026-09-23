@@ -252,7 +252,7 @@ export async function downloadElementAsPdf(node, filename, opts) {
 // `items`: array of { filename, build } where build() returns (or
 // resolves to) the DOM node to render for that entry.
 // `onProgress(done, total, currentFilename)` fires after each item.
-export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 1.5 } = {}) {
+export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 3 } = {}) {
   const JSZip = await loadZipLib();
   const zip = new JSZip();
   const usedNames = new Set(); // guards against two students flattening to the same name (e.g. "019/25" and "019-25" both becoming "019-25")
