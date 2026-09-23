@@ -533,6 +533,16 @@ service cloud.firestore {
       allow delete: if false; // app never deletes marks
     }
 
+    // Subject remarks - configured per subject by teachers or admins
+    // for each CBC performance level (EE, ME, AE, BE).
+    // Read: any staff. Write: roles that can enter marks (subject_teacher, class_teacher, academic_master, admin).
+    match /subject_remarks/{docId} {
+      allow read: if isStaff() && ownsExisting();
+      allow create: if canEnterMarks() && ownsIncoming();
+      allow update: if canEnterMarks() && ownsBoth();
+      allow delete: if canManageAcademicStructure() && ownsExisting();
+    }
+
     // Result releases - one doc per grade/year/term/mode, controlling
     // whether the public results portal (netlify/edge-functions/
     // results-lookup.ts) is allowed to hand that batch of results to a

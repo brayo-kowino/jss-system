@@ -5,6 +5,11 @@ import { listStudents } from "../js/services/student.service.js";
 import { listMarks, bulkUpsertMarks } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
+import {
+  getSubjectRemarks,
+  saveSubjectRemarks,
+  DEFAULT_CBC_REMARKS,
+} from "../js/services/subject-remarks.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -197,13 +202,38 @@ export async function render({ profile }) {
   ]);
   wrap.append(heroBanner);
 
-  // Picker Filter Card
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
-  wrap.append(pickerCard);
+  // Tab Switcher Bar
+  const tabContainer = el("div", { class: "marks-tabs-bar", style: "display:flex; gap:10px; margin-bottom:16px;" });
+  const tabMarksBtn = el("button", { type: "button", class: "btn btn--primary btn--sm" }, [icon("edit_note", "text-xs"), "Marks Entry"]);
+  const tabRemarksBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm" }, [icon("rate_review", "text-xs"), "Subject Remarks"]);
+  tabContainer.append(tabMarksBtn, tabRemarksBtn);
+  wrap.append(tabContainer);
 
-  // Mount point for roster or welcome disclaimers
+  // Tab 1: Marks Entry container
+  const marksTabWrap = el("div", { id: "marks-entry-tab" });
+  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
   const bodyMount = el("div", { id: "marks-body-mount" });
-  wrap.append(bodyMount);
+  marksTabWrap.append(pickerCard, bodyMount);
+  wrap.append(marksTabWrap);
+
+  // Tab 2: Subject Remarks container
+  const remarksTabWrap = el("div", { id: "subject-remarks-tab", style: "display:none;" });
+  wrap.append(remarksTabWrap);
+
+  tabMarksBtn.addEventListener("click", () => {
+    tabMarksBtn.className = "btn btn--primary btn--sm";
+    tabRemarksBtn.className = "btn btn--ghost btn--sm";
+    marksTabWrap.style.display = "";
+    remarksTabWrap.style.display = "none";
+  });
+
+  tabRemarksBtn.addEventListener("click", () => {
+    tabRemarksBtn.className = "btn btn--primary btn--sm";
+    tabMarksBtn.className = "btn btn--ghost btn--sm";
+    marksTabWrap.style.display = "none";
+    remarksTabWrap.style.display = "";
+    renderSubjectRemarksTab(remarksTabWrap, profile);
+  });
 
   renderPicker(pickerCard, profile, bodyMount);
   return wrap;
@@ -848,6 +878,176 @@ async function toggleLock(profile, assessment, container) {
   } catch (err) {
     toast(err.message || "Could not update status.", "error");
   }
+}
+
+async function renderSubjectRemarksTab(container, profile) {
+  container.innerHTML = "";
+
+  const subjectChoices = allSubjects.filter((s) => !allowedSubjectCodes || allowedSubjectCodes.has(s.code));
+
+  if (!subjectChoices.length) {
+    container.append(el("div", { class: "card" }, [
+      el("div", { class: "empty-state" }, [
+        icon("menu_book"),
+        el("h3", {}, "No Subjects Assigned"),
+        el("p", { class: "text-muted" }, "There are no subjects assigned to your profile. Contact your school administrator."),
+      ]),
+    ]));
+    return;
+  }
+
+  let selectedCode = subjectChoices[0].code;
+
+  const headerCard = el("div", { class: "card", style: "margin-bottom:16px;" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+      el("div", {}, [
+        el("h3", { style: "margin:0; font-family:var(--font-display); color:var(--color-primary-900); display:flex; align-items:center; gap:8px;" }, [
+          icon("rate_review", "text-primary"),
+          "Subject Performance Level Remarks",
+        ]),
+        el("p", { class: "text-muted text-xs", style: "margin:4px 0 0;" },
+          "Define standard remarks for each CBC performance level. These remarks automatically appear on student report cards alongside your teacher initials."
+        ),
+      ]),
+      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+        el("label", { style: "font-weight:600; font-size:13px;" }, "Subject:"),
+        el("select", {
+          id: "remarks-subject-select",
+          style: "min-width:200px;",
+          onChange: (e) => {
+            selectedCode = e.target.value;
+            loadRemarksForm(selectedCode);
+          },
+        }, subjectChoices.map((s) => el("option", { value: s.code }, `${s.name} (${s.code})`))),
+      ]),
+    ]),
+  ]);
+  container.append(headerCard);
+
+  const formMount = el("div", { id: "remarks-form-mount" });
+  container.append(formMount);
+
+  async function loadRemarksForm(code) {
+    formMount.innerHTML = "";
+    formMount.append(el("div", { class: "skeleton-rows" }, [
+      skeleton("", "100%"), skeleton("", "100%"), skeleton("", "60%"),
+    ]));
+
+    const subjectObj = allSubjects.find((s) => s.code === code) || { name: code, code };
+    let saved = null;
+    try {
+      saved = await getSubjectRemarks(code);
+    } catch (e) {
+      console.warn("Could not load remarks for subject:", e);
+    }
+
+    const remarks = {
+      EE: saved?.EE || DEFAULT_CBC_REMARKS.EE,
+      ME: saved?.ME || DEFAULT_CBC_REMARKS.ME,
+      AE: saved?.AE || DEFAULT_CBC_REMARKS.AE,
+      BE: saved?.BE || DEFAULT_CBC_REMARKS.BE,
+    };
+
+    formMount.innerHTML = "";
+    const card = el("div", { class: "card", style: "padding:var(--sp-6);" });
+
+    const levels = [
+      {
+        key: "EE",
+        title: "Exceeding Expectations (EE)",
+        badgeClass: "badge--success",
+        scoreRange: "Score: 75% - 100% (Grades EE1, EE2)",
+        hint: "Remark given when learner exceeds competency requirements.",
+      },
+      {
+        key: "ME",
+        title: "Meeting Expectations (ME)",
+        badgeClass: "badge--gold",
+        scoreRange: "Score: 50% - 74% (Grades ME1, ME2)",
+        hint: "Remark given when learner meets expected learning outcomes.",
+      },
+      {
+        key: "AE",
+        title: "Approaching Expectations (AE)",
+        badgeClass: "badge--warning",
+        scoreRange: "Score: 30% - 49% (Grades AE1, AE2)",
+        hint: "Remark given when learner is working towards attaining competency.",
+      },
+      {
+        key: "BE",
+        title: "Below Expectations (BE)",
+        badgeClass: "badge--danger",
+        scoreRange: "Score: Below 30% (Grades BE1, BE2)",
+        hint: "Remark given when learner requires remedial intervention.",
+      },
+    ];
+
+    const textareas = {};
+    const grid = el("div", { style: "display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:20px;" });
+
+    for (const lvl of levels) {
+      const textarea = el("textarea", {
+        rows: "3",
+        style: "width:100%; resize:vertical; font-size:13px; padding:8px 10px;",
+        placeholder: `Enter remark for ${lvl.title}...`,
+      }, remarks[lvl.key] || "");
+      textareas[lvl.key] = textarea;
+
+      const block = el("div", {
+        style: "border:1px solid var(--color-line); border-radius:var(--radius-md, 8px); padding:14px; background:var(--color-cream-dim, #fbfbfb);",
+      }, [
+        el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;" }, [
+          el("span", { style: "font-weight:700; font-size:14px; color:var(--color-primary-900);" }, lvl.title),
+          el("span", { class: `badge ${lvl.badgeClass}`, style: "font-size:10px;" }, lvl.scoreRange),
+        ]),
+        el("p", { class: "text-muted text-xs", style: "margin:0 0 8px 0;" }, lvl.hint),
+        textarea,
+      ]);
+      grid.append(block);
+    }
+
+    const actions = el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-top:1px solid var(--color-line); padding-top:16px;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        onClick: () => {
+          for (const lvl of levels) {
+            textareas[lvl.key].value = DEFAULT_CBC_REMARKS[lvl.key];
+          }
+          toast("Loaded default CBC remarks. Click 'Save Remarks' to persist.", "info");
+        },
+      }, [icon("restart_alt", "text-xs"), "Reset to Recommended Defaults"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary",
+        onClick: async (e) => {
+          const btn = e.currentTarget;
+          const original = btn.innerHTML;
+          btn.disabled = true;
+          btn.textContent = "Saving…";
+          try {
+            await saveSubjectRemarks(profile.uid, code, {
+              EE: textareas.EE.value,
+              ME: textareas.ME.value,
+              AE: textareas.AE.value,
+              BE: textareas.BE.value,
+            }, subjectObj.name);
+            toast(`Remarks saved for ${subjectObj.name}!`, "success");
+          } catch (err) {
+            toast(err.message || "Could not save remarks.", "error");
+          } finally {
+            btn.disabled = false;
+            btn.innerHTML = original;
+          }
+        },
+      }, [icon("save", "text-xs"), `Save ${subjectObj.name} Remarks`]),
+    ]);
+
+    card.append(grid, actions);
+    formMount.append(card);
+  }
+
+  loadRemarksForm(selectedCode);
 }
 
 export function init() {}

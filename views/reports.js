@@ -15,6 +15,8 @@ import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
+import { getTeacherByUserId, getTeacherByEmail, listTeachers } from "../js/services/teacher.service.js";
+import { listSchoolSubjectRemarks } from "../js/services/subject-remarks.service.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -22,10 +24,39 @@ const NO_PORTAL_YET = ["parent", "student"];
 
 let classes = [];
 let settings = null;
+let allTeachers = [];
+let allSubjectRemarks = {};
 let selection = { grade: "", stream: "", academicYear: "", term: "" };
 let activeMode = null; // which saved report mode is currently being viewed
 let studentSearchQuery = "";
 let selectedStreamFilter = "All";
+
+function getTeacherInitials(subjectCode, grade, stream) {
+  if (!allTeachers || !allTeachers.length) return "—";
+  const teacher = allTeachers.find((t) => {
+    const hasSubj = (t.subjectCodes || []).includes(subjectCode);
+    if (!hasSubj) return false;
+    const hasClass = (t.classAssignments || []).some(
+      (a) => a.grade === grade && (!a.stream || !stream || a.stream === stream)
+    );
+    return hasClass;
+  }) || allTeachers.find((t) => (t.subjectCodes || []).includes(subjectCode));
+
+  if (!teacher || !teacher.fullName) return "—";
+  const initials = teacher.fullName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + ".")
+    .join("");
+  return initials || "—";
+}
+
+function getDisplayRemark(subjectCode, gradeKey, defaultRemark) {
+  const level = (gradeKey || "").trim().slice(0, 2).toUpperCase();
+  const custom = allSubjectRemarks?.[subjectCode]?.[level];
+  return custom || defaultRemark || "—";
+}
 
 /**
  * Contextual help tooltip using dark-slate bubble styling.
@@ -148,16 +179,57 @@ export function buildReportsMascotSvg({ width = 165, height = 150 } = {}) {
 }
 
 export async function render({ profile }) {
-  if (NO_PORTAL_YET.includes(profile.role)) {
-    return el("div", { class: "empty-state" }, [
-      el("h2", {}, "Report cards"),
-      el("p", {}, "Self-service access is coming soon please ask the school office for a printed or emailed copy in the meantime."),
+  if (profile.role === "subject_teacher" || NO_PORTAL_YET.includes(profile.role)) {
+    return el("div", { class: "empty-state", style: "padding:var(--sp-8) var(--sp-4);" }, [
+      icon("lock", "empty-state__icon", "style: font-size:48px; color:var(--color-ink-soft);"),
+      el("h2", { style: "color:var(--color-primary-900); margin:8px 0 4px;" }, "Access Restricted"),
+      el("p", { class: "text-muted", style: "max-width:440px; margin:0 auto;" }, "Report cards are managed by Class Teachers and School Administrators."),
     ]);
   }
 
-  [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  let schoolTeachers = [];
+  let schoolRemarks = {};
+  [classes, settings, schoolTeachers, schoolRemarks] = await Promise.all([
+    listClasses(),
+    getSchoolSettings(),
+    listTeachers().catch(() => []),
+    listSchoolSubjectRemarks().catch(() => ({})),
+  ]);
+  allTeachers = schoolTeachers || [];
+  allSubjectRemarks = schoolRemarks || {};
+
+  if (profile.role === "class_teacher") {
+    let teacher = null;
+    try {
+      teacher = await getTeacherByUserId(profile.uid);
+    } catch (err) {}
+    if (!teacher && profile.email) {
+      try {
+        teacher = await getTeacherByEmail(profile.email);
+      } catch (err) {}
+    }
+    const assignments = teacher?.classAssignments || [];
+    const managedGrades = new Set(assignments.map((a) => a.grade));
+    classes = classes
+      .filter((c) => managedGrades.has(c.grade))
+      .map((c) => {
+        const streamList = assignments
+          .filter((a) => a.grade === c.grade && a.stream)
+          .map((a) => a.stream);
+        if (streamList.length > 0) {
+          return { ...c, streams: (c.streams || []).filter((s) => streamList.includes(s)) };
+        }
+        return c;
+      });
+
+    if (assignments.length > 0 && (!selection.grade || !managedGrades.has(selection.grade))) {
+      selection.grade = assignments[0].grade || "";
+      selection.stream = assignments[0].stream || "";
+    }
+  }
+
+  selection.academicYear = selection.academicYear || settings?.currentAcademicYear || "";
+  selection.term = selection.term || settings?.currentTerm || (settings?.terms || [])[0] || "";
 
   const wrap = el("div", { class: "reports-view-wrap" });
 
@@ -797,11 +869,13 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Subject"),
       ...(showBothColumns ? [el("th", {}, "Midt"), el("th", {}, "End")] : []),
-      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"),
+      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"), el("th", { class: "col-center" }, "Teacher"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const s of [...result.subjects].sort((a, b) => a.name.localeCompare(b.name))) {
+    const remark = getDisplayRemark(s.code, s.grade, s.remark);
+    const teacherInitials = getTeacherInitials(s.code, result.grade, result.stream);
     tbody.append(el("tr", {}, [
       el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:2px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "") : ""]),
       ...(showBothColumns ? [
@@ -812,7 +886,8 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       el("td", {}, s.grade),
       el("td", {}, String(s.points)),
       el("td", {}, isStreamView ? `${s.classPosition}/${cardSize}` : `${s.position}/${cardSize}`),
-      el("td", {}, s.remark),
+      el("td", {}, remark),
+      el("td", { class: "col-center", style: "font-weight:600; font-size:11px;" }, teacherInitials),
     ]));
   }
   table.append(tbody);

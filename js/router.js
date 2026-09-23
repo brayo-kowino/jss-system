@@ -60,7 +60,7 @@ export const routes = {
   "/grading": { view: () => import("../views/grading.js"), roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
 
   "/attendance": { view: () => import("../views/attendance.js"), roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
-  "/reports": { view: () => import("../views/reports.js"), allRoles: true, title: "Report Cards & Reports" },
+  "/reports": { view: () => import("../views/reports.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher"], title: "Report Cards & Reports" },
   "/release-results": { view: () => import("../views/release-results.js"), roles: ["admin", "academic_master"], title: "Release Results" },
   "/fees": { view: () => import("../views/fees.js"), roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
 
@@ -73,7 +73,7 @@ export const routes = {
   "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets" },
   "/platform-error-logs": { view: () => import("../views/platform-error-logs.js"), roles: ["super_admin"], title: "Error Logs" },
   
-  "/notifications": { view: () => import("../views/notifications.js"), allRoles: true, title: "Notifications" },
+  "/notifications": { view: () => import("../views/notifications.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"], title: "Notifications" },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
   "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
   "/promotions": { view: () => import("../views/promotions.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Promotions" },
