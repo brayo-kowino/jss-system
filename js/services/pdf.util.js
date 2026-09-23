@@ -91,10 +91,10 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
       clonedElement.style.margin = "0";
       if (!isReceipt) {
         clonedElement.style.border = "3px double var(--color-primary-900)";
-        clonedElement.style.padding = "24px";
+        clonedElement.style.padding = "20px";
         
         // Force A4 aspect ratio so the border stretches to the bottom of the page
-        clonedElement.style.minHeight = "1188px"; 
+        clonedElement.style.minHeight = "1198px"; 
         clonedElement.style.display = "flex";
         clonedElement.style.flexDirection = "column";
         
@@ -172,8 +172,8 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   // Official documents start neatly at the top margin (not vertically centered in the void).
   const A4_W = 595.28;  // pt
   const A4_H = 841.89;  // pt
-  const MARGIN_X = 18;  // pt — left & right margins
-  const MARGIN_Y = 18;  // pt — top margin
+  const MARGIN_X = 8;  // pt — left & right margins
+  const MARGIN_Y = 8;  // pt — top margin
 
   const contentW = A4_W - MARGIN_X * 2;
   const contentH = A4_H - MARGIN_Y * 2;
