@@ -583,7 +583,17 @@ function openAssignmentModal(profile, teacher) {
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
     el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("save"), "Save Changes"]),
+      el("div", { class: "field" }, [
+        el("label", {}, "Home-Room Class (Optional)"),
+        el("select", { id: "m-homeroom" }, [
+          el("option", { value: "" }, "None (Subject Teacher only)"),
+          ...classes.flatMap((c) => {
+            if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(teacher?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
+            return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(teacher?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
+          })
+        ])
+      ]),
+      el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("save"), "Save Changes"]),
   );
   const close = openModal(`Edit Assignment: ${teacher.fullName}`, body);
   body.addEventListener("submit", async (e) => {
@@ -595,7 +605,7 @@ function openAssignmentModal(profile, teacher) {
       return { grade, stream };
     });
     try {
-      await updateTeacher(profile.uid, teacher.id, { subjectCodes, classAssignments });
+      await updateTeacher(profile.uid, teacher.id, { subjectCodes, classAssignments, homeroom: document.getElementById("m-homeroom") ? document.getElementById("m-homeroom").value : "" });
       toast("Assignment updated.", "success");
       close();
       await refreshAll(profile);
@@ -916,7 +926,17 @@ function openTeacherForm(profile, existing = null) {
     field("t-email", "Email", existing?.email, "email"),
     el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
     el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
+      el("div", { class: "field" }, [
+        el("label", {}, "Home-Room Class (Optional)"),
+        el("select", { id: "m-homeroom" }, [
+          el("option", { value: "" }, "None (Subject Teacher only)"),
+          ...classes.flatMap((c) => {
+            if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(teacher?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
+            return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(teacher?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
+          })
+        ])
+      ]),
+      el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
@@ -930,14 +950,15 @@ function openTeacherForm(profile, existing = null) {
       return { grade, stream };
     });
     const data = {
-      fullName: val("t-fullName"),
-      teacherNumber: val("t-teacherNumber"),
-      tscNumber: document.getElementById("t-tscNumber")?.value || "",
-      phone: "",
-      email: val("t-email"),
-      subjectCodes,
-      classAssignments,
-    };
+        fullName: val("t-fullName"),
+        teacherNumber: val("t-teacherNumber"),
+        tscNumber: document.getElementById("t-tscNumber")?.value || "",
+        phone: "",
+        email: val("t-email"),
+        subjectCodes,
+        classAssignments,
+        homeroom: document.getElementById("t-homeroom") ? document.getElementById("t-homeroom").value : "",
+      };
     try {
       if (isEdit) {
         await updateTeacher(profile.uid, existing.id, data);

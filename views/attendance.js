@@ -58,7 +58,11 @@ export async function render({ profile }) {
         console.warn("attendance: getTeacherByEmail failed:", err);
       }
     }
-    allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
+    if (profile.role === 'class_teacher' && teacher?.homeroom) {
+        allowedClassKeys = new Set([teacher.homeroom]);
+      } else {
+        allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
+      }
   }
 
   const wrap = el("div", {});
