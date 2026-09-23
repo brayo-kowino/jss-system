@@ -1,5 +1,5 @@
 import { listClasses } from "../js/services/academic.service.js";
-import { getSchoolSettings } from "../js/services/settings.service.js";
+import { getSchoolSettings, DEFAULT_GRADING_SCALE } from "../js/services/settings.service.js";
 import {
   listResultsByPeriod,
   listResultsForStudent,
@@ -933,6 +933,9 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     card.append(histWrap);
   }
 
+  // CBC Grading Key & Performance Level Descriptors
+  card.append(gradingKeyTable(settings?.gradingScale));
+
   // Remarks
   const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
   const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
@@ -940,7 +943,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   const principalBox = remarkBox("Principal Remarks", result.principalRemark, canEditPrincipal, {
     name: settings.principalName,
     title: settings.principalTitle || "Principal",
-  });
+  }, { isPrincipal: true });
   card.append(el("div", { class: "report-card__remarks" }, [teacherBox.node, principalBox.node]));
 
   if (canEditTeacher || canEditPrincipal) {
@@ -981,6 +984,40 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   return card;
 }
 
+// CBC Grading Key & Performance Level Descriptors table:
+// Explains every grade band, score range, points, and descriptor clearly.
+function gradingKeyTable(gradingScale) {
+  const scale = (gradingScale && gradingScale.length ? gradingScale : DEFAULT_GRADING_SCALE)
+    .slice()
+    .sort((a, b) => b.min - a.min);
+
+  const table = el("table", { class: "report-card__grading-table" }, [
+    el("thead", {}, el("tr", {}, [
+      el("th", { style: "width:13%; text-align:left;" }, "CBC Grade"),
+      ...scale.map((s) => el("th", { class: "col-center" }, s.grade)),
+    ])),
+    el("tbody", {}, [
+      el("tr", {}, [
+        el("td", { style: "font-weight:600; text-align:left;" }, "Marks Range"),
+        ...scale.map((s) => el("td", { class: "col-center" }, `${s.min}–${s.max}`)),
+      ]),
+      el("tr", {}, [
+        el("td", { style: "font-weight:600; text-align:left;" }, "Points"),
+        ...scale.map((s) => el("td", { class: "col-center" }, String(s.points ?? "—"))),
+      ]),
+      el("tr", {}, [
+        el("td", { style: "font-weight:600; text-align:left;" }, "Descriptor"),
+        ...scale.map((s) => el("td", { class: "col-center", style: "font-size:10px;" }, s.remark || "—")),
+      ]),
+    ]),
+  ]);
+
+  return el("div", { class: "table-wrap", style: "margin-bottom:12px;" }, [
+    el("h4", { class: "report-card__section-title" }, "Performance Level Descriptors & Grading Key"),
+    table,
+  ]);
+}
+
 // Performance summary as a table: one header row of labels, one row of
 // values, so it lines up as columns rather than a grid of boxed stats.
 function summaryTable(pairs) {
@@ -1008,23 +1045,36 @@ function infoTable(rows) {
   return el("table", { class: "report-card__info-table" }, [tbody]);
 }
 
-function remarkBox(title, value, editable, signer) {
+function remarkBox(title, value, editable, signer, { isPrincipal = false } = {}) {
   const box = el("div", { class: "report-card__remark-box" });
   box.append(el("h4", {}, title));
   let control;
   if (editable) {
-    control = el("textarea", {}, value || "");
+    control = el("textarea", { placeholder: "Write remarks here..." }, value || "");
     control.value = value || "";
   } else {
-    control = el("p", { class: "text-sm" }, value || "No remarks yet.");
+    control = el("p", { class: "text-sm", style: "min-height:48px; color:var(--color-ink); margin:0;" }, value || "No remarks recorded.");
   }
-  box.append(control, el("div", { class: "report-card__sign-line" }, "Sign: ……………………………………"));
-  // Printed name/title under the sign-line, when School Settings ->
-  // Leadership has one on file (e.g. the Principal for the Principal
-  // Remarks box), so it's clear whose signature the line is for.
-  if (signer?.name) {
-    box.append(el("div", { class: "report-card__signer" }, `${signer.name}, ${signer.title}`));
+  box.append(control);
+
+  if (isPrincipal) {
+    const footer = el("div", { class: "report-card__principal-footer" }, [
+      el("div", { style: "flex:1;" }, [
+        el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
+        el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Principal"}`),
+      ]),
+      el("div", { class: "report-card__stamp-box" }, [
+        el("span", {}, "Official School Stamp"),
+      ]),
+    ]);
+    box.append(footer);
+  } else {
+    box.append(
+      el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
+      el("div", { class: "report-card__signer" }, "Class Teacher")
+    );
   }
+
   return { node: box, getValue: () => (editable ? control.value.trim() : value || "") };
 }
 

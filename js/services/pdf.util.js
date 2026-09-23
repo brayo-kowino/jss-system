@@ -111,7 +111,7 @@ export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3
         div.style.minHeight = "48px";
         div.style.whiteSpace = "pre-wrap";
         div.style.wordBreak = "break-word";
-        div.textContent = ta.value || ta.placeholder || "";
+        div.textContent = ta.value || "";
         ta.parentNode.replaceChild(div, ta);
       });
 
