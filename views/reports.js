@@ -882,7 +882,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Subject"),
       ...(showBothColumns ? [el("th", {}, "Midt"), el("th", {}, "End")] : []),
-      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"), el("th", { class: "col-center", title: "Subject Teacher" }, "Tr"),
+      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"), el("th", { class: "col-center", title: "Subject Teacher" }, "Teacher"),
     ])),
   ]);
   const tbody = el("tbody", {});
@@ -931,7 +931,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       let gainNode = el("div", { class: "report-card__chart-gain" }, "");
       if (prevValue !== null) {
         const diff = pt.value - prevValue;
-        const color = diff > 0 ? "var(--color-success)" : diff < 0 ? "var(--color-danger)" : "var(--color-muted)";
+        const color = diff > 0 ? "var(--color-green)" : diff < 0 ? "var(--color-red)" : "var(--color-ink-soft)";
         const sign = diff > 0 ? "+" : "";
         gainNode = el("div", { class: "report-card__chart-gain", style: `color: ${color};` }, `${sign}${diff.toFixed(1)}`);
       }
@@ -939,7 +939,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       const valNode = el("div", { class: "report-card__chart-val" }, `${pt.value.toFixed(1)}%`);
       const barNode = el("div", { 
         class: "report-card__chart-bar",
-        style: `height: ${barHeight}%; background: ${pt.highlight ? "var(--color-primary)" : "var(--color-primary-light)"};` 
+        style: `height: ${barHeight}%; background: ${pt.highlight ? "var(--color-primary-600)" : "var(--color-primary-100)"};` 
       });
       const lblNode = el("div", { class: "report-card__chart-lbl" }, pt.label);
       
@@ -957,7 +957,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       let gainNode = el("div", { class: "report-card__chart-gain" }, "");
       if (sub.midtScore != null && sub.endScore != null) {
         const diff = sub.endScore - sub.midtScore;
-        const color = diff > 0 ? "var(--color-success)" : diff < 0 ? "var(--color-danger)" : "var(--color-muted)";
+        const color = diff > 0 ? "var(--color-green)" : diff < 0 ? "var(--color-red)" : "var(--color-ink-soft)";
         const sign = diff > 0 ? "+" : "";
         gainNode = el("div", { class: "report-card__chart-gain", style: `color: ${color};` }, `${sign}${diff.toFixed(1)}`);
       }
@@ -965,7 +965,7 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       const valNode = el("div", { class: "report-card__chart-val" }, `${sub.average.toFixed(0)}`);
       const barNode = el("div", { 
         class: "report-card__chart-bar",
-        style: `height: ${barHeight}%; background: var(--color-primary);` 
+        style: `height: ${barHeight}%; background: var(--color-primary-600);` 
       });
       const lblStr = sub.name.length > 4 ? sub.name.substring(0, 3).toUpperCase() : sub.name.toUpperCase();
       const lblNode = el("div", { class: "report-card__chart-lbl" }, lblStr);

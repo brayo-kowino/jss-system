@@ -357,9 +357,11 @@
   height: 140px;
   margin-bottom: 16px;
   padding: 16px 8px 0;
-  border-bottom: 1px solid var(--color-border);
-  border-left: 1px solid var(--color-border);
-  font-family: var(--font-sans);
+  border-bottom: 1.5px solid var(--color-primary-900);
+  border-left: 1.5px solid var(--color-primary-900);
+  font-family: var(--font-body);
+  background-image: linear-gradient(to top, var(--color-line) 1px, transparent 1px);
+  background-size: 100% 25%;
 }
 
 .report-card__chart-col {
