@@ -89,26 +89,10 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
       clonedElement.style.maxWidth = `${targetWidth}px`;
       clonedElement.style.minWidth = `${targetWidth}px`;
       clonedElement.style.boxShadow = "none";
+      clonedElement.style.border = "none";
       clonedElement.style.borderRadius = "0";
       clonedElement.style.margin = "0";
-      if (!isReceipt) {
-        clonedElement.style.border = "3px double var(--color-primary-900)";
-        clonedElement.style.padding = "20px";
-        
-        // Force A4 aspect ratio so the border stretches to the bottom of the page
-        clonedElement.style.minHeight = "1198px"; 
-        clonedElement.style.display = "flex";
-        clonedElement.style.flexDirection = "column";
-        
-        // Push the footer dates exactly to the bottom edge of the border
-        const datesEl = clonedElement.querySelector(".report-card__dates");
-        if (datesEl) {
-          datesEl.style.marginTop = "auto";
-        }
-      } else {
-        clonedElement.style.border = "none";
-        clonedElement.style.padding = "16px";
-      }
+      clonedElement.style.padding = isReceipt ? "16px" : "12px 16px 16px 16px";
       clonedElement.style.transform = "none";
       clonedElement.style.zoom = "1";
 
@@ -174,8 +158,8 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   // Official documents start neatly at the top margin (not vertically centered in the void).
   const A4_W = 595.28;  // pt
   const A4_H = 841.89;  // pt
-  const MARGIN_X = 8;  // pt — left & right margins
-  const MARGIN_Y = 8;  // pt — top margin
+  const MARGIN_X = 12;  // pt — left & right margins
+  const MARGIN_Y = 12;  // pt — top margin
 
   const contentW = A4_W - MARGIN_X * 2;
   const contentH = A4_H - MARGIN_Y * 2;
