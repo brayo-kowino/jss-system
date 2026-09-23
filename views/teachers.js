@@ -503,6 +503,8 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       const isTeaching = TEACHING_ROLES.includes(selectedRole);
 
       let teacherId = null;
+      let newTeacherData = null;
+
       if (isTeaching) {
         if (presetTeacher) {
           teacherId = presetTeacher.id;
@@ -523,10 +525,10 @@ function openCreateLoginModal(profile, presetTeacher = null) {
               }
             }
           }
-          teacherId = await createTeacher(profile.uid, {
+          newTeacherData = {
             fullName: val("cl-fullName"), teacherNumber: "", tscNumber: document.getElementById("cl-tscNumber")?.value || "",
             phone: "", email, subjectCodes, classAssignments,
-          });
+          };
         }
       }
 
@@ -535,7 +537,12 @@ function openCreateLoginModal(profile, presetTeacher = null) {
         : val("cl-fullName");
 
       const uid = await createUserAccount({ fullName, email, role: selectedRole, tempPassword: tempPass });
-      if (teacherId) await updateTeacher(profile.uid, teacherId, { userId: uid, email });
+
+      if (newTeacherData) {
+        teacherId = await createTeacher(profile.uid, { ...newTeacherData, userId: uid });
+      } else if (teacherId) {
+        await updateTeacher(profile.uid, teacherId, { userId: uid, email });
+      }
 
       toast("Login created.", "success");
       close();

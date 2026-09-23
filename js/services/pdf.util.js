@@ -160,7 +160,8 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
 
   // Lossless PNG at scale 2: 100% razor-sharp, pixel-perfect text with zero JPEG ringing.
   // "FAST" tells jsPDF to embed the encoded stream directly without JS re-compression.
-  const imgData = canvas.toDataURL("image/png");
+  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.92));
+  const imgData = new Uint8Array(await blob.arrayBuffer());
   await yieldToMain(30);
 
   // Standard PDF sizing in points (1px at 96 DPI = 0.75 pt at 72 DPI)
@@ -170,7 +171,7 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   // ── Receipts: compact custom page (short slip, not printed on A4) ─────────
   if (isReceipt) {
     const pdf = new jsPDF({ unit: "pt", format: [rawWidthPt, rawHeightPt], compress: true });
-    pdf.addImage(imgData, "PNG", 0, 0, rawWidthPt, rawHeightPt, undefined, "FAST");
+    pdf.addImage(imgData, "JPEG", 0, 0, rawWidthPt, rawHeightPt, undefined, "FAST");
     return pdf.output("blob");
   }
 
@@ -196,7 +197,7 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   const yOffset = MARGIN_Y;
 
   const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
-  pdf.addImage(imgData, "PNG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
+  pdf.addImage(imgData, "JPEG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
   await yieldToMain(30);
   return pdf.output("blob");
 }
@@ -276,6 +277,6 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
     onProgress?.(i + 1, items.length, filename);
     await new Promise((resolve) => setTimeout(resolve, 35));
   }
-  const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
   triggerBlobDownload(zipBlob, zipFilename);
 }
