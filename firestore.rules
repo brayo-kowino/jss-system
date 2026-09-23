@@ -258,7 +258,13 @@ service cloud.firestore {
     // exists to close. Suspend/Reactivate now goes through
     // school-status.ts instead, same shape as activate/revoke.
     function isSubscriptionActive() {
-      return mySchoolId() == null || 'subscriptionActiveUntil' in request.auth.token;
+      return mySchoolId() == null 
+        || 'subscriptionActiveUntil' in request.auth.token
+        || (
+             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.status != 'suspended' &&
+             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt != null &&
+             get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionExpiresAt > request.time
+           );
     }
 
     // Fields nobody can touch directly through a normal document write on
