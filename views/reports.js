@@ -16,7 +16,6 @@ import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../j
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { getTeacherByUserId, getTeacherByEmail, listTeachers } from "../js/services/teacher.service.js";
-import { listSchoolSubjectRemarks } from "../js/services/subject-remarks.service.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -25,7 +24,6 @@ const NO_PORTAL_YET = ["parent", "student"];
 let classes = [];
 let settings = null;
 let allTeachers = [];
-let allSubjectRemarks = {};
 let selection = { grade: "", stream: "", academicYear: "", term: "" };
 let activeMode = null; // which saved report mode is currently being viewed
 let studentSearchQuery = "";
@@ -52,10 +50,26 @@ function getTeacherInitials(subjectCode, grade, stream) {
   return initials || "—";
 }
 
-function getDisplayRemark(subjectCode, gradeKey, defaultRemark) {
-  const level = (gradeKey || "").trim().slice(0, 2).toUpperCase();
-  const custom = allSubjectRemarks?.[subjectCode]?.[level];
-  return custom || defaultRemark || "—";
+function formatSubjectRemark(rawRemark, gradeKey) {
+  const g = (gradeKey || "").trim().toUpperCase();
+  if (g.startsWith("EE1") || g === "EE") return "Excellent";
+  if (g.startsWith("EE2")) return "Very Good";
+  if (g.startsWith("ME1") || g === "ME") return "Good";
+  if (g.startsWith("ME2")) return "Fair";
+  if (g.startsWith("AE1") || g === "AE") return "Average";
+  if (g.startsWith("AE2")) return "Weak";
+  if (g.startsWith("BE1") || g === "BE") return "Poor";
+  if (g.startsWith("BE2")) return "Poor";
+
+  if (rawRemark) {
+    const r = rawRemark.toLowerCase();
+    if (r.includes("exceed")) return "Excellent";
+    if (r.includes("meet")) return "Good";
+    if (r.includes("approach")) return "Average";
+    if (r.includes("below")) return "Poor";
+    if (rawRemark.length <= 10) return rawRemark;
+  }
+  return rawRemark || "—";
 }
 
 /**
@@ -188,15 +202,12 @@ export async function render({ profile }) {
   }
 
   let schoolTeachers = [];
-  let schoolRemarks = {};
-  [classes, settings, schoolTeachers, schoolRemarks] = await Promise.all([
+  [classes, settings, schoolTeachers] = await Promise.all([
     listClasses(),
     getSchoolSettings(),
     listTeachers().catch(() => []),
-    listSchoolSubjectRemarks().catch(() => ({})),
   ]);
   allTeachers = schoolTeachers || [];
-  allSubjectRemarks = schoolRemarks || {};
 
   if (profile.role === "class_teacher") {
     let teacher = null;
@@ -869,12 +880,12 @@ function buildCard(result, feeSummary, priorHistory, profile) {
     el("thead", {}, el("tr", {}, [
       el("th", {}, "Subject"),
       ...(showBothColumns ? [el("th", {}, "Midt"), el("th", {}, "End")] : []),
-      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"), el("th", { class: "col-center" }, "Teacher"),
+      el("th", {}, "Score"), el("th", {}, "Grade"), el("th", {}, "Pts"), el("th", {}, "Rank"), el("th", {}, "Remarks"), el("th", { class: "col-center", title: "Subject Teacher" }, "Tr"),
     ])),
   ]);
   const tbody = el("tbody", {});
   for (const s of [...result.subjects].sort((a, b) => a.name.localeCompare(b.name))) {
-    const remark = getDisplayRemark(s.code, s.grade, s.remark);
+    const remark = formatSubjectRemark(s.remark, s.grade);
     const teacherInitials = getTeacherInitials(s.code, result.grade, result.stream);
     tbody.append(el("tr", {}, [
       el("td", {}, [s.name, s.incomplete ? el("span", { class: "badge badge--warning", style: "margin-left:2px;", title: `Only ${s.weightUsed}% of ${s.weightExpected}% assessment weight marked` }, "") : ""]),

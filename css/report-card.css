@@ -228,10 +228,17 @@
    wraps, so a column only ever grows to fit what's actually in it;
    Remarks isn't forced to fill leftover space, it just takes what its
    own text needs. */
-.report-card__subject-table { table-layout: auto; width: 100%; }
+.report-card__subject-table { table-layout: auto; width: 100%; border-collapse: collapse; }
 .report-card__subject-table th,
 .report-card__subject-table td {
+  padding: 6px 8px;
+  font-size: var(--fs-xs, 12px);
   white-space: nowrap;
+}
+.report-card__subject-table th {
+  font-weight: 700;
+  color: var(--color-primary-900);
+  background: var(--color-cream-dim, #f8fafc);
 }
 /* Safety net for a row wider than the card (a very long subject name or
    remark, or just a phone screen): the wrapping .table-wrap above already
