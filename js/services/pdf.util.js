@@ -38,7 +38,7 @@ function yieldToMain(ms = 30) {
 // Report cards are generated in standard A4 portrait format so they print
 // correctly on any printer without white gaps. Receipts keep a compact custom
 // page size since they are short slips not printed on full A4 sheets.
-export async function renderElementToPdfBlob(node, { scale = 2, imageTimeout = 3000, onStatus } = {}) {
+export async function renderElementToPdfBlob(node, { scale = 4, imageTimeout = 3000, onStatus } = {}) {
   onStatus?.("loading_libs");
   await yieldToMain(20);
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
