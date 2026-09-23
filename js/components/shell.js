@@ -87,7 +87,7 @@ export function applyBranding(settings) {
 const NAV = [
   {
     label: "Overview",
-    links: [{ path: "/dashboard", icon: "dashboard", text: "Dashboard", allRoles: true }],
+    links: [{ path: "/dashboard", icon: "dashboard", text: "Dashboard", roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"] }],
   },
   {
     // High-frequency, done daily/weekly by most staff - kept right under

@@ -44,7 +44,7 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
   "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
-  "/dashboard": { view: () => import("../views/dashboard.js"), allRoles: true },
+  "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"] },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings" },
 
   "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
@@ -99,18 +99,26 @@ const MAX_PATH_LENGTH = 200;
 // from a broken link, etc.) is treated as invalid rather than looked up.
 const SAFE_PATH_RE = /^\/[a-z0-9/-]*$/i;
 
+export function getDefaultRoute(profile) {
+  if (!profile) return "/login";
+  if (profile.role === "super_admin") return "/schools";
+  if (["subject_teacher", "class_teacher"].includes(profile.role)) return "/marks";
+  return "/dashboard";
+}
+
 // Reads location.hash defensively: decodes safely, strips anything that
 // isn't a plausible route path, and caps the length, so a malformed or
 // malicious link can never reach the route table or the DOM as-is.
-function currentPath() {
-  let raw = location.hash.replace(/^#/, "") || "/dashboard";
+function currentPath(profile) {
+  let raw = location.hash.replace(/^#/, "");
+  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
   try {
     raw = decodeURIComponent(raw);
   } catch {
     return "__invalid__"; // malformed percent-encoding (e.g. a stray "%")
   }
   raw = raw.split("?")[0].split("#")[0].trim();
-  if (!raw) return "/dashboard";
+  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
   if (raw.length > MAX_PATH_LENGTH || !SAFE_PATH_RE.test(raw)) return "__invalid__";
   return raw;
 }
@@ -180,19 +188,19 @@ export async function renderRoute() {
   const renderToken = ++currentRenderToken;
   const isStale = () => renderToken !== currentRenderToken;
 
-  let path;
-  try {
-    path = currentPath();
-  } catch (err) {
-    showFatalError(err, { where: "router.currentPath" });
-    return;
-  }
-
   let profile;
   try {
     profile = getCurrentProfile();
   } catch (err) {
     showFatalError(err, { where: "router.getCurrentProfile" });
+    return;
+  }
+
+  let path;
+  try {
+    path = currentPath(profile);
+  } catch (err) {
+    showFatalError(err, { where: "router.currentPath" });
     return;
   }
 
@@ -209,7 +217,7 @@ export async function renderRoute() {
         if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
           return;
         }
-        return navigate("/dashboard");
+        return navigate(getDefaultRoute(profile));
       }
       const view = await loadView(path, route);
       if (isStale()) return;
@@ -303,7 +311,7 @@ export async function renderRoute() {
     const allowed = route.allRoles || (route.roles || []).includes(profile.role);
     if (!allowed) {
       toast("You don't have access to that section.", "error");
-      return navigate("/dashboard");
+      return navigate(getDefaultRoute(profile));
     }
 
     // Authenticated + authorized: render inside the app shell. The shell

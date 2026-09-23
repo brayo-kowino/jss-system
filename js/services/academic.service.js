@@ -23,7 +23,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
-import { getCurrentSchoolId } from "./auth.service.js";
+import { getCurrentSchoolId, getCurrentProfile } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { cached, invalidate } from "./query-cache.js";
 import { listStudents } from "./student.service.js";
@@ -245,6 +245,8 @@ export async function deleteSubject(userId, id) {
 // ------------------------------------------------------------------ Seed --
 
 export async function seedDefaultsIfEmpty() {
+  const profile = getCurrentProfile();
+  if (!profile || !["admin", "academic_master"].includes(profile.role)) return;
   const schoolId = getCurrentSchoolId();
   // Skip seeding when offline - writes would queue locally but the freshly
   // written docs wouldn't show up in the *existing* Firestore persistence
