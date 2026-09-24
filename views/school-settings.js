@@ -165,7 +165,7 @@ function switchTab(tabId, tabsNav, panels) {
   }
   for (const t of TABS) panels[t.id].style.display = t.id === tabId ? "" : "none";
   try {
-    const newHash = `#settings?tab=${encodeURIComponent(tabId)}`;
+    const newHash = `#/settings?tab=${encodeURIComponent(tabId)}`;
     if (location.hash !== newHash) {
       history.replaceState(null, "", newHash);
     }
@@ -1197,27 +1197,53 @@ export function init({ profile }) {
         return;
       }
       
-      const confirmMsg = "CRITICAL WARNING:\n\nYou are initiating a transfer of administrative control to " + fullName + " (" + email + ").\n\nThis will begin a 24-hour cooling-off period. You can cancel it during this time. Once 24 hours pass, Platform Support can approve it and you will lose access.\n\nType 'CONFIRM' to initiate this request.";
-      if (!confirm(confirmMsg)) return;
+      const { openModal } = await import("../js/components/modal.js");
+      const modalBody = el("form", { class: "settings-form-grid" }, [
+        el("p", { style: "color: var(--color-ink); margin-bottom: 12px; line-height: 1.5;" }, [
+          "You are initiating a transfer of administrative control to ",
+          el("strong", {}, fullName),
+          " (",
+          el("strong", {}, email),
+          ")."
+        ]),
+        el("div", { class: "notice-banner notice-banner--warning", style: "margin-bottom: 16px;" }, [
+          icon("hourglass_empty"),
+          el("span", {}, "This will begin a 24-hour cooling-off period. Once 24 hours pass, Platform Support can approve it and you will lose access.")
+        ]),
+        field("confirm-transfer-text", "Type 'CONFIRM' below to proceed", "", "text", true, null, "CONFIRM"),
+        el("div", { class: "settings-form-actions field--full", style: "justify-content: flex-end;" }, [
+          el("button", { type: "submit", class: "btn btn--danger" }, [icon("warning"), "Initiate Transfer"])
+        ])
+      ]);
+
+      const closeModal = openModal("Confirm Transfer Request", modalBody);
       
-      const check = prompt("Type 'CONFIRM' to initiate transfer:");
-      if (check !== "CONFIRM") {
-        toast("Transfer request cancelled.", "info");
-        return;
-      }
-      
-      const restore = busyButton(e.submitter, "Initiating…");
-      try {
-        const { requestOwnershipTransfer } = await import("../js/services/settings.service.js");
-        await requestOwnershipTransfer(profile.uid, { fullName, email, tempPassword });
-        settings.pendingTransfer = { newAdmin: { fullName, email }, requestedAt: new Date().toISOString() };
-        toast("Transfer requested. 24-hour cooling-off period has begun.", "success");
-        const { renderRoute } = await import("../js/router.js");
-        renderRoute();
-      } catch (err) {
-        toast(err.message || "Failed to initiate transfer.", "error");
-        restore();
-      }
+      modalBody.addEventListener("submit", async (eModal) => {
+        eModal.preventDefault();
+        const check = val("confirm-transfer-text");
+        if (check !== "CONFIRM") {
+          toast("You must type exactly 'CONFIRM'.", "error");
+          return;
+        }
+        
+        const btn = eModal.submitter;
+        const { busyButton } = await import("../js/utils.js");
+        const restore = busyButton(btn, "Initiating…");
+        
+        try {
+          const { requestOwnershipTransfer } = await import("../js/services/settings.service.js");
+          await requestOwnershipTransfer(profile.uid, { fullName, email, tempPassword });
+          settings.pendingTransfer = { newAdmin: { fullName, email }, requestedAt: new Date().toISOString() };
+          toast("Transfer requested. 24-hour cooling-off period has begun.", "success");
+          closeModal();
+          // We can use DOM reload or router navigation safely now!
+          const { navigate } = await import("../js/router.js");
+          navigate("/settings?tab=security");
+        } catch (err) {
+          toast(err.message || "Failed to initiate transfer.", "error");
+          restore();
+        }
+      });
     });
   }
 }
@@ -1348,7 +1374,7 @@ function buildSecurityPanel(profile) {
   authCol.append(policyCard);
 
   // 5. Transfer Administrator Ownership Card
-  const transferCard = el("div", { class: "card settings-card", style: "border: 1px solid var(--color-red-light); background: rgba(220, 38, 38, 0.02);" });
+  const transferCard = el("div", { class: "card settings-card", style: "border-top: 3px solid var(--color-red);" });
   transferCard.append(
     el("h3", { style: "color:var(--color-red);" }, [
       icon("swap_horiz"),
@@ -1376,8 +1402,8 @@ function buildSecurityPanel(profile) {
               settings.pendingTransfer = null;
               toast("Transfer cancelled.", "success");
               // Quick reload to show the form again
-              const { renderRoute } = await import("../js/router.js");
-              renderRoute();
+              const { navigate } = await import("../js/router.js");
+              navigate("/settings?tab=security");
             } catch (err) {
               toast("Failed to cancel transfer.", "error");
               restore();

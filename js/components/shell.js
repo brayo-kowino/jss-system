@@ -685,6 +685,85 @@ export async function showApprovalModal(approval, profile) {
   document.body.appendChild(overlay);
 }
 
+// ---------------------------------------------------------------------------
+// Idle Auto-Logout with Curious Mascot Warning
+// ---------------------------------------------------------------------------
+let idleWarningTimer = null;
+let idleLogoutTimer = null;
+let isIdleModalOpen = false;
+
+// 30 minutes total idle time. Warn at 28 mins, logout 2 mins after.
+const IDLE_WARNING_MS = 28 * 60 * 1000;
+const IDLE_LOGOUT_MS = 2 * 60 * 1000;
+
+function resetIdleTimer() {
+  if (isIdleModalOpen) return;
+  clearTimeout(idleWarningTimer);
+  clearTimeout(idleLogoutTimer);
+  idleWarningTimer = setTimeout(showIdleWarning, IDLE_WARNING_MS);
+}
+
+function showIdleWarning() {
+  isIdleModalOpen = true;
+  idleLogoutTimer = setTimeout(() => {
+    handleLogout();
+  }, IDLE_LOGOUT_MS);
+  
+  const overlay = el("div", { class: "approval-modal-overlay", style: "z-index: 9999;" });
+  const modal = el("div", { class: "approval-modal", style: "text-align: center; max-width: 320px;" });
+  
+  const mascotWrap = el("div", { style: "margin: -48px auto 16px; width: 80px; height: 80px; border-radius: 50%; background: var(--color-surface); padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" });
+  mascotWrap.innerHTML = `
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      <path d="M 20 80 Q 20 30 50 30 Q 80 30 80 80" fill="var(--color-primary-700)" />
+      <circle cx="35" cy="55" r="12" fill="white" />
+      <circle cx="65" cy="55" r="12" fill="white" />
+      <circle cx="32" cy="55" r="5" fill="var(--color-ink)" />
+      <circle cx="62" cy="55" r="5" fill="var(--color-ink)" />
+      <polygon points="45,65 55,65 50,75" fill="var(--color-gold)" />
+    </svg>
+  `;
+  
+  modal.append(
+    mascotWrap,
+    el("h3", { style: "margin-bottom: 8px; color: var(--color-ink);" }, "Are you still there?"),
+    el("p", { style: "color: var(--color-ink-soft); font-size: var(--fs-sm); margin-bottom: 24px; line-height: 1.5;" }, "For your security, you will be logged out in 2 minutes due to inactivity."),
+    el("button", {
+      class: "btn btn--primary",
+      style: "width: 100%; justify-content: center;",
+      onClick: () => {
+        overlay.remove();
+        isIdleModalOpen = false;
+        resetIdleTimer();
+      }
+    }, "I'm still here!")
+  );
+  
+  overlay.append(modal);
+  document.body.appendChild(overlay);
+}
+
+let throttleTimeout = null;
+function handleUserActivity() {
+  if (throttleTimeout) return;
+  throttleTimeout = setTimeout(() => {
+    resetIdleTimer();
+    throttleTimeout = null;
+  }, 1000);
+}
+
+let idleListenersAttached = false;
+function startIdleTimeoutWatcher() {
+  if (idleListenersAttached) {
+    resetIdleTimer(); // Re-trigger just in case
+    return;
+  }
+  idleListenersAttached = true;
+  const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+  events.forEach(e => document.addEventListener(e, handleUserActivity, { passive: true }));
+  resetIdleTimer();
+}
+
 export function renderShell(app, profile, activePath) {
   teardownNotifListeners();
   // The whole shell rebuilds on every navigation, which would otherwise
@@ -1122,6 +1201,7 @@ export function renderShell(app, profile, activePath) {
   // -------------------------------------------------------------------------
   requestOsPushPermission(profile.uid, profile.schoolId);
   startNotifListeners(profile, mainNavBadge);
+  startIdleTimeoutWatcher();
 
   return main;
 }
