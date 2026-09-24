@@ -38,13 +38,42 @@ export async function render({ profile }) {
     return wrap;
   }
 
+  const activeCount = schools.filter(s => s.status === "active").length;
+  const suspendedCount = schools.filter(s => s.status === "suspended").length;
+  const subbedCount = schools.filter(s => s.subscriptionStatus === "active").length;
+
+  const statsRow = el("div", { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;" }, [
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
+      el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center;" }, [icon("corporate_fare")]),
+      el("div", {}, [
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Total Schools"),
+        el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, schools.length)
+      ])
+    ]),
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
+      el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: rgba(34, 197, 94, 0.12); color: #16a34a; display: flex; align-items: center; justify-content: center;" }, [icon("verified")]),
+      el("div", {}, [
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Active Subscriptions"),
+        el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, subbedCount)
+      ])
+    ]),
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
+      el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: rgba(220, 38, 38, 0.08); color: var(--color-red); display: flex; align-items: center; justify-content: center;" }, [icon("block")]),
+      el("div", {}, [
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Suspended Accounts"),
+        el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, suspendedCount)
+      ])
+    ])
+  ]);
+  wrap.append(statsRow);
+
   const pendingTransfers = schools.filter(s => s.pendingTransfer);
   if (pendingTransfers.length > 0) {
     wrap.append(el("h3", { style: "margin-top: 24px; color: var(--color-red);" }, [icon("swap_horiz"), " Pending Admin Transfers"]));
     const ptWrap = el("div", { class: "table-wrap table-wrap--responsive card", style: "border: 1px solid var(--color-red-light); background: rgba(220, 38, 38, 0.02); margin-bottom: 32px;" });
     const ptTable = el("table", {}, [
       el("thead", {}, el("tr", {}, [
-        el("th", {}, "School"), el("th", {}, "Requested By"), el("th", {}, "New Admin"), el("th", {}, "Time Left"), el("th", {}, "")
+        el("th", {}, "School"), el("th", {}, "Requested By"), el("th", {}, "New Admin"), el("th", {}, "Time Left"), el("th", { style: "text-align: right;" }, "Actions")
       ]))
     ]);
     const ptBody = el("tbody");
@@ -65,47 +94,60 @@ export async function render({ profile }) {
 
       ptBody.append(
         el("tr", {}, [
-          el("td", {}, el("strong", {}, s.schoolName || "(unnamed)")),
-          el("td", {}, "Current Admin"),
-          el("td", {}, [el("div", {}, pt.newAdmin?.fullName), el("div", { class: "text-sm text-muted" }, pt.newAdmin?.email)]),
-          el("td", {}, timeText),
-          el("td", { class: "row-actions" }, [
-            el("button", {
-              class: "btn btn--sm btn--primary",
-              disabled: !isReady,
-              title: !isReady ? "Wait for 24h cooling-off period" : "",
-              onClick: async (e) => {
-                if (!confirm(`Approve transfer for ${s.schoolName}? This will instantly replace the current admin.`)) return;
-                const restore = busyButton(e.currentTarget, "Approving…");
-                try {
-                  const { approveSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
-                  await approveSchoolOwnershipTransfer(profile.uid, s.id);
-                  toast("Ownership transfer approved.", "success");
-                  const { renderRoute } = await import("../js/router.js");
-                  renderRoute();
-                } catch (err) {
-                  toast(err.message || "Failed to approve transfer.", "error");
-                  restore();
+          el("td", { "data-label": "School" }, [
+            el("div", { style: "display: flex; align-items: center; gap: 12px;" }, [
+              el("div", { style: "width: 40px; height: 40px; border-radius: 8px; background: rgba(220, 38, 38, 0.1); color: var(--color-red); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; flex-shrink: 0;" }, icon("swap_horiz")),
+              el("div", {}, [
+                el("strong", { style: "display: block; color: var(--color-ink); margin-bottom: 2px;" }, s.schoolName || "(unnamed)"),
+              ])
+            ])
+          ]),
+          el("td", { "data-label": "Requested By" }, "Current Admin"),
+          el("td", { "data-label": "New Admin" }, [
+            el("div", { style: "display: flex; align-items: center; gap: 6px;" }, [icon("person", "text-muted", { style: "font-size: 16px;" }), pt.newAdmin?.fullName]),
+            el("div", { class: "text-sm text-muted", style: "display: flex; align-items: center; gap: 6px; margin-top: 2px;" }, [icon("mail", "text-muted", { style: "font-size: 16px;" }), pt.newAdmin?.email])
+          ]),
+          el("td", { "data-label": "Time Left" }, timeText),
+          el("td", { class: "row-actions", "data-label": "Actions" }, [
+            el("div", { style: "display: flex; gap: 8px; justify-content: flex-end;" }, [
+              el("button", {
+                class: "btn btn--sm btn--primary",
+                disabled: !isReady,
+                title: !isReady ? "Wait for 24h cooling-off period" : "Approve Transfer",
+                onClick: async (e) => {
+                  if (!confirm(`Approve transfer for ${s.schoolName}? This will instantly replace the current admin.`)) return;
+                  const restore = busyButton(e.currentTarget, "");
+                  try {
+                    const { approveSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
+                    await approveSchoolOwnershipTransfer(profile.uid, s.id);
+                    toast("Ownership transfer approved.", "success");
+                    const { renderRoute } = await import("../js/router.js");
+                    renderRoute();
+                  } catch (err) {
+                    toast(err.message || "Failed to approve transfer.", "error");
+                    restore();
+                  }
                 }
-              }
-            }, [icon("check"), "Approve"]),
-            el("button", {
-              class: "btn btn--sm btn--danger",
-              onClick: async (e) => {
-                if (!confirm(`Reject this transfer request for ${s.schoolName}?`)) return;
-                const restore = busyButton(e.currentTarget, "Rejecting…");
-                try {
-                  const { rejectSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
-                  await rejectSchoolOwnershipTransfer(profile.uid, s.id);
-                  toast("Transfer rejected.", "success");
-                  const { renderRoute } = await import("../js/router.js");
-                  renderRoute();
-                } catch (err) {
-                  toast(err.message || "Failed to reject transfer.", "error");
-                  restore();
+              }, [icon("check")]),
+              el("button", {
+                class: "btn btn--sm btn--danger",
+                title: "Reject Transfer",
+                onClick: async (e) => {
+                  if (!confirm(`Reject this transfer request for ${s.schoolName}?`)) return;
+                  const restore = busyButton(e.currentTarget, "");
+                  try {
+                    const { rejectSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
+                    await rejectSchoolOwnershipTransfer(profile.uid, s.id);
+                    toast("Transfer rejected.", "success");
+                    const { renderRoute } = await import("../js/router.js");
+                    renderRoute();
+                  } catch (err) {
+                    toast(err.message || "Failed to reject transfer.", "error");
+                    restore();
+                  }
                 }
-              }
-            }, [icon("close"), "Reject"])
+              }, [icon("close")])
+            ])
           ])
         ])
       );
@@ -119,37 +161,57 @@ export async function render({ profile }) {
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Created"), el("th", {}, ""),
+      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Created"), el("th", { style: "text-align: right;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody");
   for (const s of schools) {
     tbody.append(
       el("tr", {}, [
-        el("td", { "data-label": "School" }, [el("strong", {}, s.schoolName || "(unnamed)"), el("div", { class: "text-sm text-muted" }, s.address || "")]),
-        el("td", { "data-label": "Contact" }, [el("div", {}, s.email || "N/A"), el("div", { class: "text-sm text-muted" }, s.phone || "")]),
+        el("td", { "data-label": "School" }, [
+          el("div", { style: "display: flex; align-items: center; gap: 12px;" }, [
+            el("div", { style: "width: 40px; height: 40px; border-radius: 8px; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 16px; flex-shrink: 0;" }, s.schoolName ? s.schoolName.charAt(0).toUpperCase() : "?"),
+            el("div", {}, [
+              el("strong", { style: "display: block; color: var(--color-ink); margin-bottom: 2px;" }, s.schoolName || "(unnamed)"),
+              el("div", { class: "text-sm text-muted", style: "display: flex; align-items: center; gap: 4px;" }, [icon("location_on", "text-muted", { style: "font-size: 14px;" }), s.address || "No address provided"])
+            ])
+          ])
+        ]),
+        el("td", { "data-label": "Contact" }, [
+          el("div", { style: "display: flex; flex-direction: column; gap: 4px;" }, [
+            el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--color-ink);" }, [icon("mail", "text-muted", { style: "font-size: 16px;" }), s.email || "N/A"]),
+            el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--color-ink-soft);" }, [icon("phone", "text-muted", { style: "font-size: 16px;" }), s.phone || "N/A"])
+          ])
+        ]),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
         el("td", { "data-label": "Subscription" }, subscriptionBadge(s)),
         el("td", { "data-label": "Created" }, s.createdAt ? formatDate(s.createdAt) : "N/A"),
-        el("td", { class: "row-actions", "data-label": "Actions", style: "white-space:nowrap;" }, [
-          el("button", {
-            class: "btn btn--sm btn--ghost",
-            onClick: () => openIssueTokenModal(s),
-          }, [icon("key"), "Issue subscription"]),
-          el("button", {
-            class: "btn btn--sm btn--ghost",
-            onClick: () => openTokenHistoryModal(s),
-          }, [icon("history"), "Token history"]),
-          ...(s.subscriptionStatus === "active" ? [
+        el("td", { class: "row-actions", "data-label": "Actions" }, [
+          el("div", { style: "display: flex; gap: 8px; justify-content: flex-end;" }, [
             el("button", {
-              class: "btn btn--sm btn--danger",
-              onClick: () => openRevokeModal(s),
-            }, [icon("money_off"), "Revoke subscription"]),
-          ] : []),
-          el("button", {
-            class: "btn btn--sm btn--ghost",
-            onClick: (e) => toggleStatus(profile, s, e.currentTarget),
-          }, [icon(s.status === "suspended" ? "play_circle" : "pause_circle"), s.status === "suspended" ? "Reactivate" : "Suspend"]),
+              class: "btn btn--sm btn--ghost",
+              title: "Issue subscription token",
+              onClick: () => openIssueTokenModal(s),
+            }, [icon("key")]),
+            el("button", {
+              class: "btn btn--sm btn--ghost",
+              title: "Token history",
+              onClick: () => openTokenHistoryModal(s),
+            }, [icon("history")]),
+            ...(s.subscriptionStatus === "active" ? [
+              el("button", {
+                class: "btn btn--sm btn--ghost",
+                style: "color: var(--color-red);",
+                title: "Revoke subscription",
+                onClick: () => openRevokeModal(s),
+              }, [icon("money_off")]),
+            ] : []),
+            el("button", {
+              class: "btn btn--sm btn--ghost",
+              title: s.status === "suspended" ? "Reactivate school" : "Suspend school",
+              onClick: (e) => toggleStatus(profile, s, e.currentTarget),
+            }, [icon(s.status === "suspended" ? "play_circle" : "pause_circle")]),
+          ])
         ]),
       ])
     );
