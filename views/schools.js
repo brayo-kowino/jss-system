@@ -25,7 +25,7 @@ export async function render({ profile }) {
   wrap.append(
     el("div", { class: "page-header" }, [
       el("div", {}, [
-        el("p", {}, "Manage all schools on this platform. Create new schools, issue subscription tokens, and suspend/reactivate schools as needed."),
+        el("p", {}, "Manage or create schools on this platform."),
       ]),
       el("button", { class: "btn btn--primary", id: "new-school-btn" }, [
         el("span", { class: "material-symbols-rounded" }, "add_business"),
