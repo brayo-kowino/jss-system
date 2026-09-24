@@ -1184,6 +1184,42 @@ export function init({ profile }) {
       restore();
     }
   });
+
+  const transferForm = document.getElementById("transfer-ownership-form");
+  if (transferForm) {
+    transferForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fullName = val("transferFullName");
+      const email = val("transferEmail");
+      const tempPassword = val("transferPassword");
+      if (!fullName || !email || !tempPassword) {
+        toast("Please fill in all fields to transfer ownership.", "error");
+        return;
+      }
+      
+      const confirmMsg = "CRITICAL WARNING:\n\nYou are initiating a transfer of administrative control to " + fullName + " (" + email + ").\n\nThis will begin a 24-hour cooling-off period. You can cancel it during this time. Once 24 hours pass, Platform Support can approve it and you will lose access.\n\nType 'CONFIRM' to initiate this request.";
+      if (!confirm(confirmMsg)) return;
+      
+      const check = prompt("Type 'CONFIRM' to initiate transfer:");
+      if (check !== "CONFIRM") {
+        toast("Transfer request cancelled.", "info");
+        return;
+      }
+      
+      const restore = busyButton(e.submitter, "Initiating…");
+      try {
+        const { requestOwnershipTransfer } = await import("../js/services/settings.service.js");
+        await requestOwnershipTransfer(profile.uid, { fullName, email, tempPassword });
+        settings.pendingTransfer = { newAdmin: { fullName, email }, requestedAt: new Date().toISOString() };
+        toast("Transfer requested. 24-hour cooling-off period has begun.", "success");
+        const { renderRoute } = await import("../js/router.js");
+        renderRoute();
+      } catch (err) {
+        toast(err.message || "Failed to initiate transfer.", "error");
+        restore();
+      }
+    });
+  }
 }
 
 function val(id) {
@@ -1310,6 +1346,61 @@ function buildSecurityPanel(profile) {
     toggleInput.disabled = false;
   });
   authCol.append(policyCard);
+
+  // 5. Transfer Administrator Ownership Card
+  const transferCard = el("div", { class: "card settings-card", style: "border: 1px solid var(--color-red-light); background: rgba(220, 38, 38, 0.02);" });
+  transferCard.append(
+    el("h3", { style: "color:var(--color-red);" }, [
+      icon("swap_horiz"),
+      "Transfer Administrator Ownership"
+    ])
+  );
+
+  if (settings.pendingTransfer) {
+    const pt = settings.pendingTransfer;
+    transferCard.append(
+      el("p", { class: "settings-card__sub" }, `A transfer to ${pt.newAdmin?.fullName} is currently pending. The 24-hour cooling-off period is active.`),
+      el("div", { class: "notice-banner notice-banner--warning", style: "margin-top: 16px;" }, [
+        icon("hourglass_empty"),
+        el("span", {}, "Awaiting Platform Admin approval. See dashboard for countdown.")
+      ]),
+      el("div", { class: "settings-form-actions", style: "justify-content: flex-start; margin-top: 16px;" }, [
+        el("button", { 
+          class: "btn btn--outline btn--sm",
+          onClick: async (e) => {
+            if (!confirm("Cancel this transfer?")) return;
+            const restore = busyButton(e.currentTarget, "Canceling…");
+            try {
+              const { cancelOwnershipTransfer } = await import("../js/services/settings.service.js");
+              await cancelOwnershipTransfer(profile.uid);
+              settings.pendingTransfer = null;
+              toast("Transfer cancelled.", "success");
+              // Quick reload to show the form again
+              const { renderRoute } = await import("../js/router.js");
+              renderRoute();
+            } catch (err) {
+              toast("Failed to cancel transfer.", "error");
+              restore();
+            }
+          }
+        }, "Cancel Transfer")
+      ])
+    );
+  } else {
+    transferCard.append(
+      el("p", { class: "settings-card__sub" }, "Hand over complete administrative control of this school. This initiates a 24-hour cooling-off period.")
+    );
+    const transferForm = el("form", { id: "transfer-ownership-form", class: "settings-form-grid", style: "margin-top:16px;" }, [
+      field("transferFullName", "New Admin Full Name", "", "text", true, { title: "Full Name", text: "Name of the new administrator." }),
+      field("transferEmail", "New Admin Email", "", "email", true, { title: "Email Address", text: "They will log in with this email." }),
+      passwordField("transferPassword", "Temporary Password", "", { title: "Temporary Password", text: "Provide this to the new admin. They will be forced to change it on their first login." }, "••••••••"),
+      el("div", { class: "settings-form-actions field--full", style: "justify-content:flex-start; margin-top:8px;" }, [
+        el("button", { type: "submit", class: "btn btn--danger" }, [icon("warning"), "Initiate Transfer Request"])
+      ])
+    ]);
+    transferCard.append(transferForm);
+  }
+  authCol.append(transferCard);
 
   // ---------------------------------------------------------------------------
   // Column 2: Trusted Devices & Audit Activity

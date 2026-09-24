@@ -38,6 +38,84 @@ export async function render({ profile }) {
     return wrap;
   }
 
+  const pendingTransfers = schools.filter(s => s.pendingTransfer);
+  if (pendingTransfers.length > 0) {
+    wrap.append(el("h3", { style: "margin-top: 24px; color: var(--color-red);" }, [icon("swap_horiz"), " Pending Admin Transfers"]));
+    const ptWrap = el("div", { class: "table-wrap table-wrap--responsive card", style: "border: 1px solid var(--color-red-light); background: rgba(220, 38, 38, 0.02); margin-bottom: 32px;" });
+    const ptTable = el("table", {}, [
+      el("thead", {}, el("tr", {}, [
+        el("th", {}, "School"), el("th", {}, "Requested By"), el("th", {}, "New Admin"), el("th", {}, "Time Left"), el("th", {}, "")
+      ]))
+    ]);
+    const ptBody = el("tbody");
+    for (const s of pendingTransfers) {
+      const pt = s.pendingTransfer;
+      const reqTime = new Date(pt.requestedAt).getTime();
+      const coolOffEnd = reqTime + (24 * 60 * 60 * 1000);
+      const now = Date.now();
+      const isReady = now >= coolOffEnd;
+      
+      let timeText = "";
+      if (isReady) {
+        timeText = el("span", { class: "badge badge--success" }, "Ready for Approval");
+      } else {
+        const remainingHours = Math.floor((coolOffEnd - now) / (1000 * 60 * 60));
+        timeText = el("span", { class: "badge badge--warning" }, `${remainingHours}h remaining`);
+      }
+
+      ptBody.append(
+        el("tr", {}, [
+          el("td", {}, el("strong", {}, s.schoolName || "(unnamed)")),
+          el("td", {}, "Current Admin"),
+          el("td", {}, [el("div", {}, pt.newAdmin?.fullName), el("div", { class: "text-sm text-muted" }, pt.newAdmin?.email)]),
+          el("td", {}, timeText),
+          el("td", { class: "row-actions" }, [
+            el("button", {
+              class: "btn btn--sm btn--primary",
+              disabled: !isReady,
+              title: !isReady ? "Wait for 24h cooling-off period" : "",
+              onClick: async (e) => {
+                if (!confirm(`Approve transfer for ${s.schoolName}? This will instantly replace the current admin.`)) return;
+                const restore = busyButton(e.currentTarget, "Approving…");
+                try {
+                  const { approveSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
+                  await approveSchoolOwnershipTransfer(profile.uid, s.id);
+                  toast("Ownership transfer approved.", "success");
+                  const { renderRoute } = await import("../js/router.js");
+                  renderRoute();
+                } catch (err) {
+                  toast(err.message || "Failed to approve transfer.", "error");
+                  restore();
+                }
+              }
+            }, [icon("check"), "Approve"]),
+            el("button", {
+              class: "btn btn--sm btn--danger",
+              onClick: async (e) => {
+                if (!confirm(`Reject this transfer request for ${s.schoolName}?`)) return;
+                const restore = busyButton(e.currentTarget, "Rejecting…");
+                try {
+                  const { rejectSchoolOwnershipTransfer } = await import("../js/services/school.service.js");
+                  await rejectSchoolOwnershipTransfer(profile.uid, s.id);
+                  toast("Transfer rejected.", "success");
+                  const { renderRoute } = await import("../js/router.js");
+                  renderRoute();
+                } catch (err) {
+                  toast(err.message || "Failed to reject transfer.", "error");
+                  restore();
+                }
+              }
+            }, [icon("close"), "Reject"])
+          ])
+        ])
+      );
+    }
+    ptTable.append(ptBody);
+    ptWrap.append(ptTable);
+    wrap.append(ptWrap);
+  }
+
+  wrap.append(el("h3", { style: "margin-top: 24px;" }, [icon("corporate_fare"), " All Schools"]));
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [

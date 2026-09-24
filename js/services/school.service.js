@@ -162,4 +162,61 @@ export async function setSchoolStatus(superAdminUserId, schoolId, status) {
   }
   if (!res.ok) throw new Error(data.error || "Something went wrong.");
   return data;
+}
+
+/**
+ * Super Admin function: Executes a pending ownership transfer after 24h cooling off.
+ */
+export async function approveSchoolOwnershipTransfer(superAdminUserId, schoolId) {
+  const schoolRef = doc(db, "schools", schoolId);
+  const snap = await getDoc(schoolRef);
+  if (!snap.exists()) throw new Error("School not found.");
+  
+  const data = snap.data();
+  if (!data.pendingTransfer) throw new Error("No pending transfer for this school.");
+  
+  const pt = data.pendingTransfer;
+  const reqTime = new Date(pt.requestedAt).getTime();
+  const coolOffEnd = reqTime + (24 * 60 * 60 * 1000);
+  if (Date.now() < coolOffEnd) {
+    throw new Error("Cooling-off period (24 hours) has not elapsed yet.");
+  }
+
+  const secondary = initializeApp(firebaseApp.options, `secondary-${Date.now()}`);
+  attachAppCheck(secondary);
+  const secondaryAuth = getAuth(secondary);
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, pt.newAdmin.email, pt.newAdmin.tempPassword);
+    await setDoc(doc(db, "users", cred.user.uid), {
+      fullName: pt.newAdmin.fullName.trim(),
+      email: pt.newAdmin.email.trim(),
+      role: "admin",
+      schoolId: schoolId,
+      status: "active",
+      mustChangePassword: true,
+      createdAt: serverTimestamp(),
+    });
+  } finally {
+    await signOut(secondaryAuth);
+    await deleteApp(secondary);
+  }
+
+  if (pt.requestedBy) {
+    await setDoc(doc(db, "users", pt.requestedBy), {
+      role: "former_admin",
+      status: "inactive"
+    }, { merge: true });
+  }
+
+  await updateDoc(schoolRef, { pendingTransfer: null });
+  await logAction(superAdminUserId, "approve_ownership_transfer", "schools", schoolId);
+}
+
+/**
+ * Super Admin function: Rejects/Cancels a pending ownership transfer.
+ */
+export async function rejectSchoolOwnershipTransfer(superAdminUserId, schoolId) {
+  const schoolRef = doc(db, "schools", schoolId);
+  await updateDoc(schoolRef, { pendingTransfer: null });
+  await logAction(superAdminUserId, "reject_ownership_transfer", "schools", schoolId);
 }

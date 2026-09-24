@@ -108,6 +108,26 @@ export async function saveSchoolSettings(userId, data) {
   await logAction(userId, "update_settings", "schools", schoolId);
 }
 
+export async function requestOwnershipTransfer(userId, { fullName, email, tempPassword }) {
+  const schoolId = getCurrentSchoolId();
+  const pendingTransfer = {
+    newAdmin: { fullName, email, tempPassword },
+    requestedBy: userId,
+    requestedAt: new Date().toISOString(),
+    status: "pending"
+  };
+  await setDoc(schoolDocRef(schoolId), { pendingTransfer, updatedAt: serverTimestamp() }, { merge: true });
+  invalidate(`school_settings:${schoolId}`);
+  await logAction(userId, "request_ownership_transfer", "schools", schoolId);
+}
+
+export async function cancelOwnershipTransfer(userId) {
+  const schoolId = getCurrentSchoolId();
+  await setDoc(schoolDocRef(schoolId), { pendingTransfer: null, updatedAt: serverTimestamp() }, { merge: true });
+  invalidate(`school_settings:${schoolId}`);
+  await logAction(userId, "cancel_ownership_transfer", "schools", schoolId);
+}
+
 export async function uploadSchoolLogo(file) {
   return uploadToCloudinary(file, `schools/${getCurrentSchoolId()}/logo`);
 }

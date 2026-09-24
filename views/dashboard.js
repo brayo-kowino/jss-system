@@ -142,6 +142,51 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "dashboard-container" });
 
+  if (settings.pendingTransfer) {
+    const pt = settings.pendingTransfer;
+    const reqTime = new Date(pt.requestedAt).getTime();
+    const coolOffEnd = reqTime + (24 * 60 * 60 * 1000);
+    const now = Date.now();
+    const isReady = now >= coolOffEnd;
+    
+    let timeText = "";
+    if (isReady) {
+      timeText = "Cooling-off period complete. Awaiting Platform Admin approval.";
+    } else {
+      const remainingHours = Math.floor((coolOffEnd - now) / (1000 * 60 * 60));
+      const remainingMinutes = Math.floor(((coolOffEnd - now) % (1000 * 60 * 60)) / (1000 * 60));
+      timeText = `Security Cooling-off Period: ${remainingHours}h ${remainingMinutes}m remaining.`;
+    }
+
+    const banner = el("div", { class: "notice-banner notice-banner--warning", style: "margin-bottom: var(--sp-6); border: 1px solid var(--color-red); background: rgba(220, 38, 38, 0.05);" }, [
+      el("span", { class: "material-symbols-rounded", style: "color: var(--color-red);" }, "warning"),
+      el("div", { style: "flex: 1;" }, [
+        el("strong", { style: "display: block; color: var(--color-red); margin-bottom: 4px;" }, `Transfer Pending: Ownership transfer to ${pt.newAdmin?.fullName || 'another user'} initiated.`),
+        el("span", { style: "font-size: var(--fs-sm); display: block;" }, timeText),
+        el("span", { style: "font-size: var(--fs-sm); display: block; margin-top: 2px;" }, "Status: Awaiting Platform Admin approval.")
+      ]),
+      el("button", { 
+        class: "btn btn--danger btn--sm",
+        onClick: async (e) => {
+          if (!confirm("Are you sure you want to cancel the ownership transfer?")) return;
+          const { cancelOwnershipTransfer } = await import("../js/services/settings.service.js");
+          const { busyButton, toast } = await import("../js/utils.js");
+          const restore = busyButton(e.currentTarget, "Canceling…");
+          try {
+            await cancelOwnershipTransfer(activeProfile.uid);
+            toast("Ownership transfer cancelled.", "success");
+            banner.remove();
+            settings.pendingTransfer = null;
+          } catch (err) {
+            toast(err.message || "Could not cancel transfer.", "error");
+            restore();
+          }
+        }
+      }, "Cancel Transfer")
+    ]);
+    wrap.append(banner);
+  }
+
   const hour = new Date().getHours();
   let greeting = "Good evening";
   if (hour < 12) greeting = "Good morning";

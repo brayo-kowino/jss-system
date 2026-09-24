@@ -617,6 +617,38 @@ export async function setUserStatus(actingUserId, uid, status) {
   await logAction(actingUserId, `${status}_user`, "users", uid);
 }
 
+/**
+ * Transfers complete administrative ownership to a new person.
+ * Creates a new admin account, demotes the current one, and forces a logout.
+ */
+export async function transferSchoolOwnership(currentAdminUid, { fullName, email, tempPassword }) {
+  const schoolId = getCurrentSchoolId();
+  if (!schoolId) throw new Error("No active school context.");
+
+  // 1. Create the new admin account
+  const newAdminUid = await createUserAccount({
+    fullName,
+    email,
+    role: "admin",
+    tempPassword,
+    schoolId
+  });
+
+  // 2. Demote the current admin
+  await setDoc(doc(db, "users", currentAdminUid), { 
+    role: "former_admin", 
+    status: "inactive" 
+  }, { merge: true });
+
+  invalidate(schoolUsersCacheKey(schoolId));
+  
+  // 3. Log the action
+  await logAction(currentAdminUid, "transfer_ownership", "schools", schoolId);
+
+  // 4. Sign out the current admin
+  await signOut(auth);
+}
+
 export const ROLES = [
   { value: "admin", label: "School Administrator" },
   { value: "super_admin", label: "Platform Administrator"},
