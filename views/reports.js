@@ -711,7 +711,7 @@ async function handleBulkGenerateRemarks(button, results, profile) {
       try {
         const res = await fetch("/generate-remarks", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": \Bearer \\ },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             studentName: result.fullName,
             meanGrade: result.meanGrade,
