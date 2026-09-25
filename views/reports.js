@@ -889,7 +889,7 @@ function buildActionBar(bodyMount, result, profile) {
         
         toast("Remarks generated. Review and click 'Save Remarks' at the bottom.", "success");
       } catch (err) {
-        toast("Generation failed", "error");
+        toast(err.message || "Generation failed", "error");
       } finally {
         restore();
       }
@@ -1254,6 +1254,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
 
 
 

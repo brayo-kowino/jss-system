@@ -55,7 +55,7 @@ Return EXACTLY a JSON object with two keys: "teacherRemark" and "principalRemark
     if (!res.ok) {
       const errText = await res.text();
       console.error("Mistral API Error:", errText);
-      throw new Error("Failed to generate remarks from AI provider.");
+      throw new Error(`AI provider error: ${errText}`);
     }
 
     const data = await res.json();
