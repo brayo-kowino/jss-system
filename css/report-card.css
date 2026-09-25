@@ -130,7 +130,7 @@
   justify-content: space-between;
 }
 .report-card__remark-box h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); color: var(--color-primary-900); }
-.report-card__remark-box textarea { width: 100%; min-height: 64px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: var(--sp-2); font-family: inherit; }
+.report-card__remark-box textarea { width: 100%; min-height: 64px; border: 1px solid var(--color-line); border-radius: var(--radius-sm); padding: var(--sp-2); font-family: inherit; font-size: var(--fs-sm); }
 .report-card__sign-line { margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--color-ink-soft); }
 .report-card__signer { margin-top: 2px; font-size: var(--fs-xs); font-weight: 600; color: var(--color-ink); }
 
