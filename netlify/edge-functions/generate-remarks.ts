@@ -23,14 +23,15 @@ export default async function handler(req: Request) {
     }
 
     // Build prompt for AI
-    const prompt = `You are a professional class teacher. Write a 1-2 sentence report card remark for the student named ${studentName}. 
+    const prompt = `You are a professional class teacher. Write a VERY SHORT, concise report card remark (maximum 1 sentence) for the student named ${studentName}. 
 Their overall mean grade is ${meanGrade} (${average}%).
 Here is their subject performance:
 ${subjects.map((s: any) => `- ${s.name}: ${s.grade} (${s.average}%)`).join('\n')}
 
 Instructions:
-1. Write a 'Teacher Remark' (encouraging, highlights strengths, gently notes areas for improvement).
-2. Write a 'Principal Remark' (slightly more formal, congratulatory or constructive).
+1. Write a 'Teacher Remark' (1 short sentence max. Encouraging, briefly note a strength and an area to improve).
+2. Write a 'Principal Remark' (1 short sentence max. Slightly more formal, constructive).
+Keep both remarks extremely brief and to the point.
 Return EXACTLY a JSON object with two keys: "teacherRemark" and "principalRemark". Do not include markdown formatting or any other text.`;
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
