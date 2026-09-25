@@ -33,33 +33,31 @@ Instructions:
 2. Write a 'Principal Remark' (slightly more formal, congratulatory or constructive).
 Return EXACTLY a JSON object with two keys: "teacherRemark" and "principalRemark". Do not include markdown formatting or any other text.`;
 
-    const apiKey = Deno.env.get("MISTRAL_API_KEY");
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      throw new Error("MISTRAL_API_KEY not configured on server.");
+      throw new Error("GEMINI_API_KEY not configured on server.");
     }
 
-    const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "mistral-small-latest", // Lightweight Mistral model
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-        temperature: 0.7
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json",
+        }
       })
     });
 
     if (!res.ok) {
       const errText = await res.text();
-      console.error("Mistral API Error:", errText);
+      console.error("Gemini API Error:", errText);
       throw new Error(`AI provider error: ${errText}`);
     }
 
     const data = await res.json();
-    const textOutput = data.choices?.[0]?.message?.content;
+    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!textOutput) throw new Error("Empty response from AI.");
 
     const parsed = JSON.parse(textOutput);
