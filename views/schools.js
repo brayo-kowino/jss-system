@@ -20,7 +20,6 @@ let schools = [];
 
 export async function render({ profile }) {
   schools = await listSchools();
-
   const wrap = el("div", {});
   wrap.append(
     el("div", { class: "page-header" }, [
