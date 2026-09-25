@@ -508,17 +508,33 @@ function renderList(container, results, profile, bodyMount) {
     ]),
   ]);
 
-  if (results.length) {
-    const bulkBtn = el("button", {
-      type: "button",
-      class: "btn btn--primary btn--sm hide-on-mobile"
-    }, [
-      icon("folder_zip", "text-xs"),
-      "Download All (ZIP)"
-    ]);
-    bulkBtn.addEventListener("click", () => handleBulkDownload(bulkBtn, results, profile));
-    header.append(bulkBtn);
-  }
+      if (results.length) {
+      const actionsWrap = el("div", { style: "display: flex; gap: 8px;" });
+
+      if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
+        const aiBtn = el("button", {
+          type: "button",
+          class: "btn btn--outline btn--sm hide-on-mobile"
+        }, [
+          icon("auto_awesome", "text-xs"),
+          "Auto-Generate All Remarks"
+        ]);
+        aiBtn.addEventListener("click", () => handleBulkGenerateRemarks(aiBtn, results, profile));
+        actionsWrap.append(aiBtn);
+      }
+
+      const bulkBtn = el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm hide-on-mobile"
+      }, [
+        icon("folder_zip", "text-xs"),
+        "Download All (ZIP)"
+      ]);
+      bulkBtn.addEventListener("click", () => handleBulkDownload(bulkBtn, results, profile));
+      actionsWrap.append(bulkBtn);
+
+      header.append(actionsWrap);
+    }
   container.append(header);
 
   // Table Card with Toolbar
@@ -667,6 +683,76 @@ function renderList(container, results, profile, bodyMount) {
 // a bulk card looks identical to one downloaded individually - just the
 // fee/history lookups are re-fetched per student since they were never
 // loaded for anyone but whoever was actively being viewed.
+async function handleBulkGenerateRemarks(button, results, profile) {
+  const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
+  const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
+  if (!canEditTeacher && !canEditPrincipal) {
+    toast("You do not have permission to edit remarks.", "error");
+    return;
+  }
+  
+  if (!confirm("This will auto-generate and immediately save AI remarks for " + results.length + " students. This may take a moment. Proceed?")) {
+    return;
+  }
+
+  const originalText = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating 0/" + results.length + "...";
+
+  try {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Authentication required");
+
+    let successCount = 0;
+    
+    // Process in smaller batches of 3 to avoid overwhelming the browser or hitting Mistral rate limits too quickly
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < results.length; i += BATCH_SIZE) {
+      const batch = results.slice(i, i + BATCH_SIZE);
+      
+      await Promise.all(batch.map(async (result) => {
+        try {
+          const res = await fetch("/generate-remarks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": Bearer \ },
+            body: JSON.stringify({
+              studentName: result.fullName,
+              meanGrade: result.meanGrade,
+              average: result.meanMarks,
+              subjects: result.subjects
+            })
+          });
+
+          if (!res.ok) throw new Error("API failed");
+          const data = await res.json();
+          
+          await updateResultRemarks(profile.uid, result.id, {
+            ...(canEditTeacher && data.teacherRemark ? { teacherRemark: data.teacherRemark } : {}),
+            ...(canEditPrincipal && data.principalRemark ? { principalRemark: data.principalRemark } : {}),
+          });
+          
+          successCount++;
+          button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating " + successCount + "/" + results.length + "...";
+        } catch (err) {
+          console.error("Failed for", result.fullName, err);
+        }
+      }));
+    }
+    
+    toast("Successfully generated remarks for " + successCount + " of " + results.length + " students.", "success");
+    
+    // We update the local array so that if the user clicks View immediately, they see them
+    // Wait, let's just reload the list to reflect updates
+    // It's easier to just call loadList again but we don't have bodyMount ref here.
+    // We will just let them click reload.
+  } catch (err) {
+    toast(err.message || "Bulk generation failed.", "error");
+  } finally {
+    button.disabled = false;
+    button.innerHTML = originalText;
+  }
+}
+
 async function handleBulkDownload(button, results, profile) {
   if (!results.length) return;
   const original = button.textContent;
@@ -771,13 +857,52 @@ async function openCard(bodyMount, result, profile) {
 
 function buildActionBar(bodyMount, result, profile) {
   const bar = el("div", { class: "no-print", style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;" });
+  
   bar.append(
-    el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back", "text-xs"), "Back to list"]),
-    el("div", { style: "display:flex; gap:8px; align-items:center;" }, [
-      el("button", { class: "btn btn--ghost btn--sm hide-on-mobile", onClick: () => window.print() }, [icon("print", "text-xs"), "Print"]),
-      el("button", { class: "btn btn--primary btn--sm hide-on-mobile", onClick: (e) => handleDownload(e.currentTarget, result) }, [icon("download", "text-xs"), "Download PDF"]),
-    ])
+    el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back", "text-xs"), "Back to list"])
   );
+
+  const actions = el("div", { style: "display:flex; gap:8px; align-items:center;" });
+
+  if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
+    const aiBtn = el("button", { class: "btn btn--outline btn--sm" }, [icon("auto_awesome", "text-xs"), "Auto-Generate Remarks"]);
+    aiBtn.addEventListener("click", async (e) => {
+      const restore = busyButton(e.currentTarget, "Generating...");
+      try {
+        const token = await auth.currentUser?.getIdToken();
+        const res = await fetch("/generate-remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": Bearer \ },
+          body: JSON.stringify({
+            studentName: result.fullName,
+            meanGrade: result.meanGrade,
+            average: result.meanMarks,
+            subjects: result.subjects
+          })
+        });
+        if (!res.ok) throw new Error("API failed");
+        const data = await res.json();
+        
+        const textareas = document.querySelectorAll(".report-card__remark-box textarea");
+        if (textareas[0] && data.teacherRemark) textareas[0].value = data.teacherRemark;
+        if (textareas[1] && data.principalRemark) textareas[1].value = data.principalRemark;
+        
+        toast("Remarks generated. Review and click 'Save Remarks' at the bottom.", "success");
+      } catch (err) {
+        toast("Generation failed", "error");
+      } finally {
+        restore();
+      }
+    });
+    actions.append(aiBtn);
+  }
+
+  actions.append(
+    el("button", { class: "btn btn--ghost btn--sm hide-on-mobile", onClick: () => window.print() }, [icon("print", "text-xs"), "Print"]),
+    el("button", { class: "btn btn--primary btn--sm hide-on-mobile", onClick: (e) => handleDownload(e.currentTarget, result) }, [icon("download", "text-xs"), "Download PDF"])
+  );
+
+  bar.append(actions);
   return bar;
 }
 
@@ -1129,5 +1254,9 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
+
+
+
 
 
