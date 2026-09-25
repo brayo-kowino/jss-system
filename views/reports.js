@@ -703,40 +703,44 @@ async function handleBulkGenerateRemarks(button, results, profile) {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error("Authentication required");
 
-    let successCount = 0;
+        let successCount = 0;
     
-    // Process in smaller batches of 3 to avoid overwhelming the browser or hitting Mistral rate limits too quickly
-    const BATCH_SIZE = 3;
-    for (let i = 0; i < results.length; i += BATCH_SIZE) {
-      const batch = results.slice(i, i + BATCH_SIZE);
-      
-      await Promise.all(batch.map(async (result) => {
-        try {
-          const res = await fetch("/generate-remarks", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-            body: JSON.stringify({
-              studentName: result.fullName,
-              meanGrade: result.meanGrade,
-              average: result.meanMarks,
-              subjects: result.subjects
-            })
-          });
+    // Process strictly sequentially with a delay to respect free-tier AI API rate limits (e.g. Mistral 1 req/sec)
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      try {
+        const res = await fetch("/generate-remarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": \Bearer \\ },
+          body: JSON.stringify({
+            studentName: result.fullName,
+            meanGrade: result.meanGrade,
+            average: result.meanMarks,
+            subjects: result.subjects
+          })
+        });
 
-          if (!res.ok) throw new Error("API failed");
-          const data = await res.json();
-          
-          await updateResultRemarks(profile.uid, result.id, {
-            ...(canEditTeacher && data.teacherRemark ? { teacherRemark: data.teacherRemark } : {}),
-            ...(canEditPrincipal && data.principalRemark ? { principalRemark: data.principalRemark } : {}),
-          });
-          
-          successCount++;
-          button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating " + successCount + "/" + results.length + "...";
-        } catch (err) {
-          console.error("Failed for", result.fullName, err);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "API failed");
         }
-      }));
+        const data = await res.json();
+        
+        await updateResultRemarks(profile.uid, result.id, {
+          ...(canEditTeacher && data.teacherRemark ? { teacherRemark: data.teacherRemark } : {}),
+          ...(canEditPrincipal && data.principalRemark ? { principalRemark: data.principalRemark } : {}),
+        });
+        
+        successCount++;
+        button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating " + successCount + "/" + results.length + "...";
+      } catch (err) {
+        console.error("Failed for", result.fullName, err);
+      }
+      
+      // Delay 1.5 seconds between requests to avoid rate limit (429) errors
+      if (i < results.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
     }
     
     toast("Successfully generated remarks for " + successCount + " of " + results.length + " students.", "success");
@@ -1254,6 +1258,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
 
 
 
