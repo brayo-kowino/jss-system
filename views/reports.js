@@ -1,3 +1,4 @@
+import { auth } from "../js/firebase-config.js";
 import { listClasses } from "../js/services/academic.service.js";
 import { getSchoolSettings, DEFAULT_GRADING_SCALE } from "../js/services/settings.service.js";
 import {
@@ -1122,9 +1123,11 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
     );
   }
 
-  return { node: box, getValue: () => (editable ? control.value.trim() : value || "") };
+  return { node: box, getValue: () => (editable ? control.value.trim() : value || ""), setValue: (v) => { if (editable) control.value = v; } };
 }
 
 export function init() {
   prewarmPdfLibs();
 }
+
+
