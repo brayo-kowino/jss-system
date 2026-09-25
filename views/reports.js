@@ -697,7 +697,7 @@ async function handleBulkGenerateRemarks(button, results, profile) {
 
   const originalText = button.innerHTML;
   button.disabled = true;
-  button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating 0/" + results.length + "...";
+  button.innerHTML = ""; button.append(icon("sync", "text-xs fa-spin"), " Generating 0/" + results.length + "...");
 
   try {
     const token = await auth.currentUser?.getIdToken();
@@ -721,8 +721,7 @@ async function handleBulkGenerateRemarks(button, results, profile) {
         });
 
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || "API failed");
+          const errText = await res.text(); let errData = {}; try { errData = JSON.parse(errText); } catch(e){} throw new Error(errData.error || errText || "API failed");
         }
         const data = await res.json();
         
@@ -732,7 +731,7 @@ async function handleBulkGenerateRemarks(button, results, profile) {
         });
         
         successCount++;
-        button.innerHTML = icon("sync", "text-xs fa-spin") + " Generating " + successCount + "/" + results.length + "...";
+        button.innerHTML = ""; button.append(icon("sync", "text-xs fa-spin"), " Generating " + successCount + "/" + results.length + "...");
       } catch (err) {
         console.error("Failed for", result.fullName, err);
       }
@@ -1258,6 +1257,9 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
+
+
 
 
 
