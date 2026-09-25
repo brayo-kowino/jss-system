@@ -38,13 +38,12 @@ Return EXACTLY a JSON object with two keys: "teacherRemark" and "principalRemark
       throw new Error("GEMINI_API_KEY not configured on server.");
     }
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.7,
           responseMimeType: "application/json",
         }
       })
