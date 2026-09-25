@@ -1158,7 +1158,7 @@ function openImportModal(profile) {
   });
   const previewArea = el("div", {});
   const instructions = el("p", { class: "text-sm text-muted" },
-    "Upload an Excel (.xlsx) or CSV file with the essential details (Name, Class, Stream, Gender, Adm No, Assessment No). Additional details like medical info, address, and parent contacts can be added later from each student's profile."
+    "Upload an Excel (.xlsx) or CSV file with the essential details (Name, Class, Stream (when applicable), Gender, Adm No, Assessment No). Additional details like medical info, address, and parent contacts can be added later from each student's profile. PLEASE NOTE: The first row of the spreadsheet must contain the column headers exactly as in the template. Any extra columns will be ignored and ensure you review the data before importing and also after importing."
   );
   body.append(
     instructions,
