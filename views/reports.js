@@ -714,7 +714,7 @@ async function handleBulkGenerateRemarks(button, results, profile) {
         try {
           const res = await fetch("/generate-remarks", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": Bearer \ },
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
             body: JSON.stringify({
               studentName: result.fullName,
               meanGrade: result.meanGrade,
@@ -872,7 +872,7 @@ function buildActionBar(bodyMount, result, profile) {
         const token = await auth.currentUser?.getIdToken();
         const res = await fetch("/generate-remarks", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": Bearer \ },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             studentName: result.fullName,
             meanGrade: result.meanGrade,
@@ -1254,6 +1254,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
 
 
 
