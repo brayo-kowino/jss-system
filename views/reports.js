@@ -511,7 +511,8 @@ function renderList(container, results, profile, bodyMount) {
       if (results.length) {
       const actionsWrap = el("div", { style: "display: flex; gap: 8px;" });
 
-      if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
+      const ENABLE_AI_REMARKS = window.location.hostname.includes("beta") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
+      if (ENABLE_AI_REMARKS && (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role))) {
         const aiBtn = el("button", {
           type: "button",
           class: "btn btn--outline btn--sm hide-on-mobile"
@@ -867,7 +868,8 @@ function buildActionBar(bodyMount, result, profile) {
 
   const actions = el("div", { style: "display:flex; gap:8px; align-items:center;" });
 
-  if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
+  const ENABLE_AI_REMARKS = window.location.hostname.includes("beta") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
+      if (ENABLE_AI_REMARKS && (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role))) {
     const aiBtn = el("button", { class: "btn btn--outline btn--sm" }, [icon("auto_awesome", "text-xs"), "Auto-Generate Remarks"]);
     aiBtn.addEventListener("click", async (e) => {
       const restore = busyButton(e.currentTarget, "Generating...");
@@ -1257,6 +1259,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 export function init() {
   prewarmPdfLibs();
 }
+
 
 
 
