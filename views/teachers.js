@@ -126,6 +126,56 @@ export function buildStaffMascotSvg({ width = 125, height = 110 } = {}) {
   `;
 }
 
+function showInstructionsModal() {
+  const body = el("div", { style: "padding-bottom: 8px; font-family: var(--font-body, sans-serif); color: var(--color-ink);" }, [
+    el("p", { style: "font-size: 15px; line-height: 1.6; margin-bottom: 20px; color: var(--color-ink);" }, 
+      "Welcome to the Staff Management module. To ensure proper setup, we highly recommend following this workflow:"
+    ),
+    
+    el("div", { style: "background: var(--color-primary-50); border-left: 4px solid var(--color-primary-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px;" }, [
+      el("h4", { style: "margin: 0 0 8px 0; color: var(--color-primary-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
+        icon("groups", "text-primary"), "1. Start by Adding Teaching Staff"
+      ]),
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
+        "Always add teachers in the <strong>Teaching Staff</strong> tab first. If their login credentials are not ready yet, you can navigate to <strong>System Logins</strong> later. From there, select <strong>Link an existing teacher record</strong> rather than creating a new record."
+      )
+    ]),
+
+    el("div", { style: "background: var(--color-success-50); border-left: 4px solid var(--color-success-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px;" }, [
+      el("h4", { style: "margin: 0 0 8px 0; color: var(--color-success-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
+        icon("school", "text-success"), "2. Class Teachers vs Subject Teachers"
+      ]),
+      el("p", { style: "margin: 0 0 8px 0; font-size: 14px; line-height: 1.5;" }, 
+        "The system assumes a teacher can only manage <strong>one class</strong>. Make sure to select this under <em>Class they manage</em> when adding or editing their teaching profile."
+      ),
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
+        "When creating their login, make sure to select <strong>Class Teacher</strong> from the dropdown rather than Subject Teacher. This ensures the system treats them as a class teacher upon login."
+      )
+    ]),
+
+    el("div", { style: "background: var(--color-gold-50); border-left: 4px solid var(--color-gold-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;" }, [
+      el("h4", { style: "margin: 0 0 8px 0; color: var(--color-gold-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
+        icon("badge", "text-gold"), "3. Non-Teaching Staff"
+      ]),
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
+        "For non-teaching staff (e.g., Bursar, Principal, Registrar), you do not need to add them to Teaching Staff. Add them directly in the <strong>System Logins</strong> tab instead."
+      )
+    ]),
+
+    el("button", {
+      type: "button",
+      class: "btn btn--primary btn--block",
+      style: "padding: 12px; font-size: 15px;",
+      onClick: () => {
+        localStorage.setItem("jss_staff_instructions_read", "true");
+        if (typeof closeModal === 'function') closeModal();
+      }
+    }, "I Understand")
+  ]);
+
+  let closeModal = openModal("Staff & Logins Workflow", body);
+}
+
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
   const [t, s, c, u] = await Promise.all([listTeachers(), listSubjects(), listClasses(), listSchoolUsers()]);
@@ -146,6 +196,12 @@ export async function render({ profile }) {
     el("div", { class: "staff-hero__content" }, [
       el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
       el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
+      el("button", {
+        type: "button",
+        class: "btn btn--outline btn--sm",
+        style: "margin-top: 16px; background: var(--color-white); border-color: var(--color-line);",
+        onClick: () => showInstructionsModal()
+      }, [icon("info", "text-primary"), " View Workflow Instructions"])
     ]),
 
     el("div", { class: "staff-hero__mascot-box" }, [
@@ -154,6 +210,10 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
+
+  if (!localStorage.getItem("jss_staff_instructions_read")) {
+    setTimeout(showInstructionsModal, 100);
+  }
 
   // 2. Executive KPI Metrics Strip
   const kpis = [
