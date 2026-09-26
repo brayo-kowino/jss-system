@@ -704,12 +704,18 @@ function resetIdleTimer() {
 }
 
 function showIdleWarning() {
+  const existing = document.getElementById("idle-warning-overlay");
+  if (existing) existing.remove();
+
   isIdleModalOpen = true;
+  
+  const overlay = el("div", { id: "idle-warning-overlay", class: "approval-modal-overlay", style: "z-index: 9999;" });
+  
   idleLogoutTimer = setTimeout(() => {
+    overlay.remove();
+    isIdleModalOpen = false;
     handleLogout();
   }, IDLE_LOGOUT_MS);
-  
-  const overlay = el("div", { class: "approval-modal-overlay", style: "z-index: 9999;" });
   const modal = el("div", { class: "approval-modal", style: "text-align: center; max-width: 320px;" });
   
   const mascotWrap = el("div", { style: "margin: -48px auto 16px; width: 80px; height: 80px; border-radius: 50%; background: var(--color-surface); padding: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" });
@@ -762,6 +768,22 @@ function startIdleTimeoutWatcher() {
   const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
   events.forEach(e => document.addEventListener(e, handleUserActivity, { passive: true }));
   resetIdleTimer();
+}
+
+  
+export function stopIdleTimeoutWatcher() {
+  clearTimeout(idleWarningTimer);
+  clearTimeout(idleLogoutTimer);
+  idleWarningTimer = null;
+  idleLogoutTimer = null;
+  isIdleModalOpen = false;
+  const existing = document.getElementById("idle-warning-overlay");
+  if (existing) existing.remove();
+  if (idleListenersAttached) {
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    events.forEach(e => document.removeEventListener(e, handleUserActivity, { passive: true }));
+    idleListenersAttached = false;
+  }
 }
 
 export function renderShell(app, profile, activePath) {

@@ -14,7 +14,7 @@
 // ==========================================================================
 import { getCurrentProfile, getCurrentSchool, refreshCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
 import { getSubscriptionState } from "./services/subscription.service.js";
-import { renderShell } from "./components/shell.js";
+import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
@@ -213,6 +213,7 @@ export async function renderRoute() {
 
   try {
     if (route.public) {
+      try { stopIdleTimeoutWatcher(); } catch(e) {}
       if (profile) {
         if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
           return;
