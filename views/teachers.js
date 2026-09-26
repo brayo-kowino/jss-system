@@ -506,11 +506,14 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       );
       if (tscField) fieldsMount.append(tscField);
       fieldsMount.append(
-          el("div", { class: "field" }, [el("label", {}, "Teaching Assignments (Class & Subject)"), addRow, assignmentsWrap]),
+          el("div", { class: "field" }, [el("label", {}, "Teaching Assignments (Class & Subject)"), addRow, assignmentsWrap])
+      );
+      if (selectedRole === "class_teacher") {
+        fieldsMount.append(
           el("div", { class: "field" }, [
-            el("label", {}, "Home-Room Class (Optional)"),
+            el("label", {}, "Class they manage (Optional)"),
             el("select", { id: "cl-homeroom" }, [
-              el("option", { value: "" }, "None (Subject Teacher only)"),
+              el("option", { value: "" }, "None"),
               ...classes.flatMap((c) => {
                 if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|` }, c.grade)];
                 return c.streams.map(s => el("option", { value: `${c.grade}|${s}` }, `${c.grade} ${s}`));
@@ -518,6 +521,7 @@ function openCreateLoginModal(profile, presetTeacher = null) {
             ])
           ])
         );
+      }
     }
 
     if (!isTeaching) {
@@ -645,9 +649,9 @@ function openAssignmentModal(profile, teacher) {
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Teaching Assignments (Class & Subject)"), addRow, assignmentsWrap]),
       el("div", { class: "field" }, [
-        el("label", {}, "Home-Room Class (Optional)"),
+        el("label", {}, "Class they manage (Optional)"),
         el("select", { id: "m-homeroom" }, [
-          el("option", { value: "" }, "None (Subject Teacher only)"),
+          el("option", { value: "" }, "None"),
           ...classes.flatMap((c) => {
             if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(teacher?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
             return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(teacher?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
@@ -1050,9 +1054,9 @@ function openTeacherForm(profile, existing = null) {
     ]),
     
     el("div", { class: "field" }, [
-      el("label", {}, "Home-Room Class (Optional)"),
+      el("label", {}, "Class they manage (Optional)"),
       el("select", { id: "t-homeroom" }, [
-        el("option", { value: "" }, "None (Subject Teacher only)"),
+        el("option", { value: "" }, "None"),
         ...classes.flatMap((c) => {
           if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(existing?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
           return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(existing?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
