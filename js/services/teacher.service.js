@@ -86,3 +86,47 @@ export async function setTeacherStatus(userId, id, status) {
   invalidate(teachersCacheKey());
   await logAction(userId, `${status}_teacher`, "teachers", id);
 }
+
+/**
+ * One-time migration to convert legacy subjectCodes and classAssignments
+ * into the new teachingAssignments cartesian product.
+ * You can remove this function after running it once successfully.
+ */
+export async function migrateLegacyTeachers(userId) {
+  const teachers = await listTeachers();
+  let migratedCount = 0;
+
+  for (const t of teachers) {
+    // If they have the old fields but no teachingAssignments
+    if (!t.teachingAssignments && t.subjectCodes && t.classAssignments) {
+      const teachingAssignments = [];
+      
+      // Build cartesian product of their classes x subjects
+      for (const cls of t.classAssignments) {
+        for (const subj of t.subjectCodes) {
+          teachingAssignments.push({
+            grade: cls.grade,
+            stream: cls.stream || "",
+            subjectCode: subj
+          });
+        }
+      }
+      
+      if (teachingAssignments.length > 0) {
+        await updateDoc(doc(db, "teachers", t.id), { 
+          teachingAssignments,
+          // We don't delete the old fields just in case we need to rollback,
+          // they'll just be ignored by the UI.
+        });
+        migratedCount++;
+      }
+    }
+  }
+  
+  if (migratedCount > 0) {
+    invalidate(teachersCacheKey());
+    await logAction(userId, "migrate_legacy_teachers", "teachers", "all");
+  }
+  
+  return migratedCount;
+}

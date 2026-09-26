@@ -146,6 +146,25 @@ export async function render({ profile }) {
     el("div", { class: "staff-hero__content" }, [
       el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
       el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
+      el("button", { 
+        class: "btn btn--ghost btn--sm", 
+        style: "margin-top:10px;",
+        onClick: async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true;
+          btn.textContent = "Migrating...";
+          try {
+            const { migrateLegacyTeachers } = await import("../js/services/teacher.service.js");
+            const count = await migrateLegacyTeachers(profile.uid);
+            toast(`Successfully migrated ${count} legacy teacher(s).`, "success");
+            await refreshAll(profile);
+          } catch (err) {
+            toast(err.message, "error");
+          }
+          btn.textContent = "Run Legacy Migration";
+          btn.disabled = false;
+        } 
+      }, "Run Legacy Migration"),
     ]),
 
     el("div", { class: "staff-hero__mascot-box" }, [
