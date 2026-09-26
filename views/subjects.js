@@ -15,17 +15,17 @@ let searchQuery = "";
 let selectedDept = "All";
 
 const DEPT_CONFIG = {
-  Sciences: { icon: "science", bg: "rgba(5, 150, 105, 0.1)", color: "#047857" },
+  Sciences: { icon: "science", bg: "color-mix(in srgb, var(--color-green) 12%, transparent)", color: "var(--color-green)" },
   Languages: { icon: "translate", bg: "var(--color-primary-100)", color: "var(--color-primary-700)" },
-  Humanities: { icon: "public", bg: "color-mix(in srgb, var(--color-gold) 15%, white)", color: "var(--color-gold)" },
-  "Technical & Applied": { icon: "build", bg: "rgba(234, 88, 12, 0.1)", color: "#c2410c" },
-  "Creative Arts": { icon: "palette", bg: "rgba(147, 51, 234, 0.1)", color: "#7e22ce" },
+  Humanities: { icon: "public", bg: "color-mix(in srgb, var(--color-gold) 15%, transparent)", color: "var(--color-gold)" },
+  "Technical & Applied": { icon: "build", bg: "color-mix(in srgb, var(--color-red) 10%, transparent)", color: "var(--color-red)" },
+  "Creative Arts": { icon: "palette", bg: "color-mix(in srgb, var(--color-primary-900) 8%, transparent)", color: "var(--color-primary-900)" },
 };
 
 const PATHWAY_CONFIG = {
-  STEM: { icon: "biotech" },
-  "Social Sciences": { icon: "diversity_3" },
-  "Arts & Sports Science": { icon: "palette" },
+  STEM: { icon: "biotech", bg: "var(--color-primary-100)", color: "var(--color-primary-700)" },
+  "Social Sciences": { icon: "diversity_3", bg: "color-mix(in srgb, var(--color-green) 12%, transparent)", color: "var(--color-green)" },
+  "Arts & Sports Science": { icon: "palette", bg: "color-mix(in srgb, var(--color-gold) 15%, transparent)", color: "var(--color-gold)" },
 };
 
 const CBC_PRESETS = [
@@ -295,10 +295,13 @@ function renderTable(container, profile) {
             ])
           : el("span", { class: "text-muted text-xs" }, "—"),
       ]),
-      el("td", { "data-label": "Pathway" }, [
+            el("td", { "data-label": "Pathway" }, [
         s.pathway
-          ? el("span", { class: "subjects-pathway-chip" }, [
-              icon(pathwayConf.icon, "text-xs", "style: font-size:14px; color:var(--color-primary-600);"),
+          ? el("span", { 
+              class: "subjects-pathway-chip",
+              style: pathwayConf.bg ? `background:${pathwayConf.bg}; color:${pathwayConf.color}; border-color:color-mix(in srgb, ${pathwayConf.color} 30%, transparent);` : ""
+            }, [
+              icon(pathwayConf.icon, "text-xs", pathwayConf.color ? `style: font-size:14px; color:currentColor;` : "style: font-size:14px; color:var(--color-primary-600);"),
               s.pathway,
             ])
           : el("span", { class: "text-muted text-xs" }, "—"),
