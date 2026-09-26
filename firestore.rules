@@ -479,7 +479,7 @@ service cloud.firestore {
       );
       allow create: if canManageTeachers() && ownsIncoming();
       allow update: if canManageTeachers() && ownsBoth();
-      allow delete: if false; // app only deactivates teachers via status update
+      allow delete: if canManageTeachers() && ownsExisting();
     }
 
     // Classes/streams + subjects - read broadly (used in dropdowns
