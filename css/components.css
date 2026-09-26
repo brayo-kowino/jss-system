@@ -2552,7 +2552,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   align-items: center;
   gap: 8px;
   padding: 4px 12px;
-  background: #ecfdf5;
+  background: rgba(46, 125, 70, 0.1);
   color: #065f46;
   border: 1px solid rgba(16, 185, 129, 0.3);
   border-radius: 999px;
@@ -3278,16 +3278,16 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: var(--color-primary-700);
 }
 .fees-kpi-card__icon--green {
-  background: #ecfdf5;
-  color: #059669;
+  background: rgba(46, 125, 70, 0.1);
+  color: var(--color-green);
 }
 .fees-kpi-card__icon--amber {
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--color-gold-soft);
+  color: var(--color-gold);
 }
 .fees-kpi-card__icon--purple {
-  background: #f3e8ff;
-  color: #7e22ce;
+  background: var(--color-primary-100);
+  color: var(--color-primary-700);
 }
 
 .fees-kpi-card__value {
@@ -3298,10 +3298,10 @@ tbody tr:hover { background: var(--color-primary-100); }
   margin-bottom: 4px;
 }
 .fees-kpi-card__value--danger {
-  color: #b91c1c;
+  color: var(--color-red);
 }
 .fees-kpi-card__value--success {
-  color: #059669;
+  color: var(--color-green);
 }
 
 .fees-kpi-card__sub {
@@ -3319,7 +3319,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .fees-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10b981, #059669);
+  background: linear-gradient(90deg, #10b981, var(--color-green));
   border-radius: 999px;
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -3392,7 +3392,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   font-weight: 700;
 }
 .payment-method-chip--mpesa {
-  background: #ecfdf5;
+  background: rgba(46, 125, 70, 0.1);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
@@ -3402,12 +3402,12 @@ tbody tr:hover { background: var(--color-primary-100); }
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 .payment-method-chip--cash {
-  background: #fef3c7;
+  background: var(--color-gold-soft);
   color: #92400e;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 .payment-method-chip--cheque {
-  background: #f3e8ff;
+  background: var(--color-primary-100);
   color: #6b21a8;
   border: 1px solid rgba(168, 85, 247, 0.3);
 }
@@ -4691,7 +4691,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .marks-disclaimer-card--warning {
   background: #ffffff;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 .marks-disclaimer-card--success {
   background: #ffffff;
@@ -4815,7 +4815,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 .marks-score-input--invalid {
   border-color: #ef4444 !important;
   background: #fef2f2 !important;
-  color: #b91c1c !important;
+  color: var(--color-red) !important;
 }
 
 .marks-roster-summary-bar {
@@ -4999,7 +4999,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .grading-disclaimer-card--warning {
   background: #ffffff;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 .grading-disclaimer-card--success {
   background: #ffffff;
@@ -5108,9 +5108,9 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: var(--color-primary-900);
 }
 .grading-pos-badge--top {
-  background: #fef3c7;
+  background: var(--color-gold-soft);
   color: #92400e;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 
 /* ==========================================================================
@@ -5281,7 +5281,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .reports-disclaimer-card--warning {
   background: #ffffff;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 .reports-disclaimer-card--success {
   background: #ffffff;
@@ -5394,9 +5394,9 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: var(--color-primary-900);
 }
 .reports-pos-badge--top {
-  background: #fef3c7;
+  background: var(--color-gold-soft);
   color: #92400e;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 
 /* ==========================================================================
@@ -5607,7 +5607,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .timetable-disclaimer-card--warning {
   background: #ffffff;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--color-gold);
 }
 .timetable-disclaimer-card--success {
   background: #ffffff;
@@ -6118,7 +6118,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 .issues-pill--danger {
   background: #fef2f2;
   border-color: #fecaca;
-  color: #b91c1c;
+  color: var(--color-red);
 }
 .issues-pill--danger .material-symbols-rounded {
   color: #dc2626;
@@ -6170,13 +6170,13 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .issue-category-chip--gold {
   background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
 }
 .issue-category-chip--purple {
-  background: #faf5ff;
-  color: #7e22ce;
-  border: 1px solid #e9d5ff;
+  background: var(--color-cream);
+  color: var(--color-primary-700);
+  border: 1px solid var(--color-primary-100);
 }
 .issue-category-chip--blue {
   background: #eff6ff;
@@ -6184,7 +6184,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   border: 1px solid #bfdbfe;
 }
 .issue-category-chip--green {
-  background: #ecfdf5;
+  background: rgba(46, 125, 70, 0.1);
   color: #047857;
   border: 1px solid #a7f3d0;
 }
@@ -6356,8 +6356,8 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .parents-pill--warning {
   background: #fffbeb;
-  border-color: #fde68a;
-  color: #b45309;
+  border-color: var(--color-gold);
+  color: var(--color-gold);
 }
 .parents-pill--warning .material-symbols-rounded {
   color: #d97706;
@@ -6401,8 +6401,8 @@ tbody tr:hover { background: var(--color-primary-100); }
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #f4f5f5, #ddd6fe);
-  color: #287bd9;
+  background: linear-gradient(135deg, var(--color-cream), var(--color-primary-100));
+  color: var(--color-primary-700);
   font-weight: 700;
   font-size: 12px;
   display: inline-flex;
@@ -6435,14 +6435,14 @@ tbody tr:hover { background: var(--color-primary-100); }
   border: 1px solid #fbcfe8;
 }
 .parent-rel-badge--guardian {
-  background: #ecfdf5;
+  background: rgba(46, 125, 70, 0.1);
   color: #047857;
   border: 1px solid #a7f3d0;
 }
 .parent-rel-badge--sponsor {
   background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fde68a;
+  color: var(--color-gold);
+  border: 1px solid var(--color-gold);
 }
 .parent-rel-badge--other {
   background: #f1f5f9;
@@ -6609,7 +6609,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   line-height: 1;
 }
 .rank-badge--1 {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  background: linear-gradient(135deg, var(--color-gold-soft), var(--color-gold));
   color: #92400e;
   border: 1px solid #f59e0b;
 }
@@ -7257,7 +7257,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: var(--color-primary-700);
 }
 .promotion-commit-item--grad .icon {
-  color: #059669;
+  color: var(--color-green);
 }
 .promotion-commit-item--muted .icon {
   color: var(--color-ink-soft);
@@ -7418,4 +7418,4 @@ tbody tr:hover { background: var(--color-primary-100); }
     width: 100%;
     justify-content: flex-end;
   }
-}
+}
