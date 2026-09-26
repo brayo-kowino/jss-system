@@ -160,12 +160,38 @@ export async function render({ profile }) {
   parents = parentsRes;
   classes = classesRes;
   settings = settingsRes;
+  
   openIssueCounts = new Map();
   for (const issue of openIssuesRes) {
     openIssueCounts.set(issue.studentId, (openIssueCounts.get(issue.studentId) || 0) + 1);
   }
 
+  if (profile.role === "class_teacher") {
+    let teacher = null;
+    try {
+      const { getTeacherByUserId, getTeacherByEmail } = await import("../js/services/teacher.service.js");
+      teacher = await getTeacherByUserId(profile.uid);
+      if (!teacher && profile.email) {
+        teacher = await getTeacherByEmail(profile.email);
+      }
+    } catch (err) {}
+    
+    const allowedClassKeys = new Set();
+    if (teacher) {
+      if (teacher.homeroom) allowedClassKeys.add(teacher.homeroom);
+      (teacher.teachingAssignments || []).forEach(a => allowedClassKeys.add(`${a.grade}|${a.stream || ""}`));
+    }
+    
+    students = students.filter(s => allowedClassKeys.has(`${s.grade}|${s.stream || ""}`) || allowedClassKeys.has(`${s.grade}|`));
+    classes = classes.filter(c => {
+       if (allowedClassKeys.has(`${c.grade}|`)) return true;
+       if (c.streams) return c.streams.some(s => allowedClassKeys.has(`${c.grade}|${s}`));
+       return false;
+    });
+  }
+
   const activeCount = students.filter((s) => s.status === "active").length;
+
   const boysCount = students.filter((s) => (s.gender || "").toLowerCase() === "male").length;
   const girlsCount = students.filter((s) => (s.gender || "").toLowerCase() === "female").length;
   let totalOpenIssues = 0;
@@ -259,20 +285,22 @@ export async function render({ profile }) {
         statusSelect,
       ]),
       // Right side: Admission & Import actions
-      el("div", { style: "display:flex; align-items:center; gap:8px; flex-shrink:0;" }, [
-        el("button", {
-          type: "button",
-          class: "btn btn--ghost btn--sm",
-          id: "import-students-btn",
-          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
-        }, [icon("upload_file"), "Import Students"]),
-        el("button", {
-          type: "button",
-          class: "btn btn--primary btn--sm",
-          id: "new-admission-btn",
-          ...(classes.length ? {} : { title: "Set up classes and streams first" }),
-        }, [icon("person_add"), "New Admission"]),
-      ]),
+      el("div", { style: "display:flex; align-items:center; gap:8px; flex-shrink:0;" }, 
+        ["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--sm",
+            id: "import-students-btn",
+            ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+          }, [icon("upload_file"), "Import Students"]),
+          el("button", {
+            type: "button",
+            class: "btn btn--primary btn--sm",
+            id: "new-admission-btn",
+            ...(classes.length ? {} : { title: "Set up classes and streams first" }),
+          }, [icon("person_add"), "New Admission"]),
+        ] : []
+      ),
     ]),
   ]);
   wrap.append(filterToolbar);
@@ -576,14 +604,16 @@ function buildProfileHeader(profile, student, refreshAll) {
       ]),
     ]),
     el("div", { class: "profile-actions" }, [
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStudentForm(profile, student, refreshAll) }, [icon("edit"), "Edit Info"]),
-      el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTransferForm(profile, student, refreshAll) }, [icon("swap_horiz"), "Transfer/Promote"]),
-      student.status !== "suspended"
-        ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "suspended", refreshAll) }, [icon("pause_circle"), "Suspend"])
-        : el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "active", refreshAll) }, [icon("restart_alt"), "Reinstate"]),
-      student.status !== "archived"
-        ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "archived", refreshAll) }, [icon("archive"), "Archive"])
-        : "",
+      ...(["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStudentForm(profile, student, refreshAll) }, [icon("edit"), "Edit Info"]),
+        el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTransferForm(profile, student, refreshAll) }, [icon("swap_horiz"), "Transfer/Promote"]),
+        student.status !== "suspended"
+          ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "suspended", refreshAll) }, [icon("pause_circle"), "Suspend"])
+          : el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "active", refreshAll) }, [icon("restart_alt"), "Reinstate"]),
+        student.status !== "archived"
+          ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "archived", refreshAll) }, [icon("archive"), "Archive"])
+          : "",
+      ] : []),
       el("button", { class: "btn btn--danger btn--sm", onClick: () => openIssueForm(profile, student, null, refreshAll) }, [icon("report"), "Raise Issue"]),
     ])
   );

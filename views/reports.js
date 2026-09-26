@@ -221,11 +221,12 @@ export async function render({ profile }) {
         teacher = await getTeacherByEmail(profile.email);
       } catch (err) {}
     }
+    const assignments = teacher?.teachingAssignments || [];
     const managedGrades = new Set();
       if (profile.role === 'class_teacher' && teacher?.homeroom) {
         managedGrades.add(teacher.homeroom.split('|')[0]);
       } else {
-        (teacher?.teachingAssignments || []).forEach(a => managedGrades.add(a.grade));
+        assignments.forEach(a => managedGrades.add(a.grade));
       }
     classes = classes
       .filter((c) => managedGrades.has(c.grade))
