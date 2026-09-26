@@ -128,8 +128,12 @@ export function buildStaffMascotSvg({ width = 125, height = 110 } = {}) {
 
 function showInstructionsModal() {
   const body = el("div", { style: "padding-bottom: 8px; font-family: var(--font-body, sans-serif); color: var(--color-ink);" }, [
-    el("p", { style: "font-size: 15px; line-height: 1.6; margin-bottom: 20px; color: var(--color-ink);" }, 
+    el("p", { style: "font-size: 15px; line-height: 1.6; margin-bottom: 16px; color: var(--color-ink);" }, 
       "Welcome to the Staff Management module. To ensure proper setup, we highly recommend following this workflow:"
+    ),
+    
+    el("p", { style: "font-size: 14px; line-height: 1.5; margin-bottom: 24px; color: var(--color-red-700); text-decoration: underline; font-weight: 600;" }, 
+      "Important for Admins: If you are an admin and also a teacher or a class teacher in this school, just add your teaching profile but do not link any logins because your account is already linked with a high-profile administrator role managing everything."
     ),
     
     el("div", { style: "background: var(--color-primary-50); border-left: 4px solid var(--color-primary-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px;" }, [
@@ -167,7 +171,7 @@ function showInstructionsModal() {
       class: "btn btn--primary btn--block",
       style: "padding: 12px; font-size: 15px;",
       onClick: () => {
-        localStorage.setItem("jss_staff_instructions_read", "true");
+        localStorage.setItem("jss_staff_instructions_read_v2", "true");
         if (typeof closeModal === 'function') closeModal();
       }
     }, "I Understand")
@@ -211,7 +215,7 @@ export async function render({ profile }) {
   ]);
   wrap.append(heroBanner);
 
-  if (!localStorage.getItem("jss_staff_instructions_read")) {
+  if (!localStorage.getItem("jss_staff_instructions_read_v2")) {
     setTimeout(showInstructionsModal, 100);
   }
 
