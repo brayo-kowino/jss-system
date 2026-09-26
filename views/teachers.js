@@ -146,25 +146,6 @@ export async function render({ profile }) {
     el("div", { class: "staff-hero__content" }, [
       el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
       el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
-      el("button", { 
-        class: "btn btn--ghost btn--sm", 
-        style: "margin-top:10px;",
-        onClick: async (e) => {
-          const btn = e.currentTarget;
-          btn.disabled = true;
-          btn.textContent = "Migrating...";
-          try {
-            const { migrateLegacyTeachers } = await import("../js/services/teacher.service.js");
-            const count = await migrateLegacyTeachers(profile.uid);
-            toast(`Successfully migrated ${count} legacy teacher(s).`, "success");
-            await refreshAll(profile);
-          } catch (err) {
-            toast(err.message, "error");
-          }
-          btn.textContent = "Run Legacy Migration";
-          btn.disabled = false;
-        } 
-      }, "Run Legacy Migration"),
     ]),
 
     el("div", { class: "staff-hero__mascot-box" }, [
@@ -871,32 +852,33 @@ function renderRosterTab(container, profile) {
 function openTeacherActionsModal(profile, teacher) {
   let close;
   const isSuspended = teacher.status === "suspended";
-  const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:8px;" });
   
   body.append(
     el("button", {
       class: "btn btn--ghost btn--block",
-      style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+      style: "justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md); transition:background-color 0.2s ease;",
       onClick: () => {
         if (close) close();
         openTeacherForm(profile, teacher);
       }
-    }, [icon("edit"), "Edit Teacher Info & Assignments"]),
+    }, [icon("edit", "text-primary"), "Edit Teacher Info & Assignments"]),
+    
     el("button", {
       class: "btn btn--ghost btn--block",
-      style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
+      style: `justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md); transition:background-color 0.2s ease; ${!isSuspended ? "color:var(--color-amber-700);" : "color:var(--color-success);" }`,
       onClick: async () => {
         if (close) close();
         await toggleTeacherStatus(profile, teacher);
       }
-    }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"])
+    }, [icon(isSuspended ? "restart_alt" : "pause_circle", isSuspended ? "text-success" : "text-amber"), isSuspended ? "Reinstate Teacher Record" : "Suspend Teacher Record"])
   );
 
   if (!teacher.userId) {
     body.append(
       el("button", {
         class: "btn btn--primary btn--block",
-        style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+        style: "justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md);",
         onClick: () => {
           if (close) close();
           openCreateLoginModal(profile, teacher);
@@ -909,7 +891,7 @@ function openTeacherActionsModal(profile, teacher) {
       body.append(
         el("button", {
           class: "btn btn--secondary btn--block",
-          style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+          style: "justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md);",
           onClick: () => {
             if (close) close();
             openLoginActionsModal(profile, linkedUser, teacher);
@@ -919,24 +901,45 @@ function openTeacherActionsModal(profile, teacher) {
     }
   }
 
+  // Divider and Delete Button
+  body.append(
+    el("hr", { style: "margin:8px 0; border:none; border-top:1px solid var(--color-line);" }),
+    el("button", {
+      class: "btn btn--ghost btn--block",
+      style: "justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); color:var(--color-red); border-radius:var(--radius-md); transition:background-color 0.2s ease;",
+      onClick: async () => {
+        if (!confirm(`Are you sure you want to permanently delete ${teacher.fullName}'s teaching record? This action cannot be undone.`)) return;
+        if (close) close();
+        try {
+          const { deleteTeacher } = await import("../js/services/teacher.service.js");
+          await deleteTeacher(profile.uid, teacher.id);
+          toast("Teacher record deleted successfully.", "success");
+          await refreshAll(profile);
+        } catch (err) {
+          toast(err.message, "error");
+        }
+      }
+    }, [icon("delete", "text-red"), "Delete Teacher Record"])
+  );
+
   close = openModal(`Teacher: ${teacher.fullName}`, body);
 }
 
 function openLoginActionsModal(profile, user, linkedTeacher) {
   let close;
   const isSuspended = user.status === "suspended";
-  const body = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:8px;" });
   
   if (TEACHING_ROLES.includes(user.role) && linkedTeacher) {
     body.append(
       el("button", {
         class: "btn btn--ghost btn--block",
-        style: "justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm);",
+        style: "justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md); transition:background-color 0.2s ease;",
         onClick: () => {
           if (close) close();
           openAssignmentModal(profile, linkedTeacher);
         }
-      }, [icon("edit"), "Edit Teaching Assignments"])
+      }, [icon("edit", "text-primary"), "Edit Teaching Assignments"])
     );
   }
 
@@ -944,12 +947,12 @@ function openLoginActionsModal(profile, user, linkedTeacher) {
     body.append(
       el("button", {
         class: "btn btn--ghost btn--block",
-        style: `justify-content:flex-start; gap:10px; padding:10px 14px; font-size:var(--fs-sm); ${!isSuspended ? "color:var(--color-red);" : ""}`,
+        style: `justify-content:flex-start; gap:10px; padding:12px 16px; font-size:var(--fs-sm); border-radius:var(--radius-md); transition:background-color 0.2s ease; ${!isSuspended ? "color:var(--color-amber-700);" : "color:var(--color-success);" }`,
         onClick: async () => {
           if (close) close();
           await toggleLoginStatus(profile, user);
         }
-      }, [icon(isSuspended ? "restart_alt" : "pause_circle"), isSuspended ? "Reinstate Login Account" : "Suspend Login Account"])
+      }, [icon(isSuspended ? "restart_alt" : "pause_circle", isSuspended ? "text-success" : "text-amber"), isSuspended ? "Reinstate Login Account" : "Suspend Login Account"])
     );
   }
 

@@ -7,6 +7,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   getDoc,
   getDocs,
   query,
@@ -129,4 +130,9 @@ export async function migrateLegacyTeachers(userId) {
   }
   
   return migratedCount;
+}
+export async function deleteTeacher(userId, id) {
+  await deleteDoc(doc(db, "teachers", id));
+  invalidate(teachersCacheKey());
+  await logAction(userId, "delete_teacher", "teachers", id);
 }
