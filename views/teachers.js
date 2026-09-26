@@ -822,6 +822,12 @@ function renderRosterTab(container, profile) {
                 )
               )
             : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "No subjects assigned"),
+          t.homeroom 
+            ? el("div", { style: "font-size:12px; margin-top:6px; padding-top:6px; border-top:1px dashed var(--color-line); display:flex; align-items:center; gap:6px;" }, [
+                el("span", { style: "font-weight:700; color:var(--color-gold-700); display:inline-flex; align-items:center; gap:4px;" }, [icon("stars", "text-gold", {style:"font-size:14px;"}), "Class Manager:"]),
+                el("span", { class: "badge badge--gold", style: "font-size:11px; padding:2px 6px;" }, t.homeroom.replace("|", " ").trim())
+              ])
+            : null
         ]),
         el("td", { "data-label": "Login Link" }, isLinked
           ? el("span", { class: "badge badge--success", style: "font-size:11px;" }, [icon("check_circle", "text-xs"), " Linked"])
