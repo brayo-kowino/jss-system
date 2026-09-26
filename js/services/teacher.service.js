@@ -1,6 +1,6 @@
 // Teachers collection.
 // { schoolId, teacherNumber, tscNumber, fullName, phone, email,
-//   subjectCodes:[], classAssignments:[{grade, stream}],
+//   teachingAssignments:[{grade, stream, subjectCode}],
 //   userId (linked login, optional), status, createdAt }
 import {
   collection,
@@ -61,8 +61,7 @@ export async function createTeacher(userId, data) {
     ...data,
     schoolId: getCurrentSchoolId(),
     status: "active",
-    subjectCodes: data.subjectCodes || [],
-    classAssignments: data.classAssignments || [],
+    teachingAssignments: data.teachingAssignments || [],
     createdAt: serverTimestamp(),
   });
   invalidate(teachersCacheKey());
@@ -76,16 +75,10 @@ export async function updateTeacher(userId, id, data) {
   await logAction(userId, "edit_teacher", "teachers", id);
 }
 
-export async function assignSubjects(userId, id, subjectCodes) {
-  await updateDoc(doc(db, "teachers", id), { subjectCodes, schoolId: getCurrentSchoolId() });
+export async function updateTeachingAssignments(userId, id, teachingAssignments) {
+  await updateDoc(doc(db, "teachers", id), { teachingAssignments, schoolId: getCurrentSchoolId() });
   invalidate(teachersCacheKey());
-  await logAction(userId, "assign_subjects", "teachers", id);
-}
-
-export async function assignClasses(userId, id, classAssignments) {
-  await updateDoc(doc(db, "teachers", id), { classAssignments, schoolId: getCurrentSchoolId() });
-  invalidate(teachersCacheKey());
-  await logAction(userId, "assign_classes", "teachers", id);
+  await logAction(userId, "update_teaching_assignments", "teachers", id);
 }
 
 export async function setTeacherStatus(userId, id, status) {

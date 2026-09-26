@@ -168,8 +168,8 @@ export async function render({ profile }) {
         console.warn("Could not fetch teacher profile by email:", err);
       }
     }
-    allowedSubjectCodes = new Set(teacher?.subjectCodes || []);
-    allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
+    allowedSubjectCodes = new Set((teacher?.teachingAssignments || []).map(a => a.subjectCode));
+    allowedClassKeys = new Set((teacher?.teachingAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
   }
 
   const wrap = el("div", { class: "marks-view-wrap" });

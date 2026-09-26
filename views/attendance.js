@@ -61,7 +61,7 @@ export async function render({ profile }) {
     if (profile.role === 'class_teacher' && teacher?.homeroom) {
         allowedClassKeys = new Set([teacher.homeroom]);
       } else {
-        allowedClassKeys = new Set((teacher?.classAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
+        allowedClassKeys = new Set((teacher?.teachingAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
       }
   }
 

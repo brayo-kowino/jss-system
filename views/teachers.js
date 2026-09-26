@@ -403,7 +403,7 @@ function openCreateLoginModal(profile, presetTeacher = null) {
 
   // state for the dynamic middle section of the form
   let selectedRole = presetTeacher
-    ? (presetTeacher.classAssignments?.length ? "class_teacher" : "subject_teacher")
+    ? (presetTeacher.teachingAssignments?.length ? "class_teacher" : "subject_teacher")
     : allowedRoles[0];
   let mode = presetTeacher ? "link" : "new"; // "link" | "new" - only meaningful for teaching roles
   let linkTeacherId = presetTeacher?.id || "";
@@ -445,22 +445,58 @@ function openCreateLoginModal(profile, presetTeacher = null) {
     }
 
     if (isTeaching && mode === "new" && !presetTeacher) {
-      const subjectChecklist = el("div", { class: "checklist" });
-      for (const s of subjects) {
-        subjectChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: s.code, id: `cl-subj-${s.code}` }), s.name]));
-      }
-      const classChecklist = el("div", { class: "checklist" });
-      for (const c of classes) {
-        if (!c.streams || c.streams.length === 0) {
-          const key = `${c.grade}|`;
-          classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), c.grade]));
+      window.clAssignments = [];
+      const assignmentsWrap = el("div", { style: "margin-bottom:var(--sp-4);" });
+      function drawClAssignments() {
+        assignmentsWrap.innerHTML = "";
+        if (window.clAssignments.length === 0) {
+          assignmentsWrap.append(el("div", { class: "text-muted", style: "font-size:13px; padding:10px; background:var(--color-bg); border-radius:var(--radius-md); text-align:center;" }, "No teaching assignments added yet."));
         } else {
-          for (const stream of c.streams) {
-            const key = `${c.grade}|${stream}`;
-            classChecklist.append(el("label", { class: "checklist-item" }, [el("input", { type: "checkbox", value: key, id: `cl-class-${key}` }), `${c.grade} ${stream}`]));
+          const list = el("div", { style: "display:flex; flex-direction:column; gap:8px;" });
+          for (let i = 0; i < window.clAssignments.length; i++) {
+            const a = window.clAssignments[i];
+            const sName = subjects.find(s => s.code === a.subjectCode)?.name || a.subjectCode;
+            const cName = `${a.grade}${a.stream ? ' ' + a.stream : ''}`;
+            const row = el("div", { style: "display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--color-bg); border-radius:var(--radius-md); font-size:13px; border:1px solid var(--color-line);" }, [
+              el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+                el("span", { style: "font-weight:600; color:var(--color-primary-900);" }, cName),
+                el("span", { style: "color:var(--color-ink-soft);" }, "—"),
+                el("span", {}, sName),
+              ]),
+              el("button", { type: "button", class: "btn btn--ghost text-red", style: "padding:4px; height:auto; min-height:0;", onClick: () => {
+                window.clAssignments.splice(i, 1);
+                drawClAssignments();
+              }}, [icon("delete", "text-sm")]),
+            ]);
+            list.append(row);
           }
+          assignmentsWrap.append(list);
         }
       }
+
+      const classSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+        el("option", { value: "" }, "Select Class"),
+        ...classes.flatMap((c) => {
+          if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|` }, c.grade)];
+          return c.streams.map(s => el("option", { value: `${c.grade}|${s}` }, `${c.grade} ${s}`));
+        })
+      ]);
+      const subjectSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+        el("option", { value: "" }, "Select Subject"),
+        ...subjects.map(s => el("option", { value: s.code }, s.name))
+      ]);
+      const addBtn = el("button", { type: "button", class: "btn btn--secondary", style: "padding:8px 16px;", onClick: () => {
+        if (!classSelect.value || !subjectSelect.value) return;
+        const [grade, stream] = classSelect.value.split("|");
+        const subjectCode = subjectSelect.value;
+        if (!window.clAssignments.some(a => a.grade === grade && a.stream === stream && a.subjectCode === subjectCode)) {
+          window.clAssignments.push({ grade, stream, subjectCode });
+          drawClAssignments();
+        }
+      }}, "Add");
+      const addRow = el("div", { style: "display:flex; gap:8px; margin-bottom:12px;" }, [ classSelect, subjectSelect, addBtn ]);
+      drawClAssignments();
+
       const tscField = selectedRole === "class_teacher"
         ? el("div", { class: "field" }, [el("label", {}, "TSC Number (Optional)"), el("input", { id: "cl-tscNumber", type: "text" })])
         : null;
@@ -470,8 +506,7 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       );
       if (tscField) fieldsMount.append(tscField);
       fieldsMount.append(
-          el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
-          el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
+          el("div", { class: "field" }, [el("label", {}, "Teaching Assignments (Class & Subject)"), addRow, assignmentsWrap]),
           el("div", { class: "field" }, [
             el("label", {}, "Home-Room Class (Optional)"),
             el("select", { id: "cl-homeroom" }, [
@@ -522,22 +557,9 @@ function openCreateLoginModal(profile, presetTeacher = null) {
           if (!linkTeacherId) throw new Error("Select which teacher record to link.");
           teacherId = linkTeacherId;
         } else {
-          const subjectCodes = subjects.filter((s) => document.getElementById(`cl-subj-${s.code}`)?.checked).map((s) => s.code);
-          const classAssignments = [];
-          for (const c of classes) {
-            if (!c.streams || c.streams.length === 0) {
-              const key = `${c.grade}|`;
-              if (document.getElementById(`cl-class-${key}`)?.checked) classAssignments.push({ grade: c.grade, stream: "" });
-            } else {
-              for (const stream of c.streams) {
-                const key = `${c.grade}|${stream}`;
-                if (document.getElementById(`cl-class-${key}`)?.checked) classAssignments.push({ grade: c.grade, stream });
-              }
-            }
-          }
           newTeacherData = {
             fullName: val("cl-fullName"), teacherNumber: "", tscNumber: document.getElementById("cl-tscNumber")?.value || "",
-            phone: "", email, subjectCodes, classAssignments,
+            phone: "", email, teachingAssignments: window.clAssignments || [],
           };
         }
       }
@@ -566,33 +588,62 @@ function openCreateLoginModal(profile, presetTeacher = null) {
 
 function openAssignmentModal(profile, teacher) {
   const body = el("form", {});
-  const subjectChecklist = el("div", { class: "checklist" });
-  const selectedSubjects = new Set(teacher.subjectCodes || []);
-  for (const s of subjects) {
-    subjectChecklist.append(el("label", { class: "checklist-item" }, [
-      el("input", { type: "checkbox", value: s.code, ...(selectedSubjects.has(s.code) ? { checked: "true" } : {}) }), s.name,
-    ]));
-  }
-  const classChecklist = el("div", { class: "checklist" });
-  const selectedClasses = new Set((teacher.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
-  for (const c of classes) {
-    if (!c.streams || c.streams.length === 0) {
-      const key = `${c.grade}|`;
-      classChecklist.append(el("label", { class: "checklist-item" }, [
-        el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }), c.grade,
-      ]));
+  let currentAssignments = [...(teacher?.teachingAssignments || [])];
+  const assignmentsWrap = el("div", { style: "margin-bottom:var(--sp-4);" });
+  
+  function drawAssignments() {
+    assignmentsWrap.innerHTML = "";
+    if (currentAssignments.length === 0) {
+      assignmentsWrap.append(el("div", { class: "text-muted", style: "font-size:13px; padding:10px; background:var(--color-bg); border-radius:var(--radius-md); text-align:center;" }, "No teaching assignments added yet."));
     } else {
-      for (const stream of c.streams) {
-        const key = `${c.grade}|${stream}`;
-        classChecklist.append(el("label", { class: "checklist-item" }, [
-          el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) }), `${c.grade} ${stream}`,
-        ]));
+      const list = el("div", { style: "display:flex; flex-direction:column; gap:8px;" });
+      for (let i = 0; i < currentAssignments.length; i++) {
+        const a = currentAssignments[i];
+        const sName = subjects.find(s => s.code === a.subjectCode)?.name || a.subjectCode;
+        const cName = `${a.grade}${a.stream ? ' ' + a.stream : ''}`;
+        
+        const row = el("div", { style: "display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--color-bg); border-radius:var(--radius-md); font-size:13px; border:1px solid var(--color-line);" }, [
+          el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+            el("span", { style: "font-weight:600; color:var(--color-primary-900);" }, cName),
+            el("span", { style: "color:var(--color-ink-soft);" }, "—"),
+            el("span", {}, sName),
+          ]),
+          el("button", { type: "button", class: "btn btn--ghost text-red", style: "padding:4px; height:auto; min-height:0;", onClick: () => {
+            currentAssignments.splice(i, 1);
+            drawAssignments();
+          }}, [icon("delete", "text-sm")]),
+        ]);
+        list.append(row);
       }
+      assignmentsWrap.append(list);
     }
   }
+
+  const classSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+    el("option", { value: "" }, "Select Class"),
+    ...classes.flatMap((c) => {
+      if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|` }, c.grade)];
+      return c.streams.map(s => el("option", { value: `${c.grade}|${s}` }, `${c.grade} ${s}`));
+    })
+  ]);
+  const subjectSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+    el("option", { value: "" }, "Select Subject"),
+    ...subjects.map(s => el("option", { value: s.code }, s.name))
+  ]);
+  const addBtn = el("button", { type: "button", class: "btn btn--secondary", style: "padding:8px 16px;", onClick: () => {
+    if (!classSelect.value || !subjectSelect.value) return;
+    const [grade, stream] = classSelect.value.split("|");
+    const subjectCode = subjectSelect.value;
+    if (!currentAssignments.some(a => a.grade === grade && a.stream === stream && a.subjectCode === subjectCode)) {
+      currentAssignments.push({ grade, stream, subjectCode });
+      drawAssignments();
+    }
+  }}, "Add");
+  const addRow = el("div", { style: "display:flex; gap:8px; margin-bottom:12px;" }, [ classSelect, subjectSelect, addBtn ]);
+  drawAssignments();
+
   body.append(
-    el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
-    el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
+    el("div", { class: "field" }, [el("label", {}, "Teaching Assignments (Class & Subject)"), addRow, assignmentsWrap]),
       el("div", { class: "field" }, [
         el("label", {}, "Home-Room Class (Optional)"),
         el("select", { id: "m-homeroom" }, [
@@ -609,13 +660,9 @@ function openAssignmentModal(profile, teacher) {
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
-    const subjectCodes = Array.from(subjectChecklist.querySelectorAll("input:checked")).map((c) => c.value);
-    const classAssignments = Array.from(classChecklist.querySelectorAll("input:checked")).map((c) => {
-      const [grade, stream] = c.value.split("|");
-      return { grade, stream };
-    });
     try {
-      await updateTeacher(profile.uid, teacher.id, { subjectCodes, classAssignments, homeroom: document.getElementById("m-homeroom") ? document.getElementById("m-homeroom").value : "" });
+      // In teacher.js we still import updateTeacher, wait - teacher.service has been changed to accept teachingAssignments
+      await updateTeacher(profile.uid, teacher.id, { teachingAssignments: currentAssignments, homeroom: document.getElementById("m-homeroom") ? document.getElementById("m-homeroom").value : "" });
       toast("Assignment updated.", "success");
       close();
       await refreshAll(profile);
@@ -702,7 +749,12 @@ function renderRosterTab(container, profile) {
         (t.fullName || "").toLowerCase().includes(q) ||
         (t.tscNumber || "").toLowerCase().includes(q) ||
         (t.phone || "").toLowerCase().includes(q) ||
-        (t.email || "").toLowerCase().includes(q);
+        (t.email || "").toLowerCase().includes(q) ||
+        (t.teachingAssignments || []).some(a => {
+           const cName = `${a.grade} ${a.stream || ""}`.toLowerCase();
+           const sName = (subjects.find(s => s.code === a.subjectCode)?.name || a.subjectCode).toLowerCase();
+           return cName.includes(q) || sName.includes(q);
+        });
       const matchLink = !filterLink || (filterLink === "linked" ? !!t.userId : !t.userId);
       const matchStatus = !filterStatus || (filterStatus === "suspended" ? t.status === "suspended" : t.status !== "suspended");
       return matchText && matchLink && matchStatus;
@@ -723,8 +775,7 @@ function renderRosterTab(container, profile) {
       el("thead", {}, el("tr", {}, [
         el("th", { style: "min-width:200px;" }, "Teacher Name"),
         el("th", { style: "width:140px;" }, "TSC No."),
-        el("th", { style: "min-width:180px;" }, "Subjects Taught"),
-        el("th", { style: "min-width:160px;" }, "Assigned Classes"),
+        el("th", { style: "min-width:340px;", colspan: "2" }, "Teaching Assignments"),
         el("th", { style: "width:130px;" }, "Login Link"),
         el("th", { style: "width:100px;" }, "Status"),
         el("th", { class: "col-right", style: "width:90px;" }, "Actions"),
@@ -732,10 +783,13 @@ function renderRosterTab(container, profile) {
     ]);
     const tbody = el("tbody", {});
     for (const t of filtered) {
-      const subjNames = (t.subjectCodes || [])
-        .map((c) => subjects.find((s) => s.code === c)?.name || c)
-        .filter(Boolean);
-      const classNames = (t.classAssignments || []).map((a) => `${a.grade} ${a.stream}`);
+      const grouped = {};
+      for (const a of (t.teachingAssignments || [])) {
+        const c = `${a.grade}${a.stream ? ' ' + a.stream : ''}`;
+        const s = subjects.find(s => s.code === a.subjectCode)?.name || a.subjectCode;
+        if (!grouped[c]) grouped[c] = [];
+        grouped[c].push(s);
+      }
       const isLinked = !!t.userId;
 
       tbody.append(el("tr", {}, [
@@ -753,19 +807,17 @@ function renderRosterTab(container, profile) {
         el("td", { "data-label": "TSC No." }, [
           el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber || "—"),
         ]),
-        el("td", { "data-label": "Subjects Taught" }, [
-          subjNames.length
-            ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" },
-                subjNames.map((name) => el("span", { class: "badge badge--neutral", style: "font-size:11px; padding:2px 6px;" }, name))
+        el("td", { "data-label": "Assignments", colspan: "2" }, [
+          Object.keys(grouped).length > 0
+            ? el("div", { style: "display:flex; flex-direction:column; gap:4px;" }, 
+                Object.entries(grouped).map(([cName, sNames]) => 
+                  el("div", { style: "font-size:12px;" }, [
+                    el("span", { style: "font-weight:600; color:var(--color-primary-800); margin-right:6px;" }, cName + ":"),
+                    ...sNames.map(name => el("span", { class: "badge badge--neutral", style: "font-size:10px; padding:2px 4px; margin-right:2px;" }, name))
+                  ])
+                )
               )
-            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "None assigned"),
-        ]),
-        el("td", { "data-label": "Assigned Classes" }, [
-          classNames.length
-            ? el("div", { style: "display:flex; flex-wrap:wrap; gap:4px;" },
-                classNames.map((c) => el("span", { class: "badge badge--muted", style: "font-size:11px; padding:2px 6px;" }, c))
-              )
-            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "None assigned"),
+            : el("span", { class: "text-muted", style: "font-size:var(--fs-xs);" }, "No subjects assigned"),
         ]),
         el("td", { "data-label": "Login Link" }, isLinked
           ? el("span", { class: "badge badge--success", style: "font-size:11px;" }, [icon("check_circle", "text-xs"), " Linked"])
@@ -900,53 +952,92 @@ function openTeacherForm(profile, existing = null) {
   const isEdit = !!existing;
   const body = el("form", {});
 
-  const subjectChecklist = el("div", { class: "checklist" });
-  const selectedSubjects = new Set(existing?.subjectCodes || []);
-  for (const s of subjects) {
-    const checkbox = el("input", { type: "checkbox", value: s.code, ...(selectedSubjects.has(s.code) ? { checked: "true" } : {}) });
-    subjectChecklist.append(el("label", { class: "checklist-item" }, [checkbox, s.name]));
-  }
-
-  const classChecklist = el("div", { class: "checklist" });
-  const selectedClasses = new Set((existing?.classAssignments || []).map((a) => `${a.grade}|${a.stream}`));
-  for (const c of classes) {
-    if (!c.streams || c.streams.length === 0) {
-      const key = `${c.grade}|`;
-      const checkbox = el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) });
-      classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, c.grade]));
+  let currentAssignments = [...(existing?.teachingAssignments || [])];
+  const assignmentsWrap = el("div", { style: "margin-bottom:var(--sp-4);" });
+  
+  function drawAssignments() {
+    assignmentsWrap.innerHTML = "";
+    if (currentAssignments.length === 0) {
+      assignmentsWrap.append(el("div", { class: "text-muted", style: "font-size:13px; padding:10px; background:var(--color-bg); border-radius:var(--radius-md); text-align:center;" }, "No teaching assignments added yet."));
     } else {
-      for (const stream of c.streams) {
-        const key = `${c.grade}|${stream}`;
-        const checkbox = el("input", { type: "checkbox", value: key, ...(selectedClasses.has(key) ? { checked: "true" } : {}) });
-        classChecklist.append(el("label", { class: "checklist-item" }, [checkbox, `${c.grade} ${stream}`]));
+      const list = el("div", { style: "display:flex; flex-direction:column; gap:8px;" });
+      for (let i = 0; i < currentAssignments.length; i++) {
+        const a = currentAssignments[i];
+        const sName = subjects.find(s => s.code === a.subjectCode)?.name || a.subjectCode;
+        const cName = `${a.grade}${a.stream ? ' ' + a.stream : ''}`;
+        
+        const row = el("div", { style: "display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--color-bg); border-radius:var(--radius-md); font-size:13px; border:1px solid var(--color-line);" }, [
+          el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+            el("span", { style: "font-weight:600; color:var(--color-primary-900);" }, cName),
+            el("span", { style: "color:var(--color-ink-soft);" }, "—"),
+            el("span", {}, sName),
+          ]),
+          el("button", { type: "button", class: "btn btn--ghost text-red", style: "padding:4px; height:auto; min-height:0;", onClick: () => {
+            currentAssignments.splice(i, 1);
+            drawAssignments();
+          }}, [icon("delete", "text-sm")]),
+        ]);
+        list.append(row);
       }
+      assignmentsWrap.append(list);
     }
   }
 
+  const classSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+    el("option", { value: "" }, "Select Class"),
+    ...classes.flatMap((c) => {
+      if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|` }, c.grade)];
+      return c.streams.map(s => el("option", { value: `${c.grade}|${s}` }, `${c.grade} ${s}`));
+    })
+  ]);
+  const subjectSelect = el("select", { style: "flex:1; padding:8px; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+    el("option", { value: "" }, "Select Subject"),
+    ...subjects.map(s => el("option", { value: s.code }, s.name))
+  ]);
+  const addBtn = el("button", { type: "button", class: "btn btn--secondary", style: "padding:8px 16px;", onClick: () => {
+    if (!classSelect.value || !subjectSelect.value) {
+      toast("Please select both a class and a subject.", "error");
+      return;
+    }
+    const [grade, stream] = classSelect.value.split("|");
+    const subjectCode = subjectSelect.value;
+    if (!currentAssignments.some(a => a.grade === grade && a.stream === stream && a.subjectCode === subjectCode)) {
+      currentAssignments.push({ grade, stream, subjectCode });
+      drawAssignments();
+    } else {
+      toast("This assignment already exists.", "error");
+    }
+  }}, "Add");
+
+  const addRow = el("div", { style: "display:flex; gap:8px; margin-bottom:12px;" }, [ classSelect, subjectSelect, addBtn ]);
+
   const tscField = field("t-tscNumber", "TSC Number (Optional)", existing?.tscNumber);
-  tscField.style.display = selectedClasses.size > 0 ? "block" : "none";
-  classChecklist.addEventListener("change", () => {
-    tscField.style.display = classChecklist.querySelector("input:checked") ? "block" : "none";
-  });
+
+  drawAssignments();
 
   body.append(
     field("t-fullName", "Full Name", existing?.fullName),
     field("t-teacherNumber", "Teacher Number", existing?.teacherNumber),
     tscField,
     field("t-email", "Email", existing?.email, "email"),
-    el("div", { class: "field" }, [el("label", {}, "Subjects Taught"), subjectChecklist]),
-    el("div", { class: "field" }, [el("label", {}, "Classes Assigned"), classChecklist]),
-      el("div", { class: "field" }, [
-        el("label", {}, "Home-Room Class (Optional)"),
-        el("select", { id: "t-homeroom" }, [
-          el("option", { value: "" }, "None (Subject Teacher only)"),
-          ...classes.flatMap((c) => {
-            if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(existing?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
-            return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(existing?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
-          })
-        ])
-      ]),
-      el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
+    
+    el("div", { class: "field" }, [
+      el("label", {}, "Teaching Assignments (Class & Subject)"),
+      addRow,
+      assignmentsWrap
+    ]),
+    
+    el("div", { class: "field" }, [
+      el("label", {}, "Home-Room Class (Optional)"),
+      el("select", { id: "t-homeroom" }, [
+        el("option", { value: "" }, "None (Subject Teacher only)"),
+        ...classes.flatMap((c) => {
+          if (!c.streams || !c.streams.length) return [el("option", { value: `${c.grade}|`, ...(existing?.homeroom === `${c.grade}|` ? {selected:"true"} : {}) }, c.grade)];
+          return c.streams.map(s => el("option", { value: `${c.grade}|${s}`, ...(existing?.homeroom === `${c.grade}|${s}` ? {selected:"true"} : {}) }, `${c.grade} ${s}`));
+        })
+      ])
+    ]),
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
@@ -954,22 +1045,18 @@ function openTeacherForm(profile, existing = null) {
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, isEdit ? "Saving…" : "Adding…");
-    const subjectCodes = Array.from(subjectChecklist.querySelectorAll("input:checked")).map((c) => c.value);
-    const classAssignments = Array.from(classChecklist.querySelectorAll("input:checked")).map((c) => {
-      const [grade, stream] = c.value.split("|");
-      return { grade, stream };
-    });
+    
     const data = {
         fullName: val("t-fullName"),
         teacherNumber: val("t-teacherNumber"),
         tscNumber: document.getElementById("t-tscNumber")?.value || "",
         phone: "",
         email: val("t-email"),
-        subjectCodes,
-        classAssignments,
+        teachingAssignments: currentAssignments,
         homeroom: document.getElementById("t-homeroom") ? document.getElementById("t-homeroom").value : "",
       };
-      try {
+      
+    try {
       if (isEdit) {
         await updateTeacher(profile.uid, existing.id, data);
         toast("Teacher updated.", "success");

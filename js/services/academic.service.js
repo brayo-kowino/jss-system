@@ -171,7 +171,7 @@ async function countStudentsInStream(grade, stream) {
 
 async function countTeachersInGrade(grade) {
   const teachers = await listTeachers();
-  return teachers.filter((t) => (t.classAssignments || []).some((a) => a.grade === grade)).length;
+  return teachers.filter((t) => (t.teachingAssignments || []).some((a) => a.grade === grade)).length;
 }
 
 // --------------------------------------------------------------- Subjects --
@@ -227,15 +227,11 @@ export async function updateSubject(userId, id, { name, department, pathway }) {
 
 export async function deleteSubject(userId, id) {
   const subject = await getSubject(id);
-  const teacherSnap = await getDocs(
-    query(
-      collection(db, "teachers"),
-      where("schoolId", "==", getCurrentSchoolId()),
-      where("subjectCodes", "array-contains", subject?.code || id)
-    )
-  );
-  if (teacherSnap.size > 0) {
-    throw new Error(`Cannot delete: ${teacherSnap.size} teacher(s) are still assigned to teach this subject.`);
+  const subjectCode = subject?.code || id;
+  const teachers = await listTeachers();
+  const assigned = teachers.filter((t) => (t.teachingAssignments || []).some(a => a.subjectCode === subjectCode));
+  if (assigned.length > 0) {
+    throw new Error(`Cannot delete: ${assigned.length} teacher(s) are still assigned to teach this subject.`);
   }
   await deleteDoc(doc(db, "subjects", id));
   invalidate(subjectsCacheKey());

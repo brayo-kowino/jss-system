@@ -988,8 +988,9 @@ async function renderTeacherWorkload(container) {
           "tbody",
           {},
           teachers.map((t) => {
-            const subjCount = (t.subjectCodes || []).length;
-            const classCount = (t.classAssignments || []).length;
+            const assignments = t.teachingAssignments || [];
+            const subjCount = new Set(assignments.map(a => a.subjectCode)).size;
+            const classCount = new Set(assignments.map(a => `${a.grade}|${a.stream}`)).size;
 
             workloadLabels.push(t.fullName);
             workloadData.push(classCount);

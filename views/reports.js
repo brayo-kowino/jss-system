@@ -32,14 +32,14 @@ let selectedStreamFilter = "All";
 
 function getTeacherInitials(subjectCode, grade, stream) {
   if (!allTeachers || !allTeachers.length) return "—";
-  const teacher = allTeachers.find((t) => {
-    const hasSubj = (t.subjectCodes || []).includes(subjectCode);
-    if (!hasSubj) return false;
-    const hasClass = (t.classAssignments || []).some(
-      (a) => a.grade === grade && (!a.stream || !stream || a.stream === stream)
+  let teacher = allTeachers.find((t) => {
+    return (t.teachingAssignments || []).some(a => 
+      a.subjectCode === subjectCode && a.grade === grade && (!a.stream || !stream || a.stream === stream)
     );
-    return hasClass;
-  }) || allTeachers.find((t) => (t.subjectCodes || []).includes(subjectCode));
+  });
+  if (!teacher) {
+    teacher = allTeachers.find((t) => (t.teachingAssignments || []).some(a => a.subjectCode === subjectCode));
+  }
 
   if (!teacher || !teacher.fullName) return "—";
   const initials = teacher.fullName
@@ -225,7 +225,7 @@ export async function render({ profile }) {
       if (profile.role === 'class_teacher' && teacher?.homeroom) {
         managedGrades.add(teacher.homeroom.split('|')[0]);
       } else {
-        (teacher?.classAssignments || []).forEach(a => managedGrades.add(a.grade));
+        (teacher?.teachingAssignments || []).forEach(a => managedGrades.add(a.grade));
       }
     classes = classes
       .filter((c) => managedGrades.has(c.grade))

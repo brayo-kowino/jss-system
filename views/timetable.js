@@ -551,8 +551,8 @@ async function openAssignModal(profile, day, period, gridMount) {
     teacherSelect.innerHTML = "";
     teacherSelect.append(el("option", { value: "" }, "Select teacher (optional)"));
 
-    const qualified = teachers.filter((t) => code && (t.subjectCodes || []).includes(code));
-    const others = teachers.filter((t) => !code || !(t.subjectCodes || []).includes(code));
+    const qualified = teachers.filter((t) => code && (t.teachingAssignments || []).some(a => a.subjectCode === code));
+    const others = teachers.filter((t) => !code || !(t.teachingAssignments || []).some(a => a.subjectCode === code));
 
     if (code && qualified.length > 0) {
       const groupQ = el("optgroup", { label: "Subject Teachers" });
