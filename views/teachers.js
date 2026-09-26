@@ -136,30 +136,30 @@ function showInstructionsModal() {
       el("h4", { style: "margin: 0 0 8px 0; color: var(--color-primary-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
         icon("groups", "text-primary"), "1. Start by Adding Teaching Staff"
       ]),
-      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
-        "Always add teachers in the <strong>Teaching Staff</strong> tab first. If their login credentials are not ready yet, you can navigate to <strong>System Logins</strong> later. From there, select <strong>Link an existing teacher record</strong> rather than creating a new record."
-      )
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, [
+        "Always add teachers in the ", el("strong", {}, "Teaching Staff"), " tab first. If their login credentials are not ready yet, you can navigate to ", el("strong", {}, "System Logins"), " later. From there, select ", el("strong", {}, "Link an existing teacher record"), " rather than creating a new record."
+      ])
     ]),
 
     el("div", { style: "background: var(--color-success-50); border-left: 4px solid var(--color-success-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px;" }, [
       el("h4", { style: "margin: 0 0 8px 0; color: var(--color-success-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
         icon("school", "text-success"), "2. Class Teachers vs Subject Teachers"
       ]),
-      el("p", { style: "margin: 0 0 8px 0; font-size: 14px; line-height: 1.5;" }, 
-        "The system assumes a teacher can only manage <strong>one class</strong>. Make sure to select this under <em>Class they manage</em> when adding or editing their teaching profile."
-      ),
-      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
-        "When creating their login, make sure to select <strong>Class Teacher</strong> from the dropdown rather than Subject Teacher. This ensures the system treats them as a class teacher upon login."
-      )
+      el("p", { style: "margin: 0 0 8px 0; font-size: 14px; line-height: 1.5;" }, [
+        "The system assumes a teacher can only manage ", el("strong", {}, "one class"), ". Make sure to select this under ", el("em", {}, "Class they manage"), " when adding or editing their teaching profile."
+      ]),
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, [
+        "When creating their login, make sure to select ", el("strong", {}, "Class Teacher"), " from the dropdown rather than Subject Teacher. This ensures the system treats them as a class teacher upon login."
+      ])
     ]),
 
     el("div", { style: "background: var(--color-gold-50); border-left: 4px solid var(--color-gold-500); padding: 16px; border-radius: 0 8px 8px 0; margin-bottom: 24px;" }, [
       el("h4", { style: "margin: 0 0 8px 0; color: var(--color-gold-900); font-size: 16px; display: flex; align-items: center; gap: 8px;" }, [
         icon("badge", "text-gold"), "3. Non-Teaching Staff"
       ]),
-      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, 
-        "For non-teaching staff (e.g., Bursar, Principal, Registrar), you do not need to add them to Teaching Staff. Add them directly in the <strong>System Logins</strong> tab instead."
-      )
+      el("p", { style: "margin: 0; font-size: 14px; line-height: 1.5;" }, [
+        "For non-teaching staff (e.g., Bursar, Principal, Registrar), you do not need to add them to Teaching Staff. Add them directly in the ", el("strong", {}, "System Logins"), " tab instead."
+      ])
     ]),
 
     el("button", {
