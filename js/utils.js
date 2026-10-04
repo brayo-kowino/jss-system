@@ -116,17 +116,19 @@ export function skeletonPage({ cards = 3, rows = 6 } = {}) {
     wrap.append(cardRow);
   }
 
-  const table = el("div", { class: "skeleton-table" });
-  for (let i = 0; i < rows; i++) {
-    table.append(el("div", { class: "skeleton-table__row" }, [
-      skeleton("skeleton--circle skeleton--sm"),
-      skeleton("", "22%"),
-      skeleton("", "16%"),
-      skeleton("", "12%"),
-      skeleton("", "10%"),
-    ]));
+  if (rows > 0) {
+    const table = el("div", { class: "skeleton-table" });
+    for (let i = 0; i < rows; i++) {
+      table.append(el("div", { class: "skeleton-table__row" }, [
+        skeleton("skeleton--circle skeleton--sm"),
+        skeleton("", "22%"),
+        skeleton("", "16%"),
+        skeleton("", "12%"),
+        skeleton("", "10%"),
+      ]));
+    }
+    wrap.append(table);
   }
-  wrap.append(table);
 
   return wrap;
 }

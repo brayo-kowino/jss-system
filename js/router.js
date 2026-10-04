@@ -44,39 +44,39 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
   "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
-  "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"] },
-  "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings" },
+  "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0 } },
+  "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings", skeleton: { cards: 0, rows: 6 } },
 
-  "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management" },
-  "/parents": { view: () => import("../views/parents.js"), roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module" },
-  "/teachers": { view: () => import("../views/teachers.js"), roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module" },
+  "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management", skeleton: { cards: 0, rows: 8 } },
+  "/parents": { view: () => import("../views/parents.js"), roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"], title: "Parent Module", skeleton: { cards: 0, rows: 8 } },
+  "/teachers": { view: () => import("../views/teachers.js"), roles: ["admin", "principal", "deputy_principal"], title: "Teacher Module", skeleton: { cards: 0, rows: 8 } },
 
-  "/academics": { view: () => import("../views/academics.js"), roles: ["admin", "deputy_principal", "principal", "academic_master"], title: "Classes & Streams" },
-  "/subjects": { view: () => import("../views/subjects.js"), roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"], title: "Subject Management" },
+  "/academics": { view: () => import("../views/academics.js"), roles: ["admin", "deputy_principal", "principal", "academic_master"], title: "Classes & Streams", skeleton: { cards: 0, rows: 6 } },
+  "/subjects": { view: () => import("../views/subjects.js"), roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"], title: "Subject Management", skeleton: { cards: 0, rows: 6 } },
 
-  "/assessments": { view: () => import("../views/assessments.js"), roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"], title: "Assessment Management" },
-  "/marks": { view: () => import("../views/marks.js"), roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry" },
+  "/assessments": { view: () => import("../views/assessments.js"), roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"], title: "Assessment Management", skeleton: { cards: 0, rows: 8 } },
+  "/marks": { view: () => import("../views/marks.js"), roles: ["subject_teacher", "class_teacher", "academic_master", "admin"], title: "Marks Entry", skeleton: { cards: 0, rows: 10 } },
 
-  "/grading": { view: () => import("../views/grading.js"), roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions" },
+  "/grading": { view: () => import("../views/grading.js"), roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"], title: "Grading & Positions", skeleton: { cards: 0, rows: 8 } },
 
-  "/attendance": { view: () => import("../views/attendance.js"), roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance" },
-  "/reports": { view: () => import("../views/reports.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher"], title: "Report Cards & Reports" },
-  "/release-results": { view: () => import("../views/release-results.js"), roles: ["admin", "academic_master"], title: "Release Results" },
-  "/fees": { view: () => import("../views/fees.js"), roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management" },
+  "/attendance": { view: () => import("../views/attendance.js"), roles: ["class_teacher", "admin", "deputy_principal", "principal"], title: "Attendance", skeleton: { cards: 0, rows: 10 } },
+  "/reports": { view: () => import("../views/reports.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher"], title: "Report Cards & Reports", skeleton: { cards: 0, rows: 8 } },
+  "/release-results": { view: () => import("../views/release-results.js"), roles: ["admin", "academic_master"], title: "Release Results", skeleton: { cards: 0, rows: 6 } },
+  "/fees": { view: () => import("../views/fees.js"), roles: ["admin", "deputy_principal", "principal", "bursar"], title: "Fee Management", skeleton: { cards: 4, rows: 6 } },
 
-  "/timetable": { view: () => import("../views/timetable.js"), allRoles: true, title: "Timetable" },
-  "/student-issues": { view: () => import("../views/student-issues.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"], title: "Student Issues" },
-  "/support": { view: () => import("../views/support.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"], title: "Contact Support" },
+  "/timetable": { view: () => import("../views/timetable.js"), allRoles: true, title: "Timetable", skeleton: { cards: 0, rows: 8 } },
+  "/student-issues": { view: () => import("../views/student-issues.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"], title: "Student Issues", skeleton: { cards: 0, rows: 8 } },
+  "/support": { view: () => import("../views/support.js"), roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"], title: "Contact Support", skeleton: { cards: 0, rows: 5 } },
   
-  "/schools": { view: () => import("../views/schools.js"), roles: ["super_admin"], title: "Schools" },
-  "/platform-announcements": { view: () => import("../views/platform-announcements.js"), roles: ["super_admin"], title: "Platform Announcements" },
-  "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets" },
-  "/platform-error-logs": { view: () => import("../views/platform-error-logs.js"), roles: ["super_admin"], title: "Error Logs" },
+  "/schools": { view: () => import("../views/schools.js"), roles: ["super_admin"], title: "Schools", skeleton: { cards: 0, rows: 8 } },
+  "/platform-announcements": { view: () => import("../views/platform-announcements.js"), roles: ["super_admin"], title: "Platform Announcements", skeleton: { cards: 0, rows: 8 } },
+  "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets", skeleton: { cards: 0, rows: 8 } },
+  "/platform-error-logs": { view: () => import("../views/platform-error-logs.js"), roles: ["super_admin"], title: "Error Logs", skeleton: { cards: 0, rows: 8 } },
   
-  "/notifications": { view: () => import("../views/notifications.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"], title: "Notifications" },
-  "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail" },
-  "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports" },
-  "/promotions": { view: () => import("../views/promotions.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Promotions" },
+  "/notifications": { view: () => import("../views/notifications.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"], title: "Notifications", skeleton: { cards: 0, rows: 8 } },
+  "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail", skeleton: { cards: 0, rows: 8 } },
+  "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports", skeleton: { cards: 4, rows: 0 } },
+  "/promotions": { view: () => import("../views/promotions.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Promotions", skeleton: { cards: 0, rows: 8 } },
 };
 
 // Cache of resolved modules keyed by path, so revisiting a route already
@@ -337,7 +337,7 @@ export async function renderRoute() {
     window.__jssBootOk?.();
 
     main.innerHTML = "";
-    main.appendChild(skeletonPage());
+    main.appendChild(skeletonPage(route.skeleton || {}));
     try {
       // The dynamic import() itself is covered by the same timeout as the
       // render call below - a slow/flaky connection fetching a route's
@@ -366,7 +366,7 @@ export async function renderRoute() {
           const retryToken = ++currentRenderToken;
           if (retryToken !== currentRenderToken) return;
           main.innerHTML = "";
-          main.appendChild(skeletonPage());
+          main.appendChild(skeletonPage(route.skeleton || {}));
           const retryOffline = typeof navigator !== "undefined" && !navigator.onLine;
           const retryMaybeTimeout = (p) => retryOffline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
           const view = await retryMaybeTimeout(loadView(path, route));
