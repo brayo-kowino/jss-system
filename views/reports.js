@@ -825,8 +825,13 @@ async function handleBulkDownload(button, results, profile) {
 }
 
 async function openCard(bodyMount, result, profile) {
-  bodyMount.innerHTML = "";
-  bodyMount.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
+  const existingChildren = Array.from(bodyMount.children);
+  existingChildren.forEach(c => c.style.display = "none");
+  
+  const cardMount = el("div", { class: "single-card-view" });
+  bodyMount.append(cardMount);
+
+  cardMount.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
   const [feeSummary, history] = await Promise.all([
     getFeeSummary({ studentId: result.studentId, grade: result.grade, academicYear: result.academicYear, term: result.term }),
     listResultsForStudent(result.studentId),
@@ -845,8 +850,11 @@ async function openCard(bodyMount, result, profile) {
     .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
     .slice(0, 4);
 
-  bodyMount.innerHTML = "";
-  bodyMount.append(buildActionBar(bodyMount, result, profile));
+  cardMount.innerHTML = "";
+  cardMount.append(buildActionBar(result, profile, () => {
+    cardMount.remove();
+    existingChildren.forEach(c => c.style.display = "");
+  }));
   const card = buildCard(result, feeSummary, priorHistory, profile);
   
   const wrapper = el("div", { class: "report-card-wrapper", style: "width: 100%; overflow-x: auto; overflow-y: hidden; display: flex; justify-content: center;" });
@@ -868,14 +876,14 @@ async function openCard(bodyMount, result, profile) {
   window.addEventListener("resize", applyScale);
   setTimeout(applyScale, 0);
 
-  bodyMount.append(wrapper);
+  cardMount.append(wrapper);
 }
 
-function buildActionBar(bodyMount, result, profile) {
+function buildActionBar(result, profile, onBack) {
   const bar = el("div", { class: "no-print", style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;" });
   
   bar.append(
-    el("button", { class: "btn btn--ghost btn--sm", onClick: () => loadList(bodyMount, profile) }, [icon("arrow_back", "text-xs"), "Back to list"])
+    el("button", { class: "btn btn--ghost btn--sm", onClick: onBack }, [icon("arrow_back", "text-xs"), "Back to list"])
   );
 
   const actions = el("div", { style: "display:flex; gap:8px; align-items:center;" });
