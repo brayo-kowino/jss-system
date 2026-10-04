@@ -480,12 +480,18 @@
 
 /* Main Grid & Cards */
 .md3-main-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-5);
   min-width: 0;
 }
-.md3-col { display: flex; flex-direction: column; gap: var(--sp-5); }
+.md3-col {
+  flex: 1 1 290px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
+}
 .md3-card {
   background: var(--color-white);
   border-radius: 4px;
