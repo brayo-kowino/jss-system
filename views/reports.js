@@ -781,6 +781,8 @@ async function handleBulkDownload(button, results, profile) {
   if (!results.length) return;
   const original = button.textContent;
   button.disabled = true;
+  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:900px;" });
+  document.body.appendChild(offscreen);
   try {
     button.textContent = "Fetching data…";
     const prefetched = await Promise.all(
@@ -801,37 +803,13 @@ async function handleBulkDownload(button, results, profile) {
           .filter((h) => (h.reportMode || "average") === (r.reportMode || "average"))
           .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
           .slice(0, 4);
-
-        const isStreamView = Boolean(selection.stream);
-        const positionScopeStr = positionScopeLabel(isStreamView);
-        const modeLabel = reportModeLabel(r.reportMode || "average");
-        
-        const subjectsWithInitialsAndRemarks = (r.subjects || []).map(s => ({
-            ...s,
-            teacherInitials: getTeacherInitials(s.code, r.grade, r.stream),
-            computedRemark: formatSubjectRemark(s.remark, s.grade)
-        }));
-
-        const classTeacherName = getClassTeacherName(r.grade, r.stream);
-        
-        const vectorData = {
-          ...r,
-          _classTeacherName: classTeacherName,
-          subjects: subjectsWithInitialsAndRemarks,
-          _feeSummary: feeSummary,
-          _priorHistory: priorHistory,
-          _positionScopeLabel: positionScopeStr,
-          _reportModeLabel: modeLabel,
-          _isStarterPlan: isStarterPlan(profile),
-          _formatKES: formatKES,
-          _formatDate: formatDate,
-          _isStreamView: isStreamView
-        };
-
-        return await renderReportVectorPdfBlob(vectorData, settings, { scale: 3 });
+        offscreen.innerHTML = "";
+        const card = buildCard(r, feeSummary, priorHistory, profile);
+        offscreen.appendChild(card);
+        return card;
       },
     }));
-    await downloadPdfsAsZipVector(
+    await downloadPdfsAsZip(
       items,
       `ReportCards_${selection.grade}${selection.stream ? "_" + selection.stream : ""}_${selection.term}_${selection.academicYear}.zip`,
       { onProgress: (done, total) => { button.textContent = `Preparing ${done}/${total}…`; } }
@@ -840,6 +818,7 @@ async function handleBulkDownload(button, results, profile) {
   } catch (err) {
     toast(err.message || "Could not generate the ZIP.", "error");
   } finally {
+    offscreen.remove();
     button.disabled = false;
     button.textContent = original;
   }
