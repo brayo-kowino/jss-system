@@ -54,6 +54,22 @@ function getTeacherInitials(subjectCode, grade, stream) {
   return initials || "—";
 }
 
+function getClassTeacherName(grade, stream) {
+  if (!allTeachers || !allTeachers.length) return "";
+  const target1 = stream ? `${grade}|${stream}` : `${grade}|`;
+  let teacher = allTeachers.find((t) => t.homeroom === target1);
+  if (!teacher && stream) {
+    teacher = allTeachers.find((t) => t.homeroom === `${grade}|`);
+  }
+  if (!teacher || !teacher.fullName) return "";
+  
+  // Clean up title for a cleaner signature line
+  let cleanName = teacher.fullName.trim().replace(/^(mr|mrs|ms|miss|dr|prof|tr|teacher|madam|sir)\b\.?\s+/i, "");
+  
+  // Title case it nicely
+  return cleanName.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+}
+
 function formatSubjectRemark(rawRemark, gradeKey) {
   const g = (gradeKey || "").trim().toUpperCase();
   if (g.startsWith("EE1") || g === "EE") return "Excellent";
@@ -796,8 +812,11 @@ async function handleBulkDownload(button, results, profile) {
             computedRemark: formatSubjectRemark(s.remark, s.grade)
         }));
 
+        const classTeacherName = getClassTeacherName(r.grade, r.stream);
+        
         const vectorData = {
           ...r,
+          _classTeacherName: classTeacherName,
           subjects: subjectsWithInitialsAndRemarks,
           _feeSummary: feeSummary,
           _priorHistory: priorHistory,
@@ -1167,7 +1186,8 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   // Remarks
   const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
   const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
-  const teacherBox = remarkBox("Class Teacher Remarks", result.teacherRemark, canEditTeacher);
+  const classTeacherName = getClassTeacherName(result.grade, result.stream);
+  const teacherBox = remarkBox("Class Teacher Remarks", result.teacherRemark, canEditTeacher, { name: classTeacherName, title: "Class Teacher" });
   const principalBox = remarkBox("Principal Remarks", result.principalRemark, canEditPrincipal, {
     name: settings.principalName,
     title: settings.principalTitle || "Principal",
@@ -1263,7 +1283,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
   } else {
     box.append(
       el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
-      el("div", { class: "report-card__signer" }, "Class Teacher")
+      el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Class Teacher"}`)
     );
   }
 

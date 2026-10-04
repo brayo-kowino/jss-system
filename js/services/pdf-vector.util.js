@@ -284,7 +284,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     currentY += 24;
   };
   
-  drawRemarkBox("Class Teacher Remarks", reportData.teacherRemark, "", "Class Teacher");
+  drawRemarkBox("Class Teacher Remarks", reportData.teacherRemark, reportData._classTeacherName || "", "Class Teacher");
   drawRemarkBox("Principal Remarks", reportData.principalRemark, settings.principalName || "", settings.principalTitle || "Principal");
   
   // 7. Fee Balance Line
