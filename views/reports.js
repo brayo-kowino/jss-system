@@ -1056,7 +1056,6 @@ function buildCard(result, feeSummary, priorHistory, profile) {
 
   // Performance Chart
   card.append(el("h4", { class: "report-card__section-title" }, priorHistory.length ? "Performance Trend" : "Current Subject Performance Trend"));
-  
   const chartWrap = el("div", { class: "report-card__chart" });
 
   if (priorHistory.length) {
