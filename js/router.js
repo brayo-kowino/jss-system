@@ -44,7 +44,7 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
   "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
-  "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0 } },
+  "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0, bigCards: 3 } },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings", skeleton: { cards: 0, rows: 6 } },
 
   "/students": { view: () => import("../views/students.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"], title: "Student Management", skeleton: { cards: 0, rows: 8 } },
@@ -75,7 +75,7 @@ export const routes = {
   
   "/notifications": { view: () => import("../views/notifications.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"], title: "Notifications", skeleton: { cards: 0, rows: 8 } },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail", skeleton: { cards: 0, rows: 8 } },
-  "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports", skeleton: { cards: 4, rows: 0 } },
+  "/analytics": { view: () => import("../views/analytics.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Analytics & Reports", skeleton: { cards: 4, rows: 0, bigCards: 2 } },
   "/promotions": { view: () => import("../views/promotions.js"), roles: ["admin", "principal", "deputy_principal", "academic_master"], title: "Promotions", skeleton: { cards: 0, rows: 8 } },
 };
 

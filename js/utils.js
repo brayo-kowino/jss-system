@@ -94,7 +94,7 @@ export function skeleton(className = "", width, height) {
 // KPI/card placeholders, and a table-like block of shimmering rows. Used by
 // the router while a view's async render() is still resolving, and can also
 // be dropped into any view's own loading state.
-export function skeletonPage({ cards = 3, rows = 6 } = {}) {
+export function skeletonPage({ cards = 3, rows = 6, bigCards = 0 } = {}) {
   const wrap = el("div", { class: "skeleton-page" });
 
   wrap.append(el("div", { class: "skeleton-page__header" }, [
@@ -128,6 +128,17 @@ export function skeletonPage({ cards = 3, rows = 6 } = {}) {
       ]));
     }
     wrap.append(table);
+  }
+
+  if (bigCards > 0) {
+    const mainGrid = el("div", { class: "md3-main-grid", style: "margin-top: var(--sp-5);" });
+    for (let i = 0; i < bigCards; i++) {
+      mainGrid.append(el("div", { class: "md3-col md3-card" }, [
+        skeleton("", "40%", "24px"),
+        skeleton("", "100%", "200px")
+      ]));
+    }
+    wrap.append(mainGrid);
   }
 
   return wrap;
