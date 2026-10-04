@@ -19,6 +19,9 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   const jsPDF = await loadJsPDF();
   const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
   
+  // Define crispness/styling defaults
+  doc.setLineWidth(0.75); // Makes table borders thicker and more defined (default is ~0.56)
+
   const A4_W = 595.28;
   const A4_H = 841.89;
   const MARGIN_X = 28;
@@ -26,18 +29,18 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   const MARGIN_BOT = 20;
   
   let currentY = MARGIN_TOP;
-  const primaryColor = hexToRgb("#14538A");
+  const primaryColor = hexToRgb("#14538A");     // Backgrounds (Banner)
+  const headerTextColor = hexToRgb("#0D3559");  // Text (Darker Navy for higher contrast/crispness)
   const goldColor = hexToRgb("#C9A227");
 
   // 1. School Header
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b);
+  doc.setTextColor(headerTextColor.r, headerTextColor.g, headerTextColor.b);
   
   // Try to load and add logo
   if (settings.logoUrl) {
     try {
-      // Very basic logo fetching
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.src = settings.logoUrl;
@@ -52,7 +55,13 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0);
       const dataUrl = canvas.toDataURL("image/png");
-      doc.addImage(dataUrl, "PNG", MARGIN_X, currentY, 40, 40);
+      
+      // Preserve aspect ratio to prevent stretching/blurring
+      const aspect = img.width / img.height;
+      let w = 40; let h = 40;
+      if (aspect > 1) { h = w / aspect; } else { w = h * aspect; }
+      
+      doc.addImage(dataUrl, "PNG", MARGIN_X, currentY + (40 - h) / 2, w, h);
     } catch (e) {
       // ignore logo errors
     }
@@ -117,7 +126,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   // 4. Performance Summary
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b);
+  doc.setTextColor(headerTextColor.r, headerTextColor.g, headerTextColor.b);
   doc.text("Performance Summary", MARGIN_X, currentY);
   currentY += 8;
   
@@ -158,7 +167,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   // 5. Subject Performance Table
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b);
+  doc.setTextColor(headerTextColor.r, headerTextColor.g, headerTextColor.b);
   doc.text("Subject Performance", MARGIN_X, currentY);
   currentY += 8;
   
@@ -249,7 +258,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     if (currentY > A4_H - 120) { doc.addPage(); currentY = MARGIN_TOP; }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(primaryColor.r, primaryColor.g, primaryColor.b);
+    doc.setTextColor(headerTextColor.r, headerTextColor.g, headerTextColor.b);
     doc.text(title, MARGIN_X, currentY);
     currentY += 6;
     
