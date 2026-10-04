@@ -42,8 +42,11 @@ function getTeacherInitials(subjectCode, grade, stream) {
   }
 
   if (!teacher || !teacher.fullName) return "—";
-  const initials = teacher.fullName
-    .trim()
+  
+  // Remove common titles (Mr, Mrs, Miss, Ms, Dr, Prof, Tr) from the beginning of the name
+  let cleanName = teacher.fullName.trim().replace(/^(mr|mrs|ms|miss|dr|prof|tr|teacher|madam|sir)\b\.?\s+/i, "");
+
+  const initials = cleanName
     .split(/\s+/)
     .filter(Boolean)
     .map((part) => part[0].toUpperCase() + ".")
