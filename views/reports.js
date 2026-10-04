@@ -11,7 +11,7 @@ import {
   positionScopeTag,
 } from "../js/services/grading.service.js";
 import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
-import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
+import { downloadElementAsPdf, downloadPdfsAsZip, downloadPdfsAsZipVector, renderReportVectorPdfBlob, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
@@ -762,17 +762,7 @@ async function handleBulkDownload(button, results, profile) {
   if (!results.length) return;
   const original = button.textContent;
   button.disabled = true;
-  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:900px;" });
-  document.body.appendChild(offscreen);
   try {
-    // Fetch every student's fee summary + history up front, all in
-    // parallel, instead of one pair of awaits per student interleaved into
-    // the render loop below. The render loop itself stays sequential (see
-    // downloadPdfsAsZip) to keep the browser from rasterizing 40+ report
-    // cards at once, but there's no reason the *network* reads should be
-    // serialized behind that - prefetching them concurrently means the
-    // whole batch's Firestore round trips overlap instead of queuing up
-    // one by one as each card is about to render.
     button.textContent = "Fetching data…";
     const prefetched = await Promise.all(
       results.map((r) =>
@@ -792,13 +782,34 @@ async function handleBulkDownload(button, results, profile) {
           .filter((h) => (h.reportMode || "average") === (r.reportMode || "average"))
           .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
           .slice(0, 4);
-        offscreen.innerHTML = "";
-        const card = buildCard(r, feeSummary, priorHistory, profile);
-        offscreen.appendChild(card);
-        return card;
+
+        const isStreamView = Boolean(selection.stream);
+        const positionScopeStr = positionScopeLabel(isStreamView);
+        const modeLabel = reportModeLabel(r.reportMode || "average");
+        
+        const subjectsWithInitialsAndRemarks = (r.subjects || []).map(s => ({
+            ...s,
+            teacherInitials: getTeacherInitials(s.code, r.grade, r.stream),
+            computedRemark: formatSubjectRemark(s.remark, s.grade)
+        }));
+
+        const vectorData = {
+          ...r,
+          subjects: subjectsWithInitialsAndRemarks,
+          _feeSummary: feeSummary,
+          _priorHistory: priorHistory,
+          _positionScopeLabel: positionScopeStr,
+          _reportModeLabel: modeLabel,
+          _isStarterPlan: isStarterPlan(profile),
+          _formatKES: formatKES,
+          _formatDate: formatDate,
+          _isStreamView: isStreamView
+        };
+
+        return await renderReportVectorPdfBlob(vectorData, settings, { scale: 3 });
       },
     }));
-    await downloadPdfsAsZip(
+    await downloadPdfsAsZipVector(
       items,
       `ReportCards_${selection.grade}${selection.stream ? "_" + selection.stream : ""}_${selection.term}_${selection.academicYear}.zip`,
       { onProgress: (done, total) => { button.textContent = `Preparing ${done}/${total}…`; } }
@@ -807,7 +818,6 @@ async function handleBulkDownload(button, results, profile) {
   } catch (err) {
     toast(err.message || "Could not generate the ZIP.", "error");
   } finally {
-    offscreen.remove();
     button.disabled = false;
     button.textContent = original;
   }

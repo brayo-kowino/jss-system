@@ -233,7 +233,9 @@ export async function downloadElementAsPdf(node, filename, opts) {
 export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 3 } = {}) {
   const JSZip = await loadZipLib();
   const zip = new JSZip();
-  const usedNames = new Set(); // guards against two students flattening to the same name (e.g. "019/25" and "019-25" both becoming "019-25")
+  const usedNames = new Set();
+  const BATCH_SIZE = 20;
+  
   for (let i = 0; i < items.length; i++) {
     const { filename, build } = items[i];
     const node = await build();
@@ -252,7 +254,48 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
       node?.remove?.();
     }
     onProgress?.(i + 1, items.length, filename);
-    await new Promise((resolve) => setTimeout(resolve, 35));
+    
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+    }
+  }
+  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+  triggerBlobDownload(zipBlob, zipFilename);
+}
+
+export async function renderReportVectorPdfBlob(reportData, settings, opts = {}) {
+  const { renderReportCardVectorPdf } = await import("./pdf-vector.util.js");
+  return await renderReportCardVectorPdf(reportData, settings, opts);
+}
+
+export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, scale = 3 } = {}) {
+  const JSZip = await loadZipLib();
+  const zip = new JSZip();
+  const usedNames = new Set();
+  const BATCH_SIZE = 20;
+
+  for (let i = 0; i < items.length; i++) {
+    const { filename, build } = items[i];
+    const blob = await build(); // Returns blob directly instead of DOM node
+    let flatName = flattenFilename(filename);
+    if (usedNames.has(flatName)) {
+      const dot = flatName.lastIndexOf(".");
+      const base = dot === -1 ? flatName : flatName.slice(0, dot);
+      const ext = dot === -1 ? "" : flatName.slice(dot);
+      flatName = `${base}_${i + 1}${ext}`;
+    }
+    usedNames.add(flatName);
+    zip.file(flatName, blob);
+    
+    onProgress?.(i + 1, items.length, filename);
+    
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    } else {
+      await new Promise((resolve) => setTimeout(resolve, 35));
+    }
   }
   const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
   triggerBlobDownload(zipBlob, zipFilename);
