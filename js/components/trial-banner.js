@@ -32,8 +32,8 @@ export function mountTrialBanner(profile) {
     wrap.style = `display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 16px; background: var(--color-${mode}); color: #fff; font-size: var(--fs-sm); font-weight: 500; text-align: center;`;
     
     const iconName = mode === "red" ? "warning" : mode === "gold" ? "schedule" : "stars";
-    let msg = `Your school is on a free trial. ${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining.`;
-    if (daysLeft === 0) msg = "Your free trial expires today.";
+    let msg = `Your free trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'}, after which system access will be locked.`;
+    if (daysLeft === 0) msg = "Your free trial expires today! System access will be locked tomorrow.";
     
     wrap.append(
       icon(iconName, "", { style: "font-size: 18px;" }),
