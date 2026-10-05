@@ -81,17 +81,52 @@ const SCHOOL_ID_COOKIE = "jss_school_id";
 // *repeat* reads on an instance that's already warm, not be globally
 // consistent.
 const CACHE_TTL_MS = 20_000;
-const statusCache = new Map<string, { suspended: boolean; expiresAt: number }>();
+const statusCache = new Map<string, { blocked: boolean; reason?: "suspended" | "trial_expired"; expiresAt: number }>();
+let trialConfigCache: { gracePeriodDays: number; expiresAt: number } | null = null;
 
-async function isSuspended(schoolId: string): Promise<boolean> {
+async function getTrialGracePeriodDays(token: string): Promise<number> {
+  if (trialConfigCache && trialConfigCache.expiresAt > Date.now()) {
+    return trialConfigCache.gracePeriodDays;
+  }
+  let gracePeriodDays = 3;
+  try {
+    const doc = await getFsDoc(token, "platform_settings/trial");
+    if (doc && typeof doc.gracePeriodDays === "number") {
+      gracePeriodDays = doc.gracePeriodDays;
+    }
+  } catch (err) {
+    console.error("subscription-gate: trial config lookup failed", err);
+  }
+  trialConfigCache = { gracePeriodDays, expiresAt: Date.now() + 300_000 }; // 5 minutes
+  return gracePeriodDays;
+}
+
+async function checkAccess(schoolId: string): Promise<{ blocked: boolean; reason?: "suspended" | "trial_expired" }> {
   const cached = statusCache.get(schoolId);
-  if (cached && cached.expiresAt > Date.now()) return cached.suspended;
+  if (cached && cached.expiresAt > Date.now()) return { blocked: cached.blocked, reason: cached.reason };
 
   const token = await getAccessToken();
   const school = await getFsDoc(token, `schools/${schoolId}`);
-  const suspended = school?.status === "suspended";
-  statusCache.set(schoolId, { suspended, expiresAt: Date.now() + CACHE_TTL_MS });
-  return suspended;
+  
+  let blocked = false;
+  let reason: "suspended" | "trial_expired" | undefined = undefined;
+
+  if (school?.status === "suspended") {
+    blocked = true;
+    reason = "suspended";
+  } else if (school?.subscriptionStatus === "trial" && school?.trialExpiresAt) {
+    const gracePeriodDays = await getTrialGracePeriodDays(token);
+    const expiresAtMs = new Date(school.trialExpiresAt).getTime();
+    const fullyExpiredMs = expiresAtMs + gracePeriodDays * 86_400_000;
+    
+    if (Date.now() > fullyExpiredMs) {
+      blocked = true;
+      reason = "trial_expired";
+    }
+  }
+
+  statusCache.set(schoolId, { blocked, reason, expiresAt: Date.now() + CACHE_TTL_MS });
+  return { blocked, reason };
 }
 
 function getCookie(request: Request, name: string): string | null {
@@ -169,31 +204,41 @@ export default async (request: Request, context: Context) => {
   const schoolId = getCookie(request, SCHOOL_ID_COOKIE);
   if (!schoolId) return context.next();
 
-  let suspended = false;
+  let access: { blocked: boolean; reason?: "suspended" | "trial_expired" } = { blocked: false };
   try {
-    suspended = await isSuspended(schoolId);
+    access = await checkAccess(schoolId);
   } catch {
     // Firestore/token exchange failed - fail open, see header comment.
     return context.next();
   }
-  if (!suspended) return context.next();
+  if (!access.blocked) return context.next();
 
   const styleHash = await sha256Base64(STYLE);
+
+  let title = "Access suspended";
+  let description = "We've suspended this school's access. This isn't a subscription/token issue.";
+  let contact = `Contact us at <a href="mailto:iskify360.tech@gmail.com">iskify360.tech@gmail.com</a> for more information and to inquire about restoring your access.`;
+
+  if (access.reason === "trial_expired") {
+    title = "Trial expired";
+    description = "Your trial period and grace period have fully expired.";
+    contact = `Please contact us at <a href="mailto:iskify360.tech@gmail.com">iskify360.tech@gmail.com</a> to upgrade to a full subscription.`;
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Eeskia - Access Suspended</title>
+<title>Eeskia - ${title}</title>
 <style>${STYLE}</style>
 </head>
 <body>
   <div class="card">
     <div class="icon">&#128683;</div>
-    <h1>Access suspended</h1>
-    <p>We've suspended this school's access. This isn't a subscription/token issue.</p>
-    <p>Contact us at <a href="mailto:iskify360.tech@gmail.com">iskify360.tech@gmail.com</a> for more information and to inquire about restoring your access.</p>
+    <h1>${title}</h1>
+    <p>${description}</p>
+    <p>${contact}</p>
   </div>
 </body>
 </html>`;

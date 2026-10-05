@@ -146,6 +146,16 @@ async function addDoc(token, collectionId, fields) {
   if (!res.ok) throw new Error(`Firestore create failed: ${res.status}`);
 }
 
+async function getDoc(token, path) {
+  const res = await fetch(`${FIRESTORE_BASE}/${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Firestore get failed: ${res.status}`);
+  const doc = await res.json();
+  return fsDocToObject(doc);
+}
+
 function daysUntil(isoString) {
   const ms = new Date(isoString).getTime() - Date.now();
   return Math.ceil(ms / 86_400_000);
@@ -161,8 +171,20 @@ export default async () => {
   }
 
   let schools;
+  let trialSchools = [];
+  let trialThresholds = [7, 3, 1];
+  try {
+    const trialConfig = await getDoc(token, "platform_settings/trial");
+    if (trialConfig?.warningThresholds) {
+      trialThresholds = trialConfig.warningThresholds;
+    }
+  } catch (err) {
+    console.error("subscription-expiry-check: trial config fetch failed", err);
+  }
+
   try {
     schools = await runQuery(token, "schools", [["subscriptionStatus", "EQUAL", "active"]]);
+    trialSchools = await runQuery(token, "schools", [["subscriptionStatus", "EQUAL", "trial"]]);
   } catch (err) {
     console.error("subscription-expiry-check: school query failed", err);
     return new Response("query failed", { status: 500 });
@@ -202,7 +224,40 @@ export default async () => {
     }
   }
 
-  return new Response(JSON.stringify({ checked: schools.length, remindersSent }), {
+  let trialRemindersSent = 0;
+  for (const school of trialSchools) {
+    if (!school.trialExpiresAt) continue;
+    const daysRemaining = daysUntil(school.trialExpiresAt);
+    if (!trialThresholds.includes(daysRemaining)) continue;
+
+    const dayWord = daysRemaining === 1 ? "day" : "days";
+    try {
+      await addDoc(token, "notifications", {
+        schoolId: school.id,
+        title: `Trial expiring in ${daysRemaining} ${dayWord}`,
+        body: `${school.schoolName || "Your school"}'s trial expires in ${daysRemaining} ${dayWord} (${new Date(school.trialExpiresAt).toDateString()}). Contact the platform administrator to activate a full subscription before it lapses.`,
+        category: "subscription",
+        channel: "app",
+        audience: { type: "staff", label: "School Administrator" },
+        recipientCount: 0,
+        status: "delivered",
+        createdAt: new Date(),
+      });
+      await addDoc(token, "audit_logs", {
+        schoolId: school.id,
+        userId: "system",
+        action: "trial_expiry_reminder",
+        entity: "schools",
+        entityId: school.id,
+        timestamp: new Date(),
+      });
+      trialRemindersSent++;
+    } catch (err) {
+      console.error(`subscription-expiry-check: failed to notify trial school ${school.id}`, err);
+    }
+  }
+
+  return new Response(JSON.stringify({ checked: schools.length, remindersSent, trialChecked: trialSchools.length, trialRemindersSent }), {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });

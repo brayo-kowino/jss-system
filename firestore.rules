@@ -177,18 +177,26 @@ service cloud.firestore {
     // above this point respectively - Firestore Rules functions aren't
     // order-dependent within the same service block, so forward references
     // are fine.
+    function isSubscriptionActive() {
+      return isSuperAdmin() || (
+        'subscriptionActiveUntil' in request.auth.token && request.time < timestamp.value(request.auth.token.subscriptionActiveUntil)
+      ) || (
+        mySchoolId() != null && exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
+        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionStatus == 'trial'
+      );
+    }
+
     function ownsExisting() {
       return mySchoolId() != null
-        && (resource == null || resource.data.schoolId == mySchoolId());
+        && (resource == null || resource.data.schoolId == mySchoolId())
+        && isSubscriptionActive();
     }
     function ownsIncoming() {
-      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId() && isSubscriptionActive();
     }
     function ownsBoth() {
-      return ownsIncoming() && (resource == null || resource.data.schoolId == request.resource.data.schoolId);
+      return ownsIncoming() && (resource == null || resource.data.schoolId == request.resource.data.schoolId) && isSubscriptionActive();
     }
-
-
 
     // Fields nobody can touch directly through a normal document write on
     // schools/{schoolId} - only the subscription edge functions
@@ -206,7 +214,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
         'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId',
-        'status'
+        'status', 'trialStartedAt', 'trialExpiresAt', 'trialExtensions', 'trialEndedAt', 'trialEndReason'
       ]);
     }
 
@@ -692,6 +700,10 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       allow create: if true;
       allow update, delete: if false;
+    }
+    match /platform_settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
     }
 
     // No catch-all wildcard anymore: every operational collection above is

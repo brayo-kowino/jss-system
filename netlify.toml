@@ -163,6 +163,10 @@
   path = "/app/*"
   function = "subscription-gate"
 
+[[edge_functions]]
+  path = "/trial-manage"
+  function = "trial-manage"
+
 [[headers]]
   for = "/*"
   [headers.values]

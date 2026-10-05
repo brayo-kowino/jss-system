@@ -59,6 +59,16 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
 
   const schoolRef = doc(collection(db, "schools"));
   const slug = await generateUniqueSlug(name);
+  
+  // Read trial config
+  const trialSnap = await getDoc(doc(db, "platform_settings", "trial"));
+  const trialConfig = trialSnap.exists() ? trialSnap.data() : { autoTrialOnCreate: true, defaultTrialDays: 30 };
+  
+  const isTrial = trialConfig.autoTrialOnCreate !== false;
+  const trialDays = trialConfig.defaultTrialDays || 30;
+  const now = new Date();
+  const trialExpires = new Date(now.getTime() + (trialDays * 86_400_000));
+
   await setDoc(schoolRef, {
     ...DEFAULT_SETTINGS,
     schoolName: name.trim(),
@@ -67,6 +77,12 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
     phone: phone || "",
     email: email || "",
     status: "active",
+    subscriptionStatus: isTrial ? "trial" : "inactive",
+    trialStartedAt: isTrial ? serverTimestamp() : null,
+    trialExpiresAt: isTrial ? trialExpires : null,
+    trialExtensions: [],
+    trialEndedAt: null,
+    trialEndReason: null,
     createdAt: serverTimestamp(),
     createdBy: superAdminUserId,
   });

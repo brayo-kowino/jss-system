@@ -33,6 +33,7 @@ export const SUBSCRIPTION_PLANS = [
 // see a placeholder mascot instead. Reads from the same school doc that
 // auth.service.js keeps live via onSnapshot, so there's no extra fetch.
 export function isStarterPlan(school) {
+  if (school?.subscriptionStatus === "trial") return false;
   return (school?.subscriptionPlan || "").toLowerCase() === "starter";
 }
 
@@ -100,22 +101,57 @@ function toDate(value) {
 // enforcement - this is only ever a same-tick UI reflection of it, never
 // more permissive.
 export function getSubscriptionState(school) {
+  const baseState = { active: false, daysRemaining: null, suspended: false, revoked: false, trial: false, trialExpired: false, gracePeriod: false, graceDaysRemaining: null };
+
   if (school?.status === "suspended") {
-    return { active: false, daysRemaining: null, suspended: true, revoked: false };
+    return { ...baseState, suspended: true };
   }
   if (school?.subscriptionStatus === "revoked") {
-    return { active: false, daysRemaining: null, suspended: false, revoked: true, revokeReason: school.subscriptionRevokeReason || null, revokeNote: school.subscriptionRevokeNote || null };
+    return { ...baseState, revoked: true, revokeReason: school.subscriptionRevokeReason || null, revokeNote: school.subscriptionRevokeNote || null };
   }
+
+  if (school?.subscriptionStatus === "trial") {
+    const expiresAt = toDate(school?.trialExpiresAt);
+    if (!expiresAt) {
+      return { ...baseState, trial: true, trialExpired: true };
+    }
+    const msRemaining = expiresAt.getTime() - Date.now();
+    const daysRemaining = Math.ceil(msRemaining / 86_400_000);
+    const trialExpired = daysRemaining < 0;
+    
+    // We assume grace period is 3 days as per spec. This matches firestore trial active window.
+    // In grace period: school sees lock screen, but backend might allow reads. For UI, active = false.
+    let gracePeriod = false;
+    let graceDaysRemaining = null;
+    
+    if (trialExpired) {
+      graceDaysRemaining = 3 + daysRemaining; // daysRemaining is negative
+      if (graceDaysRemaining >= 0) {
+        gracePeriod = true;
+      }
+    }
+
+    return {
+      active: !trialExpired,
+      daysRemaining,
+      suspended: false,
+      revoked: false,
+      trial: true,
+      trialExpired,
+      gracePeriod,
+      graceDaysRemaining
+    };
+  }
+
   const expiresAt = toDate(school?.subscriptionExpiresAt);
   if (!expiresAt || school?.subscriptionStatus !== "active") {
-    return { active: false, daysRemaining: null, suspended: false, revoked: false };
+    return baseState;
   }
   const msRemaining = expiresAt.getTime() - Date.now();
   return {
+    ...baseState,
     active: msRemaining > 0,
-    daysRemaining: Math.ceil(msRemaining / 86_400_000),
-    suspended: false,
-    revoked: false,
+    daysRemaining: Math.ceil(msRemaining / 86_400_000)
   };
 }
 

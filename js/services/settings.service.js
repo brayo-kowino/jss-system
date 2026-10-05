@@ -72,6 +72,11 @@ export const DEFAULT_SETTINGS = {
   // default just means a school that's never been activated reads back an
   // explicit "inactive" rather than undefined everywhere that checks it.
   subscriptionStatus: "inactive",
+  trialStartedAt: null,
+  trialExpiresAt: null,
+  trialExtensions: [],
+  trialEndedAt: null,
+  trialEndReason: null,
   // Settings for external notification APIs
   notificationProviders: {
     gmail: { address: "", appPassword: "" },

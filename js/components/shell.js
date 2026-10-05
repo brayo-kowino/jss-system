@@ -13,6 +13,7 @@ import { is2FAEnabled, verify2FAForStepUp } from "../services/two-factor.service
 import { subscribeToNotifications, getNotificationsLastSeen, countUnreadNotifications } from "../services/notification.service.js";
 import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissKey } from "../services/platform-announcement.service.js";
 import { registerFCMToken } from "../services/fcm.service.js";
+import { mountTrialBanner } from "./trial-banner.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -1141,6 +1142,7 @@ export function renderShell(app, profile, activePath) {
   // grid row previously did.
   const content = el("div", { class: "shell__content" }, [
     topbar,
+    mountTrialBanner(profile),
     mountAnnouncementBanner(),
     main,
   ]);

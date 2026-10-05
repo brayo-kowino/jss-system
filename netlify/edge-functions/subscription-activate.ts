@@ -86,10 +86,12 @@ export default async (request: Request, context: Context) => {
   }
 
   let tokenDoc: Record<string, any> | null;
+  let schoolDoc: Record<string, any> | null;
   try {
     tokenDoc = await getFsDoc(accessToken, `subscription_tokens/${payload.jti}`);
+    schoolDoc = await getFsDoc(accessToken, `schools/${payload.sid}`);
   } catch (err) {
-    console.error("subscription-activate: token lookup failed", err);
+    console.error("subscription-activate: token/school lookup failed", err);
     return jsonResponse({ error: "Subscription service is temporarily unavailable." }, 500);
   }
   if (!tokenDoc) {
@@ -100,6 +102,20 @@ export default async (request: Request, context: Context) => {
   }
 
   const now = new Date();
+  const schoolUpdates: Record<string, any> = {
+    subscriptionStatus: "active",
+    subscriptionPlan: payload.p,
+    subscriptionExpiresAt: new Date(payload.exp),
+    subscriptionActivatedAt: now,
+    subscriptionActivatedBy: uid,
+    subscriptionTokenId: payload.jti,
+  };
+  
+  if (schoolDoc?.subscriptionStatus === "trial") {
+    schoolUpdates.trialEndedAt = now;
+    schoolUpdates.trialEndReason = "converted";
+  }
+
   try {
     // Mark consumed first - if the schools/{id} write below somehow fails
     // after this, the safe failure mode is "token burned, admin asks the
@@ -108,14 +124,7 @@ export default async (request: Request, context: Context) => {
       consumedAt: now,
       consumedBy: uid,
     });
-    await patchFsDoc(accessToken, `schools/${payload.sid}`, {
-      subscriptionStatus: "active",
-      subscriptionPlan: payload.p,
-      subscriptionExpiresAt: new Date(payload.exp),
-      subscriptionActivatedAt: now,
-      subscriptionActivatedBy: uid,
-      subscriptionTokenId: payload.jti,
-    });
+    await patchFsDoc(accessToken, `schools/${payload.sid}`, schoolUpdates);
     await addFsDoc(accessToken, "audit_logs", {
       schoolId: payload.sid,
       userId: uid,

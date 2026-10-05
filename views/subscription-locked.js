@@ -21,24 +21,36 @@ import { el, icon, toast, busyButton } from "../js/utils.js";
 
 export async function render({ profile, school } = {}) {
   const wrap = el("div", { class: "not-found-page" });
-  const { daysRemaining, suspended, revoked, revokeReason } = getSubscriptionState(school || {});
-  const neverActivated = !school?.subscriptionExpiresAt;
+  const state = getSubscriptionState(school || {});
+  const { daysRemaining, suspended, revoked, revokeReason, trial, trialExpired, gracePeriod, graceDaysRemaining } = state;
+  const neverActivated = !school?.subscriptionExpiresAt && !trial;
   const revokeReasonLabel = revoked ? REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "Unspecified" : null;
 
+  let title = "Subscription expired";
+  let message = `This school's subscription expired ${Math.abs(daysRemaining ?? 0)} day${Math.abs(daysRemaining ?? 0) === 1 ? "" : "s"} ago.`;
+
+  if (suspended) {
+    title = "Access suspended";
+    message = "We've suspended this school's access. This isn't a subscription/token issue - only we can restore it.";
+  } else if (revoked) {
+    title = "Subscription revoked";
+    message = `This school's subscription was revoked (${revokeReasonLabel}). A new subscription token is needed to restore access.`;
+  } else if (trialExpired) {
+    if (gracePeriod) {
+      title = "Trial Expired";
+      message = `Your free trial has ended. You have a ${graceDaysRemaining}-day grace period to activate a subscription before full lockout. Please contact the platform administrator to subscribe.`;
+    } else {
+      title = "Trial fully expired";
+      message = "Your free trial and grace period have ended. A subscription token is required to restore access.";
+    }
+  } else if (neverActivated) {
+    message = "This school doesn't have an active subscription yet.";
+  }
+
   wrap.append(
-    el("span", { class: "material-symbols-rounded icon empty-state__icon" }, suspended ? "block" : revoked ? "money_off" : "lock_clock"),
-    el("h2", {}, suspended ? "Access suspended" : revoked ? "Subscription revoked" : "Subscription expired"),
-    el(
-      "p",
-      { class: "text-muted", style: "max-width:480px;margin:0 auto;" },
-      suspended
-        ? "We've suspended this school's access. This isn't a subscription/token issue - only we can restore it."
-        : revoked
-        ? `This school's subscription was revoked (${revokeReasonLabel}). A new subscription token is needed to restore access.`
-        : neverActivated
-        ? "This school doesn't have an active subscription yet."
-        : `This school's subscription expired ${Math.abs(daysRemaining ?? 0)} day${Math.abs(daysRemaining ?? 0) === 1 ? "" : "s"} ago.`
-    )
+    el("span", { class: "material-symbols-rounded icon empty-state__icon" }, suspended ? "block" : revoked ? "money_off" : trialExpired ? "timer_off" : "lock_clock"),
+    el("h2", {}, title),
+    el("p", { class: "text-muted", style: "max-width:480px;margin:0 auto;" }, message)
   );
 
   // A suspension is a platform-admin override, not something a

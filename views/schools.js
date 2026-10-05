@@ -10,6 +10,7 @@
 // the school doc, not just on that tab's next sign-in.
 import { listSchools, createSchool, setSchoolStatus } from "../js/services/school.service.js";
 import { issueSubscriptionToken, listSubscriptionTokens, revokeSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS, REVOKE_REASONS } from "../js/services/subscription.service.js";
+import { getTrialState, assignTrial, extendTrial, endTrial, getTrialConfig, updateTrialConfig } from "../js/services/trial.service.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, formatDateTime, busyButton } from "../js/utils.js";
@@ -26,10 +27,16 @@ export async function render({ profile }) {
       el("div", {}, [
         el("p", {}, "Manage or create schools on this platform."),
       ]),
-      el("button", { class: "btn btn--primary", id: "new-school-btn" }, [
-        el("span", { class: "material-symbols-rounded" }, "add_business"),
-        " New School",
-      ]),
+      el("div", { style: "display: flex; gap: 8px;" }, [
+        el("button", { class: "btn btn--ghost", id: "trial-settings-btn" }, [
+          el("span", { class: "material-symbols-rounded" }, "settings"),
+          " Trial Settings",
+        ]),
+        el("button", { class: "btn btn--primary", id: "new-school-btn" }, [
+          el("span", { class: "material-symbols-rounded" }, "add_business"),
+          " New School",
+        ]),
+      ])
     ])
   );
   if (!schools.length) {
@@ -40,8 +47,9 @@ export async function render({ profile }) {
   const activeCount = schools.filter(s => s.status === "active").length;
   const suspendedCount = schools.filter(s => s.status === "suspended").length;
   const subbedCount = schools.filter(s => s.subscriptionStatus === "active").length;
+  const trialCount = schools.filter(s => s.subscriptionStatus === "trial").length;
 
-  const statsRow = el("div", { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px;" }, [
+  const statsRow = el("div", { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;" }, [
     el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
       el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center;" }, [icon("corporate_fare")]),
       el("div", {}, [
@@ -52,14 +60,21 @@ export async function render({ profile }) {
     el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
       el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: rgba(34, 197, 94, 0.12); color: #16a34a; display: flex; align-items: center; justify-content: center;" }, [icon("verified")]),
       el("div", {}, [
-        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Active Subscriptions"),
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Active Subs"),
         el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, subbedCount)
+      ])
+    ]),
+    el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
+      el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: rgba(201, 162, 39, 0.12); color: var(--color-gold); display: flex; align-items: center; justify-content: center;" }, [icon("stars")]),
+      el("div", {}, [
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "On Trial"),
+        el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, trialCount)
       ])
     ]),
     el("div", { class: "card", style: "padding: 20px; display: flex; align-items: center; gap: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);" }, [
       el("div", { style: "width: 48px; height: 48px; border-radius: 12px; background: rgba(220, 38, 38, 0.08); color: var(--color-red); display: flex; align-items: center; justify-content: center;" }, [icon("block")]),
       el("div", {}, [
-        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Suspended Accounts"),
+        el("div", { class: "text-muted text-sm", style: "text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;" }, "Suspended"),
         el("div", { style: "font-size: 28px; font-weight: 700; color: var(--color-ink); line-height: 1.2;" }, suspendedCount)
       ])
     ])
@@ -160,11 +175,12 @@ export async function render({ profile }) {
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Created"), el("th", { style: "text-align: right;" }, "Actions"),
+      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Trial"), el("th", {}, "Created"), el("th", { style: "text-align: right;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody");
   for (const s of schools) {
+    const ts = getTrialState(s);
     tbody.append(
       el("tr", {}, [
         el("td", { "data-label": "School" }, [
@@ -184,6 +200,7 @@ export async function render({ profile }) {
         ]),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
         el("td", { "data-label": "Subscription" }, subscriptionBadge(s)),
+        el("td", { "data-label": "Trial" }, trialBadge(s, ts)),
         el("td", { "data-label": "Created" }, s.createdAt ? formatDate(s.createdAt) : "N/A"),
         el("td", { class: "row-actions", "data-label": "Actions" }, [
           el("div", { style: "display: flex; gap: 8px; justify-content: flex-end;" }, [
@@ -204,6 +221,29 @@ export async function render({ profile }) {
                 title: "Revoke subscription",
                 onClick: () => openRevokeModal(s),
               }, [icon("money_off")]),
+            ] : []),
+            ...(!ts.onTrial && !s.subscriptionExpiresAt ? [
+              el("button", {
+                class: "btn btn--sm btn--ghost",
+                style: "color: var(--color-gold);",
+                title: "Assign trial",
+                onClick: () => openAssignTrialModal(s),
+              }, [icon("stars")]),
+            ] : []),
+            ...(ts.onTrial && ts.canExtend ? [
+              el("button", {
+                class: "btn btn--sm btn--ghost",
+                title: "Extend trial",
+                onClick: () => openExtendTrialModal(s, ts),
+              }, [icon("more_time")]),
+            ] : []),
+            ...(ts.onTrial ? [
+              el("button", {
+                class: "btn btn--sm btn--ghost",
+                style: "color: var(--color-red);",
+                title: "End trial",
+                onClick: () => openEndTrialModal(s),
+              }, [icon("timer_off")]),
             ] : []),
             el("button", {
               class: "btn btn--sm btn--ghost",
@@ -256,6 +296,163 @@ function subscriptionBadge(school) {
 
 export function init({ profile }) {
   document.getElementById("new-school-btn")?.addEventListener("click", () => openNewSchoolModal(profile));
+  document.getElementById("trial-settings-btn")?.addEventListener("click", () => openTrialSettingsModal());
+}
+
+function trialBadge(school, ts) {
+  const wrapEl = el("div", {});
+  if (ts.converted) {
+    wrapEl.append(el("span", { class: "badge badge--success" }, "Converted"));
+    return wrapEl;
+  }
+  if (!ts.hadTrial) {
+    wrapEl.append(el("span", { class: "badge badge--muted" }, "\u2014"));
+    return wrapEl;
+  }
+  if (ts.trialExpired) {
+    wrapEl.append(
+      el("span", { class: "badge badge--danger" }, "Trial Expired"),
+      el("div", { class: "text-sm text-muted" }, ts.inGracePeriod ? `Grace: ${ts.graceDaysRemaining}d left` : "Locked")
+    );
+    return wrapEl;
+  }
+  if (ts.onTrial) {
+    wrapEl.append(
+      el("span", { class: "badge badge--gold" }, "Active Trial"),
+      el("div", { class: "text-sm text-muted" }, `${ts.daysRemaining}d left (Ext: ${ts.extensionCount}/${ts.maxExtensions})`)
+    );
+    return wrapEl;
+  }
+  wrapEl.append(el("span", { class: "badge badge--muted" }, "Ended"));
+  return wrapEl;
+}
+
+async function openTrialSettingsModal() {
+  const config = await getTrialConfig().catch(() => ({ 
+    defaultTrialDays: 30, maxExtensions: 2, extensionDays: 7, 
+    gracePeriodDays: 3, autoTrialOnCreate: true, enableTrialBanner: true 
+  }));
+  
+  const form = el("form", {}, [
+    el("h4", { style: "margin:4px 0 12px;" }, "Platform Trial Settings"),
+    field("ts-default-days", "Default Trial Days", "number"),
+    field("ts-max-ext", "Max Extensions", "number"),
+    field("ts-ext-days", "Days per Extension", "number"),
+    field("ts-grace", "Grace Period (Days)", "number"),
+    el("div", { class: "field" }, [
+      el("label", {}, [
+        el("input", { type: "checkbox", id: "ts-auto", checked: config.autoTrialOnCreate }),
+        " Auto-start trial on school creation"
+      ])
+    ]),
+    el("div", { class: "field" }, [
+      el("label", {}, [
+        el("input", { type: "checkbox", id: "ts-banner", checked: config.enableTrialBanner }),
+        " Show trial banner to schools"
+      ])
+    ]),
+    el("button", { type: "submit", class: "btn btn--primary", style: "margin-top:8px;" }, [icon("save"), "Save settings"]),
+  ]);
+
+  const close = openModal("Trial Settings", form);
+  
+  document.getElementById("ts-default-days").value = config.defaultTrialDays;
+  document.getElementById("ts-max-ext").value = config.maxExtensions;
+  document.getElementById("ts-ext-days").value = config.extensionDays;
+  document.getElementById("ts-grace").value = config.gracePeriodDays;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
+    try {
+      await updateTrialConfig({
+        defaultTrialDays: parseInt(val("ts-default-days")),
+        maxExtensions: parseInt(val("ts-max-ext")),
+        extensionDays: parseInt(val("ts-ext-days")),
+        gracePeriodDays: parseInt(val("ts-grace")),
+        autoTrialOnCreate: document.getElementById("ts-auto").checked,
+        enableTrialBanner: document.getElementById("ts-banner").checked,
+      });
+      toast("Trial settings updated.", "success");
+      close();
+    } catch (err) {
+      toast(err.message || "Failed to save settings.", "error");
+      restore();
+    }
+  });
+}
+
+function openAssignTrialModal(school) {
+  const form = el("form", {}, [
+    field("at-days", "Trial Days", "number"),
+    field("at-reason", "Reason"),
+    el("button", { type: "submit", class: "btn btn--primary", style: "margin-top:8px;" }, [icon("stars"), "Assign Trial"]),
+  ]);
+  const close = openModal(`Assign Trial to ${school.schoolName || "School"}`, form);
+  document.getElementById("at-days").value = "30";
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Assigning…");
+    try {
+      await assignTrial(school.id, parseInt(val("at-days")), val("at-reason"));
+      toast("Trial assigned.", "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Failed to assign trial.", "error");
+      restore();
+    }
+  });
+}
+
+function openExtendTrialModal(school, ts) {
+  const form = el("form", {}, [
+    el("p", { class: "text-sm text-muted", style: "margin-bottom:12px;" }, `This school has used ${ts.extensionCount} of ${ts.maxExtensions} allowed extensions.`),
+    field("xt-reason", "Reason for extension"),
+    el("button", { type: "submit", class: "btn btn--primary", style: "margin-top:8px;" }, [icon("more_time"), "Extend Trial"]),
+  ]);
+  const close = openModal(`Extend Trial for ${school.schoolName || "School"}`, form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Extending…");
+    try {
+      await extendTrial(school.id, val("xt-reason"));
+      toast("Trial extended.", "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Failed to extend trial.", "error");
+      restore();
+    }
+  });
+}
+
+function openEndTrialModal(school) {
+  const form = el("form", {}, [
+    el("p", { class: "text-sm text-muted", style: "margin-bottom:12px;" }, "This will immediately end the active trial and lock the school out until a subscription is purchased."),
+    field("et-reason", "Reason for ending early"),
+    el("button", { type: "submit", class: "btn btn--danger", style: "margin-top:8px;" }, [icon("timer_off"), "End Trial Now"]),
+  ]);
+  const close = openModal(`End Trial for ${school.schoolName || "School"}`, form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Ending…");
+    try {
+      await endTrial(school.id, val("et-reason"));
+      toast("Trial ended.", "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Failed to end trial.", "error");
+      restore();
+    }
+  });
 }
 
 function openNewSchoolModal(profile) {

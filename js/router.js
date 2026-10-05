@@ -298,13 +298,17 @@ export async function renderRoute() {
         window.__jssBootPing?.();
         school = await refreshCurrentSchool();
       }
-      const { active } = getSubscriptionState(school || {});
-      if (!active) {
-        const content = await subscriptionLockedView.render({ profile, school });
+      const subState = getSubscriptionState(school || {});
+      
+      // Ensure the router handles the new trial states returned by getSubscriptionState() properly.
+      // This includes showing subscription-locked.js if trial is expired and grace period is also expired,
+      // as well as during the grace period itself (subState.active is false in both cases).
+      if (!subState.active) {
+        const content = await subscriptionLockedView.render({ profile, school, subState });
         if (isStale()) return;
         app.innerHTML = "";
         app.appendChild(content);
-        await subscriptionLockedView.init?.({ profile, school });
+        await subscriptionLockedView.init?.({ profile, school, subState });
         return;
       }
     }
