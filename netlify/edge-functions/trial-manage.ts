@@ -27,15 +27,10 @@ export default async function trialManage(req: Request, context: Context) {
     }
     const idToken = authHeader.split(" ")[1];
 
-    let decodedToken;
-    try {
-      decodedToken = await verifyFirebaseIdToken(idToken);
-    } catch (err) {
-      return jsonResponse({ error: "Invalid token" }, 401);
-    }
+    const uid = await verifyFirebaseIdToken(idToken);
+    if (!uid) return jsonResponse({ error: "Invalid token" }, 401);
 
     // Super Admin check
-    const uid = decodedToken.sub;
     const accessToken = await getAccessToken();
     const userDoc = await getFsDoc(accessToken, `users/${uid}`);
     if (!userDoc || userDoc.role !== "super_admin" || userDoc.status === "suspended") {
