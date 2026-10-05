@@ -338,10 +338,17 @@ export async function syncSubscriptionClaims(accessToken: string, schoolId: stri
   const school = await getFsDoc(accessToken, `schools/${schoolId}`);
   const suspended = school != null && school.status === "suspended";
   const subStatus = school?.subscriptionStatus;
+  const isTrial = subStatus === "trial";
   const lapsed = subStatus === "revoked" || subStatus === "suspended" || subStatus === "expired";
-  const expiresAt = school?.subscriptionExpiresAt ? new Date(school.subscriptionExpiresAt) : null;
+  
+  let expiresAtStr = school?.subscriptionExpiresAt;
+  if (isTrial) {
+    expiresAtStr = school?.trialExpiresAt;
+  }
+  
+  const expiresAt = expiresAtStr ? new Date(expiresAtStr) : null;
   const activeUntil =
-    !suspended && !lapsed && expiresAt && expiresAt.getTime() > Date.now() ? expiresAt.toISOString() : null;
+    !suspended && (!lapsed || isTrial) && expiresAt && expiresAt.getTime() > Date.now() ? expiresAt.toISOString() : null;
 
   const staff = await runFsQuery(accessToken, "users", [["schoolId", "EQUAL", schoolId]]);
   for (const user of staff) {

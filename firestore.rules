@@ -180,9 +180,6 @@ service cloud.firestore {
     function isSubscriptionActive() {
       return isSuperAdmin() || (
         'subscriptionActiveUntil' in request.auth.token && request.time < timestamp.value(request.auth.token.subscriptionActiveUntil)
-      ) || (
-        mySchoolId() != null && exists(/databases/$(database)/documents/schools/$(mySchoolId())) &&
-        get(/databases/$(database)/documents/schools/$(mySchoolId())).data.subscriptionStatus == 'trial'
       );
     }
 

@@ -864,20 +864,20 @@ function buildSubscriptionTab() {
     el("p", { class: "settings-card__sub" }, "Review your institution's subscription status and activate new license keys.")
   );
 
-  const { active, daysRemaining, revoked, revokeReason } = getSubscriptionState(settings);
-  const planLabel = SUBSCRIPTION_PLANS.find((p) => p.value === settings.subscriptionPlan)?.label || settings.subscriptionPlan;
+  const { active, daysRemaining, revoked, revokeReason, trial } = getSubscriptionState(settings);
+  const planLabel = trial ? "Trial License" : (SUBSCRIPTION_PLANS.find((p) => p.value === settings.subscriptionPlan)?.label || settings.subscriptionPlan);
 
   const statusBanner = el("div", { class: `notice-banner${active ? "" : " notice-banner--warning"}` });
   if (revoked) {
     const reasonLabel = REVOKE_REASONS.find((r) => r.value === revokeReason)?.label || "unspecified reason";
     statusBanner.append(icon("error"), el("span", {}, `Your subscription was revoked (${reasonLabel}). The system is locked until a new license token is issued.`));
-  } else if (settings.subscriptionStatus === "inactive" || !settings.subscriptionExpiresAt) {
+  } else if (settings.subscriptionStatus === "inactive" && !trial) {
     statusBanner.append(icon("info"), el("span", {}, "No active subscription detected. Contact support at iskify360.tech@gmail.com to request an activation key."));
   } else if (active) {
-    const isStarter = isStarterPlan(settings);
+    const isStarter = isStarterPlan(settings) && !trial;
     const bannerContent = el("span", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
-      el("strong", {}, `${planLabel} Plan`),
-      el("span", {}, `· ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (valid through ${formatDate(settings.subscriptionExpiresAt)}).`),
+      el("strong", {}, trial ? "Trial License" : `${planLabel} Plan`),
+      el("span", {}, `· ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (valid through ${formatDate(trial ? settings.trialExpiresAt : settings.subscriptionExpiresAt)}).`),
     ]);
     if (isStarter) {
       bannerContent.append(
@@ -905,7 +905,7 @@ function buildSubscriptionTab() {
     }
     statusBanner.append(icon("check_circle"), bannerContent);
   } else {
-    statusBanner.append(icon("error"), el("span", {}, `Your license expired on ${formatDate(settings.subscriptionExpiresAt)}. Renew by pasting a new activation token below.`));
+    statusBanner.append(icon("error"), el("span", {}, `Your license expired on ${formatDate(trial ? settings.trialExpiresAt : settings.subscriptionExpiresAt)}. Renew by pasting a new activation token below.`));
   }
   card.append(statusBanner);
 
