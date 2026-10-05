@@ -37,7 +37,7 @@ export default async function trialManage(req: Request, context: Context) {
     // Super Admin check
     const uid = decodedToken.sub;
     const accessToken = await getAccessToken();
-    const userDoc = await getFsDoc(`users/${uid}`, accessToken);
+    const userDoc = await getFsDoc(accessToken, `users/${uid}`);
     if (!userDoc || userDoc.role !== "super_admin" || userDoc.status === "suspended") {
       return jsonResponse({ error: "Forbidden: Super Admin only" }, 403);
     }
@@ -68,7 +68,7 @@ export default async function trialManage(req: Request, context: Context) {
       };
 
       // Ensure platform_settings document exists or patch it
-      await patchFsDoc(`platform_settings/trial`, configDoc, accessToken);
+      await patchFsDoc(accessToken, `platform_settings/trial`, configDoc);
       return jsonResponse({ success: true });
     }
 
@@ -76,7 +76,7 @@ export default async function trialManage(req: Request, context: Context) {
       return jsonResponse({ error: "Missing schoolId" }, 400);
     }
 
-    const schoolDoc = await getFsDoc(`schools/${schoolId}`, accessToken);
+    const schoolDoc = await getFsDoc(accessToken, `schools/${schoolId}`);
     if (!schoolDoc) {
       return jsonResponse({ error: "School not found" }, 404);
     }
@@ -95,8 +95,8 @@ export default async function trialManage(req: Request, context: Context) {
         trialExtensions: []
       };
 
-      await patchFsDoc(`schools/${schoolId}`, updates, accessToken);
-      await syncSubscriptionClaims(schoolId, "trial", expiresAt.toISOString());
+      await patchFsDoc(accessToken, `schools/${schoolId}`, updates);
+      await syncSubscriptionClaims(accessToken, schoolId);
 
       // Add to audit logs
       const auditLog = {
@@ -106,7 +106,7 @@ export default async function trialManage(req: Request, context: Context) {
         timestamp: now.toISOString(),
         details: { days: trialDays, reason: reason || "Manual assignment" }
       };
-      await putFsDoc(`audit_logs/${crypto.randomUUID()}`, auditLog, accessToken);
+      await putFsDoc(accessToken, `audit_logs/${crypto.randomUUID()}`, auditLog);
 
       return jsonResponse({ trialExpiresAt: expiresAt.toISOString() });
     }
@@ -117,7 +117,7 @@ export default async function trialManage(req: Request, context: Context) {
       }
 
       // Fetch config to check max extensions and extension days
-      const config = await getFsDoc(`platform_settings/trial`, accessToken);
+      const config = await getFsDoc(accessToken, `platform_settings/trial`);
       const maxExt = config?.maxExtensions ?? 2;
       const extDays = config?.extensionDays ?? 7;
 
@@ -138,12 +138,12 @@ export default async function trialManage(req: Request, context: Context) {
         reason: reason || "Extended by admin"
       });
 
-      await patchFsDoc(`schools/${schoolId}`, {
+      await patchFsDoc(accessToken, `schools/${schoolId}`, {
         trialExpiresAt: newExpiry.toISOString(),
         trialExtensions: extensions
-      }, accessToken);
+      });
 
-      await syncSubscriptionClaims(schoolId, "trial", newExpiry.toISOString());
+      await syncSubscriptionClaims(accessToken, schoolId);
 
       const auditLog = {
         schoolId,
@@ -152,7 +152,7 @@ export default async function trialManage(req: Request, context: Context) {
         timestamp: now.toISOString(),
         details: { extensionDays: extDays, newExpiry: newExpiry.toISOString(), reason }
       };
-      await putFsDoc(`audit_logs/${crypto.randomUUID()}`, auditLog, accessToken);
+      await putFsDoc(accessToken, `audit_logs/${crypto.randomUUID()}`, auditLog);
 
       return jsonResponse({ newExpiresAt: newExpiry.toISOString() });
     }
@@ -163,14 +163,14 @@ export default async function trialManage(req: Request, context: Context) {
       }
 
       const now = new Date();
-      await patchFsDoc(`schools/${schoolId}`, {
+      await patchFsDoc(accessToken, `schools/${schoolId}`, {
         subscriptionStatus: "inactive",
         trialEndedAt: now.toISOString(),
         trialEndReason: "ended_by_admin"
-      }, accessToken);
+      });
 
       // Force claims update immediately
-      await syncSubscriptionClaims(schoolId, "inactive", now.toISOString());
+      await syncSubscriptionClaims(accessToken, schoolId);
 
       const auditLog = {
         schoolId,
@@ -179,7 +179,7 @@ export default async function trialManage(req: Request, context: Context) {
         timestamp: now.toISOString(),
         details: { reason: reason || "Ended manually by admin" }
       };
-      await putFsDoc(`audit_logs/${crypto.randomUUID()}`, auditLog, accessToken);
+      await putFsDoc(accessToken, `audit_logs/${crypto.randomUUID()}`, auditLog);
 
       return jsonResponse({ success: true });
     }

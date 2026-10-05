@@ -175,7 +175,7 @@ export async function render({ profile }) {
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive card" });
   const table = el("table", {}, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Status"), el("th", {}, "Subscription"), el("th", {}, "Trial"), el("th", {}, "Created"), el("th", { style: "text-align: right;" }, "Actions"),
+      el("th", {}, "School"), el("th", {}, "Contact"), el("th", {}, "Account"), el("th", {}, "Billing"), el("th", {}, "Trial"), el("th", {}, "Created"), el("th", { style: "text-align: right;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody");
@@ -198,8 +198,8 @@ export async function render({ profile }) {
             el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--color-ink-soft);" }, [icon("phone", "text-muted", { style: "font-size: 16px;" }), s.phone || "N/A"])
           ])
         ]),
-        el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
-        el("td", { "data-label": "Subscription" }, subscriptionBadge(s)),
+        el("td", { "data-label": "Account" }, el("span", { class: `badge badge--${s.status === "active" ? "success" : "danger"}` }, s.status || "active")),
+        el("td", { "data-label": "Billing" }, subscriptionBadge(s)),
         el("td", { "data-label": "Trial" }, trialBadge(s, ts)),
         el("td", { "data-label": "Created" }, s.createdAt ? formatDate(s.createdAt) : "N/A"),
         el("td", { class: "row-actions", "data-label": "Actions" }, [
@@ -222,7 +222,7 @@ export async function render({ profile }) {
                 onClick: () => openRevokeModal(s),
               }, [icon("money_off")]),
             ] : []),
-            ...(!ts.onTrial && !s.subscriptionExpiresAt ? [
+            ...(!ts.onTrial && s.subscriptionStatus !== "active" ? [
               el("button", {
                 class: "btn btn--sm btn--ghost",
                 style: "color: var(--color-gold);",
