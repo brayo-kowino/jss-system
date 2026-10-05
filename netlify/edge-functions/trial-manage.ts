@@ -15,42 +15,42 @@ export default async function trialManage(req: Request, context: Context) {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  const ip = clientIp(req, context);
-  if (!checkRateLimit(ip, "trial_manage", 20, 60)) {
-    return rateLimitedResponse();
-  }
-
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
-  const idToken = authHeader.split(" ")[1];
-
-  let decodedToken;
   try {
-    decodedToken = await verifyFirebaseIdToken(idToken);
-  } catch (err) {
-    return jsonResponse({ error: "Invalid token" }, 401);
-  }
+    const ip = clientIp(req, context);
+    if (!checkRateLimit(ip, "trial_manage", 20, 60)) {
+      return rateLimitedResponse();
+    }
 
-  // Super Admin check
-  const uid = decodedToken.sub;
-  const accessToken = await getAccessToken();
-  const userDoc = await getFsDoc(`users/${uid}`, accessToken);
-  if (!userDoc || userDoc.role !== "super_admin" || userDoc.status === "suspended") {
-    return jsonResponse({ error: "Forbidden: Super Admin only" }, 403);
-  }
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+    const idToken = authHeader.split(" ")[1];
 
-  let body;
-  try {
-    body = await req.json();
-  } catch (e) {
-    return jsonResponse({ error: "Invalid JSON" }, 400);
-  }
+    let decodedToken;
+    try {
+      decodedToken = await verifyFirebaseIdToken(idToken);
+    } catch (err) {
+      return jsonResponse({ error: "Invalid token" }, 401);
+    }
 
-  const { action, schoolId, reason, days, settings } = body;
+    // Super Admin check
+    const uid = decodedToken.sub;
+    const accessToken = await getAccessToken();
+    const userDoc = await getFsDoc(`users/${uid}`, accessToken);
+    if (!userDoc || userDoc.role !== "super_admin" || userDoc.status === "suspended") {
+      return jsonResponse({ error: "Forbidden: Super Admin only" }, 403);
+    }
 
-  try {
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      return jsonResponse({ error: "Invalid JSON" }, 400);
+    }
+
+    const { action, schoolId, reason, days, settings } = body;
+
     if (action === "configure") {
       if (!settings) return jsonResponse({ error: "Missing settings" }, 400);
       
@@ -188,6 +188,6 @@ export default async function trialManage(req: Request, context: Context) {
 
   } catch (err: any) {
     console.error("Trial manage error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error: " + (err.message || String(err)) }, 500);
   }
 }
