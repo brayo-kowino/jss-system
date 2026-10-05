@@ -7,8 +7,8 @@ import {
   verifyFirebaseIdToken,
   jsonResponse,
   syncSubscriptionClaims
-} from "../lib/firestore-rest.ts";
-import { checkRateLimit, rateLimitedResponse, clientIp } from "../lib/rate-limit.ts";
+} from "./lib/firestore-rest.ts";
+import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
 
 export default async function trialManage(req: Request, context: Context) {
   if (req.method !== "POST") {
