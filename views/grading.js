@@ -316,27 +316,67 @@ function renderWelcomeDisclaimers(container) {
 
 
 function renderArrearsNotice(amountOwed) {
-  const formattedAmount = amountOwed ? ` (KES ${amountOwed.toLocaleString()})` : "";
-  return el("div", { class: "card", style: "padding: 40px 20px; text-align: center; border-top: 4px solid var(--color-danger-500); margin: 20px 0;" }, [
-    el("div", { class: "icon-halo icon-halo--danger", style: "margin: 0 auto 16px;" }, [
-      icon("block", "text-xl")
+  const formattedAmount = amountOwed ? `KES ${amountOwed.toLocaleString()}` : "Contact Support";
+  
+  return el("div", { 
+    class: "card", 
+    style: "max-width: 540px; margin: 40px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: #ffffff;" 
+  }, [
+    
+    // Icon Container
+    el("div", { 
+      style: "width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(239,68,68,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--color-danger-600);" 
+    }, [
+      icon("lock_clock", "", "style: font-size: 36px;")
     ]),
-    el("h2", { style: "color: var(--color-ink-hard); margin-bottom: 12px; font-size: 1.5rem;" }, "Action Required: Subscription Arrears"),
-    el("p", { class: "text-muted", style: "max-width: 500px; margin: 0 auto 16px; font-size: 1rem; line-height: 1.5;" }, 
-      `Your marks and assessments are securely saved and verified on our servers. However, report generation and result computation cannot proceed due to uncleared yearly subscription arrears${formattedAmount}.`
-    ),
-    el("p", { class: "text-muted", style: "max-width: 500px; margin: 0 auto 24px; font-size: 1rem; line-height: 1.5;" },
-      "Please settle the outstanding balance to immediately restore these features."
-    ),
-    el("div", { style: "background: var(--color-surface-soft); padding: 16px; border-radius: 8px; max-width: 400px; margin: 0 auto; text-align: left;" }, [
-      el("h4", { style: "margin: 0 0 8px; font-size: 0.9rem;" }, "Platform Support & Billing Contacts"),
-      el("div", { style: "display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.95rem;" }, [
-        icon("email", "text-sm", "style: color:var(--color-primary-600);"),
-        el("a", { href: "mailto:iskify360.tech@gmail.com", style: "color: var(--color-primary-700); text-decoration: none;" }, "iskify360.tech@gmail.com")
+
+    // Heading
+    el("h2", { 
+      style: "color: var(--color-ink-hard); margin: 0 0 12px; font-size: 1.5rem; font-weight: 700; font-family: system-ui, -apple-system, sans-serif; letter-spacing: -0.02em;" 
+    }, "Report Generation Locked"),
+
+    // Amount Pill
+    ...(amountOwed ? [
+      el("div", { 
+        style: "display: inline-flex; align-items: center; gap: 6px; background: var(--color-danger-50); color: var(--color-danger-700); padding: 6px 16px; border-radius: 100px; font-weight: 600; font-size: 0.95rem; margin-bottom: 24px; border: 1px solid var(--color-danger-200);" 
+      }, [
+        icon("payments", "", "style: font-size: 18px;"),
+        `Balance Due: ${formattedAmount}`
+      ])
+    ] : []),
+
+    // Description text
+    el("p", { 
+      style: "color: var(--color-ink-soft); font-size: 1.05rem; line-height: 1.6; margin: 0 auto 12px; font-family: system-ui, -apple-system, sans-serif;" 
+    }, "Your marks and assessments are securely saved. However, computing results and exporting reports requires an active subscription."),
+    
+    el("p", { 
+      style: "color: var(--color-ink-soft); font-size: 0.95rem; line-height: 1.6; margin: 0 auto 32px; max-width: 400px; font-family: system-ui, -apple-system, sans-serif;" 
+    }, "Please settle the outstanding balance to immediately restore these features."),
+
+    // Support Box
+    el("div", { 
+      style: "background: var(--color-surface-soft); padding: 16px 20px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; text-align: left; border: 1px solid var(--color-surface-hover);" 
+    }, [
+      el("div", {}, [
+        el("h4", { 
+          style: "margin: 0 0 4px; font-size: 0.9rem; color: var(--color-ink-hard); font-weight: 600; font-family: system-ui, -apple-system, sans-serif;" 
+        }, "Ready to unlock?"),
+        el("p", { 
+          style: "margin: 0; font-size: 0.85rem; color: var(--color-ink-soft); font-family: system-ui, -apple-system, sans-serif;" 
+        }, "Contact billing to restore access.")
+      ]),
+      el("a", { 
+        href: "mailto:iskify360.tech@gmail.com", 
+        class: "btn btn--sm",
+        style: "background: #fff; border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
+      }, [
+        icon("mail", "", "style: font-size: 16px;"), "Email Us"
       ])
     ])
   ]);
 }
+
 
 async function runCompute(profile, resultMount) {
     const school = getCurrentSchool();
