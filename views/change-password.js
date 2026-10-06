@@ -103,7 +103,7 @@ function renderInShellScreen(profile) {
 
   const header = el("div", { style: "margin-bottom: 32px; text-align: center;" }, [
     el("div", { style: "display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:50%; background:color-mix(in srgb, var(--color-primary-700) 8%, white); color:var(--color-primary-700); margin-bottom:16px;" }, [
-      icon("lock_person", { style: "font-size: 32px;" })
+      icon("lock_person", "", { style: "font-size: 32px;" })
     ]),
     el("h1", { style: "font-size: var(--fs-xl); margin: 0 0 8px; color: var(--color-primary-900);" }, "Change Password"),
     el("p", { class: "text-muted", style: "margin: 0; font-size: var(--fs-md);" }, ""),

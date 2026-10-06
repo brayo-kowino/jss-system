@@ -33,6 +33,10 @@ export function qsa(selector, scope = document) {
 
 // Material Symbols icon helper. Usage: icon("edit") or icon("edit", "text-gold")
 export function icon(name, extraClass = "", attrs = {}) {
+  if (typeof extraClass === "object" && extraClass !== null) {
+    attrs = extraClass;
+    extraClass = "";
+  }
   let finalAttrs = { class: `material-symbols-rounded icon${extraClass ? (extraClass.startsWith('style') ? '' : ` ${extraClass}`) : ""}` };
   if (typeof extraClass === 'string' && (extraClass.startsWith('style=') || extraClass.startsWith('style:'))) {
     finalAttrs.style = extraClass.replace(/^style[=:]\s*/, '').replace(/^['"]|['"]$/g, '');
