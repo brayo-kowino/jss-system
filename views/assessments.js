@@ -1,3 +1,4 @@
+import { getCurrentSchool } from "../js/services/auth.service.js";
 import {
   listAssessments,
   addAssessment,
@@ -779,6 +780,13 @@ function subjectName(code) {
 }
 
 async function openResultsModal(a) {
+  const school = getCurrentSchool();
+  if (school && school.canComputeOrGenerate === false) {
+    const body = el("div", { style: "padding: 0; background: transparent; border: none; box-shadow: none;" }, [ renderArrearsNotice(school.amountOwed) ]);
+    openModal(`Analytics Locked`, body);
+    return;
+  }
+
   const body = el("div", { style: "display:grid; place-items:center; padding:32px;" }, [spinner("md", "dark")]);
   const close = openModal(`Results Breakdown: ${a.name}`, body);
 
@@ -1157,3 +1165,54 @@ function confirmDelete(profile, a) {
 }
 
 export function init() {}
+
+function renderArrearsNotice(amountOwed) {
+  const formattedAmount = amountOwed ? `KES ${amountOwed.toLocaleString()}` : "Contact Support";
+  
+  return el("div", { 
+    class: "card", 
+    style: "max-width: 540px; margin: 20px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: #ffffff;" 
+  }, [
+    el("div", { 
+      style: "width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(239,68,68,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--color-danger-600);" 
+    }, [
+      icon("lock_clock", "", "style: font-size: 36px;")
+    ]),
+    el("h2", { 
+      style: "color: var(--color-ink-hard); margin: 0 0 12px; font-size: 1.5rem; font-weight: 700; font-family: system-ui, -apple-system, sans-serif; letter-spacing: -0.02em;" 
+    }, "Analytics & Reports Locked"),
+    ...(amountOwed ? [
+      el("div", { 
+        style: "display: inline-flex; align-items: center; gap: 6px; background: var(--color-danger-50); color: var(--color-danger-700); padding: 6px 16px; border-radius: 100px; font-weight: 600; font-size: 0.95rem; margin-bottom: 24px; border: 1px solid var(--color-danger-200);" 
+      }, [
+        icon("payments", "", "style: font-size: 18px;"),
+        `Balance Due: ${formattedAmount}`
+      ])
+    ] : []),
+    el("p", { 
+      style: "color: var(--color-ink-soft); font-size: 1.05rem; line-height: 1.6; margin: 0 auto 12px; font-family: system-ui, -apple-system, sans-serif;" 
+    }, "Your marks and assessments are securely saved. However, advanced analytics and report generation require an active subscription."),
+    el("p", { 
+      style: "color: var(--color-ink-soft); font-size: 0.95rem; line-height: 1.6; margin: 0 auto 32px; max-width: 400px; font-family: system-ui, -apple-system, sans-serif;" 
+    }, "Please settle the outstanding balance to immediately restore these features."),
+    el("div", { 
+      style: "background: var(--color-surface-soft); padding: 16px 20px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; text-align: left; border: 1px solid var(--color-surface-hover);" 
+    }, [
+      el("div", {}, [
+        el("h4", { 
+          style: "margin: 0 0 4px; font-size: 0.9rem; color: var(--color-ink-hard); font-weight: 600; font-family: system-ui, -apple-system, sans-serif;" 
+        }, "Ready to unlock?"),
+        el("p", { 
+          style: "margin: 0; font-size: 0.85rem; color: var(--color-ink-soft); font-family: system-ui, -apple-system, sans-serif;" 
+        }, "Contact billing to restore access.")
+      ]),
+      el("a", { 
+        href: "mailto:iskify360.tech@gmail.com", 
+        class: "btn btn--sm",
+        style: "background: #fff; border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
+      }, [
+        icon("mail", "", "style: font-size: 16px;"), "Email Us"
+      ])
+    ])
+  ]);
+}
