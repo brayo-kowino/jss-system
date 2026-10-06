@@ -766,6 +766,7 @@ function val(id) {
           amountOwed: newAmount
         });
         toast("Arrears policy saved", "success");
+        const { renderRoute } = await import("../js/router.js");
         renderRoute();
         import("../js/components/modal.js").then(m => m.closeModal());
       } catch (err) {

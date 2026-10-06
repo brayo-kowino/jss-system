@@ -212,11 +212,18 @@ service cloud.firestore {
     // the schools/{schoolId} match block) would change the doc without
     // ever re-minting that claim, leaving isSubscriptionActive() looking
     // at a stale claim until tokens happen to refresh on their own.
+    
+    function touchesArrearsFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'canComputeOrGenerate', 'amountOwed'
+      ]);
+    }
+
     function touchesSubscriptionFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
         'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId',
-        'status', 'trialStartedAt', 'canComputeOrGenerate', 'amountOwed', 'trialExpiresAt', 'trialExtensions', 'trialEndedAt', 'trialEndReason'
+        'status', 'trialStartedAt', 'trialExpiresAt', 'trialExtensions', 'trialEndedAt', 'trialEndReason'
       ]);
     }
 
@@ -375,7 +382,8 @@ service cloud.firestore {
       // gone: every actor, super_admin included, goes through
       // touchesSubscriptionFields() here.
       allow update: if (isSuperAdmin() || (isAdmin() && schoolId == mySchoolId()))
-        && !touchesSubscriptionFields();
+          && !touchesSubscriptionFields()
+          && (isSuperAdmin() || !touchesArrearsFields());
       allow delete: if isSuperAdmin();
     }
 
@@ -430,7 +438,7 @@ service cloud.firestore {
     // reports, fees...). Write: only the roles the Students page exposes
     // edit controls to.
     match /students/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageStudents() && ownsIncoming();
       allow update: if canManageStudents() && ownsBoth();
       allow delete: if false; // app never deletes students, only archives/transfers via update
@@ -453,7 +461,7 @@ service cloud.firestore {
     // (linkStudentToParent/unlinkStudentFromParent) as part of that same
     // save. Read stays staff-wide (report cards, contact lookups, etc).
     match /parents/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageStudents() && ownsIncoming();
       allow update: if canManageStudents() && ownsBoth();
       allow delete: if canManageStudents() && ownsExisting();
@@ -495,13 +503,13 @@ service cloud.firestore {
     // Classes/streams + subjects - read broadly (used in dropdowns
     // everywhere), write restricted to whoever manages term structure.
     match /classes/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageAcademicStructure() && ownsIncoming();
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /subjects/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageAcademicStructure() && ownsIncoming();
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
@@ -509,13 +517,13 @@ service cloud.firestore {
 
     // Timetable periods + slots - same group as above.
     match /periods/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageAcademicStructure() && ownsIncoming();
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
     match /timetable_slots/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageAcademicStructure() && ownsIncoming();
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
@@ -525,7 +533,7 @@ service cloud.firestore {
     // dashboard all need to see them), write restricted to admin/
     // academic_master, including locking/reopening and deleting.
     match /assessments/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageAssessments() && ownsIncoming();
       allow update: if canManageAssessments() && ownsBoth();
       allow delete: if canManageAssessments() && ownsExisting();
@@ -537,7 +545,7 @@ service cloud.firestore {
     // protection can no longer be skipped by calling the SDK directly
     // instead of going through marks.service.js.
     match /marks/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canEnterMarks() && ownsIncoming();
       allow update: if canEnterMarks() && ownsBoth();
       allow delete: if false; // app never deletes marks
@@ -547,7 +555,7 @@ service cloud.firestore {
     // for each CBC performance level (EE, ME, AE, BE).
     // Read: any staff. Write: roles that can enter marks (subject_teacher, class_teacher, academic_master, admin).
     match /subject_remarks/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canEnterMarks() && ownsIncoming();
       allow update: if canEnterMarks() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
@@ -563,7 +571,7 @@ service cloud.firestore {
     // group as computing results in the first place, since releasing is
     // the natural next step after Save Results.
     match /result_releases/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canComputeResults() && ownsIncoming();
       allow update: if canComputeResults() && ownsBoth();
       allow delete: if false;
@@ -591,7 +599,7 @@ service cloud.firestore {
     // limited to class_teacher (their own class, enforced client-side by
     // which roster they're shown) and admin/principal (any class).
     match /attendance/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canMarkAttendance() && ownsIncoming();
       allow update: if canMarkAttendance() && ownsBoth();
       allow delete: if false;
@@ -600,7 +608,7 @@ service cloud.firestore {
     // Fee structures - read broadly (dashboard stat, report card balance
     // for every role that can print one), write admin/bursar only.
     match /fees/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageFees() && ownsIncoming();
       allow update: if canManageFees() && ownsBoth();
       allow delete: if canManageFees() && ownsExisting();
@@ -612,7 +620,7 @@ service cloud.firestore {
     // by a user. Read/write groups mirror /fees 1:1 since it's derived from
     // the same data and gated by the same actions.
     match /student_fee_status/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageFees() && ownsIncoming();
       allow update: if canManageFees() && ownsBoth();
       allow delete: if canManageFees() && ownsExisting();
@@ -622,7 +630,7 @@ service cloud.firestore {
     // (the app never edits or deletes a recorded payment - corrections go
     // in as a new entry), admin/bursar only.
     match /fee_payments/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageFees() && ownsIncoming();
       allow update, delete: if false;
     }
@@ -632,13 +640,13 @@ service cloud.firestore {
     // CAN_MANAGE set from notifications.js (notably excludes
     // subject_teacher).
     match /notifications/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageComms() && ownsIncoming();
       allow update: if canManageComms() && ownsBoth();
       allow delete: if canManageComms() && ownsExisting();
     }
     match /newsletters/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canManageComms() && ownsIncoming();
       allow update: if canManageComms() && ownsBoth();
       allow delete: if canManageComms() && ownsExisting();
