@@ -204,7 +204,7 @@ ADM102,Legacy Student,Female,Grade 7,0712345678,Nairobi`;
       ];
 
       const validated = validateStudentRows(rawRows, { classes: MOCK_CLASSES });
-      expect(validated[0].data.admissionNumber).toMatch(/^PENDING-/);
+      expect(validated[0].data.admissionNumber).toMatch(/^NUM-/);
       expect(validated[0].autoAssigned).toBe(true);
       expect(validated[0].status).toBe("warning");
     });

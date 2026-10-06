@@ -67,12 +67,20 @@ describe("Subscription State Evaluation Logic", () => {
       daysRemaining: null,
       suspended: false,
       revoked: false,
+      trial: false,
+      trialExpired: false,
+      gracePeriod: false,
+      graceDaysRemaining: null
     });
     expect(getSubscriptionState({})).toEqual({
       active: false,
       daysRemaining: null,
       suspended: false,
       revoked: false,
+      trial: false,
+      trialExpired: false,
+      gracePeriod: false,
+      graceDaysRemaining: null
     });
   });
 });

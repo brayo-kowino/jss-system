@@ -14,7 +14,7 @@ describe('Operational Collections Rules', () => {
   });
 
   afterAll(async () => {
-    await env.cleanup();
+    if (env) await env.cleanup();
   });
 
   beforeEach(async () => {

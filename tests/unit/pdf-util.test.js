@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from "vitest";
 
 // Mock html2canvas — Happy-DOM cannot run real DOM-to-canvas rendering.
 // Returns a realistic canvas stub (840px-wide report card at scale 2).
-vi.mock("html2canvas", () => ({
+vi.mock("html2canvas-pro", () => ({
   default: vi.fn(async (_node, _options) => ({
     width: 1680,
     height: 2400,
     getContext: () => ({ drawImage: vi.fn() }),
-    toDataURL: (_type, _quality) =>
+    toBlob: (cb) => cb(new Blob(['mock'], { type: 'image/jpeg' })), toDataURL: (_type, _quality) =>
       "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAAAAAAAAAAAAAAAAAAA/9k=",
   })),
 }));
