@@ -382,7 +382,9 @@ async function runCompute(profile, resultMount) {
     const school = getCurrentSchool();
     if (school && school.canComputeOrGenerate === false) {
       resultMount.innerHTML = "";
-      resultMount.append(renderArrearsNotice(school.amountOwed));
+      const notice = renderArrearsNotice(school.amountOwed);
+      resultMount.append(notice);
+      notice.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
   if (!selection.grade || !selection.academicYear || !selection.term) {

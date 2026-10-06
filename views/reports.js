@@ -508,7 +508,9 @@ async function loadList(bodyMount, profile) {
     const school = getCurrentSchool();
     if (school && school.canComputeOrGenerate === false) {
       bodyMount.innerHTML = "";
-      bodyMount.append(renderArrearsNotice(school.amountOwed));
+      const notice = renderArrearsNotice(school.amountOwed);
+      bodyMount.append(notice);
+      notice.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
   if (!selection.grade || !selection.academicYear || !selection.term) {
