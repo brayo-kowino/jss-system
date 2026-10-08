@@ -333,7 +333,7 @@ function renderArrearsNotice(amountOwed) {
     // Heading
     el("h2", { 
       style: "color: var(--color-ink-hard); margin: 0 0 12px; font-size: 1.5rem; font-weight: 700; font-family: system-ui, -apple-system, sans-serif; letter-spacing: -0.02em;" 
-    }, "Report Generation Locked"),
+    }, "Computation of Results Temporarily Disabled for Your School"),
 
     // Amount Pill
     ...(amountOwed ? [
