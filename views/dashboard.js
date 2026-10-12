@@ -190,7 +190,7 @@ export async function render({ profile }) {
   const hour = new Date().getHours();
   let greeting = "Good evening";
   if (hour < 12) greeting = "Good morning";
-  else if (hour < 18) greeting = "Good afternoon";
+  else if (hour < 16) greeting = "Good afternoon";
 
   const waveStyle = el("style", {}, `
     @keyframes waveAnimation {
