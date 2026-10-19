@@ -280,13 +280,13 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     currentY += boxH + 6;
     if (sigUrl) {
       try {
-        doc.addImage(sigUrl, "PNG", MARGIN_X + 28, currentY - 2, 70, 20);
+        doc.addImage(sigUrl, "PNG", MARGIN_X + 34, currentY - 4, 70, 18);
       } catch (e) {}
     } else if (signer) {
       doc.setFont("times", "italic");
       doc.setFontSize(13);
       doc.setTextColor(20, 83, 138);
-      doc.text(signer, MARGIN_X + 28, currentY + 10);
+      doc.text(signer, MARGIN_X + 34, currentY + 10);
       doc.setTextColor(0, 0, 0);
     }
 

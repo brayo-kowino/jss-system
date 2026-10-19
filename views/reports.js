@@ -1305,24 +1305,28 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
   const signerName = signer?.name || (isPrincipal ? (settings?.principalName || "Principal") : "Class Teacher");
 
   const signatureNode = sigUrl
-    ? el("div", { style: "height:36px; display:flex; align-items:flex-end; margin-bottom:2px;" }, [
+    ? el("div", {
+        class: "report-card__signature-wrap",
+        style: "height:38px; display:flex; align-items:flex-end; margin-left:44px; margin-bottom:-2px;"
+      }, [
         el("img", {
           src: sigUrl,
           alt: "Signature",
           crossorigin: "anonymous",
-          style: "max-height:36px; max-width:140px; object-fit:contain; display:block;"
+          class: "report-card__signature-img",
+          style: "max-height:38px; max-width:140px; object-fit:contain; display:block;"
         })
       ])
     : el("div", {
         class: "report-card__cursive-sig",
-        style: "font-family:'Dancing Script', 'Brush Script MT', 'Caveat', 'Segoe Script', cursive, sans-serif; font-size:22px; color:#14538A; font-weight:600; height:34px; display:flex; align-items:flex-end; padding-left:12px; transform:rotate(-2deg); user-select:none; letter-spacing:0.5px;"
+        style: "font-family:'Dancing Script', 'Brush Script MT', 'Caveat', 'Segoe Script', cursive, sans-serif; font-size:22px; color:#14538A; font-weight:600; height:36px; display:flex; align-items:flex-end; margin-left:44px; margin-bottom:-2px; transform:rotate(-2deg); user-select:none; letter-spacing:0.5px;"
       }, signerName);
 
   if (isPrincipal) {
     const footer = el("div", { class: "report-card__principal-footer" }, [
       el("div", { style: "flex:1;" }, [
         signatureNode,
-        el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
+        el("div", { class: "report-card__sign-line", style: "margin-top:2px;" }, `Sign: ………………………… Date: ${reportDate}`),
         el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Principal"}`),
       ]),
     ]);
@@ -1330,7 +1334,7 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
   } else {
     box.append(
       signatureNode,
-      el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
+      el("div", { class: "report-card__sign-line", style: "margin-top:2px;" }, `Sign: ………………………… Date: ${reportDate}`),
       el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Class Teacher"}`)
     );
   }
