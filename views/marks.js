@@ -422,7 +422,7 @@ function showMarksInstructionsModal(forceOpen = false) {
     type: "button",
     class: "btn btn--primary",
     style: "padding:8px 22px; font-weight:600; display:inline-flex; align-items:center; gap:6px;",
-  }, [icon("check", "text-xs"), "Got It — Start Entering Marks"]);
+  }, [icon("check", "text-xs"), "Got It"]);
 
   footerRow.append(checkboxLabel, gotItBtn);
   body.append(footerRow);
