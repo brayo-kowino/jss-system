@@ -2,7 +2,7 @@ import { listClasses, listSubjects, seedDefaultsIfEmpty } from "../js/services/a
 import { listAssessments, setAssessmentStatus, getAssessmentMaxScore } from "../js/services/assessment.service.js";
 import { getTeacherByUserId, getTeacherByEmail } from "../js/services/teacher.service.js";
 import { listStudents } from "../js/services/student.service.js";
-import { listMarks, bulkUpsertMarks } from "../js/services/marks.service.js";
+import { listMarks, bulkUpsertMarks, listMarksByAssessment } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
@@ -20,6 +20,7 @@ let marksByStudent = {}; // studentId -> mark doc
 let dirty = new Set();
 let pendingValues = {};
 let currentProfile = null;
+let activeTab = "entry"; // "entry" | "review"
 
 const AUTO_SAVE_INTERVAL_MS = 7000;
 let autoSaveTimer = null;
@@ -197,15 +198,59 @@ export async function render({ profile }) {
   ]);
   wrap.append(heroBanner);
 
+  // ---- Tab bar ----
+  const tabBar = el("div", { class: "page-tabs marks-tabs" });
+  const entryTab = el("button", {
+    type: "button",
+    class: `profile-tab${activeTab === "entry" ? " profile-tab--active" : ""}`,
+  }, [icon("edit_note", "text-xs"), "Marks Entry"]);
+  const reviewTab = el("button", {
+    type: "button",
+    class: `profile-tab${activeTab === "review" ? " profile-tab--active" : ""}`,
+  }, [icon("fact_check", "text-xs"), "Marks Review"]);
+  tabBar.append(entryTab, reviewTab);
+  wrap.append(tabBar);
+
+  // ---- Entry panel (existing) ----
+  const entryPanel = el("div", { class: "marks-tab-panel", style: activeTab === "entry" ? "" : "display:none;" });
+
   // Picker Filter Card
   const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
-  wrap.append(pickerCard);
+  entryPanel.append(pickerCard);
 
   // Mount point for roster or welcome disclaimers
   const bodyMount = el("div", { id: "marks-body-mount" });
-  wrap.append(bodyMount);
+  entryPanel.append(bodyMount);
 
   renderPicker(pickerCard, profile, bodyMount);
+  wrap.append(entryPanel);
+
+  // ---- Review panel (new) ----
+  const reviewPanel = el("div", { class: "marks-tab-panel", style: activeTab === "review" ? "" : "display:none;" });
+  renderReviewPanel(reviewPanel, profile);
+  wrap.append(reviewPanel);
+
+  // ---- Tab switching ----
+  entryTab.addEventListener("click", () => {
+    if (activeTab === "entry") return;
+    activeTab = "entry";
+    entryTab.classList.add("profile-tab--active");
+    reviewTab.classList.remove("profile-tab--active");
+    entryPanel.style.display = "";
+    reviewPanel.style.display = "none";
+  });
+  reviewTab.addEventListener("click", () => {
+    if (activeTab === "review") return;
+    activeTab = "review";
+    reviewTab.classList.add("profile-tab--active");
+    entryTab.classList.remove("profile-tab--active");
+    reviewPanel.style.display = "";
+    entryPanel.style.display = "none";
+    // Re-render the review panel each time it's activated to pick up new marks
+    reviewPanel.innerHTML = "";
+    renderReviewPanel(reviewPanel, profile);
+  });
+
   return wrap;
 }
 
@@ -848,6 +893,350 @@ async function toggleLock(profile, assessment, container) {
   } catch (err) {
     toast(err.message || "Could not update status.", "error");
   }
+}
+
+// ============================================================= Marks Review ==
+
+/**
+ * Renders the Marks Review panel — a read-only cross-subject matrix showing
+ * raw marks for every student × every learning area under a selected grade
+ * and assessment. Flags missing marks with a visual indicator so teachers
+ * and administrators can quickly spot gaps before grading.
+ */
+function renderReviewPanel(container, profile) {
+  container.innerHTML = "";
+
+  // Picker row for the review panel — needs grade and assessment only
+  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const row = el("div", { class: "filter-grid" });
+
+  const classChoices = classOptions();
+  const reviewClassSelect = el("select", { id: "review-class" }, [
+    el("option", { value: "" }, "Select class / grade"),
+    ...classChoices.map((o) => el("option", { value: o.value }, o.label)),
+  ]);
+
+  const reviewAssessmentSelect = el("select", { id: "review-assessment" }, [
+    el("option", { value: "" }, "Select assessment"),
+  ]);
+
+  function refreshReviewAssessments() {
+    const grade = reviewClassSelect.value.split("|")[0] || "";
+    reviewAssessmentSelect.innerHTML = "";
+    reviewAssessmentSelect.append(el("option", { value: "" }, "Select assessment"));
+    const relevant = allAssessments.filter(
+      (a) => (!grade || !a.grades?.length || a.grades.includes(grade))
+    );
+    for (const a of relevant) {
+      reviewAssessmentSelect.append(
+        el("option", { value: a.id },
+          `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
+      );
+    }
+  }
+  refreshReviewAssessments();
+
+  row.append(
+    el("div", { class: "field" }, [
+      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("school", "text-xs"), "Grade / Class"]),
+      reviewClassSelect,
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("assignment", "text-xs"), "Assessment"]),
+      reviewAssessmentSelect,
+    ])
+  );
+  pickerCard.append(row);
+  container.append(pickerCard);
+
+  const reviewBody = el("div", { id: "review-body-mount" });
+  container.append(reviewBody);
+
+  function renderReviewWelcome() {
+    reviewBody.innerHTML = "";
+    reviewBody.append(el("div", { class: "marks-welcome-card" }, [
+      el("div", { class: "marks-welcome-header" }, [
+        el("div", { class: "marks-welcome-icon-halo" }, [icon("fact_check")]),
+        el("h3", {}, "Marks Review Board"),
+        el("p", {}, "Select a Grade and Assessment above to see a cross-subject matrix of all student marks. Missing marks will be flagged for quick identification."),
+      ]),
+    ]));
+  }
+
+  renderReviewWelcome();
+
+  async function loadReview() {
+    const classKey = reviewClassSelect.value;
+    const assessmentId = reviewAssessmentSelect.value;
+    if (!classKey || !assessmentId) {
+      renderReviewWelcome();
+      return;
+    }
+
+    const [grade, stream] = classKey.split("|");
+    reviewBody.innerHTML = "";
+    reviewBody.append(el("div", { class: "skeleton-rows", style: "padding:var(--sp-4);" }, [
+      skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "80%"),
+    ]));
+
+    try {
+      const [students, marks] = await Promise.all([
+        listStudents(),
+        listMarksByAssessment(assessmentId),
+      ]);
+      const assessment = allAssessments.find((a) => a.id === assessmentId);
+      const rosterStudents = students
+        .filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
+        .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+
+      // Determine which subjects this assessment applies to
+      const applicableSubjects = allSubjects.filter((s) =>
+        !assessment?.subjects?.length || assessment.subjects.includes(s.code)
+      );
+
+      // Build marks index: studentId -> subjectCode -> mark
+      const marksMap = {};
+      for (const m of marks) {
+        if (!marksMap[m.studentId]) marksMap[m.studentId] = {};
+        marksMap[m.studentId][m.subjectCode] = m;
+      }
+
+      renderReviewMatrix(reviewBody, rosterStudents, applicableSubjects, marksMap, assessment);
+    } catch (err) {
+      reviewBody.innerHTML = "";
+      reviewBody.append(el("div", { class: "card" }, [
+        el("div", { class: "empty-state" }, [
+          icon("wifi_off"),
+          el("h3", {}, "Could not load data"),
+          el("p", { class: "text-muted text-sm" }, err.message || "Please check your internet connection and try again."),
+        ]),
+      ]));
+    }
+  }
+
+  reviewClassSelect.addEventListener("change", () => {
+    refreshReviewAssessments();
+    loadReview();
+  });
+  reviewAssessmentSelect.addEventListener("change", () => {
+    loadReview();
+  });
+}
+
+/**
+ * Renders the review matrix table — rows = students, columns = learning areas
+ * (subjects). Cells show the raw score or a "missing" flag. A summary row at
+ * the bottom shows completion stats per subject.
+ */
+function renderReviewMatrix(container, students, subjects, marksMap, assessment) {
+  container.innerHTML = "";
+
+  const reviewCard = el("div", { class: "marks-roster-card" });
+
+  // Header
+  const header = el("div", { class: "marks-roster-header" }, [
+    el("div", {}, [
+      el("div", { style: "display:flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+        icon("fact_check", "text-gold"),
+        el("h3", { style: "margin:0; font-family:var(--font-display); color:var(--color-primary-900);" }, `Marks Review: ${assessment?.name || ""}`),
+        el("span", { class: `badge badge--${assessment?.status === "locked" ? "danger" : "success"}`, style: "font-weight:700; font-size:11px;" },
+          assessment?.status === "locked" ? "Locked" : "Open"),
+      ]),
+      el("p", { class: "text-muted text-xs", style: "margin:4px 0 0 0;" }, [
+        `${students.length} student(s) · ${subjects.length} learning area(s) · Read-only review`,
+      ]),
+    ]),
+  ]);
+  reviewCard.append(header);
+
+  if (!students.length) {
+    reviewCard.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+      icon("groups", "empty-state__icon"),
+      el("h4", { style: "color:var(--color-primary-900);" }, "No active students in this class"),
+      el("p", { class: "text-muted text-sm" }, "Enrol students under the Students module first."),
+    ]));
+    container.append(reviewCard);
+    return;
+  }
+
+  if (!subjects.length) {
+    reviewCard.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+      icon("menu_book", "empty-state__icon"),
+      el("h4", { style: "color:var(--color-primary-900);" }, "No learning areas configured for this assessment"),
+      el("p", { class: "text-muted text-sm" }, "Configure subjects under Academics, or update the assessment's subject scope."),
+    ]));
+    container.append(reviewCard);
+    return;
+  }
+
+  // Summary stats
+  let totalCells = students.length * subjects.length;
+  let filledCells = 0;
+  let missingCells = 0;
+
+  for (const st of students) {
+    for (const subj of subjects) {
+      const mark = marksMap[st.id]?.[subj.code];
+      if (mark && mark.score != null && mark.score !== "") {
+        filledCells++;
+      } else {
+        missingCells++;
+      }
+    }
+  }
+
+  const completionPct = totalCells > 0 ? Math.round((filledCells / totalCells) * 100) : 0;
+
+  // Status banner
+  const statusBanner = el("div", {
+    style: "padding:10px 16px; font-size:var(--fs-xs); display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--color-line); flex-wrap:wrap;",
+    class: missingCells > 0 ? "callout--warning" : "callout--info",
+  }, [
+    icon(missingCells > 0 ? "warning" : "check_circle", missingCells > 0 ? "text-amber" : "text-green"),
+    el("span", {}, missingCells > 0
+      ? `${missingCells} missing mark(s) detected across ${subjects.length} learning area(s). Review flagged cells below.`
+      : `All marks recorded — ${filledCells} of ${totalCells} cells complete.`),
+    el("span", { style: "margin-left:auto; font-weight:700; color:var(--color-primary-900);" }, `${completionPct}% Complete`),
+  ]);
+  reviewCard.append(statusBanner);
+
+  // Scrollable table wrapper
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "overflow-x:auto;" });
+  const table = el("table", { class: "marks-table marks-review-table" });
+
+  // Build thead — #, Adm No., Student Name, then one col per subject
+  const headRow = el("tr", {}, [
+    el("th", { style: "width:44px; text-align:center;" }, "#"),
+    el("th", { style: "width:110px;" }, "Adm No."),
+    el("th", { style: "min-width:180px;" }, "Student Name"),
+    ...subjects.map((subj) => {
+      const maxScore = getAssessmentMaxScore(assessment, subj.code);
+      return el("th", {
+        class: "col-num",
+        style: "min-width:80px; text-align:center; font-size:11px; line-height:1.3;",
+        title: `${subj.name} (${subj.code}) — Max: ${maxScore}`,
+      }, [
+        el("div", {}, subj.code),
+        el("div", { style: "font-weight:400; color:var(--color-ink-soft); font-size:10px;" }, `/${maxScore}`),
+      ]);
+    }),
+    el("th", { class: "col-center", style: "width:80px;" }, "Status"),
+  ]);
+  table.append(el("thead", {}, headRow));
+
+  const tbody = el("tbody", {});
+
+  for (let i = 0; i < students.length; i++) {
+    const student = students[i];
+    let studentMissing = 0;
+    let studentTotal = 0;
+
+    const cells = [
+      el("td", { style: "text-align:center; color:var(--color-ink-soft); font-size:var(--fs-xs);" }, String(i + 1)),
+      el("td", { "data-label": "Adm No." }, [
+        el("span", {
+          style: "font-family:var(--font-mono, monospace); font-weight:600; font-size:var(--fs-xs); color:var(--color-ink-soft); background:var(--color-cream-dim); padding:2px 8px; border-radius:var(--radius-sm);",
+        }, student.admissionNumber || "—"),
+      ]),
+      el("td", { "data-label": "Student Name" }, [
+        el("strong", { style: "color:var(--color-primary-900);" }, student.fullName),
+      ]),
+    ];
+
+    for (const subj of subjects) {
+      const mark = marksMap[student.id]?.[subj.code];
+      const hasScore = mark && mark.score != null && mark.score !== "";
+      const maxScore = getAssessmentMaxScore(assessment, subj.code);
+
+      if (hasScore) {
+        const score = Number(mark.score);
+        const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        // Color code: red if below 30%, amber if 30-49%, green if 50%+
+        const colorClass = pct < 30 ? "color:var(--color-red);" : (pct < 50 ? "color:#B45309;" : "color:var(--color-green);");
+        cells.push(el("td", {
+          class: "col-num",
+          "data-label": subj.code,
+          style: "text-align:center;",
+        }, [
+          el("span", {
+            style: `font-family:var(--font-mono, monospace); font-weight:600; font-size:var(--fs-sm); ${colorClass}`,
+          }, String(score)),
+        ]));
+        studentTotal += score;
+      } else {
+        studentMissing++;
+        cells.push(el("td", {
+          class: "col-num marks-review-missing",
+          "data-label": subj.code,
+          style: "text-align:center;",
+          title: `Missing: ${subj.name} mark not entered for ${student.fullName}`,
+        }, [
+          el("span", { class: "marks-missing-flag" }, [
+            icon("report", "text-xs"),
+          ]),
+        ]));
+      }
+    }
+
+    // Status cell
+    const statusBadge = studentMissing > 0
+      ? el("span", { class: "badge badge--danger", style: "font-size:11px; font-weight:600;" }, `${studentMissing} missing`)
+      : el("span", { class: "badge badge--success", style: "font-size:11px; font-weight:600;" }, "Complete");
+    cells.push(el("td", { class: "col-center", "data-label": "Status" }, statusBadge));
+
+    tbody.append(el("tr", { class: studentMissing > 0 ? "marks-review-row--incomplete" : "" }, cells));
+  }
+
+  table.append(tbody);
+
+  // Footer summary row per subject
+  const footRow = el("tr", { class: "marks-review-footer" }, [
+    el("td", { colspan: "3", style: "font-weight:700; color:var(--color-primary-900); font-size:var(--fs-xs);" }, "Completion per Subject"),
+    ...subjects.map((subj) => {
+      let entered = 0;
+      for (const st of students) {
+        const mark = marksMap[st.id]?.[subj.code];
+        if (mark && mark.score != null && mark.score !== "") entered++;
+      }
+      const pct = students.length > 0 ? Math.round((entered / students.length) * 100) : 0;
+      const color = pct === 100 ? "var(--color-green)" : (pct >= 50 ? "#B45309" : "var(--color-red)");
+      return el("td", {
+        class: "col-num",
+        style: `text-align:center; font-size:11px; font-weight:700; color:${color};`,
+      }, `${entered}/${students.length}`);
+    }),
+    el("td", { class: "col-center", style: "font-weight:700; font-size:11px; color:var(--color-primary-900);" }, `${completionPct}%`),
+  ]);
+  const tfoot = el("tfoot", {}, footRow);
+  table.append(tfoot);
+
+  tableWrap.append(table);
+  reviewCard.append(tableWrap);
+
+  // Summary bar
+  const summaryBar = el("div", { class: "marks-roster-summary-bar" }, [
+    el("div", {}, [
+      el("strong", { style: "color:var(--color-primary-900);" }, `${filledCells} of ${totalCells} marks entered`),
+      el("span", { class: "text-muted text-xs", style: "margin-left:8px;" }, `(${completionPct}% complete)`),
+    ]),
+    el("div", { style: "display:flex; gap:16px;" }, [
+      el("span", {}, [
+        el("span", { class: "text-muted" }, "Missing: "),
+        el("strong", { style: `font-family:var(--font-mono, monospace); color:${missingCells > 0 ? "var(--color-red)" : "var(--color-green)"};` }, String(missingCells)),
+      ]),
+      el("span", {}, [
+        el("span", { class: "text-muted" }, "Students: "),
+        el("strong", { style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace);" }, String(students.length)),
+      ]),
+      el("span", {}, [
+        el("span", { class: "text-muted" }, "Subjects: "),
+        el("strong", { style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace);" }, String(subjects.length)),
+      ]),
+    ]),
+  ]);
+  reviewCard.append(summaryBar);
+
+  container.append(reviewCard);
 }
 
 export function init() {}
