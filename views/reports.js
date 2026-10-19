@@ -1301,26 +1301,35 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
 
   const reportDate = settings?.closingDate ? formatDate(settings.closingDate) : formatDate(new Date());
 
+  const sigUrl = isPrincipal ? settings?.principalSignatureUrl : settings?.teacherSignatureUrl;
+  const signerName = signer?.name || (isPrincipal ? (settings?.principalName || "Principal") : "Class Teacher");
+
+  const signatureNode = sigUrl
+    ? el("div", { style: "height:36px; display:flex; align-items:flex-end; margin-bottom:2px;" }, [
+        el("img", {
+          src: sigUrl,
+          alt: "Signature",
+          crossorigin: "anonymous",
+          style: "max-height:36px; max-width:140px; object-fit:contain; display:block;"
+        })
+      ])
+    : el("div", {
+        class: "report-card__cursive-sig",
+        style: "font-family:'Dancing Script', 'Brush Script MT', 'Caveat', 'Segoe Script', cursive, sans-serif; font-size:22px; color:#14538A; font-weight:600; height:34px; display:flex; align-items:flex-end; padding-left:12px; transform:rotate(-2deg); user-select:none; letter-spacing:0.5px;"
+      }, signerName);
+
   if (isPrincipal) {
     const footer = el("div", { class: "report-card__principal-footer" }, [
       el("div", { style: "flex:1;" }, [
-        settings?.principalSignatureUrl
-          ? el("div", { style: "margin-bottom: 2px;" }, [
-              el("img", {
-                src: settings.principalSignatureUrl,
-                alt: "Principal Signature",
-                crossorigin: "anonymous",
-                style: "height:34px; max-width:130px; object-fit:contain; display:block;"
-              })
-            ])
-          : null,
+        signatureNode,
         el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
         el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Principal"}`),
-      ].filter(Boolean)),
+      ]),
     ]);
     box.append(footer);
   } else {
     box.append(
+      signatureNode,
       el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
       el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Class Teacher"}`)
     );

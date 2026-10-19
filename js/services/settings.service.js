@@ -50,6 +50,7 @@ export const DEFAULT_SETTINGS = {
   principalName: "",
   principalTitle: "Principal",
   principalSignatureUrl: "",
+  teacherSignatureUrl: "",
   deputyPrincipalName: "",
   deputyPrincipalTitle: "Deputy Principal",
   currentAcademicYear: new Date().getFullYear().toString(),

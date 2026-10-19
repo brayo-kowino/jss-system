@@ -9,6 +9,7 @@ import { listTrustedDevices, removeTrustedDevice, resetAllTrustedDevices } from 
 import { listRecentApprovals } from "../js/services/login-approval.service.js";
 import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
 import { extractLogoPalette } from "../js/services/logo-palette.js";
+import { openSignaturePadModal } from "../js/components/signature-pad-modal.js";
 
 let settings = null;
 let activeThemeId = "custom";
@@ -141,7 +142,7 @@ export async function render({ profile }) {
 
   panels.profile.append(buildProfileTab());
   panels.branding.append(buildBrandingTab());
-  panels.leadership.append(buildLeadershipTab());
+  panels.leadership.append(buildLeadershipTab(profile));
   panels.calendar.append(buildCalendarTab());
   panels.grading.append(buildGradingTab());
   panels.notifications.append(buildNotificationsTab());
@@ -583,7 +584,9 @@ function updateThemePreview(primary, secondary) {
 // Leadership tab
 // ===========================================================================
 
-function buildLeadershipTab() {
+function buildLeadershipTab(profile) {
+  const wrap = el("div", { class: "settings-stack" });
+
   const card = el("div", { class: "card settings-card" });
   card.append(
     el("h3", {}, [
@@ -611,10 +614,6 @@ function buildLeadershipTab() {
       title: "Designation",
       text: "Title printed on official documents, e.g. 'Principal', 'Head Teacher', or 'Director'.",
     }),
-    field("principalSignatureUrl", "Scanned Signature / Stamp Image URL (Optional)", settings.principalSignatureUrl || "", "url", false, {
-      title: "Signature Image",
-      text: "Direct image URL of official scanned signature or school stamp printed automatically on report cards.",
-    }),
   ]);
 
   const deputyGroup = el("div", { class: "leadership-group" }, [
@@ -639,7 +638,148 @@ function buildLeadershipTab() {
   );
 
   card.append(form);
-  return card;
+
+  // Digital Signature Studio Card
+  const sigCard = el("div", { class: "card settings-card", style: "margin-top:var(--sp-4);" }, [
+    el("h3", {}, [
+      icon("draw"),
+      "Report Card Signatures & Touchscreen Studio",
+      infoTooltip(
+        "Digital Signatures",
+        "Draw or upload official signatures for the School Head / Principal and Class Teachers using any touchscreen phone, tablet, or PC mouse. If left blank, the system automatically prints an authentic cursive digital signature with the closing date."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Collect and manage digital signatures printed automatically on all terminal report cards."),
+    buildSignatureStudioGrid(profile),
+  ]);
+
+  wrap.append(card, sigCard);
+  return wrap;
+}
+
+function buildSignatureStudioGrid(profile) {
+  const grid = el("div", { class: "leadership-grid", style: "margin-top:var(--sp-4);" });
+
+  // 1. Principal Signature Box
+  const principalBox = el("div", { class: "leadership-group", style: "display:flex; flex-direction:column; gap:10px;" });
+  const principalTitle = el("div", { class: "leadership-group__title" }, [icon("military_tech"), "School Head / Principal Signature"]);
+
+  const pPreviewWrap = el("div", {
+    style: "background:#ffffff; border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
+  });
+  const pImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
+  const pFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [
+    icon("stylus", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
+    "Using automatic cursive name signature"
+  ]);
+
+  function refreshPrincipalPreview() {
+    pPreviewWrap.innerHTML = "";
+    if (settings.principalSignatureUrl) {
+      pImg.src = settings.principalSignatureUrl;
+      pPreviewWrap.append(pImg);
+    } else {
+      pPreviewWrap.append(pFallback);
+    }
+  }
+  refreshPrincipalPreview();
+
+  const pBtnRow = el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" });
+  const pSignBtn = el("button", {
+    type: "button",
+    class: "btn btn--outline btn--sm",
+    onClick: () => openSignaturePadModal({
+      settings,
+      profile,
+      activeRole: "principal",
+      onSaved: ({ dataUrl }) => {
+        settings.principalSignatureUrl = dataUrl;
+        refreshPrincipalPreview();
+      }
+    })
+  }, [icon("draw", "text-xs"), "Draw / Upload Signature"]);
+
+  const pClearBtn = el("button", {
+    type: "button",
+    class: "btn btn--ghost btn--sm",
+    onClick: async () => {
+      if (!settings.principalSignatureUrl) {
+        toast("No custom signature is set (already using automatic cursive signature).", "info");
+        return;
+      }
+      if (!confirm("Clear the Principal's custom signature? It will revert to the automatic cursive signature.")) return;
+      settings.principalSignatureUrl = "";
+      await saveSchoolSettings(profile.uid, { principalSignatureUrl: "" });
+      invalidateSchoolSettingsCache();
+      refreshPrincipalPreview();
+      toast("Principal signature cleared.", "info");
+    }
+  }, [icon("delete", "text-xs"), "Clear"]);
+
+  pBtnRow.append(pSignBtn, pClearBtn);
+  principalBox.append(principalTitle, pPreviewWrap, pBtnRow);
+
+  // 2. Class Teacher Signature Box
+  const teacherBox = el("div", { class: "leadership-group", style: "display:flex; flex-direction:column; gap:10px;" });
+  const teacherTitle = el("div", { class: "leadership-group__title" }, [icon("school"), "Class Teacher Signature (Default)"]);
+
+  const tPreviewWrap = el("div", {
+    style: "background:#ffffff; border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
+  });
+  const tImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
+  const tFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [
+    icon("stylus", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
+    "Using automatic cursive name signature"
+  ]);
+
+  function refreshTeacherPreview() {
+    tPreviewWrap.innerHTML = "";
+    if (settings.teacherSignatureUrl) {
+      tImg.src = settings.teacherSignatureUrl;
+      tPreviewWrap.append(tImg);
+    } else {
+      tPreviewWrap.append(tFallback);
+    }
+  }
+  refreshTeacherPreview();
+
+  const tBtnRow = el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" });
+  const tSignBtn = el("button", {
+    type: "button",
+    class: "btn btn--outline btn--sm",
+    onClick: () => openSignaturePadModal({
+      settings,
+      profile,
+      activeRole: "teacher",
+      onSaved: ({ dataUrl }) => {
+        settings.teacherSignatureUrl = dataUrl;
+        refreshTeacherPreview();
+      }
+    })
+  }, [icon("draw", "text-xs"), "Draw / Upload Signature"]);
+
+  const tClearBtn = el("button", {
+    type: "button",
+    class: "btn btn--ghost btn--sm",
+    onClick: async () => {
+      if (!settings.teacherSignatureUrl) {
+        toast("No custom signature is set (already using automatic cursive signature).", "info");
+        return;
+      }
+      if (!confirm("Clear the Class Teacher's custom signature? It will revert to the automatic cursive signature.")) return;
+      settings.teacherSignatureUrl = "";
+      await saveSchoolSettings(profile.uid, { teacherSignatureUrl: "" });
+      invalidateSchoolSettingsCache();
+      refreshTeacherPreview();
+      toast("Class Teacher signature cleared.", "info");
+    }
+  }, [icon("delete", "text-xs"), "Clear"]);
+
+  tBtnRow.append(tSignBtn, tClearBtn);
+  teacherBox.append(teacherTitle, tPreviewWrap, tBtnRow);
+
+  grid.append(principalBox, teacherBox);
+  return grid;
 }
 
 // ===========================================================================
@@ -1086,7 +1226,6 @@ export function init({ profile }) {
         principalTitle: val("principalTitle") || "Principal",
         deputyPrincipalName: val("deputyPrincipalName"),
         deputyPrincipalTitle: val("deputyPrincipalTitle") || "Deputy Principal",
-        principalSignatureUrl: val("principalSignatureUrl"),
       });
       invalidateSchoolSettingsCache();
       toast("Leadership details saved.", "success");

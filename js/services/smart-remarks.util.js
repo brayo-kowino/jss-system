@@ -24,7 +24,7 @@ function cleanSubjectName(name) {
   if (lower.includes("pre-technical") || lower.includes("pre technical")) return "Pre-Technical Studies";
   if (lower.includes("integrated science")) return "Integrated Science";
   if (lower.includes("social studies")) return "Social Studies";
-  if (lower.includes("agriculture")) return "Agriculture & Nutrition";
+  if (lower.includes("agriculture")) return "Agriculture";
   return clean;
 }
 

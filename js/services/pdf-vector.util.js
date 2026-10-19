@@ -258,7 +258,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   
   // 6. Remarks Section
   const reportDate = settings?.closingDate ? formatDate(settings.closingDate) : formatDate(new Date());
-  const drawRemarkBox = (title, content, signer, titleRole) => {
+  const drawRemarkBox = (title, content, signer, titleRole, sigUrl) => {
     if (currentY > A4_H - 120) { doc.addPage(); currentY = MARGIN_TOP; }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
@@ -277,7 +277,22 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     const splitText = doc.splitTextToSize(content || "No remarks recorded.", infoWidth - 8);
     doc.text(splitText, MARGIN_X + 4, currentY + 12);
     
-    currentY += boxH + 12;
+    currentY += boxH + 6;
+    if (sigUrl) {
+      try {
+        doc.addImage(sigUrl, "PNG", MARGIN_X + 28, currentY - 2, 70, 20);
+      } catch (e) {}
+    } else if (signer) {
+      doc.setFont("times", "italic");
+      doc.setFontSize(13);
+      doc.setTextColor(20, 83, 138);
+      doc.text(signer, MARGIN_X + 28, currentY + 10);
+      doc.setTextColor(0, 0, 0);
+    }
+
+    currentY += 14;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
     doc.text(`Sign: .......................................   Date: ${reportDate}`, MARGIN_X, currentY);
     doc.setFont("helvetica", "bold");
     if (signer) {
@@ -290,8 +305,8 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   
   const teacherRemark = reportData.teacherRemark || getSmartTeacherRemark(reportData);
   const principalRemark = reportData.principalRemark || getSmartPrincipalRemark(reportData);
-  drawRemarkBox("Class Teacher Remarks", teacherRemark, reportData._classTeacherName || "", "Class Teacher");
-  drawRemarkBox("Principal Remarks", principalRemark, settings.principalName || "", settings.principalTitle || "Principal");
+  drawRemarkBox("Class Teacher Remarks", teacherRemark, reportData._classTeacherName || "", "Class Teacher", settings.teacherSignatureUrl);
+  drawRemarkBox("Principal Remarks", principalRemark, settings.principalName || "", settings.principalTitle || "Principal", settings.principalSignatureUrl);
   
   // 7. Fee Balance Line
   if (reportData._feeSummary) {
