@@ -10,7 +10,6 @@ import {
   positionScopeLabel,
   positionScopeTag,
 } from "../js/services/grading.service.js";
-import { getFeeSummary, formatKES } from "../js/services/fee.service.js";
 import { downloadElementAsPdf, downloadPdfsAsZip, downloadPdfsAsZipVector, renderReportVectorPdfBlob, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../js/utils.js";
@@ -601,20 +600,8 @@ function renderList(container, results, profile, bodyMount) {
     ]),
   ]);
 
-      if (results.length) {
+    if (results.length) {
       const actionsWrap = el("div", { style: "display: flex; gap: 8px;" });
-
-      if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
-        const aiBtn = el("button", {
-          type: "button",
-          class: "btn btn--outline btn--sm hide-on-mobile"
-        }, [
-          icon("auto_awesome", "text-xs"),
-          "Auto-Generate All Remarks"
-        ]);
-        aiBtn.addEventListener("click", () => handleBulkGenerateRemarks(aiBtn, results, profile));
-        actionsWrap.append(aiBtn);
-      }
 
       const bulkBtn = el("button", {
         type: "button",
@@ -774,64 +761,8 @@ function renderList(container, results, profile, bodyMount) {
 // downloadPdfsAsZip for why) and bundles them into a single .zip. Reuses
 // the exact same buildCard() the single "View Report Card" flow uses, so
 // a bulk card looks identical to one downloaded individually - just the
-// fee/history lookups are re-fetched per student since they were never
+// history lookups are re-fetched per student since they were never
 // loaded for anyone but whoever was actively being viewed.
-async function handleBulkGenerateRemarks(button, results, profile) {
-  const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
-  const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
-  if (!canEditTeacher && !canEditPrincipal) {
-    toast("You do not have permission to edit remarks.", "error");
-    return;
-  }
-  
-  if (!confirm(`This will auto-generate and immediately save performance-based remarks for all ${results.length} students. Proceed?`)) {
-    return;
-  }
-
-  const originalText = button.innerHTML;
-  button.disabled = true;
-  button.innerHTML = "";
-  button.append(icon("sync", "text-xs fa-spin"), ` Generating 0/${results.length}...`);
-
-  try {
-    let successCount = 0;
-    const CHUNK_SIZE = 5; // Batch 5 writes concurrently for fast, reliable Firestore sync
-    for (let i = 0; i < results.length; i += CHUNK_SIZE) {
-      const chunk = results.slice(i, i + CHUNK_SIZE);
-      await Promise.all(
-        chunk.map(async (result) => {
-          try {
-            const teacherRemark = getSmartTeacherRemark(result);
-            const principalRemark = getSmartPrincipalRemark(result);
-
-            await updateResultRemarks(profile.uid, result.id, {
-              ...(canEditTeacher ? { teacherRemark } : {}),
-              ...(canEditPrincipal ? { principalRemark } : {}),
-            });
-
-            // Update in-memory record so single-card views and ZIP downloads reflect immediately
-            if (canEditTeacher) result.teacherRemark = teacherRemark;
-            if (canEditPrincipal) result.principalRemark = principalRemark;
-
-            successCount++;
-          } catch (err) {
-            console.error("Failed for", result.fullName, err);
-          }
-        })
-      );
-      button.innerHTML = "";
-      button.append(icon("sync", "text-xs fa-spin"), ` Generating ${successCount}/${results.length}...`);
-    }
-    
-    toast(`Successfully generated smart remarks for ${successCount} of ${results.length} students.`, "success");
-  } catch (err) {
-    toast(err.message || "Bulk generation failed.", "error");
-  } finally {
-    button.disabled = false;
-    button.innerHTML = originalText;
-  }
-}
-
 async function handleBulkDownload(button, results, profile) {
   if (!results.length) return;
   const original = button.textContent;
@@ -841,25 +772,20 @@ async function handleBulkDownload(button, results, profile) {
   try {
     button.textContent = "Fetching data…";
     const prefetched = await Promise.all(
-      results.map((r) =>
-        Promise.all([
-          getFeeSummary({ studentId: r.studentId, grade: r.grade, academicYear: r.academicYear, term: r.term }),
-          listResultsForStudent(r.studentId),
-        ])
-      )
+      results.map((r) => listResultsForStudent(r.studentId))
     );
 
     const items = results.map((r, i) => ({
       filename: `${(r.fullName || "student").replace(/\s+/g, "_")}_${r.admissionNumber || r.studentId}.pdf`,
       build: async () => {
-        const [feeSummary, history] = prefetched[i];
+        const history = prefetched[i];
         const priorHistory = history
           .filter((h) => !(h.academicYear === r.academicYear && h.term === r.term))
           .filter((h) => (h.reportMode || "average") === (r.reportMode || "average"))
           .sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term))
           .slice(0, 4);
         offscreen.innerHTML = "";
-        const card = buildCard(r, feeSummary, priorHistory, profile);
+        const card = buildCard(r, priorHistory, profile);
         offscreen.appendChild(card);
         return card;
       },
@@ -887,10 +813,7 @@ async function openCard(bodyMount, result, profile) {
   bodyMount.append(cardMount);
 
   cardMount.append(el("div", { class: "spinner-overlay" }, [spinner("lg", "dark"), el("div", {}, "Building report card…")]));
-  const [feeSummary, history] = await Promise.all([
-    getFeeSummary({ studentId: result.studentId, grade: result.grade, academicYear: result.academicYear, term: result.term }),
-    listResultsForStudent(result.studentId),
-  ]);
+  const history = await listResultsForStudent(result.studentId);
   // "History" means a genuinely different term - not another saved mode
   // (Midterm/Endterm/Average), which now persists as a separate doc and
   // would otherwise show up here looking like a separate past term. Kept
@@ -910,7 +833,7 @@ async function openCard(bodyMount, result, profile) {
     cardMount.remove();
     existingChildren.forEach(c => c.style.display = "");
   }));
-  const card = buildCard(result, feeSummary, priorHistory, profile);
+  const card = buildCard(result, priorHistory, profile);
   
   const wrapper = el("div", { class: "report-card-wrapper", style: "width: 100%; overflow-x: auto; overflow-y: hidden; display: flex; justify-content: center;" });
   wrapper.append(card);
@@ -995,7 +918,7 @@ async function handleDownload(btn, result) {
   }
 }
 
-function buildCard(result, feeSummary, priorHistory, profile) {
+function buildCard(result, priorHistory, profile) {
   const card = el("div", { class: "report-card" });
 
   // Header: logo + school details + banner
@@ -1245,9 +1168,6 @@ function buildCard(result, feeSummary, priorHistory, profile) {
       ])
     );
   }
-
-  // Fee balance
-  card.append(el("div", { class: "report-card__fee-balance" }, `Fee Balance: ${formatKES(feeSummary.balance)}`));
 
   // Term dates
   card.append(

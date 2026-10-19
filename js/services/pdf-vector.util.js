@@ -308,15 +308,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   drawRemarkBox("Class Teacher Remarks", teacherRemark, reportData._classTeacherName || "", "Class Teacher", settings.teacherSignatureUrl);
   drawRemarkBox("Principal Remarks", principalRemark, settings.principalName || "", settings.principalTitle || "Principal", settings.principalSignatureUrl);
   
-  // 7. Fee Balance Line
-  if (reportData._feeSummary) {
-    if (currentY > A4_H - 40) { doc.addPage(); currentY = MARGIN_TOP; }
-    doc.setFont("helvetica", "bold");
-    doc.text(`Fee Balance: ${reportData._formatKES(reportData._feeSummary.balance)}`, MARGIN_X, currentY);
-    currentY += 16;
-  }
-  
-  // 8. Term Dates
+  // 7. Term Dates
   if (settings.closingDate || settings.openingDate) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
