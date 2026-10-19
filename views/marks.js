@@ -194,6 +194,12 @@ export async function render({ profile }) {
       el("div", { class: "marks-hero__pills" }, [
         el("div", { class: "marks-pill" }, [icon("school"), `${classes.length} Classes Available`]),
         el("div", { class: "marks-pill" }, [icon("assignment"), `${allAssessments.length} Assessments Configured`]),
+        el("button", {
+          type: "button",
+          class: "marks-pill",
+          style: "cursor:pointer; background:var(--color-primary-100); color:var(--color-primary-800); border:1px solid rgba(20, 83, 138, 0.25); font-weight:600; font-family:inherit;",
+          onClick: () => showMarksInstructionsModal(true),
+        }, [icon("help", "text-xs"), "Instructions Guide"]),
       ]),
     ]),
 
@@ -267,7 +273,170 @@ export async function render({ profile }) {
     renderReviewPanel(reviewPanel, profile);
   });
 
+  // Display instructions modal on initial module load
+  setTimeout(() => {
+    showMarksInstructionsModal(false);
+  }, 200);
+
   return wrap;
+}
+
+// -------------------------------------------------------- Instructions Modal --
+
+const MARKS_GUIDE_DISMISS_KEY = "eeskia_marks_guide_dismissed";
+
+/**
+ * Clean, modern instructions modal displayed on module load to guide teachers
+ * and administrators on marks entry, cross-subject reviews, and quick edits.
+ */
+function showMarksInstructionsModal(forceOpen = false) {
+  if (!forceOpen) {
+    try {
+      if (localStorage.getItem(MARKS_GUIDE_DISMISS_KEY) === "1") return;
+    } catch {
+      // localStorage disabled or restricted
+    }
+  }
+
+  const body = el("div", { class: "marks-instructions-content" });
+
+  // Intro Welcome Banner
+  body.append(
+    el("div", {
+      style: "background:linear-gradient(135deg, rgba(20, 83, 138, 0.08) 0%, rgba(201, 162, 39, 0.1) 100%); border:1px solid rgba(20, 83, 138, 0.15); border-radius:var(--radius-md); padding:14px 18px; margin-bottom:16px; display:flex; align-items:flex-start; gap:12px;",
+    }, [
+      icon("menu_book", "text-primary", { style: "font-size:24px; margin-top:2px; flex-shrink:0;" }),
+      el("div", {}, [
+        el("strong", { style: "display:block; color:var(--color-primary-900); font-size:var(--fs-sm); margin-bottom:4px;" }, "How to Use the Marks Module"),
+        el("p", { style: "margin:0; font-size:var(--fs-xs); color:var(--color-ink); line-height:1.5;" },
+          "This module helps you enter student marks, audit grade-level completeness across all learning areas, and resolve missing marks before report cards are generated."
+        ),
+      ]),
+    ])
+  );
+
+  // 4 Core Action Cards Grid
+  const grid = el("div", {
+    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(290px, 1fr)); gap:12px; margin-bottom:16px;",
+  });
+
+  const cards = [
+    {
+      num: "1",
+      iconName: "edit_note",
+      tag: "Marks Entry Tab",
+      color: "var(--color-primary-700, #14538a)",
+      bgColor: "rgba(20, 83, 138, 0.08)",
+      title: "1. Entering Subject Marks",
+      items: [
+        "Select your Class & Stream, Subject, and Assessment from the top dropdowns.",
+        "Enter each learner's score into the input field (supports decimals, e.g. 28.5).",
+        "Scores auto-save in the background every 7 seconds. You can also click 'Save All Now'.",
+        "Use 'Paste Bulk Scores' to copy and paste entire spreadsheets of 'AdmNo, Score'.",
+      ],
+    },
+    {
+      num: "2",
+      iconName: "fact_check",
+      tag: "Marks Review Tab",
+      color: "#b45309",
+      bgColor: "rgba(201, 162, 39, 0.12)",
+      title: "2. Reviewing the Whole Grade",
+      items: [
+        "Switch to the 'Marks Review' tab to inspect all subjects and students together.",
+        "Missing marks are clearly flagged with a red ⚠ indicator so you spot gaps quickly.",
+        "Check overall grade completion percentages and subject-by-subject submission counts.",
+      ],
+    },
+    {
+      num: "3",
+      iconName: "touch_app",
+      tag: "Interactive Editing",
+      color: "#047857",
+      bgColor: "rgba(5, 150, 105, 0.1)",
+      title: "3. Quick Edits & Navigation",
+      items: [
+        "Click any mark or missing flag in the review matrix to edit the score in a quick modal without leaving the board.",
+        "Click the 📝 icon on any subject column header to jump directly into the full class roster for that subject.",
+        "When jumping to the entry tab, the selected student's row is automatically highlighted for you.",
+      ],
+    },
+    {
+      num: "4",
+      iconName: "verified_user",
+      tag: "Rules & Limits",
+      color: "#b91c1c",
+      bgColor: "rgba(220, 38, 38, 0.08)",
+      title: "4. Validation & Security",
+      items: [
+        "All entered marks must be between 0 and the assessment Max Score.",
+        "Subject teachers can only record scores for subjects assigned to their account.",
+        "Locked assessments are frozen to protect report cards. Only administrators can unlock them.",
+      ],
+    },
+  ];
+
+  for (const c of cards) {
+    const cardEl = el("div", {
+      style: "border:1px solid var(--color-line); border-radius:var(--radius-md); padding:14px; background:#fff; display:flex; flex-direction:column; gap:8px;",
+    }, [
+      el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:8px;" }, [
+        el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+          el("span", {
+            style: `display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:${c.bgColor}; color:${c.color}; font-weight:700; font-size:12px;`,
+          }, icon(c.iconName, "text-xs")),
+          el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm);" }, c.title),
+        ]),
+        el("span", {
+          style: `font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:${c.color}; background:${c.bgColor}; padding:2px 8px; border-radius:999px;`,
+        }, c.tag),
+      ]),
+      el("ul", { style: "margin:0; padding-left:18px; font-size:var(--fs-xs); color:var(--color-ink-soft); line-height:1.5; display:flex; flex-direction:column; gap:4px;" },
+        c.items.map((it) => el("li", {}, it))
+      ),
+    ]);
+    grid.append(cardEl);
+  }
+  body.append(grid);
+
+  // Footer bar with checkbox and dismiss button
+  const footerRow = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; padding-top:14px; border-top:1px solid var(--color-line); flex-wrap:wrap; gap:12px;",
+  });
+
+  const checkbox = el("input", {
+    type: "checkbox",
+    id: "dont-show-marks-guide",
+    style: "cursor:pointer; width:16px; height:16px;",
+  });
+
+  const checkboxLabel = el("label", {
+    for: "dont-show-marks-guide",
+    style: "display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--color-ink-soft); cursor:pointer; user-select:none; margin:0;",
+  }, [
+    checkbox,
+    "Don't show this guide automatically on startup",
+  ]);
+
+  const gotItBtn = el("button", {
+    type: "button",
+    class: "btn btn--primary",
+    style: "padding:8px 22px; font-weight:600; display:inline-flex; align-items:center; gap:6px;",
+  }, [icon("check", "text-xs"), "Got It — Start Entering Marks"]);
+
+  footerRow.append(checkboxLabel, gotItBtn);
+  body.append(footerRow);
+
+  const close = openModal("Marks Entry & Review Instructions", body, "modal--instructions");
+
+  gotItBtn.addEventListener("click", () => {
+    if (checkbox.checked) {
+      try {
+        localStorage.setItem(MARKS_GUIDE_DISMISS_KEY, "1");
+      } catch {}
+    }
+    close();
+  });
 }
 
 function classOptions() {
