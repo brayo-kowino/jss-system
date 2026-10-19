@@ -611,6 +611,10 @@ function buildLeadershipTab() {
       title: "Designation",
       text: "Title printed on official documents, e.g. 'Principal', 'Head Teacher', or 'Director'.",
     }),
+    field("principalSignatureUrl", "Scanned Signature / Stamp Image URL (Optional)", settings.principalSignatureUrl || "", "url", false, {
+      title: "Signature Image",
+      text: "Direct image URL of official scanned signature or school stamp printed automatically on report cards.",
+    }),
   ]);
 
   const deputyGroup = el("div", { class: "leadership-group" }, [
@@ -1082,6 +1086,7 @@ export function init({ profile }) {
         principalTitle: val("principalTitle") || "Principal",
         deputyPrincipalName: val("deputyPrincipalName"),
         deputyPrincipalTitle: val("deputyPrincipalTitle") || "Deputy Principal",
+        principalSignatureUrl: val("principalSignatureUrl"),
       });
       invalidateSchoolSettingsCache();
       toast("Leadership details saved.", "success");

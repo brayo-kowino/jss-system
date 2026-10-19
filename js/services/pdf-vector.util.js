@@ -1,3 +1,6 @@
+import { formatDate } from "../utils.js";
+import { getSmartTeacherRemark, getSmartPrincipalRemark } from "./smart-remarks.util.js";
+
 let jsPDFPromise = null;
 function loadJsPDF() {
   if (!jsPDFPromise) {
@@ -254,6 +257,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
   currentY += 16;
   
   // 6. Remarks Section
+  const reportDate = settings?.closingDate ? formatDate(settings.closingDate) : formatDate(new Date());
   const drawRemarkBox = (title, content, signer, titleRole) => {
     if (currentY > A4_H - 120) { doc.addPage(); currentY = MARGIN_TOP; }
     doc.setFont("helvetica", "bold");
@@ -274,7 +278,7 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     doc.text(splitText, MARGIN_X + 4, currentY + 12);
     
     currentY += boxH + 12;
-    doc.text("Sign: .......................................   Date: .......................", MARGIN_X, currentY);
+    doc.text(`Sign: .......................................   Date: ${reportDate}`, MARGIN_X, currentY);
     doc.setFont("helvetica", "bold");
     if (signer) {
       doc.text(`${signer}, ${titleRole}`, MARGIN_X, currentY + 12);
@@ -284,8 +288,10 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     currentY += 24;
   };
   
-  drawRemarkBox("Class Teacher Remarks", reportData.teacherRemark, reportData._classTeacherName || "", "Class Teacher");
-  drawRemarkBox("Principal Remarks", reportData.principalRemark, settings.principalName || "", settings.principalTitle || "Principal");
+  const teacherRemark = reportData.teacherRemark || getSmartTeacherRemark(reportData);
+  const principalRemark = reportData.principalRemark || getSmartPrincipalRemark(reportData);
+  drawRemarkBox("Class Teacher Remarks", teacherRemark, reportData._classTeacherName || "", "Class Teacher");
+  drawRemarkBox("Principal Remarks", principalRemark, settings.principalName || "", settings.principalTitle || "Principal");
   
   // 7. Fee Balance Line
   if (reportData._feeSummary) {

@@ -17,6 +17,7 @@ import { el, icon, toast, formatDate, skeleton, spinner, busyButton } from "../j
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { getTeacherByUserId, getTeacherByEmail, listTeachers } from "../js/services/teacher.service.js";
+import { getSmartTeacherRemark, getSmartPrincipalRemark } from "../js/services/smart-remarks.util.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -603,8 +604,7 @@ function renderList(container, results, profile, bodyMount) {
       if (results.length) {
       const actionsWrap = el("div", { style: "display: flex; gap: 8px;" });
 
-      const ENABLE_AI_REMARKS = window.location.hostname.includes("beta") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-      if (ENABLE_AI_REMARKS && (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role))) {
+      if (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role)) {
         const aiBtn = el("button", {
           type: "button",
           class: "btn btn--outline btn--sm hide-on-mobile"
@@ -784,63 +784,46 @@ async function handleBulkGenerateRemarks(button, results, profile) {
     return;
   }
   
-  if (!confirm("This will auto-generate and immediately save AI remarks for " + results.length + " students. This may take a moment. Proceed?")) {
+  if (!confirm(`This will auto-generate and immediately save performance-based remarks for all ${results.length} students. Proceed?`)) {
     return;
   }
 
   const originalText = button.innerHTML;
   button.disabled = true;
-  button.innerHTML = ""; button.append(icon("sync", "text-xs fa-spin"), " Generating 0/" + results.length + "...");
+  button.innerHTML = "";
+  button.append(icon("sync", "text-xs fa-spin"), ` Generating 0/${results.length}...`);
 
   try {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) throw new Error("Authentication required");
+    let successCount = 0;
+    const CHUNK_SIZE = 5; // Batch 5 writes concurrently for fast, reliable Firestore sync
+    for (let i = 0; i < results.length; i += CHUNK_SIZE) {
+      const chunk = results.slice(i, i + CHUNK_SIZE);
+      await Promise.all(
+        chunk.map(async (result) => {
+          try {
+            const teacherRemark = getSmartTeacherRemark(result);
+            const principalRemark = getSmartPrincipalRemark(result);
 
-        let successCount = 0;
-    
-    // Process strictly sequentially with a delay to respect free-tier AI API rate limits (e.g. Mistral 1 req/sec)
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      try {
-        const res = await fetch("/generate-remarks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({
-            studentName: result.fullName,
-            meanGrade: result.meanGrade,
-            average: result.meanMarks,
-            subjects: result.subjects
-          })
-        });
+            await updateResultRemarks(profile.uid, result.id, {
+              ...(canEditTeacher ? { teacherRemark } : {}),
+              ...(canEditPrincipal ? { principalRemark } : {}),
+            });
 
-        if (!res.ok) {
-          const errText = await res.text(); let errData = {}; try { errData = JSON.parse(errText); } catch(e){} throw new Error(errData.error || errText || "API failed");
-        }
-        const data = await res.json();
-        
-        await updateResultRemarks(profile.uid, result.id, {
-          ...(canEditTeacher && data.teacherRemark ? { teacherRemark: data.teacherRemark } : {}),
-          ...(canEditPrincipal && data.principalRemark ? { principalRemark: data.principalRemark } : {}),
-        });
-        
-        successCount++;
-        button.innerHTML = ""; button.append(icon("sync", "text-xs fa-spin"), " Generating " + successCount + "/" + results.length + "...");
-      } catch (err) {
-        console.error("Failed for", result.fullName, err);
-      }
-      
-      // Delay 1.5 seconds between requests to avoid rate limit (429) errors
-      if (i < results.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
+            // Update in-memory record so single-card views and ZIP downloads reflect immediately
+            if (canEditTeacher) result.teacherRemark = teacherRemark;
+            if (canEditPrincipal) result.principalRemark = principalRemark;
+
+            successCount++;
+          } catch (err) {
+            console.error("Failed for", result.fullName, err);
+          }
+        })
+      );
+      button.innerHTML = "";
+      button.append(icon("sync", "text-xs fa-spin"), ` Generating ${successCount}/${results.length}...`);
     }
     
-    toast("Successfully generated remarks for " + successCount + " of " + results.length + " students.", "success");
-    
-    // We update the local array so that if the user clicks View immediately, they see them
-    // Wait, let's just reload the list to reflect updates
-    // It's easier to just call loadList again but we don't have bodyMount ref here.
-    // We will just let them click reload.
+    toast(`Successfully generated smart remarks for ${successCount} of ${results.length} students.`, "success");
   } catch (err) {
     toast(err.message || "Bulk generation failed.", "error");
   } finally {
@@ -960,38 +943,19 @@ function buildActionBar(result, profile, onBack) {
 
   const actions = el("div", { style: "display:flex; gap:8px; align-items:center;" });
 
-  const ENABLE_AI_REMARKS = window.location.hostname.includes("beta") || window.location.hostname.includes("localhost") || window.location.hostname.includes("127.0.0.1");
-      if (ENABLE_AI_REMARKS && (CAN_EDIT_TEACHER_REMARK.includes(profile.role) || CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role))) {
-    const aiBtn = el("button", { class: "btn btn--outline btn--sm" }, [icon("auto_awesome", "text-xs"), "Auto-Generate Remarks"]);
-    aiBtn.addEventListener("click", async (e) => {
-      const restore = busyButton(e.currentTarget, "Generating...");
-      try {
-        const token = await auth.currentUser?.getIdToken();
-        const res = await fetch("/generate-remarks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-          body: JSON.stringify({
-            studentName: result.fullName,
-            meanGrade: result.meanGrade,
-            average: result.meanMarks,
-            subjects: result.subjects
-          })
-        });
-        if (!res.ok) throw new Error("API failed");
-        const data = await res.json();
-        
-        const textareas = document.querySelectorAll(".report-card__remark-box textarea");
-        if (textareas[0] && data.teacherRemark) textareas[0].value = data.teacherRemark;
-        if (textareas[1] && data.principalRemark) textareas[1].value = data.principalRemark;
-        
-        toast("Remarks generated. Review and click 'Save Remarks' at the bottom.", "success");
-      } catch (err) {
-        toast(err.message || "Generation failed", "error");
-      } finally {
-        restore();
-      }
+  const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
+  const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
+  if (canEditTeacher || canEditPrincipal) {
+    const autoBtn = el("button", { class: "btn btn--outline btn--sm" }, [icon("auto_awesome", "text-xs"), "Auto-Generate Remarks"]);
+    autoBtn.addEventListener("click", () => {
+      const textareas = document.querySelectorAll(".report-card__remark-box textarea");
+      const tRemark = getSmartTeacherRemark(result);
+      const pRemark = getSmartPrincipalRemark(result);
+      if (textareas[0] && canEditTeacher) textareas[0].value = tRemark;
+      if (textareas[1] && canEditPrincipal) textareas[1].value = pRemark;
+      toast("Performance remarks generated. Click 'Save Remarks' below to persist.", "success");
     });
-    actions.append(aiBtn);
+    actions.append(autoBtn);
   }
 
   actions.append(
@@ -1245,8 +1209,14 @@ function buildCard(result, feeSummary, priorHistory, profile) {
   const canEditTeacher = CAN_EDIT_TEACHER_REMARK.includes(profile.role);
   const canEditPrincipal = CAN_EDIT_PRINCIPAL_REMARK.includes(profile.role);
   const classTeacherName = getClassTeacherName(result.grade, result.stream);
-  const teacherBox = remarkBox("Class Teacher Remarks", result.teacherRemark, canEditTeacher, { name: classTeacherName, title: "Class Teacher" });
-  const principalBox = remarkBox("Principal Remarks", result.principalRemark, canEditPrincipal, {
+
+  const defaultTeacherRemark = getSmartTeacherRemark(result);
+  const defaultPrincipalRemark = getSmartPrincipalRemark(result);
+  const effectiveTeacherRemark = result.teacherRemark || defaultTeacherRemark;
+  const effectivePrincipalRemark = result.principalRemark || defaultPrincipalRemark;
+
+  const teacherBox = remarkBox("Class Teacher Remarks", effectiveTeacherRemark, canEditTeacher, { name: classTeacherName, title: "Class Teacher" });
+  const principalBox = remarkBox("Principal Remarks", effectivePrincipalRemark, canEditPrincipal, {
     name: settings.principalName,
     title: settings.principalTitle || "Principal",
   }, { isPrincipal: true });
@@ -1329,18 +1299,29 @@ function remarkBox(title, value, editable, signer, { isPrincipal = false } = {})
   }
   box.append(control);
 
+  const reportDate = settings?.closingDate ? formatDate(settings.closingDate) : formatDate(new Date());
+
   if (isPrincipal) {
     const footer = el("div", { class: "report-card__principal-footer" }, [
       el("div", { style: "flex:1;" }, [
-        el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
+        settings?.principalSignatureUrl
+          ? el("div", { style: "margin-bottom: 2px;" }, [
+              el("img", {
+                src: settings.principalSignatureUrl,
+                alt: "Principal Signature",
+                crossorigin: "anonymous",
+                style: "height:34px; max-width:130px; object-fit:contain; display:block;"
+              })
+            ])
+          : null,
+        el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
         el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Principal"}`),
-      ]),
-
+      ].filter(Boolean)),
     ]);
     box.append(footer);
   } else {
     box.append(
-      el("div", { class: "report-card__sign-line" }, "Sign: ………………………… Date: ………………"),
+      el("div", { class: "report-card__sign-line" }, `Sign: ………………………… Date: ${reportDate}`),
       el("div", { class: "report-card__signer" }, `${signer?.name ? signer.name + ", " : ""}${signer?.title || "Class Teacher"}`)
     );
   }

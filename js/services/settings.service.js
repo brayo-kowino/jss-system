@@ -49,6 +49,7 @@ export const DEFAULT_SETTINGS = {
   // signatures (e.g. "[Principal's Name]" in views/notifications.js).
   principalName: "",
   principalTitle: "Principal",
+  principalSignatureUrl: "",
   deputyPrincipalName: "",
   deputyPrincipalTitle: "Deputy Principal",
   currentAcademicYear: new Date().getFullYear().toString(),
