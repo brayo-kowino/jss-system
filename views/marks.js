@@ -2,7 +2,7 @@ import { listClasses, listSubjects, seedDefaultsIfEmpty } from "../js/services/a
 import { listAssessments, setAssessmentStatus, getAssessmentMaxScore } from "../js/services/assessment.service.js";
 import { getTeacherByUserId, getTeacherByEmail } from "../js/services/teacher.service.js";
 import { listStudents } from "../js/services/student.service.js";
-import { listMarks, bulkUpsertMarks, listMarksByAssessment } from "../js/services/marks.service.js";
+import { listMarks, bulkUpsertMarks, listMarksByAssessment, upsertMark } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 
@@ -21,6 +21,13 @@ let dirty = new Set();
 let pendingValues = {};
 let currentProfile = null;
 let activeTab = "entry"; // "entry" | "review"
+let tabElements = {
+  entryTab: null,
+  reviewTab: null,
+  entryPanel: null,
+  reviewPanel: null,
+  bodyMount: null,
+};
 
 const AUTO_SAVE_INTERVAL_MS = 7000;
 let autoSaveTimer = null;
@@ -229,6 +236,15 @@ export async function render({ profile }) {
   const reviewPanel = el("div", { class: "marks-tab-panel", style: activeTab === "review" ? "" : "display:none;" });
   renderReviewPanel(reviewPanel, profile);
   wrap.append(reviewPanel);
+
+  tabElements = {
+    entryTab,
+    reviewTab,
+    entryPanel,
+    reviewPanel,
+    bodyMount,
+    profile,
+  };
 
   // ---- Tab switching ----
   entryTab.addEventListener("click", () => {
@@ -1001,7 +1017,7 @@ function renderReviewPanel(container, profile) {
         marksMap[m.studentId][m.subjectCode] = m;
       }
 
-      renderReviewMatrix(reviewBody, rosterStudents, applicableSubjects, marksMap, assessment);
+      renderReviewMatrix(reviewBody, rosterStudents, applicableSubjects, marksMap, assessment, classKey);
     } catch (err) {
       reviewBody.innerHTML = "";
       reviewBody.append(el("div", { class: "card" }, [
@@ -1024,11 +1040,234 @@ function renderReviewPanel(container, profile) {
 }
 
 /**
- * Renders the review matrix table — rows = students, columns = learning areas
- * (subjects). Cells show the raw score or a "missing" flag. A summary row at
- * the bottom shows completion stats per subject.
+ * Switches from the Marks Review tab directly into the Marks Entry tab,
+ * pre-populating the class, subject, and assessment filters, and optionally
+ * scrolling to and focusing a specific student's score input.
  */
-function renderReviewMatrix(container, students, subjects, marksMap, assessment) {
+async function switchToEntryTab({ classKey, subjectCode, assessmentId, studentId = "" }) {
+  if (allowedSubjectCodes && !allowedSubjectCodes.has(subjectCode)) {
+    const subj = allSubjects.find((s) => s.code === subjectCode);
+    toast(`You are not assigned to teach ${subj?.name || subjectCode}. Contact your school administrator.`, "warning");
+    return;
+  }
+
+  activeTab = "entry";
+  if (tabElements.entryTab) tabElements.entryTab.classList.add("profile-tab--active");
+  if (tabElements.reviewTab) tabElements.reviewTab.classList.remove("profile-tab--active");
+  if (tabElements.entryPanel) tabElements.entryPanel.style.display = "";
+  if (tabElements.reviewPanel) tabElements.reviewPanel.style.display = "none";
+
+  selection.classKey = classKey;
+  selection.subjectCode = subjectCode;
+  selection.assessmentId = assessmentId;
+
+  const classSelect = document.getElementById("m-class");
+  const subjectSelect = document.getElementById("m-subject");
+  const assessmentSelect = document.getElementById("m-assessment");
+
+  if (classSelect) classSelect.value = classKey;
+  if (subjectSelect) subjectSelect.value = subjectCode;
+
+  const grade = classKey.split("|")[0] || "";
+  if (assessmentSelect) {
+    assessmentSelect.innerHTML = "";
+    assessmentSelect.append(el("option", { value: "" }, "Select assessment"));
+    const relevant = allAssessments.filter(
+      (a) =>
+        (!grade || !a.grades?.length || a.grades.includes(grade)) &&
+        (!subjectCode || !a.subjects?.length || a.subjects.includes(subjectCode))
+    );
+    for (const a of relevant) {
+      assessmentSelect.append(
+        el("option", { value: a.id, ...(a.id === assessmentId ? { selected: "true" } : {}) },
+          `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
+      );
+    }
+    assessmentSelect.value = assessmentId;
+  }
+
+  if (tabElements.bodyMount && currentProfile) {
+    await maybeLoad(currentProfile, tabElements.bodyMount);
+    if (studentId) {
+      setTimeout(() => {
+        const input = tabElements.bodyMount.querySelector(`input[data-student-id="${studentId}"]`);
+        if (input) {
+          input.scrollIntoView({ behavior: "smooth", block: "center" });
+          input.focus();
+          input.select();
+          const tr = input.closest("tr");
+          if (tr) {
+            tr.classList.add("row-highlight");
+            setTimeout(() => tr.classList.remove("row-highlight"), 2500);
+          }
+        }
+      }, 150);
+    }
+  }
+}
+
+/**
+ * Opens a focused Quick Edit modal to enter or update a single student's mark
+ * directly from the Review matrix, without losing the matrix view.
+ */
+function openQuickEditModal({ student, subject, assessment, classKey, currentScore, onSaved }) {
+  const [grade, stream] = classKey.split("|");
+  const maxScore = getAssessmentMaxScore(assessment, subject.code);
+  const locked = assessment?.status === "locked";
+  const isDirect = (assessment?.contributionMode || "weighted") === "direct";
+
+  if (allowedSubjectCodes && !allowedSubjectCodes.has(subject.code)) {
+    toast(`You are not assigned to teach ${subject.name} (${subject.code}). Contact your administrator.`, "warning");
+    return;
+  }
+
+  const form = el("form", { style: "display:flex; flex-direction:column; gap:16px;" });
+
+  form.append(
+    el("div", {
+      style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px 14px; font-size:var(--fs-xs); line-height:1.6;",
+    }, [
+      el("div", { style: "font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900); margin-bottom:4px; display:flex; align-items:center; gap:6px;" }, [
+        icon("person", "text-xs"),
+        student.fullName,
+        el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:normal; color:var(--color-ink-soft);" }, `(${student.admissionNumber || "No Adm"})`),
+      ]),
+      el("div", { style: "display:flex; gap:12px; flex-wrap:wrap; color:var(--color-ink-soft);" }, [
+        el("span", {}, [el("strong", {}, "Subject: "), `${subject.name} (${subject.code})`]),
+        el("span", {}, [el("strong", {}, "Class: "), `${grade} ${stream || ""}`]),
+        el("span", {}, [el("strong", {}, "Assessment: "), `${assessment?.name || ""}`]),
+        el("span", {}, [el("strong", {}, "Max Score: "), `${maxScore}`]),
+      ]),
+    ])
+  );
+
+  if (locked) {
+    form.append(
+      el("div", { class: "callout callout--danger", style: "padding:10px 12px; font-size:var(--fs-xs);" }, [
+        icon("lock", "text-red"),
+        el("span", {}, "Notice: This assessment is locked. Marks are frozen for report cards and cannot be modified until an admin reopens the assessment."),
+      ])
+    );
+  }
+
+  const scoreInput = el("input", {
+    type: "number",
+    min: "0",
+    max: String(maxScore),
+    step: "0.5",
+    value: currentScore != null ? String(currentScore) : "",
+    placeholder: `Enter 0 - ${maxScore}`,
+    style: "font-size:var(--fs-lg); font-family:var(--font-mono); font-weight:700; padding:10px 12px; width:100%; text-align:center; border:2px solid var(--color-line); border-radius:var(--radius-md);",
+    ...(locked ? { disabled: "true" } : {}),
+  });
+
+  const previewBadge = el("span", {
+    class: `badge badge--${currentScore != null ? "success" : "muted"}`,
+    style: "font-size:12px; font-weight:600; padding:4px 10px;",
+  }, currentScore != null ? (isDirect ? `+${Number(currentScore).toFixed(1)}` : `${((Number(currentScore) / maxScore) * 100).toFixed(1)}%`) : "Not entered");
+
+  scoreInput.addEventListener("input", () => {
+    const raw = scoreInput.value.trim();
+    if (raw === "") {
+      previewBadge.className = "badge badge--muted";
+      previewBadge.textContent = "Not entered";
+      scoreInput.classList.remove("marks-score-input--invalid");
+      return;
+    }
+    const n = Number(raw);
+    if (Number.isNaN(n) || n < 0 || n > maxScore) {
+      scoreInput.classList.add("marks-score-input--invalid");
+      previewBadge.className = "badge badge--danger";
+      previewBadge.textContent = n > maxScore ? `Exceeds ${maxScore}` : "Below 0";
+    } else {
+      scoreInput.classList.remove("marks-score-input--invalid");
+      previewBadge.className = "badge badge--success";
+      previewBadge.textContent = isDirect ? `+${n.toFixed(1)}` : `${((n / maxScore) * 100).toFixed(1)}%`;
+    }
+  });
+
+  form.append(
+    el("div", { class: "field", style: "margin:0;" }, [
+      el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;" }, [
+        el("label", { style: "font-weight:600; font-size:var(--fs-sm); margin:0;" }, `Raw Score (Max ${maxScore})`),
+        previewBadge,
+      ]),
+      scoreInput,
+    ])
+  );
+
+  const saveBtn = el("button", {
+    type: "submit",
+    class: "btn btn--primary btn--block",
+    ...(locked ? { disabled: "true" } : {}),
+  }, [icon("save", "text-xs"), "Save Mark"]);
+
+  const switchTabBtn = el("button", {
+    type: "button",
+    class: "btn btn--ghost btn--block",
+    style: "font-size:var(--fs-xs); display:flex; align-items:center; justify-content:center; gap:6px; margin-top:4px;",
+  }, [icon("open_in_new", "text-xs"), `Open in Marks Entry Tab (${subject.code})`]);
+
+  form.append(saveBtn, switchTabBtn);
+
+  const close = openModal(`Edit Mark: ${student.fullName}`, form);
+
+  setTimeout(() => {
+    if (!locked) {
+      scoreInput.focus();
+      scoreInput.select();
+    }
+  }, 120);
+
+  switchTabBtn.addEventListener("click", () => {
+    close();
+    switchToEntryTab({ classKey, subjectCode: subject.code, assessmentId: assessment.id, studentId: student.id });
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (locked) return;
+    const raw = scoreInput.value.trim();
+    if (raw === "") {
+      toast("Please enter a numeric score.", "error");
+      return;
+    }
+    const n = Number(raw);
+    if (Number.isNaN(n) || n < 0 || n > maxScore) {
+      toast(`Score must be between 0 and ${maxScore}.`, "error");
+      return;
+    }
+
+    const restore = busyButton(saveBtn, "Saving…");
+    try {
+      await upsertMark(currentProfile.uid, {
+        assessmentId: assessment.id,
+        subjectCode: subject.code,
+        studentId: student.id,
+        grade,
+        stream,
+        score: n,
+        maxScore,
+      });
+      toast(`Mark saved for ${student.fullName}: ${n}/${maxScore}`, "success");
+      close();
+      if (typeof onSaved === "function") {
+        onSaved(n);
+      }
+    } catch (err) {
+      toast(err.message || "Failed to save mark.", "error");
+    } finally {
+      restore();
+    }
+  });
+}
+
+/**
+ * Renders the review matrix table — rows = students, columns = learning areas
+ * (subjects). Cells show the raw score or a "missing" flag.
+ * Clicking any cell opens a quick edit modal or allows jumping straight into Marks Entry.
+ */
+function renderReviewMatrix(container, students, subjects, marksMap, assessment, classKey) {
   container.innerHTML = "";
 
   const reviewCard = el("div", { class: "marks-roster-card" });
@@ -1043,7 +1282,7 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment)
           assessment?.status === "locked" ? "Locked" : "Open"),
       ]),
       el("p", { class: "text-muted text-xs", style: "margin:4px 0 0 0;" }, [
-        `${students.length} student(s) · ${subjects.length} learning area(s) · Read-only review`,
+        `${students.length} student(s) · ${subjects.length} learning area(s) · Click any cell to edit or jump to entry tab`,
       ]),
     ]),
   ]);
@@ -1093,10 +1332,14 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment)
     class: missingCells > 0 ? "callout--warning" : "callout--info",
   }, [
     icon(missingCells > 0 ? "warning" : "check_circle", missingCells > 0 ? "text-amber" : "text-green"),
-    el("span", {}, missingCells > 0
-      ? `${missingCells} missing mark(s) detected across ${subjects.length} learning area(s). Review flagged cells below.`
-      : `All marks recorded — ${filledCells} of ${totalCells} cells complete.`),
-    el("span", { style: "margin-left:auto; font-weight:700; color:var(--color-primary-900);" }, `${completionPct}% Complete`),
+    el("div", { style: "display:flex; flex-direction:column; gap:2px;" }, [
+      el("span", { style: "font-weight:600;" }, missingCells > 0
+        ? `${missingCells} missing mark(s) detected across ${subjects.length} learning area(s). Review flagged cells below.`
+        : `All marks recorded — ${filledCells} of ${totalCells} cells complete.`),
+      el("span", { class: "text-muted", style: "font-size:11px;" },
+        "💡 Click any cell to quickly enter/edit that mark, or click the 📝 icon on any subject header to open it in Marks Entry."),
+    ]),
+    el("span", { style: "margin-left:auto; font-weight:700; color:var(--color-primary-900); font-size:var(--fs-sm);" }, `${completionPct}% Complete`),
   ]);
   reviewCard.append(statusBanner);
 
@@ -1111,12 +1354,27 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment)
     el("th", { style: "min-width:180px;" }, "Student Name"),
     ...subjects.map((subj) => {
       const maxScore = getAssessmentMaxScore(assessment, subj.code);
+      const editBtn = el("button", {
+        type: "button",
+        class: "marks-review-subj-btn",
+        title: `Open all ${subj.name} (${subj.code}) marks in Marks Entry tab`,
+        onClick: (e) => {
+          e.stopPropagation();
+          switchToEntryTab({ classKey, subjectCode: subj.code, assessmentId: assessment.id });
+        },
+      }, [
+        icon("edit_note", "text-xs"),
+      ]);
+
       return el("th", {
         class: "col-num",
-        style: "min-width:80px; text-align:center; font-size:11px; line-height:1.3;",
-        title: `${subj.name} (${subj.code}) — Max: ${maxScore}`,
+        style: "min-width:85px; text-align:center; font-size:11px; line-height:1.3;",
+        title: `${subj.name} (${subj.code}) — Max: ${maxScore}. Click icon to open in Marks Entry tab.`,
       }, [
-        el("div", {}, subj.code),
+        el("div", { style: "display:flex; align-items:center; justify-content:center; gap:2px;" }, [
+          el("span", {}, subj.code),
+          editBtn,
+        ]),
         el("div", { style: "font-weight:400; color:var(--color-ink-soft); font-size:10px;" }, `/${maxScore}`),
       ]);
     }),
@@ -1153,28 +1411,58 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment)
         const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
         // Color code: red if below 30%, amber if 30-49%, green if 50%+
         const colorClass = pct < 30 ? "color:var(--color-red);" : (pct < 50 ? "color:#B45309;" : "color:var(--color-green);");
-        cells.push(el("td", {
-          class: "col-num",
+        const cell = el("td", {
+          class: "col-num marks-review-cell",
           "data-label": subj.code,
           style: "text-align:center;",
+          title: `${student.fullName} — ${subj.name}: ${score}/${maxScore} (Click to edit)`,
         }, [
           el("span", {
             style: `font-family:var(--font-mono, monospace); font-weight:600; font-size:var(--fs-sm); ${colorClass}`,
           }, String(score)),
-        ]));
+        ]);
+        cell.addEventListener("click", () => {
+          openQuickEditModal({
+            student,
+            subject: subj,
+            assessment,
+            classKey,
+            currentScore: score,
+            onSaved: (newScore) => {
+              marksMap[student.id][subj.code] = { studentId: student.id, subjectCode: subj.code, score: newScore, maxScore };
+              renderReviewMatrix(container, students, subjects, marksMap, assessment, classKey);
+            },
+          });
+        });
+        cells.push(cell);
         studentTotal += score;
       } else {
         studentMissing++;
-        cells.push(el("td", {
-          class: "col-num marks-review-missing",
+        const cell = el("td", {
+          class: "col-num marks-review-missing marks-review-cell",
           "data-label": subj.code,
           style: "text-align:center;",
-          title: `Missing: ${subj.name} mark not entered for ${student.fullName}`,
+          title: `Missing: ${subj.name} mark not entered for ${student.fullName} (Click to enter)`,
         }, [
           el("span", { class: "marks-missing-flag" }, [
             icon("report", "text-xs"),
           ]),
-        ]));
+        ]);
+        cell.addEventListener("click", () => {
+          openQuickEditModal({
+            student,
+            subject: subj,
+            assessment,
+            classKey,
+            currentScore: null,
+            onSaved: (newScore) => {
+              marksMap[student.id] = marksMap[student.id] || {};
+              marksMap[student.id][subj.code] = { studentId: student.id, subjectCode: subj.code, score: newScore, maxScore };
+              renderReviewMatrix(container, students, subjects, marksMap, assessment, classKey);
+            },
+          });
+        });
+        cells.push(cell);
       }
     }
 

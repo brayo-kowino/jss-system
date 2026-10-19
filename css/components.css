@@ -4877,6 +4877,49 @@ tbody tr:hover { background: var(--color-primary-100); }
   text-align: left;
 }
 
+.marks-review-cell {
+  cursor: pointer;
+  transition: background 0.15s ease, outline 0.15s ease;
+  user-select: none;
+}
+.marks-review-cell:hover {
+  background: var(--color-cream-dim, #f1f5f9) !important;
+  outline: 2px solid var(--color-primary-600);
+  outline-offset: -2px;
+}
+.marks-review-missing.marks-review-cell:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  outline: 2px solid var(--color-red);
+  outline-offset: -2px;
+}
+.marks-review-subj-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-sm);
+  background: rgba(20, 83, 138, 0.08);
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary-700);
+  padding: 0;
+  transition: all 0.15s ease;
+  vertical-align: middle;
+}
+.marks-review-subj-btn:hover {
+  background: var(--color-primary-600);
+  color: #fff;
+}
+.row-highlight {
+  animation: rowHighlightPulse 2.5s ease-out;
+}
+@keyframes rowHighlightPulse {
+  0% { background: rgba(201, 162, 39, 0.35) !important; outline: 2px solid var(--color-gold); }
+  60% { background: rgba(201, 162, 39, 0.15) !important; }
+  100% { background: transparent; outline: none; }
+}
+
 /* ==========================================================================
    Grading & Positions Module
    ========================================================================== */
