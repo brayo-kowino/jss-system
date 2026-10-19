@@ -131,7 +131,7 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   });
 
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Canvas rendering timed out (stalled asset or slow connection).")), 8500)
+    setTimeout(() => reject(new Error("Canvas rendering timed out (stalled asset or slow connection).")), 30000)
   );
 
   const canvas = await Promise.race([canvasPromise, timeoutPromise]);
