@@ -1535,17 +1535,21 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment,
         icon("edit_note", "text-xs"),
       ]);
 
-      return el("th", {
-        class: "col-num",
-        style: "min-width:85px; text-align:center; font-size:11px; line-height:1.3;",
-        title: `${subj.name} (${subj.code}) — Max: ${maxScore}. Click icon to open in Marks Entry tab.`,
+      const th = el("th", {
+        class: "col-num marks-review-subj-th",
+        style: "min-width:88px; text-align:center; font-size:11px; line-height:1.3; padding:8px 6px;",
+        title: `Click to enter/edit all ${subj.name} (${subj.code}) marks in Marks Entry tab`,
       }, [
-        el("div", { style: "display:flex; align-items:center; justify-content:center; gap:2px;" }, [
-          el("span", {}, subj.code),
+        el("div", { style: "display:flex; align-items:center; justify-content:center; gap:5px;" }, [
+          el("span", { style: "font-weight:700; color:#ffffff; letter-spacing:0.04em;" }, subj.code),
           editBtn,
         ]),
-        el("div", { style: "font-weight:400; color:var(--color-ink-soft); font-size:10px;" }, `/${maxScore}`),
+        el("div", { style: "font-weight:500; color:rgba(255, 255, 255, 0.7); font-size:10px; margin-top:2px;" }, `/${maxScore}`),
       ]);
+      th.addEventListener("click", () => {
+        switchToEntryTab({ classKey, subjectCode: subj.code, assessmentId: assessment.id });
+      });
+      return th;
     }),
     el("th", { class: "col-center", style: "width:80px;" }, "Status"),
   ]);
