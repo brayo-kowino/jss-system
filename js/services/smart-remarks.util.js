@@ -39,14 +39,14 @@
  * as far as I know, but schools differ: VERIFY and override via options.bands if needed.
  */
 export const DEFAULT_BANDS = [
-  { code: "EE1", min: 90 },
-  { code: "EE2", min: 75 },
-  { code: "ME1", min: 58 },
-  { code: "ME2", min: 41 },
-  { code: "AE1", min: 31 },
-  { code: "AE2", min: 21 },
-  { code: "BE1", min: 11 },
-  { code: "BE2", min: 0 },
+  { code: "EE1", min: 63 },
+  { code: "EE2", min: 54 },
+  { code: "ME1", min: 45 },
+  { code: "ME2", min: 36 },
+  { code: "AE1", min: 27 },
+  { code: "AE2", min: 18 },
+  { code: "BE1", min: 9 },
+  { code: "BE2", min: 1 },
 ];
 
 const RANK = { BE: 0, AE: 1, ME: 2, EE: 3 };
