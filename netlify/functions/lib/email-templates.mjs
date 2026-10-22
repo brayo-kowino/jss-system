@@ -1,7 +1,7 @@
 // ==========================================================================
 // Eeskia Email Engine - Responsive HTML Email Template Builder
-// Produces clean, modern, Google / Stripe-style transactional & announcement emails.
-// Optimized for all email clients (Gmail, iOS Mail, Outlook, Android).
+// Clean, professional transactional & announcement emails aligned with Eeskia design language.
+// Optimized for all email clients (Gmail, Apple Mail, Outlook, Android).
 // ==========================================================================
 
 function escapeHtml(str) {
@@ -14,27 +14,29 @@ function escapeHtml(str) {
     .replace(/'/g, "&#039;");
 }
 
+const BRAND_LOGO_URL = "https://eeskia.iskify360.tech/assets/logo.png";
+
 const TONES = {
   emerald: {
     bg: "#ecfdf5",
     text: "#065f46",
     border: "#a7f3d0",
     dot: "#10b981",
-    btn: "#059669",
+    btn: "#0d3559", // Eeskia primary navy
   },
   amber: {
     bg: "#fffbeb",
     text: "#92400e",
     border: "#fde68a",
-    dot: "#f59e0b",
-    btn: "#d97706",
+    dot: "#d97706",
+    btn: "#0d3559",
   },
   blue: {
-    bg: "#eff6ff",
-    text: "#1e40af",
-    border: "#bfdbfe",
-    dot: "#3b82f6",
-    btn: "#14538a",
+    bg: "#f0f6fc",
+    text: "#0d3559",
+    border: "#bae6fd",
+    dot: "#0284c7",
+    btn: "#0d3559",
   },
   rose: {
     bg: "#fef2f2",
@@ -44,16 +46,16 @@ const TONES = {
     btn: "#dc2626",
   },
   neutral: {
-    bg: "#f1f5f9",
+    bg: "#f8fafc",
     text: "#334155",
-    border: "#cbd5e1",
+    border: "#e2e8f0",
     dot: "#64748b",
-    btn: "#1e293b",
+    btn: "#0d3559",
   },
 };
 
 /**
- * Core Google-inspired email layout.
+ * Core Eeskia branded email layout.
  */
 export function renderBaseEmail({
   brandName = "Eeskia",
@@ -79,14 +81,14 @@ export function renderBaseEmail({
   let detailsHtml = "";
   if (Array.isArray(keyDetails) && keyDetails.length > 0) {
     detailsHtml = `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #fafbfc; border-collapse: separate;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #f8fafc; border-collapse: separate;">
         ${keyDetails
           .map(
             (item, index) => `
           <tr>
             <td style="padding: 12px 16px; font-size: 13px; color: #64748b; font-weight: 500; border-bottom: ${
               index < keyDetails.length - 1 ? "1px solid #edf2f7" : "none"
-            }; width: 40%;">
+            }; width: 42%;">
               ${escapeHtml(item.label)}
             </td>
             <td style="padding: 12px 16px; font-size: 13px; color: #0f172a; font-weight: 600; text-align: right; border-bottom: ${
@@ -124,10 +126,10 @@ export function renderBaseEmail({
   // CTA Button
   let ctaHtml = "";
   if (ctaButton && ctaButton.url && ctaButton.label) {
-    const btnColor = (TONES[ctaButton.tone] || tone).btn;
+    const btnColor = (TONES[ctaButton.tone] || tone).btn || "#0d3559";
     ctaHtml = `
-      <div style="margin: 28px 0; text-align: center;">
-        <a href="${escapeHtml(ctaButton.url)}" target="_blank" style="display: inline-block; background-color: ${btnColor}; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 13px 32px; border-radius: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); letter-spacing: 0.2px;">
+      <div style="margin: 26px 0; text-align: center;">
+        <a href="${escapeHtml(ctaButton.url)}" target="_blank" style="display: inline-block; background-color: ${btnColor}; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 8px; letter-spacing: 0.2px;">
           ${escapeHtml(ctaButton.label)}
         </a>
       </div>
@@ -158,10 +160,10 @@ export function renderBaseEmail({
     }
     img { border: 0; outline: none; text-decoration: none; }
     table { border-collapse: collapse; }
-    a { color: #14538a; }
+    a { color: #0d3559; }
   </style>
 </head>
-<body style="margin: 0; padding: 30px 10px; background-color: #f8fafc;">
+<body style="margin: 0; padding: 28px 12px; background-color: #f8fafc;">
   <!-- Preheader text (hidden in body, visible in inbox preview) -->
   <div style="display: none; max-height: 0px; overflow: hidden; font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0;">
     ${safePreheader}
@@ -170,30 +172,36 @@ export function renderBaseEmail({
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 auto; max-width: 600px;">
     <tr>
       <td>
-        <!-- Main Card -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);">
-          <!-- Brand Header -->
+        <!-- Main Card with Eeskia Brand Accent -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border: 1px solid #e2e8f0; border-top: 4px solid #0d3559; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(13, 53, 89, 0.05);">
+          <!-- Header with Eeskia Logo -->
           <tr>
-            <td style="padding: 24px 32px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between;">
+            <td style="padding: 20px 28px; background-color: #ffffff; border-bottom: 1px solid #f1f5f9;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td align="left" style="vertical-align: middle;">
-                    <div style="display: inline-flex; align-items: center; gap: 8px;">
-                      <span style="font-size: 19px; font-weight: 800; color: #14538a; letter-spacing: -0.5px; text-transform: uppercase;">
-                        ${safeBrand}
-                      </span>
-                      ${
-                        safeSchool
-                          ? `<span style="color: #cbd5e1; font-size: 18px; margin: 0 4px;">|</span>
-                             <span style="font-size: 13px; font-weight: 600; color: #475569;">${safeSchool}</span>`
-                          : ""
-                      }
-                    </div>
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="vertical-align: middle; padding-right: 12px;">
+                          <img src="${BRAND_LOGO_URL}" alt="Eeskia" width="34" height="34" style="display: block; width: 34px; height: 34px; border-radius: 8px; border: 0;" />
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <div style="font-size: 18px; font-weight: 800; color: #0d3559; letter-spacing: -0.4px; line-height: 1.2;">
+                            ${safeBrand}
+                          </div>
+                          ${
+                            safeSchool
+                              ? `<div style="font-size: 12px; font-weight: 600; color: #64748b; margin-top: 2px;">${safeSchool}</div>`
+                              : ""
+                          }
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                   ${
                     badgeText
                       ? `<td align="right" style="vertical-align: middle;">
-                          <span style="display: inline-block; background-color: ${tone.bg}; border: 1px solid ${tone.border}; color: ${tone.text}; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.5px;">
+                          <span style="display: inline-block; background-color: ${tone.bg}; border: 1px solid ${tone.border}; color: ${tone.text}; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 100px; text-transform: uppercase; letter-spacing: 0.5px;">
                             <span style="display: inline-block; width: 6px; height: 6px; background-color: ${tone.dot}; border-radius: 50%; margin-right: 5px; vertical-align: middle;"></span>
                             ${escapeHtml(badgeText)}
                           </span>
@@ -207,7 +215,7 @@ export function renderBaseEmail({
 
           <!-- Content Body -->
           <tr>
-            <td style="padding: 32px 32px 28px;">
+            <td style="padding: 30px 28px 24px;">
               ${
                 safeTitle
                   ? `<h1 style="margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a; line-height: 1.35; letter-spacing: -0.3px;">
@@ -236,14 +244,14 @@ export function renderBaseEmail({
 
           <!-- Footer Inside Card -->
           <tr>
-            <td style="padding: 20px 32px; background-color: #f8fafc; border-top: 1px solid #f1f5f9; text-align: left;">
+            <td style="padding: 16px 28px; background-color: #f8fafc; border-top: 1px solid #f1f5f9; text-align: left;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size: 12px; color: #64748b; line-height: 1.5;">
                     ${
                       footerText
                         ? escapeHtml(footerText)
-                        : "This is an official communication dispatched from the Eeskia School Management Platform."
+                        : "Official notification dispatched from the Eeskia School Management Platform."
                     }
                   </td>
                 </tr>
@@ -253,12 +261,12 @@ export function renderBaseEmail({
         </table>
 
         <!-- Outer Footer -->
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 18px;">
           <tr>
             <td align="center" style="font-size: 11px; color: #94a3b8; line-height: 1.6;">
-              <div>&copy; ${new Date().getFullYear()} Eeskia. All rights reserved.</div>
-              <div style="margin-top: 4px;">
-                Secure CBC School Management Platform &bull; Kenya Curriculum Compliant
+              <div style="font-weight: 600; color: #64748b;">Eeskia &bull; CBC Grading &amp; School Management</div>
+              <div style="margin-top: 3px;">
+                &copy; ${new Date().getFullYear()} Eeskia. All rights reserved. &bull; Kenya Curriculum Compliant
               </div>
             </td>
           </tr>
@@ -333,7 +341,7 @@ export function buildServiceAnnouncementEmail({
       ctaButton: {
         label: "Open Eeskia Dashboard",
         url: actionUrl,
-        tone: "emerald",
+        tone: "blue",
       },
       secondaryNote: "If you notice any lingering issues, please reach out directly to platform support.",
       footerText: "You are receiving this system service update as an authorized administrator of Eeskia.",
@@ -398,7 +406,7 @@ export function buildSubscriptionReminderEmail({
       ctaButton: {
         label: "Manage Subscription",
         url: renewalUrl,
-        tone,
+        tone: "blue",
       },
       footerText: "This automated reminder was sent to school administration regarding active platform licensing.",
     }),

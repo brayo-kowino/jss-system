@@ -400,7 +400,7 @@ function buildEmailTab(profile) {
                 serviceName: "Eeskia Platform Operations",
                 status: "Restored",
                 headline: "Email Engine Test: Verified Operational",
-                summary: "This is a live test of the Eeskia email delivery system. Google-styled transactional and platform notification delivery is fully functional.",
+                summary: "This is a live test of the Eeskia email delivery system. Platform notifications, fee reminders, and announcements are fully operational.",
                 resolution: "SMTP gateway connectivity verified.",
                 testRecipient: targetEmail.trim(),
               }),

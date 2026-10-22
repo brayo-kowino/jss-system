@@ -7,8 +7,8 @@ import {
   buildGeneralNotificationEmail,
 } from "../../netlify/functions/lib/email-templates.mjs";
 
-describe("Eeskia Email Engine - Google-Style Templates", () => {
-  it("renders base email with proper card structure, typography, and escaping", () => {
+describe("Eeskia Email Engine - Branded Email Templates", () => {
+  it("renders base email with proper card structure, Eeskia logo, typography, and escaping", () => {
     const html = renderBaseEmail({
       brandName: "Eeskia",
       schoolName: "Sirandumb Primary & Junior School",
@@ -35,6 +35,7 @@ describe("Eeskia Email Engine - Google-Style Templates", () => {
     });
 
     expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
     expect(html).toContain("Eeskia");
     expect(html).toContain("Sirandumb Primary &amp; Junior School");
     expect(html).toContain("System Restored Successfully");
@@ -63,6 +64,7 @@ describe("Eeskia Email Engine - Google-Style Templates", () => {
     expect(email.html).toContain("Operational");
     expect(email.html).toContain("12 minutes");
     expect(email.html).toContain("100% Data Integrity Guaranteed");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
   });
 
   it("builds subscription expiry reminders with countdown", () => {
@@ -79,6 +81,7 @@ describe("Eeskia Email Engine - Google-Style Templates", () => {
     expect(email.html).toContain("3 Days Remaining");
     expect(email.html).toContain("Pro Annual");
     expect(email.html).toContain("Manage Subscription");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
   });
 
   it("builds personalized parent fee balance reminders", () => {
@@ -99,6 +102,7 @@ describe("Eeskia Email Engine - Google-Style Templates", () => {
     expect(email.html).toContain("522522");
     expect(email.html).toContain("MIL-701");
     expect(email.html).toContain("Fee Reminder");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
   });
 
   it("builds general announcements with clean paragraph layout", () => {
@@ -113,5 +117,6 @@ describe("Eeskia Email Engine - Google-Style Templates", () => {
     expect(email.html).toContain("First paragraph notice.");
     expect(email.html).toContain("Second paragraph details.");
     expect(email.html).toContain("Official Notice");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
   });
 });
