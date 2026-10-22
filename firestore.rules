@@ -136,13 +136,8 @@ service cloud.firestore {
     }
 
     // Computing/publishing class results - admin, academic_master only.
-    function schoolAllowsComputeOrGenerate() {
-      let schoolDoc = get(/databases/$(database)/documents/schools/$(mySchoolId()));
-      return schoolDoc == null || !('canComputeOrGenerate' in schoolDoc.data) || schoolDoc.data.canComputeOrGenerate != false;
-    }
-
     function canComputeResults() {
-      return inRoles(['admin', 'academic_master']) && schoolAllowsComputeOrGenerate();
+      return inRoles(['admin', 'academic_master']);
     }
 
     // Marking attendance - class_teacher for their own class, admin/
@@ -182,23 +177,18 @@ service cloud.firestore {
     // above this point respectively - Firestore Rules functions aren't
     // order-dependent within the same service block, so forward references
     // are fine.
-    function isSubscriptionActive() {
-      return isSuperAdmin() || (
-        'subscriptionActiveUntil' in request.auth.token && request.time < timestamp.value(request.auth.token.subscriptionActiveUntil)
-      );
-    }
-
     function ownsExisting() {
       return mySchoolId() != null
-        && (resource == null || resource.data.schoolId == mySchoolId())
-        && isSubscriptionActive();
+        && (resource == null || resource.data.schoolId == mySchoolId());
     }
     function ownsIncoming() {
-      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId() && isSubscriptionActive();
+      return mySchoolId() != null && request.resource.data.schoolId == mySchoolId();
     }
     function ownsBoth() {
-      return ownsIncoming() && (resource == null || resource.data.schoolId == request.resource.data.schoolId) && isSubscriptionActive();
+      return ownsIncoming() && (resource == null || resource.data.schoolId == request.resource.data.schoolId);
     }
+
+
 
     // Fields nobody can touch directly through a normal document write on
     // schools/{schoolId} - only the subscription edge functions
@@ -212,18 +202,11 @@ service cloud.firestore {
     // the schools/{schoolId} match block) would change the doc without
     // ever re-minting that claim, leaving isSubscriptionActive() looking
     // at a stale claim until tokens happen to refresh on their own.
-    
-    function touchesArrearsFields() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'canComputeOrGenerate', 'amountOwed'
-      ]);
-    }
-
     function touchesSubscriptionFields() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'subscriptionStatus', 'subscriptionPlan', 'subscriptionExpiresAt',
         'subscriptionActivatedAt', 'subscriptionActivatedBy', 'subscriptionTokenId',
-        'status', 'trialStartedAt', 'trialExpiresAt', 'trialExtensions', 'trialEndedAt', 'trialEndReason'
+        'status'
       ]);
     }
 
@@ -382,8 +365,7 @@ service cloud.firestore {
       // gone: every actor, super_admin included, goes through
       // touchesSubscriptionFields() here.
       allow update: if (isSuperAdmin() || (isAdmin() && schoolId == mySchoolId()))
-          && !touchesSubscriptionFields()
-          && (isSuperAdmin() || !touchesArrearsFields());
+        && !touchesSubscriptionFields();
       allow delete: if isSuperAdmin();
     }
 
@@ -583,7 +565,7 @@ service cloud.firestore {
     // principal only theirs - never the marks/positions/grades a result
     // is actually built from.
     match /results/{docId} {
-      allow read: if isStaff() && ownsExisting() && schoolAllowsComputeOrGenerate();
+      allow read: if isStaff() && ownsExisting();
       allow create: if canComputeResults() && ownsIncoming();
       allow update: if ownsBoth() && (
         canComputeResults() ||
@@ -710,10 +692,6 @@ service cloud.firestore {
       allow read: if isSuperAdmin();
       allow create: if true;
       allow update, delete: if false;
-    }
-    match /platform_settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSuperAdmin();
     }
 
     // No catch-all wildcard anymore: every operational collection above is
