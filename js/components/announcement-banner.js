@@ -120,7 +120,6 @@ function openAnnouncementModal(announcement, onDismiss) {
         }),
         el("span", { style: "font-weight: 700; font-size: 13px; color: var(--color-primary-900);" }, "Eeskia Platform Operations"),
       ]),
-      el("span", { class: `badge badge--${badgeTone}`, style: "font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;" }, badgeLabel),
     ]),
 
     // Formatted reading body using Lora font with comfortable line-height
