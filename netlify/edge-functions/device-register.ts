@@ -103,7 +103,18 @@ export default async (request: Request, context: Context) => {
   // -------------------------------------------------------------------------
   if (!isGenuineBootstrap) {
     let requireDeviceApproval = true; // safe default — strict mode
-    if (userDoc && userDoc.schoolId) {
+    if (userDoc && userDoc.role === "super_admin") {
+      try {
+        const platformSec = await getFsDoc(accessToken, "platform_settings/security");
+        // Super admins: device approval is disabled by default to enable seamless logins across multiple devices
+        if (!platformSec || platformSec.requireDeviceApproval !== true) {
+          requireDeviceApproval = false;
+        }
+      } catch (err) {
+        console.warn("device-register: platform security lookup failed, defaulting to open", err);
+        requireDeviceApproval = false;
+      }
+    } else if (userDoc && userDoc.schoolId) {
       try {
         const schoolDoc = await getFsDoc(accessToken, `schools/${userDoc.schoolId}`);
         if (schoolDoc && schoolDoc.requireDeviceApproval === false) {
@@ -116,7 +127,7 @@ export default async (request: Request, context: Context) => {
 
     if (requireDeviceApproval && !authIsRecent) {
       return jsonResponse(
-        { error: "Device approval is required for this school. Re-enter your password or wait for approval from a trusted device." },
+        { error: "Device approval is required. Re-enter your password or wait for approval from a trusted device." },
         403,
       );
     }

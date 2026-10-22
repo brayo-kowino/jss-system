@@ -440,6 +440,22 @@ export async function getAuthGateStatus(profile) {
     return null;
   }
 
+  // Read the school or platform device-approval policy.
+  if (profile.role === "super_admin") {
+    try {
+      const { getPlatformSecuritySettings } = await import("./platform-settings.service.js");
+      const platformSec = await getPlatformSecuritySettings();
+      // By default device approval is false for platform admin so logins on new devices work smoothly
+      if (platformSec.requireDeviceApproval !== true) {
+        await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        return null;
+      }
+    } catch {
+      await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+      return null;
+    }
+  }
+
   // Read the school's device-approval policy.
   //
   // NOTE: This check only decides which UI screen to render. It is NOT a

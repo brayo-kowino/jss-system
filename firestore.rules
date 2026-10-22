@@ -659,6 +659,11 @@ service cloud.firestore {
     // aware of the outage" on whatever screen isSubscriptionActive() left
     // them on. Write stays super_admin-only - no school's own admin can
     // post into every other school's dashboard.
+    match /platform_settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSuperAdmin();
+    }
+
     match /platform_announcements/{docId} {
       allow read: if isSignedIn() && (isStaff() || isSuperAdmin());
       allow create, update, delete: if isSuperAdmin();

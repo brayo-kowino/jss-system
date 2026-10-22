@@ -153,6 +153,7 @@ const NAV = [
       { path: "/platform-announcements", icon: "campaign", text: "Announcements", roles: ["super_admin"] },
       { path: "/platform-tickets", icon: "confirmation_number", text: "Support Tickets", roles: ["super_admin"] },
       { path: "/platform-error-logs", icon: "bug_report", text: "Error Logs", roles: ["super_admin"] },
+      { path: "/platform-settings", icon: "settings", text: "Platform Settings", roles: ["super_admin"] },
     ],
   },
 ];
@@ -1084,6 +1085,20 @@ export function renderShell(app, profile, activePath) {
         ]),
       ]),
       el("div", { class: "topbar__profile-divider" }),
+      ...(profile.role === "super_admin" ? [
+        el(
+          "button",
+          {
+            type: "button",
+            class: "topbar__profile-item",
+            onClick: () => {
+              dropdown.classList.remove("open");
+              location.hash = "/platform-settings";
+            },
+          },
+          [icon("settings"), "Platform Settings"]
+        ),
+      ] : []),
       el(
         "button",
         {

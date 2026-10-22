@@ -72,6 +72,7 @@ export const routes = {
   "/platform-announcements": { view: () => import("../views/platform-announcements.js"), roles: ["super_admin"], title: "Platform Announcements", skeleton: { cards: 0, rows: 8 } },
   "/platform-tickets": { view: () => import("../views/platform-tickets.js"), roles: ["super_admin"], title: "Platform Tickets", skeleton: { cards: 0, rows: 8 } },
   "/platform-error-logs": { view: () => import("../views/platform-error-logs.js"), roles: ["super_admin"], title: "Error Logs", skeleton: { cards: 0, rows: 8 } },
+  "/platform-settings": { view: () => import("../views/platform-settings.js"), roles: ["super_admin"], title: "Platform Settings", skeleton: { cards: 0, rows: 6 } },
   
   "/notifications": { view: () => import("../views/notifications.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"], title: "Notifications", skeleton: { cards: 0, rows: 8 } },
   "/audit": { view: () => import("../views/audit.js"), roles: ["admin"], title: "Audit Trail", skeleton: { cards: 0, rows: 8 } },
@@ -278,7 +279,15 @@ export async function renderRoute() {
     // super_admin has no schoolId and isn't scoped to any single school's
     // data - the only things it can see are the Schools registry and the
     // platform announcements it authors (also not scoped to any school).
-    if (profile.role === "super_admin" && path !== "/schools" && path !== "/platform-announcements" && path !== "/platform-tickets" && path !== "/platform-error-logs") {
+    const SUPER_ADMIN_ALLOWED = [
+      "/schools",
+      "/platform-announcements",
+      "/platform-tickets",
+      "/platform-error-logs",
+      "/platform-settings",
+      "/change-password",
+    ];
+    if (profile.role === "super_admin" && !SUPER_ADMIN_ALLOWED.includes(path)) {
       return navigate("/schools");
     }
 
