@@ -6,13 +6,13 @@
 // from views/platform-announcements.js (super_admin only).
 //
 // Fetches in the background and stays empty (no layout shift, no
-// placeholder) until/unless there's something live to show - most schools,
-// most of the time, will have zero active announcements. Dismissing one is
-// per-browser (localStorage) and per-version (see dismissKey()'s own
-// comment) - it comes back if the super_admin edits or re-activates it,
-// but not on every reload of an unchanged one.
+// placeholder) until/unless there's something live to show.
+// Renders as a sleek 1-line top banner with an icon, title, snippet,
+// and a "Read More" button that opens the full formatted letter in a modal.
+// Dismissing one is per-browser (localStorage) and per-version.
 // ==========================================================================
-import { el } from "../utils.js";
+import { el, icon } from "../utils.js";
+import { openModal } from "./modal.js";
 import { listActiveAnnouncements, severityMeta, dismissKey } from "../services/platform-announcement.service.js";
 
 const DISMISSED_KEY = "jss_dismissed_announcements";
@@ -27,31 +27,134 @@ function readDismissed() {
 
 function persistDismissed(set) {
   try {
-    // Cap what we keep so this can't grow unbounded across months of
-    // announcements - the banner only ever cares whether *today's* live
-    // ones are in here, so trimming old entries is harmless.
     localStorage.setItem(DISMISSED_KEY, JSON.stringify([...set].slice(-100)));
   } catch {
-    // best-effort only, same as shell.js's tour-seen flag
+    // best-effort only
   }
 }
 
 function bannerRow(announcement, onDismiss) {
   const meta = severityMeta(announcement.severity);
-  const variantClass = announcement.severity === "critical" ? " notice-banner--warning" : announcement.severity === "warning" ? " notice-banner--caution" : "";
-  return el("div", { class: `notice-banner${variantClass}` }, [
-    el("span", { class: "material-symbols-rounded" }, meta.icon),
-    el("div", {}, [
-      el("span", { class: "announcement-banner__title" }, announcement.title),
-      announcement.message,
-    ]),
-    el("button", {
-      class: "announcement-banner__dismiss",
-      "aria-label": "Dismiss",
-      title: "Dismiss",
-      onClick: onDismiss,
-    }, [el("span", { class: "material-symbols-rounded" }, "close")]),
+  const isCritical = announcement.severity === "critical";
+  const isWarning = announcement.severity === "warning";
+  const variantClass = isCritical
+    ? " announcement-banner--critical"
+    : isWarning
+    ? " announcement-banner--warning"
+    : " announcement-banner--info";
+
+  // Clean single-line snippet
+  const cleanSnippet = (announcement.message || "")
+    .replace(/\r?\n+/g, " ")
+    .trim();
+
+  const titleEl = el("strong", { class: "announcement-banner__headline" }, announcement.title);
+  const snippetEl = el("span", { class: "announcement-banner__snippet" }, cleanSnippet);
+
+  const textWrap = el("div", {
+    class: "announcement-banner__content",
+    title: "Click to read full announcement",
+    onClick: () => openAnnouncementModal(announcement, onDismiss),
+  }, [
+    titleEl,
+    cleanSnippet ? el("span", { class: "announcement-banner__separator" }, "—") : "",
+    cleanSnippet ? snippetEl : "",
   ]);
+
+  const readMoreBtn = el("button", {
+    type: "button",
+    class: "announcement-banner__read-more",
+    title: "Read full announcement",
+    onClick: (e) => {
+      e.stopPropagation();
+      openAnnouncementModal(announcement, onDismiss);
+    },
+  }, [
+    "Read More",
+    el("span", { class: "material-symbols-rounded", style: "font-size: 14px; margin-left: 2px;" }, "arrow_forward"),
+  ]);
+
+  const dismissBtn = el("button", {
+    type: "button",
+    class: "announcement-banner__dismiss",
+    "aria-label": "Dismiss",
+    title: "Dismiss announcement",
+    onClick: onDismiss,
+  }, [el("span", { class: "material-symbols-rounded" }, "close")]);
+
+  const iconEl = el("div", { class: "announcement-banner__icon-wrap" }, [
+    el("span", { class: "material-symbols-rounded" }, meta.icon || "campaign"),
+  ]);
+
+  return el("div", { class: `announcement-banner${variantClass}` }, [
+    iconEl,
+    textWrap,
+    readMoreBtn,
+    dismissBtn,
+  ]);
+}
+
+function openAnnouncementModal(announcement, onDismiss) {
+  const isCritical = announcement.severity === "critical";
+  const isWarning = announcement.severity === "warning";
+  const badgeTone = isCritical ? "danger" : isWarning ? "warning" : "primary";
+  const badgeLabel = isCritical ? "Critical Notice" : isWarning ? "Important Update" : "Platform Announcement";
+
+  // Split message into natural paragraphs
+  const paragraphs = (announcement.message || "")
+    .split(/\r?\n\r?\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  let closeFn = null;
+
+  const body = el("div", { style: "display: flex; flex-direction: column; gap: 14px; padding: 4px 0;" }, [
+    // Top meta bar with Eeskia identity
+    el("div", { style: "display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 12px;" }, [
+      el("div", { style: "display: flex; align-items: center; gap: 8px;" }, [
+        el("img", {
+          src: "https://eeskia.iskify360.tech/assets/logo.png",
+          alt: "Eeskia",
+          style: "width: 24px; height: 24px; border-radius: 6px; display: block;",
+        }),
+        el("span", { style: "font-weight: 700; font-size: 13px; color: var(--color-primary-900);" }, "Eeskia Platform Operations"),
+      ]),
+      el("span", { class: `badge badge--${badgeTone}`, style: "font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;" }, badgeLabel),
+    ]),
+
+    // Title
+    el("h2", { style: "margin: 4px 0 0; font-size: 18px; font-weight: 700; color: var(--color-ink); line-height: 1.4;" }, announcement.title),
+
+    // Formatted paragraphs
+    el("div", {
+      class: "announcement-modal__body",
+      style: "font-size: 14.5px; line-height: 1.7; color: var(--color-ink); max-height: 58vh; overflow-y: auto; padding-right: 6px;",
+    }, paragraphs.length > 0 ? paragraphs.map((p) => el("p", { style: "margin: 0 0 14px;" }, p)) : [el("p", {}, announcement.message)]),
+
+    // Action buttons footer
+    el("div", { style: "display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-line); padding-top: 14px; margin-top: 6px;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        onClick: () => {
+          if (onDismiss) onDismiss();
+          if (closeFn) closeFn();
+        },
+      }, [
+        el("span", { class: "material-symbols-rounded text-xs" }, "visibility_off"),
+        " Dismiss from Dashboard",
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        onClick: () => {
+          if (closeFn) closeFn();
+        },
+      }, "Close"),
+    ]),
+  ]);
+
+  closeFn = openModal(announcement.title, body, "modal--wide");
 }
 
 // Returns an (initially empty) container. Populates itself asynchronously
@@ -75,10 +178,6 @@ export function mountAnnouncementBanner() {
       }
     })
     .catch((err) => {
-      // A failed fetch here should never block the app shell from
-      // rendering - same fail-quiet reasoning as the tour/install-prompt
-      // helpers this sits next to in shell.js. Worst case: no banner
-      // shows this load, same as before this feature existed.
       console.error("announcement-banner: failed to load", err);
     });
 

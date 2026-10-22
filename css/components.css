@@ -1465,23 +1465,71 @@ tbody tr:hover { background: var(--color-primary-100); }
 .notice-banner--caution .material-symbols-rounded { color: #7A5B00; }
 
 /* Platform announcement banner - stacked above <main> in the app shell
-   (js/components/announcement-banner.js), so it needs square corners on
-   the sides that touch the topbar/content instead of .notice-banner's
-   usual all-round radius + bottom margin, plus a dismiss button docked to
-   the end of the row. Multiple live announcements stack directly on top
-   of each other with no gap, each keeping its own severity color. */
+   (js/components/announcement-banner.js). Sleek, 1-line presentation with
+   read-more trigger for full letter/modal display. */
 .announcement-banner-stack { display: flex; flex-direction: column; flex-shrink: 0; }
-.announcement-banner-stack .notice-banner {
-  border-radius: 0; border-left: none; border-right: none; margin-bottom: 0;
-  align-items: center;
+.announcement-banner {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 18px; border-bottom: 1px solid var(--color-line);
+  font-size: var(--fs-sm); background: #ffffff; color: var(--color-ink);
+  position: relative; z-index: 10;
 }
-.announcement-banner-stack .notice-banner + .notice-banner { border-top: none; }
-.announcement-banner__title { font-weight: 600; margin-right: var(--sp-2); }
+.announcement-banner--info {
+  background: #f0f7ff; border-bottom-color: #d0e3f7; color: #0c3254;
+}
+.announcement-banner--info .announcement-banner__icon-wrap {
+  background: rgba(13, 53, 89, 0.1); color: #0d3559;
+}
+.announcement-banner--warning {
+  background: #fffbeb; border-bottom-color: #fde68a; color: #92400e;
+}
+.announcement-banner--warning .announcement-banner__icon-wrap {
+  background: rgba(217, 119, 6, 0.12); color: #b45309;
+}
+.announcement-banner--critical {
+  background: #fef2f2; border-bottom-color: #fecaca; color: #991b1b;
+}
+.announcement-banner--critical .announcement-banner__icon-wrap {
+  background: rgba(220, 38, 38, 0.12); color: #dc2626;
+}
+.announcement-banner__icon-wrap {
+  width: 28px; height: 28px; border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.announcement-banner__icon-wrap .material-symbols-rounded { font-size: 18px; }
+.announcement-banner__content {
+  display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;
+  overflow: hidden; white-space: nowrap; cursor: pointer;
+}
+.announcement-banner__headline { font-weight: 700; color: inherit; flex-shrink: 0; }
+.announcement-banner__separator { opacity: 0.4; flex-shrink: 0; }
+.announcement-banner__snippet {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0.85; font-size: 13px;
+}
+.announcement-banner__read-more {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #0d3559; color: #ffffff !important; border: none;
+  border-radius: 100px; padding: 4px 12px; font-size: 12px; font-weight: 600;
+  cursor: pointer; flex-shrink: 0; transition: all 0.15s ease; line-height: 1.4;
+}
+.announcement-banner__read-more:hover { background: #14538a; }
+.announcement-banner--warning .announcement-banner__read-more { background: #b45309; }
+.announcement-banner--warning .announcement-banner__read-more:hover { background: #92400e; }
+.announcement-banner--critical .announcement-banner__read-more { background: #dc2626; }
+.announcement-banner--critical .announcement-banner__read-more:hover { background: #b91c1c; }
 .announcement-banner__dismiss {
-  margin-left: auto; background: none; border: none; cursor: pointer;
-  color: inherit; opacity: 0.7; padding: var(--sp-1); display: flex; flex-shrink: 0;
+  background: none; border: none; cursor: pointer; color: inherit; opacity: 0.6;
+  padding: 4px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; transition: opacity 0.15s ease, background 0.15s ease;
 }
-.announcement-banner__dismiss:hover { opacity: 1; }
+.announcement-banner__dismiss:hover { opacity: 1; background: rgba(0, 0, 0, 0.06); }
+.announcement-banner__dismiss .material-symbols-rounded { font-size: 18px; }
+@media (max-width: 640px) {
+  .announcement-banner { padding: 8px 12px; gap: 8px; }
+  .announcement-banner__separator,
+  .announcement-banner__snippet { display: none; }
+}
 
 /* Page-level tabs (Notifications / Newsletters, etc.) - same visual
    language as .profile-tabs but usable outside a modal. */
