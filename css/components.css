@@ -1110,6 +1110,20 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .modal--wide { width: min(94vw, 1080px); max-width: 100%; }
 .modal--instructions { width: min(94vw, 780px); max-width: 100%; }
+.modal--reading { width: min(92vw, 580px); max-width: 100%; padding: 24px 28px; }
+.announcement-reading-content {
+  font-family: 'Lora', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #243242;
+  letter-spacing: 0.1px;
+}
+.announcement-reading-content p {
+  margin: 0 0 16px;
+}
+.announcement-reading-content p:last-child {
+  margin-bottom: 0;
+}
 .modal__header {
   display: flex; justify-content: space-between; align-items: flex-start;
   gap: var(--sp-3);

@@ -8,7 +8,8 @@
 // Fetches in the background and stays empty (no layout shift, no
 // placeholder) until/unless there's something live to show.
 // Renders as a sleek 1-line top banner with an icon, title, snippet,
-// and a "Read More" button that opens the full formatted letter in a modal.
+// and a "Read More" button that opens the full formatted letter in an
+// elegant reading modal (using Lora editorial typography and narrow measure).
 // Dismissing one is per-browser (localStorage) and per-version.
 // ==========================================================================
 import { el, icon } from "../utils.js";
@@ -108,7 +109,7 @@ function openAnnouncementModal(announcement, onDismiss) {
 
   let closeFn = null;
 
-  const body = el("div", { style: "display: flex; flex-direction: column; gap: 14px; padding: 4px 0;" }, [
+  const body = el("div", { style: "display: flex; flex-direction: column; gap: 14px; padding: 2px 0 0;" }, [
     // Top meta bar with Eeskia identity
     el("div", { style: "display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-line); padding-bottom: 12px;" }, [
       el("div", { style: "display: flex; align-items: center; gap: 8px;" }, [
@@ -122,14 +123,16 @@ function openAnnouncementModal(announcement, onDismiss) {
       el("span", { class: `badge badge--${badgeTone}`, style: "font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;" }, badgeLabel),
     ]),
 
-    // Title
-    el("h2", { style: "margin: 4px 0 0; font-size: 18px; font-weight: 700; color: var(--color-ink); line-height: 1.4;" }, announcement.title),
+    // Title in Lora editorial font
+    el("h2", {
+      style: "font-family: 'Lora', Georgia, serif; font-size: 19px; font-weight: 700; color: #0d3559; line-height: 1.4; margin: 2px 0 0; letter-spacing: -0.2px;",
+    }, announcement.title),
 
-    // Formatted paragraphs
+    // Formatted reading body using Lora font with comfortable line-height
     el("div", {
-      class: "announcement-modal__body",
-      style: "font-size: 14.5px; line-height: 1.7; color: var(--color-ink); max-height: 58vh; overflow-y: auto; padding-right: 6px;",
-    }, paragraphs.length > 0 ? paragraphs.map((p) => el("p", { style: "margin: 0 0 14px;" }, p)) : [el("p", {}, announcement.message)]),
+      class: "announcement-reading-content",
+      style: "max-height: 58vh; overflow-y: auto; padding-right: 6px;",
+    }, paragraphs.length > 0 ? paragraphs.map((p) => el("p", {}, p)) : [el("p", {}, announcement.message)]),
 
     // Action buttons footer
     el("div", { style: "display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--color-line); padding-top: 14px; margin-top: 6px;" }, [
@@ -154,7 +157,8 @@ function openAnnouncementModal(announcement, onDismiss) {
     ]),
   ]);
 
-  closeFn = openModal(announcement.title, body, "modal--wide");
+  // Open with narrow reading width (580px max) and Lora typography
+  closeFn = openModal("Platform Announcement", body, "modal--reading");
 }
 
 // Returns an (initially empty) container. Populates itself asynchronously
