@@ -285,9 +285,11 @@ export async function render({ profile }) {
 
     if (diffDays < 0) {
        termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-red); margin-bottom: 4px;" }, "Closed"));
-       termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, `Ended ${Math.abs(diffDays)} days ago`));
+       const daysAgo = Math.abs(diffDays);
+       termProgress.append(el("span", { style: "font-size: var(--fs-xs); color: var(--color-ink-soft);" }, `Ended ${daysAgo} ${daysAgo === 1 ? "day" : "days"} ago`));
     } else {
-       termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, `${diffDays} Days Left`));
+       const daysText = diffDays === 1 ? "1 Day Left" : (diffDays === 0 ? "Ends Today" : `${diffDays} Days Left`);
+       termProgress.append(el("strong", { style: "font-size: 24px; line-height: 1; color: var(--color-ink); margin-bottom: 4px;" }, daysText));
        termProgress.append(el("div", { class: "hero-progress-track" }, [
          el("div", { style: `height: 100%; width: ${pct}%; background: var(--color-primary-700); border-radius: 4px;` })
        ]));

@@ -159,7 +159,7 @@ export async function render({ profile }) {
   const heroBanner = el("div", { class: "grading-hero" }, [
     el("div", { class: "grading-hero__content" }, [
       el("h1", { class: "grading-hero__title" }, "Class Grading & Positions"),
-      el("p", { class: "grading-hero__desc" }, "CLass-wide subject averages, merit positions, and stream ranking."),
+      el("p", { class: "grading-hero__desc" }, "Class-wide subject averages, merit positions, and stream ranking."),
       el("div", { class: "grading-hero__pills" }, [
         el("div", { class: "grading-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "grading-pill" }, [icon("calendar_today"), `${selection.academicYear} · ${selection.term}`]),
@@ -173,6 +173,42 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(heroBanner);
+
+  // Advisory notice: Verify grading scale in Settings
+  const canManageSettings = profile.role === "admin" || profile.role === "super_admin";
+  const gradingScaleNotice = el("div", {
+    class: "notice-banner notice-banner--caution",
+    style: "display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-4); border:1px solid #f0d989; background:#fffbe6;"
+  }, [
+    el("div", { style: "display:flex; align-items:flex-start; gap:12px; flex:1; min-width:260px;" }, [
+      el("span", { class: "material-symbols-rounded", style: "font-size:24px; color:#b45309; flex-shrink:0; margin-top:2px;" }, "priority_high"),
+      el("div", {}, [
+        el("strong", { style: "display:block; color:#92400e; font-size:var(--fs-sm); font-weight:700; margin-bottom:3px;" },
+          "Important: Please Check the Grading Scale in Settings"
+        ),
+        el("p", { style: "margin:0; font-size:var(--fs-xs); color:#78350f; line-height:1.5;" },
+          "All calculated subject grades, mean grades, and student points are strictly derived from your school's Grading Scale. It is very important to verify that your grade boundaries and point weights in Settings are correct before computing or saving results."
+        ),
+      ]),
+    ]),
+    ...(canManageSettings ? [
+      el("a", {
+        href: "#/settings?tab=grading",
+        class: "btn btn--sm",
+        style: "background:#fff; border:1px solid #d97706; color:#92400e; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; margin-top:2px;",
+      }, [
+        icon("tune", "text-xs"),
+        "Check Grading Scale in Settings",
+        icon("arrow_forward", "text-xs"),
+      ])
+    ] : [
+      el("span", {
+        class: "badge badge--warning",
+        style: "white-space:nowrap; align-self:center; font-size:11px;"
+      }, "Managed in Settings by Admin")
+    ]),
+  ]);
+  wrap.append(gradingScaleNotice);
 
   // Configuration & Picker Card
   const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
@@ -263,6 +299,20 @@ function renderWelcomeDisclaimers(container) {
 
     // Modern Guidance Cards Grid (Zero left borders)
     el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card", style: "border: 1px solid rgba(217, 119, 6, 0.4); background: #fffcf4;" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("grading")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Very Important"),
+        ]),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Check Grading Scale in Settings"),
+          el("p", { class: "guidance-card__body" }, [
+            "Mean grades, points, and merit ranks are calculated from your school's grading scale. It is very important to verify grade bands and point allocations in ",
+            el("a", { href: "#/settings?tab=grading", style: "font-weight: 600; text-decoration: underline; color: var(--color-primary-700);" }, "Settings → Grading"),
+            " before computing results.",
+          ]),
+        ]),
+      ]),
       el("div", { class: "guidance-card" }, [
         el("div", { class: "guidance-card__header" }, [
           el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("account_tree")]),
@@ -477,6 +527,20 @@ function renderResult(container, profile) {
     );
   }
   container.append(headerCard);
+
+  // Reminder to check grading scale in settings
+  const scaleReminder = el("div", {
+    class: "text-muted text-xs",
+    style: "margin-bottom:var(--sp-3); display:flex; align-items:center; gap:8px; background:var(--color-surface-soft); padding:8px 12px; border-radius:var(--radius-sm); border:1px solid var(--color-line);"
+  }, [
+    icon("tune", "text-xs", "style: color:var(--color-primary-600);"),
+    el("span", {}, [
+      "Grades & points are calculated using your school's ",
+      el("a", { href: "#/settings?tab=grading", style: "font-weight:600; text-decoration:underline; color:var(--color-primary-700);" }, "Grading Scale in Settings"),
+      ". Please ensure the grading scale is verified before saving or releasing report cards."
+    ]),
+  ]);
+  container.append(scaleReminder);
 
   // Mismatched Assessment Weights Warning
   const mismatchedSubjects = (meta.subjectWeightTotals || []).filter((s) => s.mismatched);
