@@ -1,0 +1,277 @@
+// ==========================================================================
+// Eeskia Platform Service Announcement & Restoration Email Broadcaster
+// Dispatches Google-styled announcements (e.g. Service Restored, Maintenance,
+// Platform News) to all school administrators.
+// ==========================================================================
+
+import { webcrypto } from "node:crypto";
+import nodemailer from "nodemailer";
+import { buildServiceAnnouncementEmail } from "./lib/email-templates.mjs";
+
+const PROJECT_ID = "jss-management-system";
+const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+function base64UrlEncode(bytes) {
+  let str = "";
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function pemToPkcs8(pem) {
+  const clean = pem.replace(/-----BEGIN PRIVATE KEY-----/, "").replace(/-----END PRIVATE KEY-----/, "").replace(/\s+/g, "");
+  const raw = atob(clean);
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function getAccessToken() {
+  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+  if (!rawKey) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY is not set");
+  const serviceAccount = JSON.parse(rawKey);
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    iss: serviceAccount.client_email,
+    scope: "https://www.googleapis.com/auth/datastore",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+  const enc = new TextEncoder();
+  const unsigned = base64UrlEncode(enc.encode(JSON.stringify(header))) + "." + base64UrlEncode(enc.encode(JSON.stringify(claims)));
+
+  const cryptoKey = await webcrypto.subtle.importKey(
+    "pkcs8",
+    pemToPkcs8(serviceAccount.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await webcrypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, enc.encode(unsigned));
+  const jwt = `${unsigned}.${base64UrlEncode(new Uint8Array(signature))}`;
+
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }),
+  });
+  if (!res.ok) throw new Error(`Token exchange failed: ${res.status}`);
+  const data = await res.json();
+  return data.access_token;
+}
+
+function fsDecode(value) {
+  if (value == null) return null;
+  if ("stringValue" in value) return value.stringValue;
+  if ("integerValue" in value) return Number(value.integerValue);
+  if ("doubleValue" in value) return value.doubleValue;
+  if ("booleanValue" in value) return value.booleanValue;
+  if ("nullValue" in value) return null;
+  if ("timestampValue" in value) return value.timestampValue;
+  if ("arrayValue" in value) return (value.arrayValue.values || []).map(fsDecode);
+  if ("mapValue" in value) {
+    const out = {};
+    for (const [k, v] of Object.entries(value.mapValue.fields || {})) out[k] = fsDecode(v);
+    return out;
+  }
+  return null;
+}
+
+function fsEncode(value) {
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
+  if (value == null) return { nullValue: null };
+  return { stringValue: String(value) };
+}
+
+function fsDocToObject(doc) {
+  const out = { id: doc.name.split("/").pop() };
+  for (const [k, v] of Object.entries(doc.fields || {})) out[k] = fsDecode(v);
+  return out;
+}
+
+async function runQuery(token, collectionId, filters = []) {
+  const structuredQuery = { from: [{ collectionId }], limit: 1000 };
+  if (filters.length === 1) {
+    const [field, op, value] = filters[0];
+    structuredQuery.where = { fieldFilter: { field: { fieldPath: field }, op, value: fsEncode(value) } };
+  } else if (filters.length > 1) {
+    structuredQuery.where = {
+      compositeFilter: { op: "AND", filters: filters.map(([field, op, value]) => ({ fieldFilter: { field: { fieldPath: field }, op, value: fsEncode(value) } })) },
+    };
+  }
+  const res = await fetch(`${FIRESTORE_BASE}:runQuery`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ structuredQuery }),
+  });
+  if (!res.ok) throw new Error(`Firestore query failed: ${res.status}`);
+  const rows = await res.json();
+  return rows.filter((r) => r.document).map((r) => fsDocToObject(r.document));
+}
+
+async function addDoc(token, collectionId, fields) {
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, fsEncode(v)])) };
+  const res = await fetch(`${FIRESTORE_BASE}/${collectionId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Firestore create failed: ${res.status}`);
+}
+
+export default async (req) => {
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return new Response("Invalid JSON", { status: 400 });
+  }
+
+  const {
+    serviceName = "Eeskia Core Platform",
+    status = "Restored",
+    headline = "Services Fully Restored & Operational",
+    summary = "All platform services, student databases, and academic calculation engines are fully online and performing optimally.",
+    resolution = "System performance was verified and cloud telemetry confirms all endpoints are responsive.",
+    restoredAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }),
+    incidentDuration = "Resolved",
+    actionUrl = "https://eeskia.iskify360.tech/app/",
+    targetSchools = "all", // "all" | string[] of school IDs
+  } = body;
+
+  let token;
+  try {
+    token = await getAccessToken();
+  } catch (err) {
+    console.error("broadcast-service-announcement: auth failed", err);
+    return new Response("Auth failed", { status: 500 });
+  }
+
+  // 1. Fetch schools and admin users in parallel
+  let schools = [];
+  let schoolAdminMap = new Map();
+  try {
+    const [schoolsResult, adminUsersResult] = await Promise.all([
+      runQuery(token, "schools"),
+      runQuery(token, "users", [["role", "EQUAL", "admin"]]),
+    ]);
+    schools = schoolsResult;
+    for (const u of adminUsersResult) {
+      if (u.schoolId && u.email && !schoolAdminMap.has(u.schoolId)) {
+        schoolAdminMap.set(u.schoolId, u.email);
+      }
+    }
+  } catch (err) {
+    console.error("broadcast-service-announcement: fetch failed", err);
+    return new Response("Failed to fetch schools or admin accounts", { status: 500 });
+  }
+
+  const targetList = targetSchools === "all"
+    ? schools
+    : schools.filter((s) => Array.isArray(targetSchools) && targetSchools.includes(s.id));
+
+  // Build the Google-styled announcement email
+  const emailContent = buildServiceAnnouncementEmail({
+    serviceName,
+    status,
+    headline,
+    summary,
+    resolution,
+    restoredAt,
+    incidentDuration,
+    actionUrl,
+  });
+
+  // Check for platform SMTP credentials, or fallback to per-school verified SMTP
+  const platformUser = process.env.PLATFORM_EMAIL_USER || process.env.GMAIL_USER;
+  const platformPass = process.env.PLATFORM_EMAIL_PASS || process.env.GMAIL_PASS;
+
+  let platformTransporter = null;
+  if (platformUser && platformPass) {
+    platformTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: platformUser, pass: platformPass },
+    });
+  }
+
+  let broadcastCount = 0;
+  const dispatchedTo = [];
+
+  for (const school of targetList) {
+    const adminEmail = school.adminEmail || schoolAdminMap.get(school.id) || school.email;
+    const schoolProviders = school.notificationProviders || {};
+
+    // Determine transporter: platform transporter if available, or school's configured gateway
+    let transporter = platformTransporter;
+    let senderAddress = platformUser || "support@eeskia.iskify360.tech";
+
+    if (!transporter && schoolProviders.gmail?.address && schoolProviders.gmail?.appPassword) {
+      transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: schoolProviders.gmail.address,
+          pass: schoolProviders.gmail.appPassword,
+        },
+      });
+      senderAddress = schoolProviders.gmail.address;
+    }
+
+    if (adminEmail && transporter) {
+      try {
+        await transporter.sendMail({
+          from: `"Eeskia Platform Operations" <${senderAddress}>`,
+          to: adminEmail,
+          subject: emailContent.subject,
+          text: `${headline}\n\n${summary}\n\nStatus: ${status}\nRestored At: ${restoredAt}\n\nLogin to your dashboard: ${actionUrl}`,
+          html: emailContent.html,
+        });
+        broadcastCount++;
+        dispatchedTo.push(adminEmail);
+      } catch (err) {
+        console.error(`broadcast-service-announcement: failed to send to ${adminEmail}`, err);
+      }
+    }
+
+    // Also write in-app notification doc for the school's admin notifications dashboard
+    try {
+      await addDoc(token, "notifications", {
+        schoolId: school.id,
+        title: headline,
+        body: `${serviceName}: ${summary}`,
+        category: "general",
+        channel: "email",
+        audience: { type: "staff", label: "School Administration" },
+        recipientCount: 1,
+        status: "delivered",
+        createdAt: new Date(),
+      });
+      await addDoc(token, "audit_logs", {
+        schoolId: school.id,
+        userId: "system",
+        action: "service_announcement_broadcast",
+        entity: "schools",
+        entityId: school.id,
+        timestamp: new Date(),
+      });
+    } catch (docErr) {
+      console.warn("broadcast-service-announcement: doc write skipped", docErr);
+    }
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      broadcastCount,
+      targetSchoolsCount: targetList.length,
+      dispatchedTo,
+    }),
+    { status: 200, headers: { "Content-Type": "application/json" } }
+  );
+};

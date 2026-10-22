@@ -76,6 +76,7 @@ export async function createSchool(superAdminUserId, { name, address, phone, ema
     address: address || "",
     phone: phone || "",
     email: email || "",
+    adminEmail: adminEmail ? adminEmail.trim() : "",
     status: "active",
     subscriptionStatus: isTrial ? "trial" : "inactive",
     trialStartedAt: isTrial ? serverTimestamp() : null,

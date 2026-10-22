@@ -162,6 +162,13 @@ function openComposeModal(profile, existing = null) {
       expiresInput,
       el("p", { class: "text-sm text-muted", style: "margin: 4px 0 0;" }, "Leave blank to keep it up until you End it yourself."),
     ]),
+    el("div", { class: "field", style: "display:flex; align-items:center; gap:8px; margin: 12px 0 20px; padding: 12px; background: var(--color-surface-soft); border-radius: var(--radius-md); border: 1px solid var(--color-line);" }, [
+      el("input", { type: "checkbox", id: "a-email-broadcast", style: "width:18px; height:18px; cursor:pointer;" }),
+      el("label", { for: "a-email-broadcast", style: "margin:0; cursor:pointer; font-weight:600; font-size:var(--fs-sm); color:var(--color-ink);" }, [
+        icon("mail", "text-xs", "style: vertical-align:middle; margin-right:4px; color:var(--color-primary-700);"),
+        "Also email as Google-styled notification to all School Administrators"
+      ]),
+    ]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [
       icon(existing ? "save" : "campaign"),
       existing ? "Save Changes" : "Post Announcement",
@@ -187,6 +194,29 @@ function openComposeModal(profile, existing = null) {
       } else {
         await createAnnouncement(profile.uid, payload);
         toast("Announcement posted - it'll show up for staff on their next page load.", "success");
+      }
+
+      if (document.getElementById("a-email-broadcast")?.checked) {
+        try {
+          const res = await fetch("/.netlify/functions/broadcast-service-announcement", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              serviceName: "Eeskia Platform Services",
+              status: payload.severity === "critical" ? "Notice" : (payload.severity === "warning" ? "Maintenance" : "Restored"),
+              headline: payload.title,
+              summary: payload.message,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.broadcastCount > 0) {
+              toast(`Email announcement sent to ${data.broadcastCount} school admin(s).`, "success");
+            }
+          }
+        } catch (mailErr) {
+          console.warn("Email broadcast error:", mailErr);
+        }
       }
       close();
       const { renderRoute } = await import("../js/router.js");

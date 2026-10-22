@@ -1,5 +1,6 @@
 import { webcrypto } from "node:crypto";
 import nodemailer from "nodemailer";
+import { buildGeneralNotificationEmail } from "./lib/email-templates.mjs";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -196,14 +197,25 @@ export default async (req) => {
         }
       });
 
+      const emailContent = buildGeneralNotificationEmail({
+        schoolName: school?.schoolName || "",
+        title: notification.title,
+        bodyText: notification.body,
+        category: notification.category,
+      });
+
+      const senderName = school?.schoolName ? `"${school.schoolName.replace(/"/g, "")}"` : "School Administration";
+      const fromAddress = `${senderName} <${providers.gmail.address}>`;
+
       const targets = recipients.filter(p => p.email).map(p => p.email);
       for (const email of targets) {
         try {
           await transporter.sendMail({
-            from: providers.gmail.address,
+            from: fromAddress,
             to: email,
-            subject: notification.title,
-            text: notification.body
+            subject: emailContent.subject || notification.title,
+            text: notification.body,
+            html: emailContent.html,
           });
           deliveredCount++;
         } catch (err) {

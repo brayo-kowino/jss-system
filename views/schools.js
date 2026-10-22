@@ -195,6 +195,7 @@ export async function render({ profile }) {
         el("td", { "data-label": "Contact" }, [
           el("div", { style: "display: flex; flex-direction: column; gap: 4px;" }, [
             el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--color-ink);" }, [icon("mail", "text-muted", { style: "font-size: 16px;" }), s.email || "N/A"]),
+            s.adminEmail && s.adminEmail !== s.email ? el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--color-primary-700);" }, [icon("badge", "text-xs"), s.adminEmail]) : "",
             el("div", { style: "display: flex; align-items: center; gap: 6px; font-size: var(--fs-sm); color: var(--color-ink-soft);" }, [icon("phone", "text-muted", { style: "font-size: 16px;" }), s.phone || "N/A"])
           ])
         ]),
