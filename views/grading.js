@@ -11,7 +11,7 @@ import {
 } from "../js/services/grading.service.js";
 import { openModal } from "../js/components/modal.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
-import { el, icon, toast, spinner } from "../js/utils.js";
+import { el, icon, toast, spinner, busyButton } from "../js/utils.js";
 
 const CAN_SAVE = ["admin", "academic_master"];
 
@@ -270,7 +270,7 @@ function renderPicker(container, profile, resultMount) {
     el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end;" }, [
       el("button", {
         class: "btn btn--primary btn--sm",
-        onClick: () => runCompute(profile, resultMount),
+        onClick: (e) => runCompute(profile, resultMount, e.currentTarget),
       }, [icon("analytics", "text-xs"), "Compute Results"]),
     ])
   );
@@ -428,18 +428,19 @@ function renderArrearsNotice(amountOwed) {
 }
 
 
-async function runCompute(profile, resultMount) {
-    const school = getCurrentSchool();
-    if (school && school.canComputeOrGenerate === false) {
-      resultMount.innerHTML = "";
-      const notice = renderArrearsNotice(school.amountOwed);
-      resultMount.append(notice);
-      notice.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
+async function runCompute(profile, resultMount, computeBtn = null) {
+  const school = getCurrentSchool();
+  if (school && school.canComputeOrGenerate === false) {
+    resultMount.innerHTML = "";
+    const notice = renderArrearsNotice(school.amountOwed);
+    resultMount.append(notice);
+    notice.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
   if (!selection.grade || !selection.academicYear || !selection.term) {
     return toast("Choose grade, academic year, and term first.", "error");
   }
+  const restoreComputeBtn = busyButton(computeBtn, "Computing…");
   resultMount.innerHTML = "";
   resultMount.append(el("div", { class: "spinner-overlay", style: "padding:var(--sp-6);" }, [
     spinner("lg", "dark"),
@@ -465,6 +466,8 @@ async function runCompute(profile, resultMount) {
     resultMount.innerHTML = "";
     toast(err.message || "Could not compute results.", "error");
     renderWelcomeDisclaimers(resultMount);
+  } finally {
+    restoreComputeBtn();
   }
 }
 
@@ -522,7 +525,7 @@ function renderResult(container, profile) {
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm",
-        onClick: () => handleSave(profile, container),
+        onClick: (e) => handleSave(profile, container, e.currentTarget),
       }, [icon("save", "text-xs"), "Save Results"])
     );
   }
@@ -710,7 +713,7 @@ function renderResult(container, profile) {
 
 // ------------------------------------------------------------------- Save --
 
-async function handleSave(profile, resultMount) {
+async function handleSave(profile, resultMount, saveBtn = null) {
   const incompleteCount = lastResult.students.filter((s) => s.hasIncompleteSubject).length;
   if (incompleteCount > 0) {
     const proceed = confirm(
@@ -718,6 +721,7 @@ async function handleSave(profile, resultMount) {
     );
     if (!proceed) return;
   }
+  const restore = busyButton(saveBtn, "Saving…");
   try {
     await saveResults(profile.uid, selection, lastResult.students);
     toast(`${reportModeLabel(selection.reportMode)} results saved. They are now published for Report Cards.`, "success");
@@ -725,6 +729,7 @@ async function handleSave(profile, resultMount) {
     renderResult(resultMount, profile);
   } catch (err) {
     toast(err.message || "Could not save results.", "error");
+    restore();
   }
 }
 
