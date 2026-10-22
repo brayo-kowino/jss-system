@@ -123,11 +123,6 @@ function openAnnouncementModal(announcement, onDismiss) {
       el("span", { class: `badge badge--${badgeTone}`, style: "font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px;" }, badgeLabel),
     ]),
 
-    // Title in Lora editorial font
-    el("h2", {
-      style: "font-family: 'Lora', Georgia, serif; font-size: 19px; font-weight: 700; color: #0d3559; line-height: 1.4; margin: 2px 0 0; letter-spacing: -0.2px;",
-    }, announcement.title),
-
     // Formatted reading body using Lora font with comfortable line-height
     el("div", {
       class: "announcement-reading-content",
