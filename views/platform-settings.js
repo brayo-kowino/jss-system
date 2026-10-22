@@ -68,13 +68,6 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "platform-settings-wrap" });
 
-  // Clean, minimal header
-  wrap.append(
-    el("div", { class: "page-header", style: "margin-bottom:var(--sp-4);" }, [
-      el("h2", { style: "margin:0;" }, "Platform Settings"),
-    ])
-  );
-
   // Tabs Navigation
   const tabsNav = el("div", { class: "profile-tabs no-print", style: "margin-bottom:var(--sp-4);" });
   const activeTab = getActiveTabFromUrl();
