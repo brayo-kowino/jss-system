@@ -1,12 +1,13 @@
 // ==========================================================================
 // Eeskia Platform Service Announcement & Restoration Email Broadcaster
-// Dispatches Google-styled announcements (e.g. Service Restored, Maintenance,
-// Platform News) to all school administrators, or sends a test email to a specific admin.
+// Dispatches platform announcements and service updates to all school administrators,
+// or sends a test email to a specific admin.
+// Supports both clean executive letters (no tables/status pills) and system status reports.
 // ==========================================================================
 
 import { webcrypto } from "node:crypto";
 import nodemailer from "nodemailer";
-import { buildServiceAnnouncementEmail } from "./lib/email-templates.mjs";
+import { buildServiceAnnouncementEmail, buildPlatformBroadcastEmail } from "./lib/email-templates.mjs";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -142,14 +143,16 @@ export default async (req) => {
   }
 
   const {
-    serviceName = "Eeskia Core Platform",
-    status = "Restored",
-    headline = "Services Fully Restored & Operational",
-    summary = "All platform services, student databases, and academic calculation engines are fully online and performing optimally.",
-    resolution = "System performance was verified and cloud telemetry confirms all endpoints are responsive.",
+    serviceName = "Eeskia Platform Services",
+    status = "Notice",
+    headline = "Announcement from Eeskia Platform",
+    summary = "",
+    message = "",
+    emailStyle = "letter", // "letter" (clean executive format) | "status_report" (technical outage table)
+    resolution = "",
     restoredAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }),
     incidentDuration = "Resolved",
-    actionUrl = "https://eeskia.iskify360.tech/app/",
+    actionUrl = "https://eeskia.iskify360.tech",
     targetSchools = "all", // "all" | string[] of school IDs
     testRecipient = null,
   } = body;
@@ -173,20 +176,29 @@ export default async (req) => {
   // Determine platform SMTP credentials (from Firestore or environment variables)
   const platformUser = platformEmailSettings?.smtpUser || process.env.PLATFORM_EMAIL_USER || process.env.GMAIL_USER;
   const platformPass = platformEmailSettings?.smtpPass || process.env.PLATFORM_EMAIL_PASS || process.env.GMAIL_PASS;
-  const platformSenderName = platformEmailSettings?.senderName || "Eeskia Platform Operations";
+  const platformSenderName = platformEmailSettings?.senderName || "Eeskia Notifications";
   const platformReplyTo = platformEmailSettings?.replyTo || platformUser || "support@eeskia.iskify360.tech";
 
-  // Build the Google-styled announcement email
-  const emailContent = buildServiceAnnouncementEmail({
-    serviceName,
-    status,
-    headline,
-    summary,
-    resolution,
-    restoredAt,
-    incidentDuration,
-    actionUrl,
-  });
+  // Build the email template according to selected style
+  const emailContent = emailStyle === "status_report"
+    ? buildServiceAnnouncementEmail({
+        serviceName,
+        status,
+        headline,
+        summary: summary || message,
+        resolution,
+        restoredAt,
+        incidentDuration,
+        actionUrl,
+      })
+    : buildPlatformBroadcastEmail({
+        title: headline,
+        message: message || summary,
+        ctaLabel: "Open Eeskia Portal",
+        ctaUrl: actionUrl,
+      });
+
+  const plainMessage = message || summary || headline;
 
   // Handle direct test email dispatch
   if (testRecipient) {
@@ -211,8 +223,8 @@ export default async (req) => {
         from: `"${platformSenderName}" <${platformUser}>`,
         to: testRecipient,
         replyTo: platformReplyTo,
-        subject: `[Test Delivery] ${headline}`,
-        text: `${headline}\n\n${summary}\n\nStatus: ${status}\nRestored At: ${restoredAt}\n\nLogin to your dashboard: ${actionUrl}`,
+        subject: emailContent.subject,
+        text: `${headline}\n\n${plainMessage}\n\nEeskia Platform: ${actionUrl}`,
         html: emailContent.html,
       });
 
@@ -309,7 +321,7 @@ export default async (req) => {
           to: adminEmail,
           replyTo: platformReplyTo,
           subject: emailContent.subject,
-          text: `${headline}\n\n${summary}\n\nStatus: ${status}\nRestored At: ${restoredAt}\n\nLogin to your dashboard: ${actionUrl}`,
+          text: `${headline}\n\n${plainMessage}\n\nEeskia Platform: ${actionUrl}`,
           html: emailContent.html,
         });
         broadcastCount++;
@@ -324,7 +336,7 @@ export default async (req) => {
       await addDoc(token, "notifications", {
         schoolId: school.id,
         title: headline,
-        body: `${serviceName}: ${summary}`,
+        body: `${serviceName}: ${plainMessage.slice(0, 200)}...`,
         category: "general",
         channel: "email",
         audience: { type: "staff", label: "School Administration" },

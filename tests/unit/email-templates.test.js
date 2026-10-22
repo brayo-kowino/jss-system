@@ -5,6 +5,7 @@ import {
   buildSubscriptionReminderEmail,
   buildFeeReminderEmail,
   buildGeneralNotificationEmail,
+  buildPlatformBroadcastEmail,
 } from "../../netlify/functions/lib/email-templates.mjs";
 
 describe("Eeskia Email Engine - Branded Email Templates", () => {
@@ -65,6 +66,25 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
     expect(email.html).toContain("12 minutes");
     expect(email.html).toContain("100% Data Integrity Guaranteed");
     expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
+  });
+
+  it("builds clean executive broadcast letters without tables or status pills", () => {
+    const email = buildPlatformBroadcastEmail({
+      title: "End of Term Congratulations & Happy Holidays",
+      message: "Dear School Administrators and Staff,\n\nCongratulations on a successful academic term.\n\nWishing you a restful holiday and a prosperous upcoming academic year.",
+      ctaLabel: "Open Eeskia Portal",
+      ctaUrl: "https://eeskia.iskify360.tech",
+    });
+
+    expect(email.subject).toBe("End of Term Congratulations & Happy Holidays");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
+    expect(email.html).toContain("Congratulations on a successful academic term.");
+    expect(email.html).toContain("Open Eeskia Portal");
+    expect(email.html).toContain("https://eeskia.iskify360.tech");
+    // Assert NO technical tables or status badges
+    expect(email.html).not.toContain("Affected Service");
+    expect(email.html).not.toContain("Outage Duration");
+    expect(email.html).not.toContain("border-radius: 100px; text-transform: uppercase;");
   });
 
   it("builds subscription expiry reminders with countdown", () => {

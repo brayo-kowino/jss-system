@@ -266,7 +266,7 @@ export function renderBaseEmail({
             <td align="center" style="font-size: 11px; color: #94a3b8; line-height: 1.6;">
               <div style="font-weight: 600; color: #64748b;">Eeskia &bull; CBC Grading &amp; School Management</div>
               <div style="margin-top: 3px;">
-                &copy; ${new Date().getFullYear()} Eeskia. All rights reserved. &bull; Kenya Curriculum Compliant
+                &copy; ${new Date().getFullYear()} Eeskia. All rights reserved. &bull; Kenya
               </div>
             </td>
           </tr>
@@ -512,6 +512,44 @@ export function buildGeneralNotificationEmail({
       bodyHtml: paragraphs,
       ctaButton,
       footerText: `Dispatched by ${schoolName || "School Administration"} via Eeskia.`,
+    }),
+  };
+}
+
+
+// --------------------------------------------------------------------------
+// Specialized Template: Platform Broadcast Letter / Executive Announcement
+// Clean letter layout without status pills, server tables, or outage callouts.
+// --------------------------------------------------------------------------
+
+export function buildPlatformBroadcastEmail({
+  title = "Announcement from Eeskia Platform",
+  message = "",
+  bodyHtml = "",
+  ctaLabel = "Open Eeskia Portal",
+  ctaUrl = "https://eeskia.iskify360.tech",
+}) {
+  const content = bodyHtml || (message || "")
+    .split(/\n\n+/)
+    .map((p) => `<p style="margin: 0 0 16px; font-size: 15px; line-height: 1.7; color: #334155;">${escapeHtml(p.trim())}</p>`)
+    .join("");
+
+  return {
+    subject: title,
+    html: renderBaseEmail({
+      brandName: "Eeskia",
+      badgeText: "",
+      title,
+      preheader: title,
+      bodyHtml: content,
+      keyDetails: [],
+      calloutBox: null,
+      ctaButton: ctaUrl && ctaLabel ? {
+        label: ctaLabel,
+        url: ctaUrl,
+        tone: "blue",
+      } : null,
+      footerText: "You are receiving this official communication as an administrator of a registered school on the Eeskia platform.",
     }),
   };
 }

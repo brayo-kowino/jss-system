@@ -145,13 +145,43 @@ function openComposeModal(profile, existing = null) {
   }
   severitySelect.addEventListener("change", refreshHint);
 
-  const titleInput = el("input", { id: "a-title", value: existing?.title || "", placeholder: "e.g. Scheduled maintenance, Saturday 11pm-1am" });
-  const messageTextarea = el("textarea", { id: "a-message", rows: "5", placeholder: "What's happening, and what should staff expect?" }, existing?.message || "");
+  const titleInput = el("input", {
+    id: "a-title",
+    value: existing?.title || "",
+    placeholder: "e.g. End of Term Congratulations & Happy Holidays",
+  });
+  const messageTextarea = el(
+    "textarea",
+    {
+      id: "a-message",
+      rows: "6",
+      placeholder: "Compose your announcement or letter to school administrators and staff...",
+    },
+    existing?.message || ""
+  );
   const expiresInput = el("input", {
     id: "a-expires",
     type: "datetime-local",
     value: existing?.expiresAt ? toDatetimeLocalValue(existing.expiresAt) : "",
   });
+
+  const emailCheckbox = el("input", {
+    type: "checkbox",
+    id: "a-email-broadcast",
+    style: "width:18px; height:18px; cursor:pointer;",
+    onChange: (e) => {
+      const optWrap = document.getElementById("a-email-style-wrap");
+      if (optWrap) optWrap.style.display = e.target.checked ? "block" : "none";
+    },
+  });
+
+  const emailStyleSelect = el("select", {
+    id: "a-email-style",
+    style: "font-size:12px; padding:6px 10px; border-radius:6px; width:100%;",
+  }, [
+    el("option", { value: "letter", selected: "true" }, "Clean Executive Letter (Editorial typography, no tables or pills)"),
+    el("option", { value: "status_report" }, "System Service Report (Includes status pill & server table)"),
+  ]);
 
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Severity"), severitySelect, severityHint]),
@@ -162,11 +192,20 @@ function openComposeModal(profile, existing = null) {
       expiresInput,
       el("p", { class: "text-sm text-muted", style: "margin: 4px 0 0;" }, "Leave blank to keep it up until you End it yourself."),
     ]),
-    el("div", { class: "field", style: "display:flex; align-items:center; gap:8px; margin: 12px 0 20px; padding: 12px; background: var(--color-surface-soft); border-radius: var(--radius-md); border: 1px solid var(--color-line);" }, [
-      el("input", { type: "checkbox", id: "a-email-broadcast", style: "width:18px; height:18px; cursor:pointer;" }),
-      el("label", { for: "a-email-broadcast", style: "margin:0; cursor:pointer; font-weight:600; font-size:var(--fs-sm); color:var(--color-ink);" }, [
-        icon("mail", "text-xs", "style: vertical-align:middle; margin-right:4px; color:var(--color-primary-700);"),
-        "Also email notification to all School Administrators"
+    el("div", {
+      class: "field",
+      style: "margin: 12px 0 20px; padding: 14px; background: var(--color-surface-soft); border-radius: var(--radius-md); border: 1px solid var(--color-line); display:flex; flex-direction:column; gap:10px;",
+    }, [
+      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+        emailCheckbox,
+        el("label", { for: "a-email-broadcast", style: "margin:0; cursor:pointer; font-weight:600; font-size:var(--fs-sm); color:var(--color-ink);" }, [
+          icon("mail", "text-xs", "style: vertical-align:middle; margin-right:4px; color:var(--color-primary-700);"),
+          "Also email notification to all School Administrators",
+        ]),
+      ]),
+      el("div", { id: "a-email-style-wrap", style: "display:none; padding-left:26px;" }, [
+        el("label", { style: "display:block; font-size:12px; color:var(--color-ink-muted); margin-bottom:4px;" }, "Email Presentation Format:"),
+        emailStyleSelect,
       ]),
     ]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [
@@ -182,8 +221,8 @@ function openComposeModal(profile, existing = null) {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
     const payload = {
-      title: titleInput.value,
-      message: messageTextarea.value,
+      title: titleInput.value.trim(),
+      message: messageTextarea.value.trim(),
       severity: severitySelect.value,
       expiresAt: expiresInput.value || null,
     };
@@ -197,21 +236,25 @@ function openComposeModal(profile, existing = null) {
       }
 
       if (document.getElementById("a-email-broadcast")?.checked) {
+        const style = document.getElementById("a-email-style")?.value || "letter";
         try {
           const res = await fetch("/.netlify/functions/broadcast-service-announcement", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              serviceName: "Eeskia Platform Services",
-              status: payload.severity === "critical" ? "Notice" : (payload.severity === "warning" ? "Maintenance" : "Restored"),
+              serviceName: "Eeskia Platform Operations",
+              emailStyle: style,
               headline: payload.title,
+              message: payload.message,
               summary: payload.message,
             }),
           });
           if (res.ok) {
             const data = await res.json();
             if (data.broadcastCount > 0) {
-              toast(`Email announcement sent to ${data.broadcastCount} school admin(s).`, "success");
+              toast(`Email letter dispatched to ${data.broadcastCount} school administrator(s).`, "success");
+            } else if (data.error) {
+              toast(`Email notice: ${data.error}`, "warning");
             }
           }
         } catch (mailErr) {
