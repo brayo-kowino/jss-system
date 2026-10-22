@@ -68,6 +68,13 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "platform-settings-wrap" });
 
+  // Clean, minimal header
+  wrap.append(
+    el("div", { class: "page-header", style: "margin-bottom:var(--sp-4);" }, [
+      el("h2", { style: "margin:0;" }, "Platform Settings"),
+    ])
+  );
+
   // Tabs Navigation
   const tabsNav = el("div", { class: "profile-tabs no-print", style: "margin-bottom:var(--sp-4);" });
   const activeTab = getActiveTabFromUrl();
@@ -380,27 +387,32 @@ function buildEmailTab(profile) {
         type: "button",
         class: "btn btn--outline btn--xs",
         onClick: async (e) => {
+          const defaultEmail = profile.email || emailSettings.smtpUser || emailSettings.senderEmail || "";
+          const targetEmail = prompt("Enter recipient email address to send a test message:", defaultEmail);
+          if (!targetEmail || !targetEmail.trim()) return;
+
           const restore = busyButton(e.currentTarget, "Sending…");
           try {
             const res = await fetch("/.netlify/functions/broadcast-service-announcement", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                serviceName: "Eeskia Email Test",
+                serviceName: "Eeskia Platform Operations",
                 status: "Restored",
-                headline: "Email Engine Test: Operational",
-                summary: "Live test of Google-styled email engine.",
-                resolution: "Verified delivery.",
-                targetSchools: [],
+                headline: "Email Engine Test: Verified Operational",
+                summary: "This is a live test of the Eeskia email delivery system. Google-styled transactional and platform notification delivery is fully functional.",
+                resolution: "SMTP gateway connectivity verified.",
+                testRecipient: targetEmail.trim(),
               }),
             });
-            if (res.ok) {
-              toast("Test processed.", "success");
+            const data = await res.json().catch(() => null);
+            if (res.ok && data?.success && data?.broadcastCount > 0) {
+              toast(`Test email sent to ${data.dispatchedTo.join(", ")}. Check your inbox.`, "success");
             } else {
-              toast("Response: " + (await res.text()), "info");
+              toast(data?.error || "Email delivery failed. Please check SMTP configuration.", "error");
             }
           } catch (err) {
-            toast(err.message || "Test failed.", "error");
+            toast(err.message || "Test delivery failed.", "error");
           } finally {
             restore();
           }
@@ -409,18 +421,70 @@ function buildEmailTab(profile) {
     ])
   );
 
+  const smtpUserInput = el("input", {
+    type: "email",
+    placeholder: "e.g. notifications@eeskia.iskify360.tech or your-admin@gmail.com",
+    value: emailSettings.smtpUser || "",
+  });
+
+  const smtpPassInput = el("input", {
+    type: "password",
+    placeholder: "16-character Google App Password (•••• •••• •••• ••••)",
+    value: emailSettings.smtpPass || "",
+    autocomplete: "off",
+  });
+
+  const passWrap = el("div", { class: "input-with-action" }, [
+    smtpPassInput,
+    el("button", {
+      type: "button",
+      class: "input-with-action__btn",
+      title: "Toggle password visibility",
+      tabindex: "-1",
+      onClick: () => {
+        const isPass = smtpPassInput.type === "password";
+        smtpPassInput.type = isPass ? "text" : "password";
+      },
+    }, [icon("visibility", "text-xs")]),
+  ]);
+
   const senderNameInput = el("input", { type: "text", value: emailSettings.senderName || "Eeskia Platform Operations" });
   const senderEmailInput = el("input", { type: "email", value: emailSettings.senderEmail || "support@eeskia.iskify360.tech" });
   const replyToInput = el("input", { type: "email", value: emailSettings.replyTo || "support@eeskia.iskify360.tech" });
 
-  const form = el("form", { style: "display:flex; flex-direction:column; gap:14px;" }, [
-    el("div", { class: "filter-grid" }, [
-      el("div", { class: "field" }, [el("label", {}, "Sender Name"), senderNameInput]),
-      el("div", { class: "field" }, [el("label", {}, "Sender Email"), senderEmailInput]),
-      el("div", { class: "field" }, [el("label", {}, "Reply-To Email"), replyToInput]),
+  const form = el("form", { style: "display:flex; flex-direction:column; gap:16px;" }, [
+    el("div", { style: "border-bottom:1px solid var(--color-line); padding-bottom:12px;" }, [
+      el("div", { style: "font-weight:600; font-size:14px; margin-bottom:10px; display:flex; align-items:center; gap:6px;" }, [
+        icon("forward_to_inbox", "text-xs"),
+        "SMTP Gateway (Google Workspace / Gmail)",
+      ]),
+      el("div", { class: "filter-grid" }, [
+        el("div", { class: "field" }, [
+          el("label", {}, "SMTP Gmail Address"),
+          smtpUserInput,
+          el("small", { class: "text-muted", style: "font-size:11px;" }, "Google/Gmail account used to authenticate and send"),
+        ]),
+        el("div", { class: "field" }, [
+          el("label", {}, "Google App Password"),
+          passWrap,
+          el("small", { class: "text-muted", style: "font-size:11px;" }, "16-char password from Google Account > Security > 2-Step > App Passwords"),
+        ]),
+      ]),
     ]),
 
-    el("div", { style: "display:flex; flex-direction:column; gap:8px; margin-top:4px;" }, [
+    el("div", { style: "border-bottom:1px solid var(--color-line); padding-bottom:12px;" }, [
+      el("div", { style: "font-weight:600; font-size:14px; margin-bottom:10px; display:flex; align-items:center; gap:6px;" }, [
+        icon("badge", "text-xs"),
+        "Sender Identity & Branding",
+      ]),
+      el("div", { class: "filter-grid" }, [
+        el("div", { class: "field" }, [el("label", {}, "Sender Display Name"), senderNameInput]),
+        el("div", { class: "field" }, [el("label", {}, "Display Email"), senderEmailInput]),
+        el("div", { class: "field" }, [el("label", {}, "Reply-To Email"), replyToInput]),
+      ]),
+    ]),
+
+    el("div", { style: "display:flex; flex-direction:column; gap:8px;" }, [
       el("label", { style: "display:flex; align-items:center; gap:8px; font-size:var(--fs-sm); cursor:pointer;" }, [
         el("input", { type: "checkbox", id: "pe-sub-reminders", checked: emailSettings.enableSubscriptionReminderEmails !== false, style: "width:16px; height:16px;" }),
         "Automated subscription expiry countdown emails (7d, 3d, 1d)",
@@ -431,8 +495,8 @@ function buildEmailTab(profile) {
       ]),
     ]),
 
-    el("div", { style: "display:flex; justify-content:flex-end; margin-top:8px;" }, [
-      el("button", { type: "submit", class: "btn btn--primary btn--sm" }, [icon("save", "text-xs"), "Save"]),
+    el("div", { style: "display:flex; justify-content:flex-end; margin-top:4px;" }, [
+      el("button", { type: "submit", class: "btn btn--primary btn--sm" }, [icon("save", "text-xs"), "Save Settings"]),
     ]),
   ]);
 
@@ -440,6 +504,8 @@ function buildEmailTab(profile) {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
     const payload = {
+      smtpUser: smtpUserInput.value.trim(),
+      smtpPass: smtpPassInput.value.trim(),
       senderName: senderNameInput.value.trim(),
       senderEmail: senderEmailInput.value.trim(),
       replyTo: replyToInput.value.trim(),

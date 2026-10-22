@@ -1,7 +1,7 @@
 // ==========================================================================
 // Eeskia Platform Service Announcement & Restoration Email Broadcaster
 // Dispatches Google-styled announcements (e.g. Service Restored, Maintenance,
-// Platform News) to all school administrators.
+// Platform News) to all school administrators, or sends a test email to a specific admin.
 // ==========================================================================
 
 import { webcrypto } from "node:crypto";
@@ -94,6 +94,13 @@ function fsDocToObject(doc) {
   return out;
 }
 
+async function getDoc(token, path) {
+  const res = await fetch(`${FIRESTORE_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Firestore get failed: ${res.status}`);
+  return fsDocToObject(await res.json());
+}
+
 async function runQuery(token, collectionId, filters = []) {
   const structuredQuery = { from: [{ collectionId }], limit: 1000 };
   if (filters.length === 1) {
@@ -144,6 +151,7 @@ export default async (req) => {
     incidentDuration = "Resolved",
     actionUrl = "https://eeskia.iskify360.tech/app/",
     targetSchools = "all", // "all" | string[] of school IDs
+    testRecipient = null,
   } = body;
 
   let token;
@@ -154,7 +162,82 @@ export default async (req) => {
     return new Response("Auth failed", { status: 500 });
   }
 
-  // 1. Fetch schools and admin users in parallel
+  // 1. Fetch platform email settings from Firestore if available
+  let platformEmailSettings = null;
+  try {
+    platformEmailSettings = await getDoc(token, "platform_settings/email");
+  } catch (err) {
+    console.warn("broadcast-service-announcement: platform_settings/email fetch skipped", err);
+  }
+
+  // Determine platform SMTP credentials (from Firestore or environment variables)
+  const platformUser = platformEmailSettings?.smtpUser || process.env.PLATFORM_EMAIL_USER || process.env.GMAIL_USER;
+  const platformPass = platformEmailSettings?.smtpPass || process.env.PLATFORM_EMAIL_PASS || process.env.GMAIL_PASS;
+  const platformSenderName = platformEmailSettings?.senderName || "Eeskia Platform Operations";
+  const platformReplyTo = platformEmailSettings?.replyTo || platformUser || "support@eeskia.iskify360.tech";
+
+  // Build the Google-styled announcement email
+  const emailContent = buildServiceAnnouncementEmail({
+    serviceName,
+    status,
+    headline,
+    summary,
+    resolution,
+    restoredAt,
+    incidentDuration,
+    actionUrl,
+  });
+
+  // Handle direct test email dispatch
+  if (testRecipient) {
+    if (!platformUser || !platformPass) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          broadcastCount: 0,
+          error: "No platform SMTP gateway configured. Please enter your Gmail address and 16-character Google App Password in Platform Email Settings.",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    try {
+      const testTransporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: platformUser, pass: platformPass },
+      });
+
+      await testTransporter.sendMail({
+        from: `"${platformSenderName}" <${platformUser}>`,
+        to: testRecipient,
+        replyTo: platformReplyTo,
+        subject: `[Test Delivery] ${headline}`,
+        text: `${headline}\n\n${summary}\n\nStatus: ${status}\nRestored At: ${restoredAt}\n\nLogin to your dashboard: ${actionUrl}`,
+        html: emailContent.html,
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          broadcastCount: 1,
+          dispatchedTo: [testRecipient],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (testErr) {
+      console.error("broadcast-service-announcement test delivery error:", testErr);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          broadcastCount: 0,
+          error: `SMTP delivery failed: ${testErr.message || "Unknown error"}. Check that your 16-character Google App Password is correct.`,
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  // 2. Fetch schools and admin users in parallel for broadcasts
   let schools = [];
   let schoolAdminMap = new Map();
   try {
@@ -177,21 +260,18 @@ export default async (req) => {
     ? schools
     : schools.filter((s) => Array.isArray(targetSchools) && targetSchools.includes(s.id));
 
-  // Build the Google-styled announcement email
-  const emailContent = buildServiceAnnouncementEmail({
-    serviceName,
-    status,
-    headline,
-    summary,
-    resolution,
-    restoredAt,
-    incidentDuration,
-    actionUrl,
-  });
-
-  // Check for platform SMTP credentials, or fallback to per-school verified SMTP
-  const platformUser = process.env.PLATFORM_EMAIL_USER || process.env.GMAIL_USER;
-  const platformPass = process.env.PLATFORM_EMAIL_PASS || process.env.GMAIL_PASS;
+  if (targetList.length === 0) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        broadcastCount: 0,
+        targetSchoolsCount: 0,
+        dispatchedTo: [],
+        error: "No target schools matched the criteria.",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   let platformTransporter = null;
   if (platformUser && platformPass) {
@@ -208,7 +288,6 @@ export default async (req) => {
     const adminEmail = school.adminEmail || schoolAdminMap.get(school.id) || school.email;
     const schoolProviders = school.notificationProviders || {};
 
-    // Determine transporter: platform transporter if available, or school's configured gateway
     let transporter = platformTransporter;
     let senderAddress = platformUser || "support@eeskia.iskify360.tech";
 
@@ -226,8 +305,9 @@ export default async (req) => {
     if (adminEmail && transporter) {
       try {
         await transporter.sendMail({
-          from: `"Eeskia Platform Operations" <${senderAddress}>`,
+          from: `"${platformSenderName}" <${senderAddress}>`,
           to: adminEmail,
+          replyTo: platformReplyTo,
           subject: emailContent.subject,
           text: `${headline}\n\n${summary}\n\nStatus: ${status}\nRestored At: ${restoredAt}\n\nLogin to your dashboard: ${actionUrl}`,
           html: emailContent.html,
@@ -239,7 +319,7 @@ export default async (req) => {
       }
     }
 
-    // Also write in-app notification doc for the school's admin notifications dashboard
+    // In-app notification doc for the school's admin notifications dashboard
     try {
       await addDoc(token, "notifications", {
         schoolId: school.id,

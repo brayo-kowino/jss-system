@@ -252,7 +252,7 @@ export function renderBaseEmail({
           </tr>
         </table>
 
-        <!-- Outer Footer (Google style) -->
+        <!-- Outer Footer -->
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top: 20px;">
           <tr>
             <td align="center" style="font-size: 11px; color: #94a3b8; line-height: 1.6;">

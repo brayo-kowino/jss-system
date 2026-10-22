@@ -22,6 +22,8 @@ const DEFAULT_SECURITY_SETTINGS = {
 };
 
 const DEFAULT_EMAIL_SETTINGS = {
+  smtpUser: "",
+  smtpPass: "",
   senderName: "Eeskia Platform Operations",
   senderEmail: "support@eeskia.iskify360.tech",
   replyTo: "support@eeskia.iskify360.tech",

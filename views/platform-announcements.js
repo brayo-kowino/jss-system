@@ -166,7 +166,7 @@ function openComposeModal(profile, existing = null) {
       el("input", { type: "checkbox", id: "a-email-broadcast", style: "width:18px; height:18px; cursor:pointer;" }),
       el("label", { for: "a-email-broadcast", style: "margin:0; cursor:pointer; font-weight:600; font-size:var(--fs-sm); color:var(--color-ink);" }, [
         icon("mail", "text-xs", "style: vertical-align:middle; margin-right:4px; color:var(--color-primary-700);"),
-        "Also email as Google-styled notification to all School Administrators"
+        "Also email notification to all School Administrators"
       ]),
     ]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [
