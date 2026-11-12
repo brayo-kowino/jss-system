@@ -176,6 +176,393 @@ function teacherTimetableCacheKey(teacherId) {
   return `timetable_teacher:${getCurrentSchoolId()}:${teacherId}`;
 }
 
+function masterTimetableCacheKey() {
+  return `timetable_master:${getCurrentSchoolId()}`;
+}
+
+/** Returns all timetable slots for the school. */
+export async function getMasterTimetable(forceRefresh = false) {
+  const key = masterTimetableCacheKey();
+  if (forceRefresh) invalidate(key);
+  return cached(key, 60 * 60_000, async () => {
+    const snap = await getDocs(
+      query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()))
+    );
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  });
+}
+
+/**
+ * Scans a list of slots and identifies any teacher or room double-bookings.
+ * Returns an array of detected conflict descriptors.
+ */
+export function detectTimetableConflicts(slots) {
+  const conflicts = [];
+  const byDayPeriodTeacher = new Map();
+  const byDayPeriodRoom = new Map();
+
+  for (const slot of slots) {
+    if (!slot.day || !slot.periodId) continue;
+    const classLabel = `${slot.grade || ""}${slot.stream ? " " + slot.stream : ""}`.trim();
+
+    // Check teacher collision (only if a teacher is assigned)
+    if (slot.teacherId) {
+      const key = `${slot.day}_${slot.periodId}_${slot.teacherId}`;
+      if (!byDayPeriodTeacher.has(key)) {
+        byDayPeriodTeacher.set(key, []);
+      }
+      byDayPeriodTeacher.get(key).push({ ...slot, classLabel });
+    }
+
+    // Check room collision (only if room is specified)
+    const room = (slot.room || "").trim().toLowerCase();
+    if (room) {
+      const key = `${slot.day}_${slot.periodId}_${room}`;
+      if (!byDayPeriodRoom.has(key)) {
+        byDayPeriodRoom.set(key, []);
+      }
+      byDayPeriodRoom.get(key).push({ ...slot, classLabel });
+    }
+  }
+
+  for (const [key, group] of byDayPeriodTeacher.entries()) {
+    if (group.length > 1) {
+      const sample = group[0];
+      const classes = group.map((s) => s.classLabel).join(" & ");
+      conflicts.push({
+        type: "teacher",
+        key,
+        day: sample.day,
+        periodId: sample.periodId,
+        teacherId: sample.teacherId,
+        teacherName: sample.teacherName || "Teacher",
+        classes: group.map((s) => s.classLabel),
+        slotIds: group.map((s) => s.id),
+        message: `${sample.teacherName || "Teacher"} is double-booked on ${sample.day} in ${classes}.`,
+      });
+    }
+  }
+
+  for (const [key, group] of byDayPeriodRoom.entries()) {
+    if (group.length > 1) {
+      const sample = group[0];
+      const classes = group.map((s) => s.classLabel).join(" & ");
+      conflicts.push({
+        type: "room",
+        key,
+        day: sample.day,
+        periodId: sample.periodId,
+        room: sample.room,
+        classes: group.map((s) => s.classLabel),
+        slotIds: group.map((s) => s.id),
+        message: `Room "${sample.room}" is double-booked on ${sample.day} in ${classes}.`,
+      });
+    }
+  }
+
+  return conflicts;
+}
+
+/**
+ * Pure scheduler that distributes subjects and teachers across instructional periods
+ * guaranteeing ZERO teacher collisions and balanced daily distribution.
+ */
+export function buildCollisionFreeSchedule({
+  cohorts, // [{ grade, stream }]
+  instructionalPeriods, // [{ id, name, startTime, endTime }]
+  days = DAYS,
+  subjects = [],
+  teachers = [],
+}) {
+  if (!cohorts || !cohorts.length) throw new Error("No classes found to generate timetable for.");
+  if (!instructionalPeriods || !instructionalPeriods.length) throw new Error("No instructional periods found.");
+
+  const totalPeriodsPerDay = instructionalPeriods.length;
+  const totalSlotsPerWeek = days.length * totalPeriodsPerDay;
+
+  // Standard CBC lessons per week distribution
+  const defaultLessonDistribution = {
+    MATH: 5,
+    ENG: 5,
+    KIS: 4,
+    SCI: 4,
+    AGR: 4,
+    PTS: 4,
+    SST: 3,
+    CRE: 3,
+    IRE: 3,
+    HRE: 3,
+    CRA: 5,
+  };
+
+  const generatedSlots = [];
+  const cohortPools = new Map();
+
+  for (const cohort of cohorts) {
+    const cohortKey = `${cohort.grade}_${cohort.stream}`;
+    const pool = [];
+
+    for (const subj of subjects) {
+      // Find teacher assigned to this cohort and subject
+      let assignedTeacher = teachers.find((t) =>
+        (t.teachingAssignments || []).some(
+          (a) =>
+            a.subjectCode === subj.code &&
+            a.grade === cohort.grade &&
+            (!a.stream || a.stream === cohort.stream)
+        )
+      );
+      if (!assignedTeacher) {
+        assignedTeacher = teachers.find((t) =>
+          (t.teachingAssignments || []).some(
+            (a) => a.subjectCode === subj.code && a.grade === cohort.grade
+          )
+        );
+      }
+      if (!assignedTeacher) {
+        assignedTeacher = teachers.find((t) =>
+          (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code)
+        );
+      }
+
+      const count = defaultLessonDistribution[subj.code] || 3;
+      for (let i = 0; i < count; i++) {
+        pool.push({
+          subjectCode: subj.code,
+          subjectName: subj.name,
+          teacherId: assignedTeacher?.id || "",
+          teacherName: assignedTeacher?.fullName || "",
+        });
+      }
+    }
+
+    // Pad or trim pool to match total weekly slots exactly
+    if (pool.length < totalSlotsPerWeek && subjects.length > 0) {
+      let subjIdx = 0;
+      while (pool.length < totalSlotsPerWeek) {
+        const subj = subjects[subjIdx % subjects.length];
+        const assignedTeacher = teachers.find((t) =>
+          (t.teachingAssignments || []).some(
+            (a) =>
+              a.subjectCode === subj.code &&
+              a.grade === cohort.grade &&
+              (!a.stream || a.stream === cohort.stream)
+          )
+        ) || teachers.find((t) => (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code));
+
+        pool.push({
+          subjectCode: subj.code,
+          subjectName: subj.name,
+          teacherId: assignedTeacher?.id || "",
+          teacherName: assignedTeacher?.fullName || "",
+        });
+        subjIdx++;
+      }
+    } else if (pool.length > totalSlotsPerWeek) {
+      pool.length = totalSlotsPerWeek;
+    }
+
+    cohortPools.set(cohortKey, pool);
+  }
+
+  // Calculate teacher workloads to prioritize highly-loaded teachers
+  const teacherFrequency = new Map();
+  for (const [, pool] of cohortPools.entries()) {
+    for (const card of pool) {
+      if (card.teacherId) {
+        teacherFrequency.set(card.teacherId, (teacherFrequency.get(card.teacherId) || 0) + 1);
+      }
+    }
+  }
+
+  const cohortDaySubjectCount = new Map();
+
+  for (const day of days) {
+    for (const period of instructionalPeriods) {
+      const busyTeachersInSlot = new Set();
+
+      // Sort cohorts so cohorts with heavily-loaded teachers are placed first
+      const sortedCohorts = [...cohorts].sort((a, b) => {
+        const poolA = cohortPools.get(`${a.grade}_${a.stream}`) || [];
+        const poolB = cohortPools.get(`${b.grade}_${b.stream}`) || [];
+        const maxWorkloadA = poolA.reduce((max, c) => Math.max(max, teacherFrequency.get(c.teacherId) || 0), 0);
+        const maxWorkloadB = poolB.reduce((max, c) => Math.max(max, teacherFrequency.get(c.teacherId) || 0), 0);
+        return maxWorkloadB - maxWorkloadA;
+      });
+
+      for (const cohort of sortedCohorts) {
+        const cohortKey = `${cohort.grade}_${cohort.stream}`;
+        const pool = cohortPools.get(cohortKey) || [];
+
+        let bestIndex = -1;
+        let bestScore = -Infinity;
+
+        for (let i = 0; i < pool.length; i++) {
+          const card = pool[i];
+          // STRICT COLLISION PREVENTION: Skip if this teacher is already teaching in this slot
+          if (card.teacherId && busyTeachersInSlot.has(card.teacherId)) {
+            continue;
+          }
+
+          const dailyCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
+          // Prefer not exceeding 2 lessons of the same subject on the same day
+          if (dailyCount >= 2 && pool.some((c) => (cohortDaySubjectCount.get(`${cohortKey}_${day}_${c.subjectCode}`) || 0) < 2 && (!c.teacherId || !busyTeachersInSlot.has(c.teacherId)))) {
+            continue;
+          }
+
+          let score = 0;
+          if (card.teacherId) {
+            score += (teacherFrequency.get(card.teacherId) || 0) * 10;
+          }
+          if (dailyCount === 0) score += 5;
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestIndex = i;
+          }
+        }
+
+        // Fallback: any card that does not cause a teacher collision
+        if (bestIndex === -1) {
+          for (let i = 0; i < pool.length; i++) {
+            const card = pool[i];
+            if (!card.teacherId || !busyTeachersInSlot.has(card.teacherId)) {
+              bestIndex = i;
+              break;
+            }
+          }
+        }
+
+        if (bestIndex !== -1) {
+          const [selectedCard] = pool.splice(bestIndex, 1);
+          if (selectedCard.teacherId) {
+            busyTeachersInSlot.add(selectedCard.teacherId);
+          }
+          const dailyKey = `${cohortKey}_${day}_${selectedCard.subjectCode}`;
+          cohortDaySubjectCount.set(dailyKey, (cohortDaySubjectCount.get(dailyKey) || 0) + 1);
+
+          generatedSlots.push({
+            grade: cohort.grade,
+            stream: cohort.stream,
+            day,
+            periodId: period.id,
+            subjectCode: selectedCard.subjectCode,
+            subjectName: selectedCard.subjectName,
+            teacherId: selectedCard.teacherId || "",
+            teacherName: selectedCard.teacherName || "",
+            room: "",
+          });
+        }
+      }
+    }
+  }
+
+  return generatedSlots;
+}
+
+/**
+ * Generates and commits a collision-free master timetable across all classes in the school.
+ */
+export async function generateCollisionFreeTimetable(userId, { classes, subjects, teachers, periods, days = DAYS }) {
+  const schoolId = getCurrentSchoolId();
+  const instructionalPeriods = periods.filter((p) => !p.isBreak);
+
+  const cohorts = [];
+  for (const c of classes) {
+    if (!c.streams || !c.streams.length) {
+      cohorts.push({ grade: c.grade, stream: "" });
+    } else {
+      for (const s of c.streams) {
+        cohorts.push({ grade: c.grade, stream: s });
+      }
+    }
+  }
+
+  const generated = buildCollisionFreeSchedule({
+    cohorts,
+    instructionalPeriods,
+    days,
+    subjects,
+    teachers,
+  });
+
+  const conflicts = detectTimetableConflicts(generated);
+
+  // Commit in chunks of 450 to respect Firestore batch limits
+  const BATCH_SIZE = 450;
+  for (let i = 0; i < generated.length; i += BATCH_SIZE) {
+    const chunk = generated.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(db);
+    for (const slot of chunk) {
+      const id = slotId(schoolId, slot.grade, slot.stream, slot.day, slot.periodId);
+      batch.set(
+        doc(db, "timetable_slots", id),
+        {
+          ...slot,
+          schoolId,
+          updatedBy: userId,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+    await batch.commit();
+  }
+
+  invalidatePrefix(`timetable_class:${schoolId}`);
+  invalidatePrefix(`timetable_teacher:${schoolId}`);
+  invalidate(masterTimetableCacheKey());
+  await logAction(userId, "generate_master_timetable", "timetable_slots", schoolId);
+
+  return { totalSlots: generated.length, conflictsCount: conflicts.length };
+}
+
+/** Clears all timetable slots for the entire school. */
+export async function clearAllTimetableSlots(userId) {
+  const schoolId = getCurrentSchoolId();
+  const snap = await getDocs(
+    query(collection(db, "timetable_slots"), where("schoolId", "==", schoolId))
+  );
+  const docs = snap.docs;
+  const BATCH_SIZE = 450;
+  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+    const chunk = docs.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(db);
+    for (const d of chunk) {
+      batch.delete(doc(db, "timetable_slots", d.id));
+    }
+    await batch.commit();
+  }
+
+  invalidatePrefix(`timetable_class:${schoolId}`);
+  invalidatePrefix(`timetable_teacher:${schoolId}`);
+  invalidate(masterTimetableCacheKey());
+  await logAction(userId, "clear_all_timetable_slots", "timetable_slots", schoolId);
+}
+
+/** Clears all timetable slots for a specific class cohort. */
+export async function clearClassTimetableSlots(userId, grade, stream) {
+  const schoolId = getCurrentSchoolId();
+  const snap = await getDocs(
+    query(
+      collection(db, "timetable_slots"),
+      where("schoolId", "==", schoolId),
+      where("grade", "==", grade),
+      where("stream", "==", stream)
+    )
+  );
+  const batch = writeBatch(db);
+  for (const d of snap.docs) {
+    batch.delete(doc(db, "timetable_slots", d.id));
+  }
+  await batch.commit();
+
+  invalidate(classTimetableCacheKey(grade, stream));
+  invalidatePrefix(`timetable_teacher:${schoolId}`);
+  invalidate(masterTimetableCacheKey());
+  await logAction(userId, "clear_class_timetable_slots", "timetable_slots", `${grade}_${stream}`);
+}
+
 /** Returns a lookup map keyed by "day_periodId" for easy grid rendering. */
 export async function getClassTimetable(grade, stream, forceRefresh = false) {
   const key = classTimetableCacheKey(grade, stream);
@@ -257,6 +644,7 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
     updatedAt: serverTimestamp(),
   });
   invalidate(classTimetableCacheKey(grade, stream));
+  invalidate(masterTimetableCacheKey());
   // A reassignment can also change (or clear) a *different* teacher's prior
   // booking of this exact slot, which we don't have loaded here without an
   // extra read - invalidate every cached teacher timetable for the school
@@ -272,6 +660,7 @@ export async function clearSlot(userId, grade, stream, day, periodId) {
   const id = slotId(schoolId, grade, stream, day, periodId);
   await deleteDoc(doc(db, "timetable_slots", id));
   invalidate(classTimetableCacheKey(grade, stream));
+  invalidate(masterTimetableCacheKey());
   invalidatePrefix(`timetable_teacher:${schoolId}`);
   await logAction(userId, "clear_timetable_slot", "timetable_slots", id);
 }

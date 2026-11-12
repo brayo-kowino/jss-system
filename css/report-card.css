@@ -370,12 +370,22 @@
 }
 .receipt__footer { text-align: center; font-size: var(--fs-xs); color: var(--color-ink-soft); margin-top: var(--sp-3); }
 
-/* --- Print: show only the report card or receipt, one clean page --- */
+/* --- Print: show only the report card, receipt, or timetable, one clean page --- */
 @media print {
   body * { visibility: hidden; }
-  .report-card, .report-card *, .receipt, .receipt * { visibility: visible; }
+  .report-card, .report-card *, .receipt, .receipt *, .timetable-print-sheet, .timetable-print-sheet * { visibility: visible; }
   .report-card, .receipt { position: absolute; inset: 0; margin: 0 auto; max-width: 420px; box-shadow: none; border: none; }
   .report-card { max-width: none; }
+  .timetable-print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
   .no-print { display: none !important; }
 }.report-card__chart {
   display: flex;

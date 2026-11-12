@@ -1,8 +1,94 @@
 import { resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import JavaScriptObfuscator from "javascript-obfuscator";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
+
+const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const appVersion = pkg.version || "1.0.0";
+let gitCommit = process.env.COMMIT_REF || "";
+if (!gitCommit) {
+  try {
+    gitCommit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    gitCommit = "";
+  }
+}
+const buildTimestamp = Date.now();
+const buildId = `${appVersion}.${gitCommit || buildTimestamp.toString(36)}`;
+const buildTime = new Date().toISOString();
+
+function versionTrackerPlugin() {
+  return {
+    name: "version-tracker",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === "/version.json") {
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.end(
+            JSON.stringify(
+              {
+                version: appVersion,
+                buildId,
+                builtAt: buildTime,
+                dev: true,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
+        next();
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify(
+          {
+            version: appVersion,
+            buildId,
+            builtAt: buildTime,
+          },
+          null,
+          2
+        ),
+      });
+    },
+    closeBundle() {
+      // Stamp the exact buildId into dist/sw.js so the service worker gets a fresh byte fingerprint
+      const swDistPath = resolve(root, "dist/sw.js");
+      if (existsSync(swDistPath)) {
+        let swContent = readFileSync(swDistPath, "utf8");
+        swContent = swContent.replace(
+          /const CACHE_VERSION = ["'][^"']+["'];/,
+          `const CACHE_VERSION = "eeskia-${buildId}";`
+        );
+        writeFileSync(swDistPath, swContent, "utf8");
+      }
+      // Also ensure public/version.json is synced on disk
+      const publicVersionPath = resolve(root, "public/version.json");
+      writeFileSync(
+        publicVersionPath,
+        JSON.stringify(
+          {
+            version: appVersion,
+            buildId,
+            builtAt: buildTime,
+          },
+          null,
+          2
+        ),
+        "utf8"
+      );
+    },
+  };
+}
 
 // --------------------------------------------------------------------------
 // These are already-whitelisted (in netlify.toml's CSP script-src) CDN ESM
@@ -130,5 +216,10 @@ export default {
       },
     },
   },
-  plugins: [obfuscatorPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+    __APP_BUILD_ID__: JSON.stringify(buildId),
+    __APP_BUILD_TIME__: JSON.stringify(buildTime),
+  },
+  plugins: [versionTrackerPlugin(), obfuscatorPlugin()],
 };

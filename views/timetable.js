@@ -1,5 +1,6 @@
 import { listClasses, listSubjects } from "../js/services/academic.service.js";
 import { listTeachers, getTeacherByUserId, getTeacherByEmail } from "../js/services/teacher.service.js";
+import { getSchoolSettings } from "../js/services/settings.service.js";
 import {
   DAYS,
   listPeriods,
@@ -9,6 +10,11 @@ import {
   deletePeriod,
   getClassTimetable,
   getTeacherTimetable,
+  getMasterTimetable,
+  detectTimetableConflicts,
+  generateCollisionFreeTimetable,
+  clearAllTimetableSlots,
+  clearClassTimetableSlots,
   assignSlot,
   clearSlot,
 } from "../js/services/timetable.service.js";
@@ -16,61 +22,77 @@ import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
-// Only these roles ever need the *full* teacher roster (assign-slot modal's
-// teacher dropdown, or the "pick any teacher" selector below) - everyone
-// else only ever looks up their own linked teacher record. firestore.rules
-// only lets these roles list the whole `teachers` collection; a class_teacher/
-// subject_teacher/bursar/registrar calling listTeachers() gets the entire
-// query denied (Firestore can't verify every doc in a multi-doc query
-// satisfies an "own record" rule), which used to throw out of render()
-// itself and land everyone but these roles on the generic access-denied
-// error card just for opening the Timetable page.
 const CAN_SEE_ALL_TEACHERS = ["admin", "academic_master", "principal", "deputy_principal"];
 
 let classes = [];
 let subjects = [];
 let teachers = [];
 let periods = [];
+let schoolSettings = {};
+
 let classSelection = { grade: "", stream: "" };
 let classSlots = {};
 let teacherSelection = { teacherId: "" };
 let teacherSlots = {};
-let activeTab = "classes"; // "classes" | "teachers" | "periods"
+let masterSlots = [];
+let masterConflicts = [];
+let masterDayFilter = "All"; // "All" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday"
+let activeTab = "master"; // "master" | "classes" | "teachers" | "periods"
 
-/**
- * Contextual help tooltip using dark-slate bubble styling.
- */
-function infoTooltip(title, text, align = "center") {
-  const alignClass = align === "right" ? " tooltip-bubble--right" : (align === "left" ? " tooltip-bubble--left" : "");
-  return el("span", {
-    class: "tooltip-wrap tooltip-wrap--inline",
-    tabindex: "0",
-    role: "button",
-    "aria-label": title,
-  }, [
-    el("span", { class: "tooltip-trigger-icon material-symbols-rounded" }, "help"),
-    el("span", { class: `tooltip-bubble tooltip-bubble--wide${alignClass}`, role: "tooltip" }, [
-      el("span", { class: "tooltip-bubble__title" }, [
-        icon("info"),
-        title,
-      ]),
-      el("span", { class: "tooltip-bubble__text" }, text),
-    ]),
-  ]);
+// ---------------------------------------------------------------- Helpers --
+
+export function getClassTeacher(allTeachers, grade, stream) {
+  if (!allTeachers || !allTeachers.length) return null;
+  const target = stream ? `${grade}|${stream}` : `${grade}|`;
+  let t = allTeachers.find((x) => x.homeroom === target);
+  if (!t && stream) {
+    t = allTeachers.find((x) => x.homeroom === `${grade}|`);
+  }
+  return t || null;
+}
+
+export function getAssignedClassSubjectTeacher(allTeachers, grade, stream, subjectCode) {
+  if (!allTeachers || !allTeachers.length || !subjectCode) return null;
+  return (
+    allTeachers.find((t) =>
+      (t.teachingAssignments || []).some(
+        (a) =>
+          a.subjectCode === subjectCode &&
+          a.grade === grade &&
+          (!a.stream || a.stream === stream)
+      )
+    ) ||
+    allTeachers.find((t) =>
+      (t.teachingAssignments || []).some(
+        (a) => a.subjectCode === subjectCode && a.grade === grade
+      )
+    ) ||
+    null
+  );
+}
+
+function getAllCohorts() {
+  const opts = [];
+  for (const c of classes) {
+    if (!c.streams || c.streams.length === 0) {
+      opts.push({ grade: c.grade, stream: "", label: c.grade });
+    } else {
+      for (const s of c.streams) {
+        opts.push({ grade: c.grade, stream: s, label: `${c.grade} ${s}` });
+      }
+    }
+  }
+  return opts;
 }
 
 /**
- * Dynamic Academic Timekeeper mascot with master schedule clipboard and ringing school bell.
+ * Dynamic Academic Timekeeper mascot with master schedule clipboard.
  */
 export function buildTimetableMascotSvg({ width = 165, height = 150 } = {}) {
   return `
     <svg class="timetable-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Timetable Assistant">
-      <!-- Ground Shadow -->
       <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
-
-      <!-- Floating Mascot Body -->
       <g class="support-mascot__body">
-        <!-- Educational Textbooks & Period Schedules Base -->
         <g class="support-mascot__books">
           <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
           <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
@@ -79,80 +101,40 @@ export function buildTimetableMascotSvg({ width = 165, height = 150 } = {}) {
           <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
           <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
         </g>
-
-        <!-- Academic Scholar Robe -->
         <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
         <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Master Weekly Timetable Clipboard -->
         <g class="timetable-mascot__schedule">
           <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- Clipboard Board -->
           <rect x="54" y="122" width="32" height="36" rx="3" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.2" transform="rotate(-6 70 140)" />
           <rect x="62" y="119" width="16" height="5" rx="1.5" fill="#C9A227" transform="rotate(-6 70 140)" />
-          <!-- Timetable Grid Slots on Sheet -->
           <rect x="58" y="127" width="11" height="6" rx="1" fill="#0EA5E9" opacity="0.85" />
           <rect x="71" y="127" width="11" height="6" rx="1" fill="#059669" opacity="0.85" />
           <rect x="58" y="135" width="11" height="6" rx="1" fill="#C9A227" opacity="0.85" />
           <rect x="71" y="135" width="11" height="6" rx="1" fill="#14538A" opacity="0.85" />
           <rect x="58" y="143" width="24" height="4" rx="1" fill="#E2E8F0" />
-          <rect x="58" y="149" width="11" height="5" rx="1" fill="#8B5CF6" opacity="0.85" />
-          <rect x="71" y="149" width="11" height="5" rx="1" fill="#0EA5E9" opacity="0.85" />
-          <!-- Hand Holding Clipboard -->
           <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
         </g>
-
-        <!-- Right Arm Raising Golden School Bell (Animated) -->
         <g class="timetable-mascot__bell">
           <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
           <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Bell Wooden Handle -->
           <line x1="150" y1="110" x2="162" y2="92" stroke="#78350F" stroke-width="4" stroke-linecap="round" />
-          <!-- Bell Brass Cap -->
           <rect x="159" y="90" width="6" height="4" rx="1" fill="#D97706" />
-          <!-- Bell Flare Body -->
           <path d="M155,94 C155,103 147,109 144,115 L178,115 C175,109 167,103 167,94 Z" fill="#F59E0B" stroke="#B45309" stroke-width="1.2" />
           <ellipse cx="161" cy="115" rx="17" ry="4" fill="#FDE68A" stroke="#B45309" stroke-width="1" />
-          <!-- Bell Clapper -->
           <circle cx="161" cy="118" r="3" fill="#78350F" />
-          <!-- Bell Sound Waves -->
-          <path d="M180,98 C185,102 185,108 180,112" stroke="#F59E0B" stroke-width="1.6" fill="none" stroke-linecap="round" />
-          <path d="M184,94 C191,100 191,110 184,116" stroke="#D97706" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.75" />
         </g>
-
-        <!-- Head -->
         <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
         <g class="support-mascot__eyes">
           <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
           <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
           <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
           <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
         </g>
-
-        <!-- Warm Smile -->
         <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
         <g transform="rotate(-5 110 58)">
           <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
           <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
           <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
         </g>
       </g>
     </svg>
@@ -160,86 +142,89 @@ export function buildTimetableMascotSvg({ width = 165, height = 150 } = {}) {
 }
 
 /**
- * Guided welcome card with 4 critical operational disclaimers.
+ * 6-Step Visual Workflow Guide
  */
-function renderWelcomeDisclaimers(container, mode = "class") {
-  container.innerHTML = "";
-
-  const welcomeCard = el("div", { class: "timetable-welcome-card" }, [
-    el("div", { class: "timetable-welcome-header" }, [
-      el("div", { class: "marks-welcome-icon-halo" }, [
-        icon("schedule"),
+function renderWorkflowGuide() {
+  return el("div", { class: "timetable-workflow-guide no-print" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;" }, [
+      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+        icon("alt_route", "text-sm", "style: color:var(--color-primary-800);"),
+        el("b", { style: "color:var(--color-primary-900); font-size:13px;" }, "Complete Timetable Implementation Workflow"),
       ]),
-      el("h3", {}, mode === "teacher" ? "Select a Faculty Member to View Schedule" : "Select a Class to View Schedule"),
-      el("p", {}, mode === "teacher"
-        ? "Choose a teacher above to inspect their assigned instructional periods, subject rooms, and free slots."
-        : "Choose a Grade and Stream above to view or assign weekly lessons, teachers, and break periods."),
+      el("span", { class: "badge badge--outline", style: "font-size:11px;" }, "CBC Scheduling Protocol"),
     ]),
-
-    // Operational Guidelines Section Header
-    el("div", { class: "guidance-section-header" }, [
-      icon("verified_user"),
-      el("span", {}, "Scheduling Protocols & Conflict Safeguards"),
-    ]),
-
-    // Modern Guidance Cards Grid (Zero left borders)
-    el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("lock")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Intelligence"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Automated Conflict Prevention"),
-          el("p", { class: "guidance-card__body" }, "Timetable actively monitors teacher allocations. If a teacher is already assigned in the same period and day, double-booking is blocked automatically."),
+    el("div", { class: "tt-workflow-steps" }, [
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "1"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Classes & Streams"),
+          el("div", { class: "tt-step-desc" }, "Configure Grade 7, 8, 9 cohorts and streams under Academics."),
         ]),
       ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("free_breakfast")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Schedule"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "School-Wide Break Periods"),
-          el("p", { class: "guidance-card__body" }, "Periods configured as 'Break' automatically span all streams and grades school-wide. Instructional subject lessons cannot be booked during break intervals."),
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "2"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Teacher Allocations"),
+          el("div", { class: "tt-step-desc" }, "Assign teachers to subjects they teach in each class under Faculty."),
         ]),
       ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Staff"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Qualified Subject Teachers"),
-          el("p", { class: "guidance-card__body" }, "The slot assignment dialog groups and highlights teachers assigned to the chosen subject first, ensuring CBC subject specialization."),
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "3"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Class Teachers"),
+          el("div", { class: "tt-step-desc" }, "Designate each homeroom class teacher for signature blocks and tracking."),
         ]),
       ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("warning")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Integrity"),
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "4"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Collision-Free Master"),
+          el("div", { class: "tt-step-desc" }, "Auto-generate or assemble Master Timetable with zero teacher collisions."),
         ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Period Modifications & Deletion"),
-          el("p", { class: "guidance-card__body" }, "Altering period start or end times updates all class schedules school-wide. Deleting an active period permanently unlinks all assigned lesson slots."),
+      ]),
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "5"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Print Class Schedules"),
+          el("div", { class: "tt-step-desc" }, "Print clean weekly schedules per class or batch-print all classroom sheets."),
+        ]),
+      ]),
+      el("div", { class: "tt-workflow-step" }, [
+        el("span", { class: "tt-step-num" }, "6"),
+        el("div", {}, [
+          el("div", { class: "tt-step-title" }, "Print Teacher Schedules"),
+          el("div", { class: "tt-step-desc" }, "Print personalized weekly teaching and free/prep periods for staff room."),
         ]),
       ]),
     ]),
   ]);
-
-  container.append(welcomeCard);
 }
 
+// ------------------------------------------------------------- Main Render --
+
 export async function render({ profile }) {
-  if (CAN_MANAGE.includes(profile.role)) {
+  const canManage = CAN_MANAGE.includes(profile.role);
+  if (canManage) {
     await seedDefaultPeriodsIfEmpty();
   }
-  [classes, subjects, teachers, periods] = await Promise.all([
-    listClasses(), listSubjects(), CAN_SEE_ALL_TEACHERS.includes(profile.role) ? listTeachers() : Promise.resolve([]), listPeriods(),
+
+  [classes, subjects, teachers, periods, schoolSettings] = await Promise.all([
+    listClasses(),
+    listSubjects(),
+    CAN_SEE_ALL_TEACHERS.includes(profile.role) ? listTeachers() : Promise.resolve([]),
+    listPeriods(),
+    getSchoolSettings(),
   ]);
+
+  // Set default selection
+  if (classes.length && !classSelection.grade) {
+    classSelection = { grade: classes[0].grade, stream: classes[0].streams?.[0] || "" };
+  }
+
+  // Non-admins default to classes or their own teacher tab
+  if (!canManage) {
+    activeTab = "classes";
+  }
 
   const wrap = el("div", { class: "timetable-view-wrap" });
 
@@ -248,35 +233,37 @@ export async function render({ profile }) {
   mascotWrap.innerHTML = buildTimetableMascotSvg({ width: 155, height: 140 });
 
   // Executive Hero Banner
-  const heroBanner = el("div", { class: "timetable-hero" }, [
+  const heroBanner = el("div", { class: "timetable-hero no-print" }, [
     el("div", { class: "timetable-hero__content" }, [
       el("div", { class: "timetable-hero__status-row" }, [
-      el("h1", { class: "timetable-hero__title" }, "School Timetable & Scheduling"),
-      el("p", { class: "timetable-hero__desc" }, "Manage weekly periods, class timetables, and teacher allocations"),
-      el("div", { class: "timetable-hero__pills" }, [
-        el("div", { class: "timetable-pill" }, [icon("schedule"), `${periods.length} Daily Periods`]),
-        el("div", { class: "timetable-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
-        teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,]),
-      ].filter(Boolean)),
+        el("h1", { class: "timetable-hero__title" }, "School Timetable & Master Scheduling"),
+        el("p", { class: "timetable-hero__desc" }, "Collision-free master scheduling, class allocations, teacher workloads, and printable official timetables"),
+        el("div", { class: "timetable-hero__pills" }, [
+          el("div", { class: "timetable-pill" }, [icon("schedule"), `${periods.length} Daily Periods`]),
+          el("div", { class: "timetable-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
+          teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,
+        ].filter(Boolean)),
+      ]),
     ]),
-
-    // Mascot & Speech Bubble
     el("div", { class: "timetable-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Organize periods, assign subject teachers, and avoid scheduling conflicts."),
+      el("div", { class: "support-speech-bubble" }, "Build a collision-free master schedule, print classroom timetables, and organize faculty workloads."),
       mascotWrap,
     ]),
   ]);
   wrap.append(heroBanner);
 
-  // Mobile horizontal scroll guidance
+  // Workflow Guide banner
+  wrap.append(renderWorkflowGuide());
+
+  // Mobile scroll note
   wrap.append(mobileOnlyNotice("The weekly schedule is easier to read and edit on a tablet or laptop - on a phone you'll need to scroll sideways through the days."));
 
-  // Segmented Navigation Tabs
-  const canManage = CAN_MANAGE.includes(profile.role);
+  // Navigation Tabs
   const tabNav = el("div", { class: "timetable-tabs no-print" });
   const tabContentMount = el("div", { id: "timetable-tab-content" });
 
   const tabsConfig = [
+    ...(canManage ? [{ id: "master", label: "Master Timetable", iconName: "table_chart" }] : []),
     { id: "classes", label: "Class Schedules", iconName: "school" },
     { id: "teachers", label: "Teacher Schedules", iconName: "person" },
     ...(canManage ? [{ id: "periods", label: "Period Configuration", iconName: "schedule" }] : []),
@@ -285,18 +272,19 @@ export async function render({ profile }) {
   function renderTabs() {
     tabNav.innerHTML = "";
     tabsConfig.forEach((tab) => {
-      const btn = el("button", {
-        type: "button",
-        class: `timetable-tab ${activeTab === tab.id ? "timetable-tab--active" : ""}`,
-        onClick: () => {
-          activeTab = tab.id;
-          renderTabs();
-          switchTab(activeTab);
+      const btn = el(
+        "button",
+        {
+          type: "button",
+          class: `timetable-tab ${activeTab === tab.id ? "timetable-tab--active" : ""}`,
+          onClick: () => {
+            activeTab = tab.id;
+            renderTabs();
+            switchTab(activeTab);
+          },
         },
-      }, [
-        icon(tab.iconName, "text-xs"),
-        tab.label,
-      ]);
+        [icon(tab.iconName, "text-xs"), tab.label]
+      );
       tabNav.append(btn);
     });
   }
@@ -304,24 +292,12 @@ export async function render({ profile }) {
   async function switchTab(tabId) {
     tabContentMount.innerHTML = "";
 
-    if (tabId === "classes") {
-      const classCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
-      const classGridMount = el("div", { style: "margin-top:16px;" });
-      tabContentMount.append(classCard, classGridMount);
-      renderClassPicker(classCard, profile, classGridMount);
-      if (classSelection.grade) {
-        await loadClassGrid(profile, classGridMount);
-      } else {
-        renderWelcomeDisclaimers(classGridMount, "class");
-      }
+    if (tabId === "master") {
+      await renderMasterTab(tabContentMount, profile);
+    } else if (tabId === "classes") {
+      await renderClassTab(tabContentMount, profile);
     } else if (tabId === "teachers") {
-      const teacherCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
-      const teacherGridMount = el("div", { style: "margin-top:16px;" });
-      tabContentMount.append(teacherCard, teacherGridMount);
-      await renderTeacherPicker(teacherCard, profile, teacherGridMount);
-      if (!teacherSelection.teacherId) {
-        renderWelcomeDisclaimers(teacherGridMount, "teacher");
-      }
+      await renderTeacherTab(tabContentMount, profile);
     } else if (tabId === "periods") {
       const periodsCard = el("div", { class: "card" });
       tabContentMount.append(periodsCard);
@@ -333,10 +309,1048 @@ export async function render({ profile }) {
   wrap.append(tabNav);
   wrap.append(tabContentMount);
 
-  // Initial tab render
+  // Print Mount Container (rendered only during print)
+  const printMount = el("div", { id: "timetable-print-container", class: "timetable-print-sheet" });
+  wrap.append(printMount);
+
   await switchTab(activeTab);
 
   return wrap;
+}
+
+// -------------------------------------------------------- Master Timetable --
+
+async function renderMasterTab(container, profile) {
+  container.innerHTML = "";
+  const card = el("div", { class: "card", style: "padding:var(--sp-5);" });
+  container.append(card);
+
+  // Loading skeleton
+  const mount = el("div", { style: "margin-top:16px;" }, [
+    skeleton("", "95%"),
+    skeleton("", "95%"),
+    skeleton("", "95%"),
+  ]);
+  card.append(mount);
+
+  masterSlots = await getMasterTimetable();
+  masterConflicts = detectTimetableConflicts(masterSlots);
+
+  function refreshMaster() {
+    mount.innerHTML = "";
+
+    // 1. Conflict Status Banner
+    if (masterConflicts.length > 0) {
+      const alertBox = el("div", { class: "tt-conflict-alert" }, [
+        el("div", { class: "tt-conflict-alert__header" }, [
+          icon("error", "text-sm"),
+          `Scheduling Collisions Detected (${masterConflicts.length})`,
+        ]),
+        el("div", { style: "margin-bottom:6px;" }, "The following teachers or rooms are assigned to multiple classes at the exact same time:"),
+        el("ul", { class: "tt-conflict-alert__list" }, masterConflicts.map((c) => el("li", {}, c.message))),
+      ]);
+      mount.append(alertBox);
+    } else if (masterSlots.length > 0) {
+      const cleanBox = el("div", { style: "margin-bottom:16px; display:flex; align-items:center; gap:8px;" }, [
+        el("div", { class: "tt-clean-badge" }, [
+          icon("check_circle", "text-xs"),
+          "0 Collisions Detected · All class & faculty schedules are conflict-free",
+        ]),
+      ]);
+      mount.append(cleanBox);
+    }
+
+    // 2. Controls Toolbar
+    const controls = el("div", { class: "master-tt-controls no-print" }, [
+      // Day filter pills
+      el("div", { class: "master-tt-day-tabs" }, [
+        el("button", {
+          type: "button",
+          class: `master-tt-day-btn ${masterDayFilter === "All" ? "master-tt-day-btn--active" : ""}`,
+          onClick: () => { masterDayFilter = "All"; refreshMaster(); }
+        }, "All Days"),
+        ...DAYS.map((d) => el("button", {
+          type: "button",
+          class: `master-tt-day-btn ${masterDayFilter === d ? "master-tt-day-btn--active" : ""}`,
+          onClick: () => { masterDayFilter = d; refreshMaster(); }
+        }, d)),
+      ]),
+
+      // Actions: Auto-generate, Print, Clear
+      el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          onClick: () => openAutoGenerateModal(profile, card, () => renderMasterTab(container, profile)),
+        }, [icon("auto_fix_high", "text-xs"), "Auto-Generate Master"]),
+
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm hide-on-mobile",
+          onClick: () => printMasterSchedule(),
+        }, [icon("print", "text-xs"), "Print Master Timetable"]),
+
+        masterSlots.length ? el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          style: "color:var(--color-red);",
+          onClick: async (e) => {
+            if (!confirm("Are you sure you want to clear ALL timetable slots school-wide? This cannot be undone.")) return;
+            const restore = busyButton(e.currentTarget, "Clearing…");
+            try {
+              await clearAllTimetableSlots(profile.uid);
+              masterSlots = [];
+              masterConflicts = [];
+              toast("All timetable slots cleared.", "info");
+              refreshMaster();
+            } catch (err) {
+              toast(err.message || "Could not clear slots.", "error");
+            } finally {
+              restore();
+            }
+          },
+        }, [icon("delete_sweep", "text-xs"), "Clear All"]) : null,
+      ].filter(Boolean)),
+    ]);
+    mount.append(controls);
+
+    // 3. Grid Table
+    const cohorts = getAllCohorts();
+    if (!cohorts.length) {
+      mount.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("school", "empty-state__icon"),
+        el("h4", {}, "No Classes Configured Yet"),
+        el("p", { class: "text-muted text-sm" }, "Add classes and streams in Academics before assembling the master timetable."),
+      ]));
+      return;
+    }
+
+    const daysToRender = masterDayFilter === "All" ? DAYS : [masterDayFilter];
+
+    const slotMap = new Map();
+    for (const slot of masterSlots) {
+      const key = `${slot.grade}_${slot.stream || ""}_${slot.day}_${slot.periodId}`;
+      slotMap.set(key, slot);
+    }
+
+    const conflictSlotIds = new Set();
+    for (const c of masterConflicts) {
+      (c.slotIds || []).forEach((id) => conflictSlotIds.add(id));
+    }
+
+    for (const day of daysToRender) {
+      const daySection = el("div", { style: "margin-bottom:24px;" });
+      if (masterDayFilter === "All") {
+        daySection.append(el("div", {
+          style: "display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-bottom:4px; border-bottom:2px solid var(--color-primary-800);"
+        }, [
+          icon("calendar_today", "text-sm", "style: color:var(--color-primary-800);"),
+          el("h3", { style: "margin:0; font-family:var(--font-display); color:var(--color-primary-900); font-size:16px;" }, day),
+        ]));
+      }
+
+      const tableWrap = el("div", {
+        class: "tt-scroll",
+        style: "background:var(--color-white); border:1px solid var(--color-line); border-radius:var(--radius-md); overflow-x:auto;"
+      });
+
+      const table = el("table", { class: "timetable" }, [
+        el("thead", {}, el("tr", {}, [
+          el("th", { style: "width:110px;" }, "Period"),
+          ...cohorts.map((c) => {
+            const ct = getClassTeacher(teachers, c.grade, c.stream);
+            return el("th", { style: "min-width:140px; text-align:center;" }, [
+              el("div", { style: "font-weight:700;" }, c.label),
+              ct ? el("div", { style: "font-size:10px; font-weight:normal; opacity:0.85; text-transform:none;" }, `CT: ${ct.fullName.split(" ")[0]}`) : null,
+            ].filter(Boolean));
+          }),
+        ])),
+      ]);
+
+      const tbody = el("tbody", {});
+
+      for (const period of periods) {
+        if (period.isBreak) {
+          const row = el("tr", { class: "tt-break" });
+          row.append(el("td", { class: "tt-period-col" }, [
+            el("b", {}, period.name),
+            el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px;" }, `${period.startTime}–${period.endTime}`),
+          ]));
+          row.append(el("td", {
+            colspan: String(cohorts.length),
+            style: "text-align:center; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; font-size:11px;"
+          }, [
+            icon(period.name.toLowerCase().includes("lunch") ? "restaurant" : "coffee", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
+            period.name,
+          ]));
+          tbody.append(row);
+          continue;
+        }
+
+        const row = el("tr", {});
+        row.append(el("td", { class: "tt-period-col" }, [
+          el("b", {}, period.name),
+          el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; color:var(--color-ink-soft);" }, `${period.startTime}–${period.endTime}`),
+        ]));
+
+        for (const cohort of cohorts) {
+          const key = `${cohort.grade}_${cohort.stream}_${day}_${period.id}`;
+          const slot = slotMap.get(key);
+          const hasConflict = slot && conflictSlotIds.has(slot.id);
+
+          const td = el("td", { class: `tt-cell ${hasConflict ? "tt-conflict-cell" : ""}` });
+
+          if (slot) {
+            const pill = el("button", {
+              type: "button",
+              class: "tt-pill",
+              onClick: () => {
+                classSelection = { grade: cohort.grade, stream: cohort.stream };
+                openAssignModal(profile, day, period, null, async () => {
+                  masterSlots = await getMasterTimetable(true);
+                  masterConflicts = detectTimetableConflicts(masterSlots);
+                  refreshMaster();
+                });
+              },
+            }, [
+              el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
+              el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, slot.teacherName || "Unassigned"),
+              ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+              hasConflict ? el("span", { class: "tt-conflict-tag" }, [icon("warning", "text-xs"), "Collision"]) : null,
+            ].filter(Boolean));
+            td.append(pill);
+          } else {
+            td.append(el("button", {
+              type: "button",
+              class: "tt-cell__empty",
+              onClick: () => {
+                classSelection = { grade: cohort.grade, stream: cohort.stream };
+                openAssignModal(profile, day, period, null, async () => {
+                  masterSlots = await getMasterTimetable(true);
+                  masterConflicts = detectTimetableConflicts(masterSlots);
+                  refreshMaster();
+                });
+              },
+            }, [icon("add", "text-xs"), "+ Assign"]));
+          }
+          row.append(td);
+        }
+        tbody.append(row);
+      }
+
+      table.append(tbody);
+      tableWrap.append(table);
+      daySection.append(tableWrap);
+      mount.append(daySection);
+    }
+  }
+
+  refreshMaster();
+}
+
+// --------------------------------------------------------- Class Schedules --
+
+async function renderClassTab(container, profile) {
+  container.innerHTML = "";
+
+  const classCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const classGridMount = el("div", { style: "margin-top:16px;" });
+  container.append(classCard, classGridMount);
+
+  renderClassPicker(classCard, profile, classGridMount);
+
+  if (classSelection.grade) {
+    await loadClassGrid(profile, classGridMount);
+  } else {
+    renderWelcomeDisclaimers(classGridMount, "class");
+  }
+}
+
+function renderClassPicker(container, profile, gridMount) {
+  container.innerHTML = "";
+  const opts = getAllCohorts();
+
+  const select = el("select", { style: "min-width:220px;" }, [
+    el("option", { value: "" }, "Select class cohort"),
+    ...opts.map((o) => el("option", {
+      value: `${o.grade}|${o.stream}`,
+      ...(`${o.grade}|${o.stream}` === `${classSelection.grade}|${classSelection.stream}` ? { selected: "true" } : {})
+    }, o.label)),
+  ]);
+
+  const classTeacherMount = el("div", {});
+
+  function updateClassTeacherBanner() {
+    classTeacherMount.innerHTML = "";
+    if (!classSelection.grade) return;
+    const ct = getClassTeacher(teachers, classSelection.grade, classSelection.stream);
+    if (ct) {
+      classTeacherMount.append(el("div", { class: "class-teacher-banner" }, [
+        icon("badge", "text-xs"),
+        el("span", {}, [
+          el("strong", {}, "Class Teacher: "),
+          `${ct.fullName}${ct.tscNumber ? ` (TSC No: ${ct.tscNumber})` : ""}${ct.phone ? ` · Phone: ${ct.phone}` : ""}`,
+        ]),
+      ]));
+    } else {
+      classTeacherMount.append(el("div", { class: "class-teacher-banner class-teacher-banner--empty" }, [
+        icon("warning", "text-xs"),
+        el("span", {}, [
+          el("strong", {}, "Class Teacher: "),
+          "Not assigned yet · ",
+          el("a", { href: "#/teachers", style: "color:inherit; font-weight:700; text-decoration:underline;" }, "Assign in Faculty"),
+        ]),
+      ]));
+    }
+  }
+
+  select.addEventListener("change", async () => {
+    const [grade, stream] = select.value.split("|");
+    classSelection = { grade: grade || "", stream: stream || "" };
+    updateClassTeacherBanner();
+    if (!classSelection.grade) {
+      renderWelcomeDisclaimers(gridMount, "class");
+    } else {
+      await loadClassGrid(profile, gridMount);
+    }
+  });
+
+  const canManage = CAN_MANAGE.includes(profile.role);
+
+  const headerRow = el("div", {
+    style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;"
+  }, [
+    el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
+      el("div", { class: "field", style: "margin:0;" }, [
+        el("label", { style: "display:flex; align-items:center; gap:4px; font-weight:600; margin-bottom:4px;" }, [
+          icon("school", "text-xs"),
+          "Class Cohort",
+        ]),
+        select,
+      ]),
+    ]),
+    el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm hide-on-mobile",
+        onClick: () => printSingleClassSchedule(classSelection.grade, classSelection.stream),
+      }, [icon("print", "text-xs"), "Print This Class"]),
+
+      canManage ? el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm hide-on-mobile",
+        onClick: () => printAllClassesBatch(),
+      }, [icon("print_connect", "text-xs"), "Print All Classes (Batch)"]) : null,
+
+      canManage && classSelection.grade ? el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        style: "color:var(--color-red);",
+        onClick: async (e) => {
+          if (!confirm(`Clear all lessons for ${classSelection.grade} ${classSelection.stream}?`)) return;
+          const restore = busyButton(e.currentTarget, "Clearing…");
+          try {
+            await clearClassTimetableSlots(profile.uid, classSelection.grade, classSelection.stream);
+            toast("Class timetable cleared.", "info");
+            await loadClassGrid(profile, gridMount);
+          } catch (err) {
+            toast(err.message || "Could not clear.", "error");
+          } finally {
+            restore();
+          }
+        },
+      }, [icon("delete", "text-xs"), "Clear Class"]) : null,
+    ].filter(Boolean)),
+  ]);
+
+  updateClassTeacherBanner();
+  container.append(headerRow, classTeacherMount);
+}
+
+async function loadClassGrid(profile, gridMount) {
+  if (!classSelection.grade) {
+    renderWelcomeDisclaimers(gridMount, "class");
+    return;
+  }
+  gridMount.innerHTML = "";
+  gridMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
+  ]));
+  classSlots = await getClassTimetable(classSelection.grade, classSelection.stream);
+  renderGrid(gridMount, {
+    canManage: CAN_MANAGE.includes(profile.role),
+    getSlot: (day, periodId) => classSlots[`${day}_${periodId}`],
+    onCellClick: (day, period) => openAssignModal(profile, day, period, gridMount),
+    emptyLabel: "+ Assign",
+    pillRenderer: (slot) => [
+      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
+      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, slot.teacherName || "Unassigned"),
+      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+    ],
+  });
+}
+
+// ------------------------------------------------------- Teacher Schedules --
+
+async function renderTeacherTab(container, profile) {
+  container.innerHTML = "";
+  const teacherCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const teacherGridMount = el("div", { style: "margin-top:16px;" });
+  container.append(teacherCard, teacherGridMount);
+  await renderTeacherPicker(teacherCard, profile, teacherGridMount);
+  if (!teacherSelection.teacherId) {
+    renderWelcomeDisclaimers(teacherGridMount, "teacher");
+  }
+}
+
+async function renderTeacherPicker(container, profile, gridMount) {
+  container.innerHTML = "";
+
+  const canPickAny = CAN_SEE_ALL_TEACHERS.includes(profile.role);
+  if (canPickAny) {
+    const select = el("select", { style: "min-width:220px;" }, [
+      el("option", { value: "" }, "Select faculty member"),
+      ...teachers.map((t) => el("option", {
+        value: t.id,
+        ...(t.id === teacherSelection.teacherId ? { selected: "true" } : {})
+      }, `${t.fullName}${t.tscNumber ? ` (${t.tscNumber})` : ""}`)),
+    ]);
+
+    const teacherMetaMount = el("div", {});
+
+    function updateTeacherMeta() {
+      teacherMetaMount.innerHTML = "";
+      if (!teacherSelection.teacherId) return;
+      const t = teachers.find((x) => x.id === teacherSelection.teacherId);
+      if (!t) return;
+      const homeroom = t.homeroom ? t.homeroom.replace("|", " ").trim() : "None";
+      teacherMetaMount.append(el("div", { class: "class-teacher-banner", style: "background:#f0f9ff; border-color:#bae6fd; color:#0369a1;" }, [
+        icon("person", "text-xs"),
+        el("span", {}, [
+          el("strong", {}, `${t.fullName}: `),
+          `TSC: ${t.tscNumber || "N/A"} · Homeroom / Class Teacher: ${homeroom} · Phone: ${t.phone || "N/A"}`,
+        ]),
+      ]));
+    }
+
+    select.addEventListener("change", async () => {
+      teacherSelection.teacherId = select.value;
+      updateTeacherMeta();
+      if (!teacherSelection.teacherId) {
+        renderWelcomeDisclaimers(gridMount, "teacher");
+      } else {
+        await loadTeacherGrid(gridMount);
+      }
+    });
+
+    const headerRow = el("div", {
+      style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;"
+    }, [
+      el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
+        el("div", { class: "field", style: "margin:0;" }, [
+          el("label", { style: "display:flex; align-items:center; gap:4px; font-weight:600; margin-bottom:4px;" }, [
+            icon("person", "text-xs"),
+            "Faculty Member",
+          ]),
+          select,
+        ]),
+      ]),
+      el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm hide-on-mobile",
+          onClick: () => printSingleTeacherSchedule(teacherSelection.teacherId),
+        }, [icon("print", "text-xs"), "Print This Teacher"]),
+
+        CAN_MANAGE.includes(profile.role) ? el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm hide-on-mobile",
+          onClick: () => printAllTeachersBatch(),
+        }, [icon("print_connect", "text-xs"), "Print All Teachers (Batch)"]) : null,
+      ].filter(Boolean)),
+    ]);
+
+    updateTeacherMeta();
+    container.append(headerRow, teacherMetaMount);
+  } else {
+    let own = null;
+    try {
+      own = await getTeacherByUserId(profile.uid);
+    } catch {}
+    if (!own && profile.email) {
+      try {
+        own = await getTeacherByEmail(profile.email);
+      } catch {}
+    }
+    if (!own) {
+      container.append(el("div", { class: "callout callout--warning" }, [
+        icon("warning"),
+        el("p", {}, "No teacher record is currently linked to your login account. Please contact an administrator."),
+      ]));
+      return;
+    }
+    teacherSelection.teacherId = own.id;
+    container.append(el("div", {
+      style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"
+    }, [
+      el("div", {}, [
+        el("h3", { style: "margin:0 0 2px; color:var(--color-primary-900); font-family:var(--font-display);" }, `Teaching Schedule · ${own.fullName}`),
+        el("p", { class: "text-muted text-xs", style: "margin:0;" }, "Showing your personalized weekly instructional lessons and assigned classrooms."),
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm hide-on-mobile",
+        onClick: () => printSingleTeacherSchedule(own.id),
+      }, [icon("print", "text-xs"), "Print Timetable"]),
+    ]));
+    await loadTeacherGrid(gridMount);
+  }
+}
+
+async function loadTeacherGrid(gridMount) {
+  if (!teacherSelection.teacherId) {
+    renderWelcomeDisclaimers(gridMount, "teacher");
+    return;
+  }
+  gridMount.innerHTML = "";
+  gridMount.append(el("div", { class: "skeleton-rows" }, [
+    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
+  ]));
+  teacherSlots = await getTeacherTimetable(teacherSelection.teacherId);
+  renderGrid(gridMount, {
+    canManage: false,
+    getSlot: (day, periodId) => teacherSlots[`${day}_${periodId}`],
+    onCellClick: () => {},
+    emptyLabel: "Free / Prep",
+    pillRenderer: (slot) => [
+      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
+      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, `${slot.grade} ${slot.stream}`),
+      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+    ],
+  });
+}
+
+// ----------------------------------------------------------- Slot Assignment --
+
+async function openAssignModal(profile, day, period, gridMount, onSaved = null) {
+  if (!CAN_MANAGE.includes(profile.role)) return;
+  if (CAN_SEE_ALL_TEACHERS.includes(profile.role)) {
+    try {
+      teachers = await listTeachers();
+    } catch {}
+  }
+  const existing = classSlots[`${day}_${period.id}`] || (masterSlots ? masterSlots.find(s => s.grade === classSelection.grade && (s.stream || "") === (classSelection.stream || "") && s.day === day && s.periodId === period.id) : null);
+  const body = el("form", {});
+  const subjectSelect = el("select", {}, [
+    el("option", { value: "" }, "Select subject"),
+    ...subjects.map((s) => el("option", { value: s.code, ...(s.code === existing?.subjectCode ? { selected: "true" } : {}) }, s.name)),
+  ]);
+  const teacherSelect = el("select", {}, [el("option", { value: "" }, "Select teacher (optional)")]);
+  const roomInput = el("input", { type: "text", value: existing?.room || "", placeholder: "e.g. Room 12, Science Lab, Field" });
+
+  function refreshTeachers() {
+    const code = subjectSelect.value;
+    const currentVal = teacherSelect.value || existing?.teacherId || "";
+    teacherSelect.innerHTML = "";
+    teacherSelect.append(el("option", { value: "" }, "Select teacher (optional)"));
+
+    // Check specific class-subject assigned teacher first
+    const classAssigned = getAssignedClassSubjectTeacher(teachers, classSelection.grade, classSelection.stream, code);
+    const qualified = teachers.filter((t) => code && (t.teachingAssignments || []).some(a => a.subjectCode === code));
+    const others = teachers.filter((t) => !code || !(t.teachingAssignments || []).some(a => a.subjectCode === code));
+
+    if (classAssigned) {
+      const groupClass = el("optgroup", { label: `★ Assigned for ${classSelection.grade} ${classSelection.stream}` });
+      groupClass.append(el("option", { value: classAssigned.id, selected: "true" }, `★ ${classAssigned.fullName} (Class Subject Teacher)`));
+      teacherSelect.append(groupClass);
+    }
+
+    if (code && qualified.length > 0) {
+      const groupQ = el("optgroup", { label: "Other Qualified Subject Teachers" });
+      for (const t of qualified) {
+        if (classAssigned && t.id === classAssigned.id) continue;
+        groupQ.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
+      }
+      teacherSelect.append(groupQ);
+    }
+
+    if (others.length > 0) {
+      const groupO = el("optgroup", { label: "Other Faculty" });
+      for (const t of others) {
+        if (classAssigned && t.id === classAssigned.id) continue;
+        groupO.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
+      }
+      teacherSelect.append(groupO);
+    }
+
+    if (currentVal && !classAssigned) {
+      teacherSelect.value = currentVal;
+    }
+  }
+
+  refreshTeachers();
+  subjectSelect.addEventListener("change", refreshTeachers);
+
+  body.append(
+    el("div", { class: "callout callout--info", style: "margin-bottom:12px; padding:8px 12px; font-size:12px;" }, [
+      icon("schedule", "text-xs"),
+      `${classSelection.grade}${classSelection.stream ? " " + classSelection.stream : ""} · ${day} · ${period.name} (${period.startTime}–${period.endTime})`,
+    ]),
+    el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
+    el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
+    el("div", { class: "field" }, [el("label", {}, "Room / Location (optional)"), roomInput]),
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(existing ? "save" : "add_task"), existing ? "Save Changes" : "Assign Slot"])
+  );
+
+  const close = openModal("Assign Timetable Slot", body);
+
+  if (existing) {
+    body.append(el("button", {
+      type: "button", class: "btn btn--ghost btn--block", style: "margin-top:8px; color:var(--color-red);",
+      onClick: async (e) => {
+        const restore = busyButton(e.currentTarget, "Clearing…");
+        try {
+          await clearSlot(profile.uid, classSelection.grade, classSelection.stream, day, period.id);
+          toast("Slot cleared.", "success");
+          close();
+          if (gridMount) await loadClassGrid(profile, gridMount);
+          if (onSaved) await onSaved();
+        } catch (err) {
+          toast(err.message || "Could not clear slot.", "error");
+          restore();
+        }
+      },
+    }, [icon("backspace", "text-xs"), "Clear this slot"]));
+  }
+
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Saving…");
+    const subject = subjects.find((s) => s.code === subjectSelect.value);
+    const teacher = teachers.find((t) => t.id === teacherSelect.value);
+    if (!subject) { restore(); return toast("Select a subject.", "error"); }
+    try {
+      await assignSlot(profile.uid, {
+        grade: classSelection.grade,
+        stream: classSelection.stream,
+        day,
+        periodId: period.id,
+        subjectCode: subject.code,
+        subjectName: subject.name,
+        teacherId: teacher?.id || "",
+        teacherName: teacher?.fullName || "",
+        room: roomInput.value,
+      });
+      toast("Timetable slot saved.", "success");
+      close();
+      if (gridMount) await loadClassGrid(profile, gridMount);
+      if (onSaved) await onSaved();
+    } catch (err) {
+      toast(err.message || "Could not save slot - check for a conflict.", "error");
+      restore();
+    }
+  });
+}
+
+// ---------------------------------------------------- Auto-Generate Modal --
+
+function openAutoGenerateModal(profile, container, onComplete) {
+  const cohorts = getAllCohorts();
+  const instructionalPeriods = periods.filter((p) => !p.isBreak);
+
+  const body = el("form", {});
+  body.append(
+    el("div", { class: "callout callout--info", style: "margin-bottom:14px; font-size:12px;" }, [
+      icon("auto_awesome"),
+      el("p", {}, "The automated scheduler calculates an optimized weekly timetable using your configured classes, instructional periods, and teacher subject assignments guaranteeing ZERO teacher double-bookings."),
+    ]),
+    el("div", { class: "table-wrap", style: "margin-bottom:14px; border:1px solid var(--color-line); border-radius:var(--radius-md); padding:10px;" }, [
+      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;" }, [
+        el("div", {}, [el("b", {}, "Classes: "), `${cohorts.length} cohorts`]),
+        el("div", {}, [el("b", {}, "Daily Periods: "), `${instructionalPeriods.length} instructional`]),
+        el("div", {}, [el("b", {}, "Subjects: "), `${subjects.length} active`]),
+        el("div", {}, [el("b", {}, "Faculty: "), `${teachers.length} members`]),
+      ]),
+    ]),
+    el("p", { class: "text-muted text-xs", style: "margin-bottom:16px;" }, "Existing slots will be overwritten with the fresh collision-free timetable. You can manually adjust any slot afterwards."),
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("play_arrow"), "Generate Collision-Free Master Timetable"])
+  );
+
+  const close = openModal("Automated Master Timetable Generator", body);
+
+  body.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Generating…");
+    try {
+      const res = await generateCollisionFreeTimetable(profile.uid, {
+        classes,
+        subjects,
+        teachers,
+        periods,
+        days: DAYS,
+      });
+      toast(`Successfully generated ${res.totalSlots} timetable slots with 0 collisions!`, "success");
+      close();
+      if (onComplete) await onComplete();
+    } catch (err) {
+      toast(err.message || "Could not generate timetable.", "error");
+      restore();
+    }
+  });
+}
+
+// ---------------------------------------------------------- Print Engine --
+
+function printTimetableDocument(htmlContent) {
+  const mount = document.getElementById("timetable-print-container");
+  if (!mount) return;
+  mount.innerHTML = htmlContent;
+  window.print();
+}
+
+function buildOfficialHeader(docTitle, metaSubtitle) {
+  const name = schoolSettings.schoolName || "Eeskia Academy";
+  const motto = schoolSettings.motto || "Excellence in Competency-Based Education";
+  const address = schoolSettings.address || "";
+  const phone = schoolSettings.phone || "";
+  const email = schoolSettings.email || "";
+  const logo = schoolSettings.logoUrl || "";
+  const year = schoolSettings.currentAcademicYear || new Date().getFullYear();
+  const term = schoolSettings.currentTerm || "Term 1";
+
+  return `
+    <div class="timetable-print-header">
+      ${logo ? `<img class="timetable-print-logo" src="${logo}" alt="School Logo" />` : ""}
+      <h1 class="timetable-print-school">${name}</h1>
+      <div class="timetable-print-motto">"${motto}"</div>
+      <div class="timetable-print-contacts">
+        ${address ? `${address} · ` : ""}${phone ? `Tel: ${phone} · ` : ""}${email ? `Email: ${email}` : ""}
+      </div>
+      <div class="timetable-print-title-box">
+        <div class="timetable-print-title">${docTitle}</div>
+        <div class="timetable-print-meta">${term} · Academic Year ${year} · ${metaSubtitle || ""}</div>
+      </div>
+    </div>
+  `;
+}
+
+function buildClassTimetablePage(grade, stream, slotsMap) {
+  const ct = getClassTeacher(teachers, grade, stream);
+  const classLabel = `${grade}${stream ? " " + stream : ""}`;
+  const ctText = ct ? `Class Teacher: ${ct.fullName}${ct.tscNumber ? ` (TSC No: ${ct.tscNumber})` : ""}` : "Class Teacher: Unassigned";
+
+  // Build subject summary legend
+  const classSlotsList = [];
+  for (const day of DAYS) {
+    for (const p of periods) {
+      const slot = slotsMap[`${grade}_${stream}_${day}_${p.id}`];
+      if (slot) classSlotsList.push(slot);
+    }
+  }
+
+  const subjectCounts = new Map();
+  for (const s of classSlotsList) {
+    if (!subjectCounts.has(s.subjectCode)) {
+      subjectCounts.set(s.subjectCode, { code: s.subjectCode, name: s.subjectName, teacher: s.teacherName, count: 0 });
+    }
+    subjectCounts.get(s.subjectCode).count++;
+  }
+
+  let tableHtml = `
+    <table class="timetable-print-table">
+      <thead>
+        <tr>
+          <th style="width:80px;">Period</th>
+          ${DAYS.map((d) => `<th>${d}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const p of periods) {
+    if (p.isBreak) {
+      tableHtml += `
+        <tr class="print-break-row">
+          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+          <td colspan="${DAYS.length}">${p.name}</td>
+        </tr>
+      `;
+      continue;
+    }
+    tableHtml += `
+      <tr>
+        <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+        ${DAYS.map((day) => {
+          const slot = slotsMap[`${grade}_${stream}_${day}_${p.id}`];
+          if (slot) {
+            return `
+              <td>
+                <div class="timetable-print-cell-subj">${slot.subjectName || slot.subjectCode}</div>
+                <div class="timetable-print-cell-teacher">${slot.teacherName || "—"}</div>
+                ${slot.room ? `<div class="timetable-print-cell-room">${slot.room}</div>` : ""}
+              </td>
+            `;
+          }
+          return `<td><span style="color:#94a3b8; font-size:7pt;">—</span></td>`;
+        }).join("")}
+      </tr>
+    `;
+  }
+
+  tableHtml += `</tbody></table>`;
+
+  const legendHtml = `
+    <div class="timetable-print-legend">
+      <div class="timetable-print-legend-title">Subject & Teacher Allocations</div>
+      <div class="timetable-print-legend-grid">
+        ${Array.from(subjectCounts.values()).map((s) => `
+          <div><b>${s.code}</b>: ${s.name} (${s.count} lsns) · <i>${s.teacher || "Unassigned"}</i></div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  const signaturesHtml = `
+    <div class="timetable-print-signatures">
+      <div class="timetable-print-sig-col">
+        <div class="timetable-print-sig-title">Class Teacher Signature:</div>
+        <div style="margin-top:20px; font-size:8pt; color:#64748b;">${ct ? ct.fullName : "Class Teacher"} · Date: _______________</div>
+      </div>
+      <div class="timetable-print-sig-col">
+        <div class="timetable-print-sig-title">Principal / Academic Master:</div>
+        <div style="margin-top:20px; font-size:8pt; color:#64748b;">Official Stamp & Signature · Date: _______________</div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="timetable-print-page">
+      <div>
+        ${buildOfficialHeader(`Official Class Timetable · ${classLabel}`, ctText)}
+        ${tableHtml}
+        ${legendHtml}
+      </div>
+      ${signaturesHtml}
+    </div>
+  `;
+}
+
+function buildTeacherTimetablePage(teacher, slotsMap) {
+  const homeroom = teacher.homeroom ? teacher.homeroom.replace("|", " ").trim() : "None";
+  const teacherSlotsList = [];
+  for (const day of DAYS) {
+    for (const p of periods) {
+      if (p.isBreak) continue;
+      for (const c of getAllCohorts()) {
+        const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+        if (slot && slot.teacherId === teacher.id) {
+          teacherSlotsList.push(slot);
+        }
+      }
+    }
+  }
+
+  const instructionalPeriodsCount = periods.filter((p) => !p.isBreak).length * DAYS.length;
+  const teachingLessons = teacherSlotsList.length;
+  const freePeriods = instructionalPeriodsCount - teachingLessons;
+
+  const subTitle = `TSC No: ${teacher.tscNumber || "N/A"} · Homeroom: ${homeroom} · Teaching Load: ${teachingLessons} Lessons/Wk (Free: ${freePeriods} Periods)`;
+
+  let tableHtml = `
+    <table class="timetable-print-table">
+      <thead>
+        <tr>
+          <th style="width:80px;">Period</th>
+          ${DAYS.map((d) => `<th>${d}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const p of periods) {
+    if (p.isBreak) {
+      tableHtml += `
+        <tr class="print-break-row">
+          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+          <td colspan="${DAYS.length}">${p.name}</td>
+        </tr>
+      `;
+      continue;
+    }
+    tableHtml += `
+      <tr>
+        <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+        ${DAYS.map((day) => {
+          let found = null;
+          for (const c of getAllCohorts()) {
+            const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+            if (slot && slot.teacherId === teacher.id) {
+              found = slot;
+              break;
+            }
+          }
+          if (found) {
+            return `
+              <td style="background:#f0fdf4;">
+                <div class="timetable-print-cell-subj">${found.grade} ${found.stream}</div>
+                <div class="timetable-print-cell-teacher">${found.subjectName || found.subjectCode}</div>
+                ${found.room ? `<div class="timetable-print-cell-room">${found.room}</div>` : ""}
+              </td>
+            `;
+          }
+          return `<td><span style="color:#94a3b8; font-size:7.5pt; font-style:italic;">FREE / PREP</span></td>`;
+        }).join("")}
+      </tr>
+    `;
+  }
+
+  tableHtml += `</tbody></table>`;
+
+  const signaturesHtml = `
+    <div class="timetable-print-signatures">
+      <div class="timetable-print-sig-col">
+        <div class="timetable-print-sig-title">Teacher Signature:</div>
+        <div style="margin-top:20px; font-size:8pt; color:#64748b;">${teacher.fullName} · Date: _______________</div>
+      </div>
+      <div class="timetable-print-sig-col">
+        <div class="timetable-print-sig-title">Dean of Studies / Academic Master:</div>
+        <div style="margin-top:20px; font-size:8pt; color:#64748b;">Official Approval & Stamp · Date: _______________</div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="timetable-print-page">
+      <div>
+        ${buildOfficialHeader(`Teacher's Instructional Schedule · ${teacher.fullName}`, subTitle)}
+        ${tableHtml}
+      </div>
+      ${signaturesHtml}
+    </div>
+  `;
+}
+
+async function printSingleClassSchedule(grade, stream) {
+  if (!grade) return toast("Select a class first.", "error");
+  const slots = await getMasterTimetable();
+  const slotsMap = {};
+  for (const s of slots) {
+    slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+  }
+  const pageHtml = buildClassTimetablePage(grade, stream, slotsMap);
+  printTimetableDocument(pageHtml);
+}
+
+async function printAllClassesBatch() {
+  const cohorts = getAllCohorts();
+  if (!cohorts.length) return toast("No classes to print.", "error");
+  const slots = await getMasterTimetable();
+  const slotsMap = {};
+  for (const s of slots) {
+    slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+  }
+  const fullHtml = cohorts.map((c) => buildClassTimetablePage(c.grade, c.stream, slotsMap)).join("");
+  printTimetableDocument(fullHtml);
+}
+
+async function printSingleTeacherSchedule(teacherId) {
+  if (!teacherId) return toast("Select a faculty member first.", "error");
+  const teacher = teachers.find((t) => t.id === teacherId);
+  if (!teacher) return toast("Teacher record not found.", "error");
+  const slots = await getMasterTimetable();
+  const slotsMap = {};
+  for (const s of slots) {
+    slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+  }
+  const pageHtml = buildTeacherTimetablePage(teacher, slotsMap);
+  printTimetableDocument(pageHtml);
+}
+
+async function printAllTeachersBatch() {
+  if (!teachers.length) return toast("No teachers found.", "error");
+  const slots = await getMasterTimetable();
+  const slotsMap = {};
+  for (const s of slots) {
+    slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+  }
+  const fullHtml = teachers.map((t) => buildTeacherTimetablePage(t, slotsMap)).join("");
+  printTimetableDocument(fullHtml);
+}
+
+async function printMasterSchedule() {
+  const cohorts = getAllCohorts();
+  const slots = await getMasterTimetable();
+  const slotsMap = {};
+  for (const s of slots) {
+    slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+  }
+
+  const daysToPrint = masterDayFilter === "All" ? DAYS : [masterDayFilter];
+
+  let pagesHtml = "";
+  for (const day of daysToPrint) {
+    let tableHtml = `
+      <table class="timetable-print-table">
+        <thead>
+          <tr>
+            <th style="width:85px;">Period</th>
+            ${cohorts.map((c) => `<th>${c.label}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const p of periods) {
+      if (p.isBreak) {
+        tableHtml += `
+          <tr class="print-break-row">
+            <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+            <td colspan="${cohorts.length}">${p.name}</td>
+          </tr>
+        `;
+        continue;
+      }
+      tableHtml += `
+        <tr>
+          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+          ${cohorts.map((c) => {
+            const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+            if (slot) {
+              return `
+                <td>
+                  <div class="timetable-print-cell-subj">${slot.subjectCode}</div>
+                  <div class="timetable-print-cell-teacher">${slot.teacherName ? slot.teacherName.split(" ")[0] : "—"}</div>
+                </td>
+              `;
+            }
+            return `<td><span style="color:#94a3b8; font-size:7pt;">—</span></td>`;
+          }).join("")}
+        </tr>
+      `;
+    }
+    tableHtml += `</tbody></table>`;
+
+    pagesHtml += `
+      <div class="timetable-print-page">
+        <div>
+          ${buildOfficialHeader(`School Master Timetable · ${day}`, `Master Overview across all ${cohorts.length} classes`)}
+          ${tableHtml}
+        </div>
+        <div class="timetable-print-signatures">
+          <div class="timetable-print-sig-col">
+            <div class="timetable-print-sig-title">Dean of Studies / Academic Master:</div>
+            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Master Timetable Certified · Date: _______________</div>
+          </div>
+          <div class="timetable-print-sig-col">
+            <div class="timetable-print-sig-title">Principal's Office:</div>
+            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Approved & Stamped · Date: _______________</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  printTimetableDocument(pagesHtml);
 }
 
 // ------------------------------------------------------------------ Periods --
@@ -446,307 +1460,7 @@ async function handleDeletePeriod(profile, period, container) {
   }
 }
 
-// -------------------------------------------------------------- Class grid --
-
-function classOptions() {
-  const opts = [];
-  for (const c of classes) {
-    if (!c.streams || c.streams.length === 0) {
-      opts.push({ grade: c.grade, stream: "" });
-    } else {
-      for (const s of c.streams) opts.push({ grade: c.grade, stream: s });
-    }
-  }
-  return opts;
-}
-
-function renderClassPicker(container, profile, gridMount) {
-  container.innerHTML = "";
-  const opts = classOptions();
-
-  const select = el("select", { style: "min-width:220px;" }, [
-    el("option", { value: "" }, "Select class cohort"),
-    ...opts.map((o) => el("option", {
-      value: `${o.grade}|${o.stream}`,
-      ...(`${o.grade}|${o.stream}` === `${classSelection.grade}|${classSelection.stream}` ? { selected: "true" } : {})
-    }, o.stream ? `${o.grade} ${o.stream}` : o.grade)),
-  ]);
-
-  select.addEventListener("change", async () => {
-    const [grade, stream] = select.value.split("|");
-    classSelection = { grade: grade || "", stream: stream || "" };
-    if (!classSelection.grade) {
-      renderWelcomeDisclaimers(gridMount, "class");
-    } else {
-      await loadClassGrid(profile, gridMount);
-    }
-  });
-
-  const headerRow = el("div", {
-    style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;"
-  }, [
-    el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
-      el("div", { class: "field", style: "margin:0;" }, [
-        el("label", { style: "display:flex; align-items:center; gap:4px; font-weight:600; margin-bottom:4px;" }, [
-          icon("school", "text-xs"),
-          "Class Cohort",
-        ]),
-        select,
-      ]),
-    ]),
-    el("div", { style: "display:flex; gap:8px;" }, [
-      el("button", {
-        type: "button",
-        class: "btn btn--ghost btn--sm hide-on-mobile",
-        onClick: () => window.print(),
-      }, [icon("print", "text-xs"), "Print Timetable"]),
-    ]),
-  ]);
-
-  container.append(headerRow);
-}
-
-async function loadClassGrid(profile, gridMount) {
-  if (!classSelection.grade) {
-    renderWelcomeDisclaimers(gridMount, "class");
-    return;
-  }
-  gridMount.innerHTML = "";
-  gridMount.append(el("div", { class: "skeleton-rows" }, [
-    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
-  ]));
-  classSlots = await getClassTimetable(classSelection.grade, classSelection.stream);
-  renderGrid(gridMount, {
-    canManage: CAN_MANAGE.includes(profile.role),
-    getSlot: (day, periodId) => classSlots[`${day}_${periodId}`],
-    onCellClick: (day, period) => openAssignModal(profile, day, period, gridMount),
-    emptyLabel: "+ Assign",
-    pillRenderer: (slot) => [
-      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
-      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, slot.teacherName || "Unassigned"),
-      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
-    ],
-  });
-}
-
-async function openAssignModal(profile, day, period, gridMount) {
-  if (!CAN_MANAGE.includes(profile.role)) return;
-  if (CAN_SEE_ALL_TEACHERS.includes(profile.role)) {
-    try {
-      teachers = await listTeachers();
-    } catch {}
-  }
-  const existing = classSlots[`${day}_${period.id}`];
-  const body = el("form", {});
-  const subjectSelect = el("select", {}, [
-    el("option", { value: "" }, "Select subject"),
-    ...subjects.map((s) => el("option", { value: s.code, ...(s.code === existing?.subjectCode ? { selected: "true" } : {}) }, s.name)),
-  ]);
-  const teacherSelect = el("select", {}, [el("option", { value: "" }, "Select teacher (optional)")]);
-  const roomInput = el("input", { type: "text", value: existing?.room || "", placeholder: "e.g. Room 12, Science Lab, Field" });
-
-  function refreshTeachers() {
-    const code = subjectSelect.value;
-    const currentVal = teacherSelect.value || existing?.teacherId || "";
-    teacherSelect.innerHTML = "";
-    teacherSelect.append(el("option", { value: "" }, "Select teacher (optional)"));
-
-    const qualified = teachers.filter((t) => code && (t.teachingAssignments || []).some(a => a.subjectCode === code));
-    const others = teachers.filter((t) => !code || !(t.teachingAssignments || []).some(a => a.subjectCode === code));
-
-    if (code && qualified.length > 0) {
-      const groupQ = el("optgroup", { label: "Subject Teachers" });
-      for (const t of qualified) {
-        groupQ.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
-      }
-      teacherSelect.append(groupQ);
-      if (others.length > 0) {
-        const groupO = el("optgroup", { label: "Other Faculty" });
-        for (const t of others) {
-          groupO.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
-        }
-        teacherSelect.append(groupO);
-      }
-    } else {
-      for (const t of teachers) {
-        teacherSelect.append(el("option", { value: t.id, ...(t.id === currentVal ? { selected: "true" } : {}) }, t.fullName));
-      }
-    }
-    if (currentVal) {
-      teacherSelect.value = currentVal;
-    }
-  }
-  refreshTeachers();
-  subjectSelect.addEventListener("change", refreshTeachers);
-
-  body.append(
-    el("div", { class: "callout callout--info", style: "margin-bottom:12px; padding:8px 12px; font-size:12px;" }, [
-      icon("schedule", "text-xs"),
-      `${classSelection.grade}${classSelection.stream ? " " + classSelection.stream : ""} · ${day} · ${period.name} (${period.startTime}–${period.endTime})`,
-    ]),
-    el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Room / Location (optional)"), roomInput]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(existing ? "save" : "add_task"), existing ? "Save Changes" : "Assign Slot"])
-  );
-
-  const close = openModal("Assign Timetable Slot", body);
-
-  if (existing) {
-    body.append(el("button", {
-      type: "button", class: "btn btn--ghost btn--block", style: "margin-top:8px; color:var(--color-red);",
-      onClick: async (e) => {
-        const restore = busyButton(e.currentTarget, "Clearing…");
-        try {
-          await clearSlot(profile.uid, classSelection.grade, classSelection.stream, day, period.id);
-          toast("Slot cleared.", "success");
-          close();
-          await loadClassGrid(profile, gridMount);
-        } catch (err) {
-          toast(err.message || "Could not clear slot.", "error");
-          restore();
-        }
-      },
-    }, [icon("backspace", "text-xs"), "Clear this slot"]));
-  }
-
-  body.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const restore = busyButton(e.submitter, "Saving…");
-    const subject = subjects.find((s) => s.code === subjectSelect.value);
-    const teacher = teachers.find((t) => t.id === teacherSelect.value);
-    if (!subject) { restore(); return toast("Select a subject.", "error"); }
-    try {
-      await assignSlot(profile.uid, {
-        grade: classSelection.grade,
-        stream: classSelection.stream,
-        day,
-        periodId: period.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        teacherId: teacher?.id || "",
-        teacherName: teacher?.fullName || "",
-        room: roomInput.value,
-      });
-      toast("Timetable slot saved.", "success");
-      close();
-      await loadClassGrid(profile, gridMount);
-    } catch (err) {
-      toast(err.message || "Could not save slot - check for a conflict.", "error");
-      restore();
-    }
-  });
-}
-
-// ------------------------------------------------------------ Teacher grid --
-
-async function renderTeacherPicker(container, profile, gridMount) {
-  container.innerHTML = "";
-
-  const canPickAny = CAN_SEE_ALL_TEACHERS.includes(profile.role);
-  if (canPickAny) {
-    const select = el("select", { style: "min-width:220px;" }, [
-      el("option", { value: "" }, "Select faculty member"),
-      ...teachers.map((t) => el("option", {
-        value: t.id,
-        ...(t.id === teacherSelection.teacherId ? { selected: "true" } : {})
-      }, t.fullName)),
-    ]);
-
-    select.addEventListener("change", async () => {
-      teacherSelection.teacherId = select.value;
-      if (!teacherSelection.teacherId) {
-        renderWelcomeDisclaimers(gridMount, "teacher");
-      } else {
-        await loadTeacherGrid(gridMount);
-      }
-    });
-
-    const headerRow = el("div", {
-      style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;"
-    }, [
-      el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
-        el("div", { class: "field", style: "margin:0;" }, [
-          el("label", { style: "display:flex; align-items:center; gap:4px; font-weight:600; margin-bottom:4px;" }, [
-            icon("person", "text-xs"),
-            "Faculty Member",
-          ]),
-          select,
-        ]),
-      ]),
-      el("div", { style: "display:flex; gap:8px;" }, [
-        el("button", {
-          type: "button",
-          class: "btn btn--ghost btn--sm hide-on-mobile",
-          onClick: () => window.print(),
-        }, [icon("print", "text-xs"), "Print Timetable"]),
-      ]),
-    ]);
-
-    container.append(headerRow);
-  } else {
-    let own = null;
-    try {
-      own = await getTeacherByUserId(profile.uid);
-    } catch (err) {
-      console.warn("timetable: getTeacherByUserId failed:", err);
-    }
-    if (!own && profile.email) {
-      try {
-        own = await getTeacherByEmail(profile.email);
-      } catch (err) {
-        console.warn("timetable: getTeacherByEmail failed:", err);
-      }
-    }
-    if (!own) {
-      container.append(el("div", { class: "callout callout--warning" }, [
-        icon("warning"),
-        el("p", {}, "No teacher record is currently linked to your login account. Please contact an administrator."),
-      ]));
-      return;
-    }
-    teacherSelection.teacherId = own.id;
-    container.append(el("div", {
-      style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;"
-    }, [
-      el("div", {}, [
-        el("h3", { style: "margin:0 0 2px; color:var(--color-primary-900); font-family:var(--font-display);" }, `Teaching Schedule · ${own.fullName}`),
-        el("p", { class: "text-muted text-xs", style: "margin:0;" }, "Showing your personalized weekly instructional lessons and assigned classrooms."),
-      ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--ghost btn--sm hide-on-mobile",
-        onClick: () => window.print(),
-      }, [icon("print", "text-xs"), "Print Timetable"]),
-    ]));
-    await loadTeacherGrid(gridMount);
-  }
-}
-
-async function loadTeacherGrid(gridMount) {
-  if (!teacherSelection.teacherId) {
-    renderWelcomeDisclaimers(gridMount, "teacher");
-    return;
-  }
-  gridMount.innerHTML = "";
-  gridMount.append(el("div", { class: "skeleton-rows" }, [
-    skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
-  ]));
-  teacherSlots = await getTeacherTimetable(teacherSelection.teacherId);
-  renderGrid(gridMount, {
-    canManage: false,
-    getSlot: (day, periodId) => teacherSlots[`${day}_${periodId}`],
-    onCellClick: () => {},
-    emptyLabel: "Free",
-    pillRenderer: (slot) => [
-      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
-      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, `${slot.grade} ${slot.stream}`),
-      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
-    ],
-  });
-}
-
-// ----------------------------------------------------------- Shared grid UI --
+// ----------------------------------------------------------- Shared Grid UI --
 
 function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pillRenderer }) {
   container.innerHTML = "";
@@ -821,6 +1535,66 @@ function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pi
   table.append(tbody);
   tableWrap.append(table);
   container.append(tableWrap);
+}
+
+function renderWelcomeDisclaimers(container, mode = "class") {
+  container.innerHTML = "";
+  const welcomeCard = el("div", { class: "timetable-welcome-card" }, [
+    el("div", { class: "timetable-welcome-header" }, [
+      el("div", { class: "marks-welcome-icon-halo" }, [icon("schedule")]),
+      el("h3", {}, mode === "teacher" ? "Select a Faculty Member to View Schedule" : "Select a Class to View Schedule"),
+      el("p", {}, mode === "teacher"
+        ? "Choose a teacher above to inspect their assigned instructional periods, subject rooms, and free slots."
+        : "Choose a Grade and Stream above to view or assign weekly lessons, teachers, and break periods."),
+    ]),
+    el("div", { class: "guidance-section-header" }, [
+      icon("verified_user"),
+      el("span", {}, "Scheduling Protocols & Conflict Safeguards"),
+    ]),
+    el("div", { class: "guidance-grid" }, [
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("lock")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Intelligence"),
+        ]),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Automated Conflict Prevention"),
+          el("p", { class: "guidance-card__body" }, "Timetable actively monitors teacher allocations. If a teacher is already assigned in the same period and day, double-booking is blocked automatically."),
+        ]),
+      ]),
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("free_breakfast")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Schedule"),
+        ]),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "School-Wide Break Periods"),
+          el("p", { class: "guidance-card__body" }, "Periods configured as 'Break' automatically span all streams and grades school-wide. Instructional subject lessons cannot be booked during break intervals."),
+        ]),
+      ]),
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Staff"),
+        ]),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Qualified Subject Teachers"),
+          el("p", { class: "guidance-card__body" }, "The slot assignment dialog groups and highlights teachers assigned to the chosen subject first, ensuring CBC subject specialization."),
+        ]),
+      ]),
+      el("div", { class: "guidance-card" }, [
+        el("div", { class: "guidance-card__header" }, [
+          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("warning")]),
+          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Integrity"),
+        ]),
+        el("div", { class: "guidance-card__content" }, [
+          el("h4", { class: "guidance-card__title" }, "Period Modifications & Deletion"),
+          el("p", { class: "guidance-card__body" }, "Altering period start or end times updates all class schedules school-wide. Deleting an active period permanently unlinks all assigned lesson slots."),
+        ]),
+      ]),
+    ]),
+  ]);
+  container.append(welcomeCard);
 }
 
 export function init() {}

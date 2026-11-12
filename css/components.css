@@ -5808,6 +5808,356 @@ tbody tr:hover { background: var(--color-primary-100); }
   font-size: 12px;
 }
 
+/* Timetable Workflow Guide */
+.timetable-workflow-guide {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+}
+.tt-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.tt-workflow-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--color-cream-dim, #f8fafc);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  font-size: var(--fs-xs);
+}
+.tt-step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary-800);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.tt-step-title {
+  font-weight: 700;
+  color: var(--color-primary-900);
+  margin-bottom: 2px;
+}
+.tt-step-desc {
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* Class Teacher Banner */
+.class-teacher-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font-size: var(--fs-xs);
+  color: #166534;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.class-teacher-banner--empty {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.class-teacher-banner .material-symbols-rounded {
+  font-size: 18px;
+  color: currentColor;
+}
+
+/* Master Timetable Styles */
+.master-tt-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.master-tt-day-tabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--color-cream-dim, #f1f5f9);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+}
+.master-tt-day-btn {
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.master-tt-day-btn:hover {
+  color: var(--color-ink);
+}
+.master-tt-day-btn--active {
+  background: var(--color-white);
+  color: var(--color-primary-900);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  font-weight: 700;
+}
+.tt-conflict-alert {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  color: #991b1b;
+  font-size: var(--fs-xs);
+}
+.tt-conflict-alert__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.tt-conflict-alert__list {
+  margin: 0;
+  padding-left: 20px;
+}
+.tt-conflict-alert__list li {
+  margin-bottom: 4px;
+}
+.tt-conflict-cell {
+  background: #fef2f2 !important;
+  border: 2px solid #ef4444 !important;
+  position: relative;
+}
+.tt-conflict-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+.tt-clean-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  padding: 6px 12px;
+  border-radius: var(--radius-full, 9999px);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+
+/* Printable Timetable Styles */
+.timetable-print-sheet {
+  display: none;
+}
+@media print {
+  .timetable-print-sheet {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+    color: #111827 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .timetable-print-page {
+    page-break-after: always;
+    break-after: page;
+    padding: 10mm 12mm;
+    box-sizing: border-box;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .timetable-print-page:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .timetable-print-header {
+    text-align: center;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .timetable-print-logo {
+    max-height: 48px;
+    max-width: 90px;
+    object-fit: contain;
+    margin-bottom: 4px;
+  }
+  .timetable-print-school {
+    font-size: 16pt;
+    font-weight: 800;
+    color: #0f172a;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 2px;
+  }
+  .timetable-print-motto {
+    font-size: 9pt;
+    font-style: italic;
+    color: #475569;
+    margin: 0 0 3px;
+  }
+  .timetable-print-contacts {
+    font-size: 8pt;
+    color: #475569;
+    margin: 0;
+  }
+  .timetable-print-title-box {
+    margin: 8px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    padding: 6px 12px;
+    border-radius: 4px;
+  }
+  .timetable-print-title {
+    font-size: 11pt;
+    font-weight: 800;
+    color: #0f172a;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .timetable-print-meta {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #334155;
+  }
+  .timetable-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+  }
+  .timetable-print-table th,
+  .timetable-print-table td {
+    border: 1px solid #334155;
+    padding: 5px 6px;
+    font-size: 8pt;
+    vertical-align: top;
+  }
+  .timetable-print-table thead th {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    text-align: center;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 8pt;
+    padding: 5px 4px;
+  }
+  .timetable-print-table .print-period-col {
+    background: #f8fafc !important;
+    width: 80px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  .timetable-print-table .print-period-col b {
+    display: block;
+    color: #0f172a;
+    font-size: 8pt;
+  }
+  .timetable-print-table .print-period-col span {
+    font-size: 7pt;
+    color: #64748b;
+  }
+  .timetable-print-table .print-break-row td {
+    background: #fef3c7 !important;
+    text-align: center;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 7.5pt;
+    letter-spacing: 0.05em;
+    color: #78350f !important;
+    padding: 3px;
+  }
+  .timetable-print-cell-subj {
+    font-weight: 700;
+    color: #0f172a;
+    font-size: 8.5pt;
+    margin-bottom: 2px;
+  }
+  .timetable-print-cell-teacher {
+    font-size: 7.5pt;
+    color: #334155;
+  }
+  .timetable-print-cell-room {
+    font-size: 7pt;
+    color: #64748b;
+    font-family: monospace;
+  }
+  .timetable-print-legend {
+    margin-top: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 6px 10px;
+    background: #f8fafc;
+  }
+  .timetable-print-legend-title {
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    color: #0f172a;
+  }
+  .timetable-print-legend-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px 10px;
+    font-size: 7.5pt;
+    color: #334155;
+  }
+  .timetable-print-signatures {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 12px;
+    padding-top: 8px;
+  }
+  .timetable-print-sig-col {
+    width: 44%;
+    border-top: 1px dotted #334155;
+    padding-top: 4px;
+    font-size: 8pt;
+    color: #334155;
+  }
+  .timetable-print-sig-title {
+    font-weight: 700;
+    color: #0f172a;
+  }
+}
+
 /* ==========================================================================
    Notifications & Newsletters Module
    ========================================================================== */
