@@ -226,5 +226,69 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
         expect(cohortSlots).toHaveLength(40);
       }
     });
+
+    it("shuffles lessons across varied periods instead of repeating the same subject at the same hour daily", () => {
+      const cohorts = [{ grade: "Grade 5", stream: "" }];
+      const instructionalPeriods = [
+        { id: "p1", name: "Period 1", startTime: "08:00", endTime: "08:40" },
+        { id: "p2", name: "Period 2", startTime: "08:40", endTime: "09:20" },
+        { id: "p3", name: "Period 3", startTime: "09:20", endTime: "10:00" },
+        { id: "p4", name: "Period 4", startTime: "10:20", endTime: "11:00" },
+        { id: "p5", name: "Period 5", startTime: "11:00", endTime: "11:40" },
+        { id: "p6", name: "Period 6", startTime: "11:40", endTime: "12:20" },
+        { id: "p7", name: "Period 7", startTime: "13:10", endTime: "13:50" },
+        { id: "p8", name: "Period 8", startTime: "13:50", endTime: "14:30" },
+      ];
+      const subjects = [
+        { code: "MATH", name: "Mathematics" },
+        { code: "ENG", name: "English" },
+        { code: "KIS", name: "Kiswahili" },
+        { code: "SCI", name: "Integrated Science" },
+        { code: "AGR", name: "Agriculture" },
+        { code: "PTS", name: "Pre-Technical Studies" },
+        { code: "SST", name: "Social Studies" },
+        { code: "CRE", name: "CRE" },
+        { code: "CRA", name: "Creative Arts" },
+      ];
+      const teachers = [
+        {
+          id: "tr_owino",
+          fullName: "Allan Owino",
+          teachingAssignments: [
+            { grade: "Grade 5", stream: "", subjectCode: "MATH" },
+            { grade: "Grade 5", stream: "", subjectCode: "CRA" },
+            { grade: "Grade 5", stream: "", subjectCode: "PTS" },
+          ],
+        },
+      ];
+
+      const generated = buildCollisionFreeSchedule({
+        cohorts,
+        instructionalPeriods,
+        days: DAYS,
+        subjects,
+        teachers,
+      });
+
+      expect(generated).toHaveLength(40);
+
+      // Verify Mathematics is distributed across multiple distinct periods (NOT same period every day)
+      const mathSlots = generated.filter((s) => s.subjectCode === "MATH");
+      const mathDistinctPeriods = new Set(mathSlots.map((s) => s.periodId));
+      expect(mathDistinctPeriods.size).toBeGreaterThanOrEqual(4);
+
+      // Verify Creative Arts is also distributed across multiple distinct periods
+      const craSlots = generated.filter((s) => s.subjectCode === "CRA");
+      const craDistinctPeriods = new Set(craSlots.map((s) => s.periodId));
+      expect(craDistinctPeriods.size).toBeGreaterThanOrEqual(4);
+
+      // Verify teacher Allan Owino doesn't teach the same class at the same period every day
+      const teacherSlots = generated.filter((s) => s.teacherId === "tr_owino");
+      const p1TeacherSlots = teacherSlots.filter((s) => s.periodId === "p1");
+      // Across 5 days, teacher should NOT have the exact same class at P1 all 5 days
+      const p1Subjects = new Set(p1TeacherSlots.map((s) => s.subjectCode));
+      // Either teacher has different subjects/classes or free time at P1
+      expect(p1TeacherSlots.length).toBeLessThan(5);
+    });
   });
 });

@@ -267,16 +267,25 @@ export function detectTimetableConflicts(slots) {
  * Pure scheduler that distributes subjects and teachers across instructional periods
  * guaranteeing ZERO teacher collisions and balanced daily distribution.
  */
-export function buildCollisionFreeSchedule({
-  cohorts, // [{ grade, stream }]
-  instructionalPeriods, // [{ id, name, startTime, endTime }]
-  days = DAYS,
-  subjects = [],
-  teachers = [],
-}) {
-  if (!cohorts || !cohorts.length) throw new Error("No classes found to generate timetable for.");
-  if (!instructionalPeriods || !instructionalPeriods.length) throw new Error("No instructional periods found.");
+function shuffleArray(arr) {
+  const result = [...arr];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
 
+/**
+ * Generates one candidate weekly timetable with period-shuffling and collision prevention.
+ */
+function generateSingleScheduleAttempt({
+  cohorts,
+  instructionalPeriods,
+  days,
+  subjects,
+  teachers,
+}) {
   const totalPeriodsPerDay = instructionalPeriods.length;
   const totalSlotsPerWeek = days.length * totalPeriodsPerDay;
 
@@ -362,7 +371,8 @@ export function buildCollisionFreeSchedule({
       pool.length = totalSlotsPerWeek;
     }
 
-    cohortPools.set(cohortKey, pool);
+    // Shuffle each cohort's card pool so subjects aren't processed in rigid initial array order
+    cohortPools.set(cohortKey, shuffleArray(pool));
   }
 
   // Calculate teacher workloads to prioritize highly-loaded teachers
@@ -375,10 +385,24 @@ export function buildCollisionFreeSchedule({
     }
   }
 
-  const cohortDaySubjectCount = new Map();
+  // Tracking maps for diversity
+  const cohortDaySubjectCount = new Map();       // `${cohortKey}_${day}_${subjectCode}` -> count
+  const cohortPeriodSubjectCount = new Map();    // `${cohortKey}_${periodId}_${subjectCode}` -> count
+  const teacherPeriodCohortCount = new Map();    // `${teacherId}_${periodId}_${cohortKey}` -> count
 
-  for (const day of days) {
-    for (const period of instructionalPeriods) {
+  // Iterate over days and instructional periods
+  // We rotate the period processing order across different days so morning vs afternoon slots are naturally varied
+  for (let dIdx = 0; dIdx < days.length; dIdx++) {
+    const day = days[dIdx];
+
+    // Period rotation shift: e.g. Day 0: 0, Day 1: 3, Day 2: 6...
+    const periodShift = (dIdx * 3) % totalPeriodsPerDay;
+    const rotatedPeriods = [
+      ...instructionalPeriods.slice(periodShift),
+      ...instructionalPeriods.slice(0, periodShift),
+    ];
+
+    for (const period of rotatedPeriods) {
       const busyTeachersInSlot = new Set();
 
       // Sort cohorts so cohorts with heavily-loaded teachers are placed first
@@ -410,11 +434,38 @@ export function buildCollisionFreeSchedule({
             continue;
           }
 
+          const periodCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
+          const teacherPeriodCount = card.teacherId ? (teacherPeriodCohortCount.get(`${card.teacherId}_${period.id}_${cohortKey}`) || 0) : 0;
+
           let score = 0;
-          if (card.teacherId) {
-            score += (teacherFrequency.get(card.teacherId) || 0) * 10;
+
+          // 1. Heavy penalty if this subject was already placed at this exact period on another day!
+          // This directly ensures subjects appear at DIFFERENT times of day throughout the week.
+          if (periodCount > 0) {
+            score -= periodCount * 70;
+          } else {
+            score += 25; // Reward placing subject at a fresh period
           }
-          if (dailyCount === 0) score += 5;
+
+          // 2. Penalty if this subject was already taught today (spread across days)
+          if (dailyCount === 0) {
+            score += 30;
+          } else if (dailyCount === 1) {
+            score -= 40;
+          }
+
+          // 3. Penalty if teacher already taught this cohort at this period on other days
+          if (teacherPeriodCount > 0) {
+            score -= teacherPeriodCount * 30;
+          }
+
+          // 4. Heavily loaded teacher prioritization
+          if (card.teacherId) {
+            score += (teacherFrequency.get(card.teacherId) || 0) * 8;
+          }
+
+          // 5. Random jitter for rich, dynamic shuffling
+          score += Math.random() * 15;
 
           if (score > bestScore) {
             bestScore = score;
@@ -424,11 +475,17 @@ export function buildCollisionFreeSchedule({
 
         // Fallback: any card that does not cause a teacher collision
         if (bestIndex === -1) {
+          let fallbackScore = -Infinity;
           for (let i = 0; i < pool.length; i++) {
             const card = pool[i];
             if (!card.teacherId || !busyTeachersInSlot.has(card.teacherId)) {
-              bestIndex = i;
-              break;
+              const pCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
+              const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
+              const s = -(pCount * 20) - (dCount * 10) + Math.random() * 5;
+              if (s > fallbackScore) {
+                fallbackScore = s;
+                bestIndex = i;
+              }
             }
           }
         }
@@ -438,8 +495,17 @@ export function buildCollisionFreeSchedule({
           if (selectedCard.teacherId) {
             busyTeachersInSlot.add(selectedCard.teacherId);
           }
+
           const dailyKey = `${cohortKey}_${day}_${selectedCard.subjectCode}`;
           cohortDaySubjectCount.set(dailyKey, (cohortDaySubjectCount.get(dailyKey) || 0) + 1);
+
+          const periodKey = `${cohortKey}_${period.id}_${selectedCard.subjectCode}`;
+          cohortPeriodSubjectCount.set(periodKey, (cohortPeriodSubjectCount.get(periodKey) || 0) + 1);
+
+          if (selectedCard.teacherId) {
+            const tpKey = `${selectedCard.teacherId}_${period.id}_${cohortKey}`;
+            teacherPeriodCohortCount.set(tpKey, (teacherPeriodCohortCount.get(tpKey) || 0) + 1);
+          }
 
           generatedSlots.push({
             grade: cohort.grade,
@@ -458,6 +524,68 @@ export function buildCollisionFreeSchedule({
   }
 
   return generatedSlots;
+}
+
+/**
+ * Pure scheduler that distributes subjects and teachers across instructional periods
+ * guaranteeing ZERO teacher collisions, diverse period shuffling across days,
+ * and balanced weekly subject distribution.
+ */
+export function buildCollisionFreeSchedule({
+  cohorts, // [{ grade, stream }]
+  instructionalPeriods, // [{ id, name, startTime, endTime }]
+  days = DAYS,
+  subjects = [],
+  teachers = [],
+  attempts = 8,
+}) {
+  if (!cohorts || !cohorts.length) throw new Error("No classes found to generate timetable for.");
+  if (!instructionalPeriods || !instructionalPeriods.length) throw new Error("No instructional periods found.");
+
+  const totalExpectedSlots = cohorts.length * days.length * instructionalPeriods.length;
+
+  let bestSchedule = null;
+  let bestScore = -Infinity;
+
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const candidate = generateSingleScheduleAttempt({
+      cohorts,
+      instructionalPeriods,
+      days,
+      subjects,
+      teachers,
+    });
+
+    const conflicts = detectTimetableConflicts(candidate);
+    if (conflicts.length > 0) continue; // Collision-free is mandatory
+
+    const completeness = candidate.length / totalExpectedSlots;
+
+    // Calculate period repeat score across cohorts:
+    // We want subjects to be in different periods across days (low repeats)
+    let periodRepeats = 0;
+    const periodMap = new Map();
+    for (const slot of candidate) {
+      const key = `${slot.grade}_${slot.stream}_${slot.periodId}_${slot.subjectCode}`;
+      periodMap.set(key, (periodMap.get(key) || 0) + 1);
+    }
+    for (const count of periodMap.values()) {
+      if (count > 1) periodRepeats += (count - 1);
+    }
+
+    // High completeness + low repeats = high quality shuffled timetable
+    const qualityScore = (completeness * 1000) - (periodRepeats * 15);
+
+    if (qualityScore > bestScore) {
+      bestScore = qualityScore;
+      bestSchedule = candidate;
+      if (completeness >= 1 && periodRepeats === 0) {
+        break; // Perfect schedule found early
+      }
+    }
+  }
+
+  return bestSchedule || [];
 }
 
 /**
