@@ -459,12 +459,25 @@ function generateSingleScheduleAttempt({
             score -= teacherPeriodCount * 30;
           }
 
-          // 4. Heavily loaded teacher prioritization
+          // 4. Cognitive load balance (morning focus vs afternoon practical/creative)
+          const pNum = parseInt((period.name || "").replace(/\D/g, ""), 10) || 1;
+          const isMorning = pNum <= 4;
+          const isAfternoon = pNum >= 5;
+          const morningPreferred = ["MATH", "SCI", "ENG", "KIS"];
+          const afternoonPreferred = ["CRA", "AGR", "PTS", "PE", "PHE", "CRE", "IRE", "HRE", "SST"];
+
+          if (isMorning && morningPreferred.includes(card.subjectCode)) {
+            score += 16;
+          } else if (isAfternoon && afternoonPreferred.includes(card.subjectCode)) {
+            score += 16;
+          }
+
+          // 5. Heavily loaded teacher prioritization
           if (card.teacherId) {
             score += (teacherFrequency.get(card.teacherId) || 0) * 8;
           }
 
-          // 5. Random jitter for rich, dynamic shuffling
+          // 6. Random jitter for rich, dynamic shuffling
           score += Math.random() * 15;
 
           if (score > bestScore) {

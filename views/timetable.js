@@ -71,6 +71,25 @@ export function getAssignedClassSubjectTeacher(allTeachers, grade, stream, subje
   );
 }
 
+export function getSubjectDepartmentClass(subjectCode) {
+  if (!subjectCode) return "";
+  const sub = subjects.find((s) => s.code === subjectCode);
+  const dept = (sub && sub.department ? sub.department : "").toLowerCase();
+  if (dept.includes("science")) return "tt-pill--sciences";
+  if (dept.includes("language")) return "tt-pill--languages";
+  if (dept.includes("humanit")) return "tt-pill--humanities";
+  if (dept.includes("tech") || dept.includes("applied")) return "tt-pill--technical";
+  if (dept.includes("creat") || dept.includes("art") || dept.includes("sport")) return "tt-pill--creative";
+
+  const code = subjectCode.toUpperCase();
+  if (["MATH", "SCI", "AGR", "BIO", "CHEM", "PHY"].includes(code)) return "tt-pill--sciences";
+  if (["ENG", "KIS", "FREN", "GER", "ARAB"].includes(code)) return "tt-pill--languages";
+  if (["SST", "CRE", "IRE", "HRE", "GEO", "HIST"].includes(code)) return "tt-pill--humanities";
+  if (["PTS", "COMP", "HOME", "AV"].includes(code)) return "tt-pill--technical";
+  if (["CRA", "PE", "PHE", "MUS"].includes(code)) return "tt-pill--creative";
+  return "";
+}
+
 function getAllCohorts() {
   const opts = [];
   for (const c of classes) {
@@ -376,7 +395,7 @@ async function renderMasterTab(container, profile) {
         }, d)),
       ]),
 
-      // Actions: Auto-generate, Print, Clear
+      // Actions: Auto-generate, Print, Workload Analytics, Export Excel, Clear
       el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
         el("button", {
           type: "button",
@@ -389,6 +408,18 @@ async function renderMasterTab(container, profile) {
           class: "btn btn--ghost btn--sm hide-on-mobile",
           onClick: () => printMasterSchedule(),
         }, [icon("print", "text-xs"), "Print Master Timetable"]),
+
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          onClick: () => openFacultyWorkloadModal(),
+        }, [icon("insights", "text-xs"), "Workload Analytics"]),
+
+        masterSlots.length ? el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          onClick: (e) => exportMasterToExcel(e),
+        }, [icon("download", "text-xs"), "Export Excel (.xlsx)"]) : null,
 
         masterSlots.length ? el("button", {
           type: "button",
@@ -501,9 +532,10 @@ async function renderMasterTab(container, profile) {
           const td = el("td", { class: `tt-cell ${hasConflict ? "tt-conflict-cell" : ""}` });
 
           if (slot) {
+            const deptClass = getSubjectDepartmentClass(slot.subjectCode);
             const pill = el("button", {
               type: "button",
-              class: "tt-pill",
+              class: `tt-pill ${deptClass}`.trim(),
               onClick: () => {
                 classSelection = { grade: cohort.grade, stream: cohort.stream };
                 openAssignModal(profile, day, period, null, async () => {
@@ -1353,6 +1385,311 @@ async function printMasterSchedule() {
   printTimetableDocument(pagesHtml);
 }
 
+// --------------------------------------------------- Workload & Excel Export --
+
+function openFacultyWorkloadModal() {
+  const allMasterSlots = masterSlots.length ? masterSlots : [];
+  const instructionalTotal = periods.filter((p) => !p.isBreak).length * DAYS.length;
+  const totalScheduled = allMasterSlots.length;
+  const activeTeachers = teachers.filter((t) => allMasterSlots.some((s) => s.teacherId === t.id));
+  const avgLoad = activeTeachers.length ? (totalScheduled / activeTeachers.length).toFixed(1) : "0.0";
+
+  let searchQuery = "";
+
+  const modalBody = el("div", { class: "workload-modal-body" });
+
+  function renderList(targetMount) {
+    targetMount.innerHTML = "";
+
+    const query = searchQuery.trim().toLowerCase();
+    const filteredTeachers = teachers.filter((t) => {
+      if (!query) return true;
+      const name = (t.fullName || t.name || "").toLowerCase();
+      const tsc = (t.tscNumber || "").toLowerCase();
+      const homeroom = (t.homeroom || "").toLowerCase();
+      const subs = (t.teachingAssignments || []).map((a) => a.subjectCode.toLowerCase()).join(" ");
+      return name.includes(query) || tsc.includes(query) || homeroom.includes(query) || subs.includes(query);
+    });
+
+    if (!filteredTeachers.length) {
+      targetMount.append(el("div", { class: "empty-state", style: "padding:var(--sp-4);" }, [
+        icon("search_off", "empty-state__icon"),
+        el("p", { class: "text-muted text-sm" }, "No faculty members match your search criteria."),
+      ]));
+      return;
+    }
+
+    const list = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
+
+    for (const t of filteredTeachers) {
+      const assigned = allMasterSlots.filter((s) => s.teacherId === t.id);
+      const count = assigned.length;
+
+      let statusBadge = null;
+      if (count === 0) {
+        statusBadge = el("span", {
+          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;"
+        }, "0 Lessons · Unassigned");
+      } else if (count < 18) {
+        statusBadge = el("span", {
+          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;"
+        }, `${count} Lessons · Light Load`);
+      } else if (count <= 27) {
+        statusBadge = el("span", {
+          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;"
+        }, `${count} Lessons · Optimal TSC Load`);
+      } else {
+        statusBadge = el("span", {
+          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca;"
+        }, `${count} Lessons · Heavy Load`);
+      }
+
+      const dayDistribution = DAYS.map((d) => {
+        const c = assigned.filter((s) => s.day === d).length;
+        return `${d.slice(0, 3)}: ${c}`;
+      }).join(" · ");
+
+      const homeroom = t.homeroom ? t.homeroom.replace("|", " ").trim() : null;
+      const distinctClasses = [...new Set(assigned.map((s) => `${s.grade} ${s.stream || ""}`.trim()))];
+      const distinctSubjects = [...new Set(assigned.map((s) => s.subjectName || s.subjectCode))];
+
+      const card = el("div", {
+        style: "border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px 14px; background:var(--color-surface); transition:all 0.15s ease;"
+      }, [
+        el("div", { style: "display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;" }, [
+          el("div", {}, [
+            el("div", { style: "display:flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+              el("b", { style: "font-size:14px; color:var(--color-primary-900);" }, t.fullName || t.name),
+              t.tscNumber ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:11px; color:var(--color-ink-soft);" }, `TSC: ${t.tscNumber}`) : null,
+              homeroom ? el("span", { style: "background:var(--color-accent-subtle, #fef3c7); color:#92400e; font-size:10px; font-weight:600; padding:1px 6px; border-radius:10px; border:1px solid #fde68a;" }, `Class Teacher: ${homeroom}`) : null,
+            ].filter(Boolean)),
+            el("div", { style: "font-size:11px; color:var(--color-ink-soft); margin-top:4px;" }, [
+              `Daily Breakdown: ${dayDistribution}`,
+            ]),
+          ]),
+          statusBadge,
+        ]),
+        distinctSubjects.length ? el("div", { style: "margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;" }, [
+          el("span", { style: "font-size:10px; font-weight:600; color:var(--color-ink-soft); text-transform:uppercase;" }, "Subjects:"),
+          ...distinctSubjects.map((sub) => el("span", { style: "font-size:11px; background:var(--color-primary-100); color:var(--color-primary-900); padding:1px 6px; border-radius:4px; border:1px solid var(--color-line);" }, sub)),
+        ]) : null,
+        distinctClasses.length ? el("div", { style: "margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;" }, [
+          el("span", { style: "font-size:10px; font-weight:600; color:var(--color-ink-soft); text-transform:uppercase;" }, "Classes:"),
+          ...distinctClasses.map((cls) => el("span", { style: "font-size:11px; background:var(--color-cream-dim, #f8fafc); color:var(--color-ink); padding:1px 6px; border-radius:4px; border:1px solid var(--color-line);" }, cls)),
+        ]) : null,
+      ].filter(Boolean));
+
+      list.append(card);
+    }
+
+    targetMount.append(list);
+  }
+
+  // Summary Metrics Banner
+  const summaryHeader = el("div", {
+    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px;"
+  }, [
+    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
+      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, String(totalScheduled)),
+      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Total Lessons"),
+    ]),
+    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
+      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, `${activeTeachers.length} / ${teachers.length}`),
+      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Active Faculty"),
+    ]),
+    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
+      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, `${avgLoad}`),
+      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Avg Lessons/Wk"),
+    ]),
+    el("div", { style: "background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
+      el("div", { style: "font-size:20px; font-weight:800; color:#166534;" }, "20–27"),
+      el("div", { style: "font-size:10px; color:#15803d; text-transform:uppercase; font-weight:600;" }, "TSC Standard"),
+    ]),
+  ]);
+
+  // Search input
+  const searchInput = el("input", {
+    type: "text",
+    placeholder: "Search faculty by name, TSC number, subject, or class…",
+    class: "input input--sm",
+    style: "width:100%; margin-bottom:12px;",
+    onInput: (e) => {
+      searchQuery = e.target.value;
+      renderList(listMount);
+    },
+  });
+
+  const listMount = el("div", { style: "max-height:420px; overflow-y:auto; padding-right:4px;" });
+
+  modalBody.append(summaryHeader, searchInput, listMount);
+  renderList(listMount);
+
+  openModal({
+    title: "Faculty Workload & Lesson Distribution",
+    content: modalBody,
+    actions: [
+      {
+        label: "Export Excel (.xlsx)",
+        variant: "ghost",
+        onClick: (e) => exportMasterToExcel(e),
+      },
+      {
+        label: "Close",
+        variant: "secondary",
+        onClick: () => true,
+      },
+    ],
+  });
+}
+
+async function exportMasterToExcel(e) {
+  const restore = busyButton(e?.currentTarget || null, "Exporting…");
+  try {
+    const XLSX = await import("xlsx/xlsx.mjs").then((m) => m.default || m);
+    const wb = XLSX.utils.book_new();
+
+    const cohorts = getAllCohorts();
+
+    // Sheet 1: Master Schedule Grid
+    const gridRows = [];
+    const headers = ["Day", "Period", "Time", ...cohorts.map((c) => c.label)];
+    gridRows.push(headers);
+
+    const slotMap = new Map();
+    for (const slot of masterSlots) {
+      slotMap.set(`${slot.grade}_${slot.stream || ""}_${slot.day}_${slot.periodId}`, slot);
+    }
+
+    for (const day of DAYS) {
+      for (const p of periods) {
+        if (p.isBreak) {
+          const breakRow = [day, p.name, `${p.startTime}–${p.endTime}`];
+          for (let i = 0; i < cohorts.length; i++) breakRow.push(`— ${p.name} —`);
+          gridRows.push(breakRow);
+          continue;
+        }
+        const row = [day, p.name, `${p.startTime}–${p.endTime}`];
+        for (const c of cohorts) {
+          const slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
+          if (slot) {
+            const teacherInit = slot.teacherName ? slot.teacherName.split(" ")[0] : "Unassigned";
+            row.push(`${slot.subjectCode} (${teacherInit})${slot.room ? " [" + slot.room + "]" : ""}`);
+          } else {
+            row.push("—");
+          }
+        }
+        gridRows.push(row);
+      }
+    }
+
+    const wsMaster = XLSX.utils.aoa_to_sheet(gridRows);
+    wsMaster["!cols"] = [
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 14 },
+      ...cohorts.map(() => ({ wch: 20 })),
+    ];
+    XLSX.utils.book_append_sheet(wb, wsMaster, "Master Schedule");
+
+    // Sheet 2: Faculty Workloads
+    const workloadRows = [
+      ["Teacher Name", "TSC Number", "Homeroom / Class Teacher", "Total Weekly Lessons", "TSC Workload Status", "Mon", "Tue", "Wed", "Thu", "Fri", "Assigned Classes", "Assigned Subjects"]
+    ];
+
+    for (const t of teachers) {
+      const assigned = masterSlots.filter((s) => s.teacherId === t.id);
+      const count = assigned.length;
+      let status = "Light (< 18 lessons)";
+      if (count >= 18 && count <= 27) status = "Optimal (18–27 lessons)";
+      else if (count > 27) status = "Heavy (> 27 lessons)";
+      else if (count === 0) status = "Unassigned (0 lessons)";
+
+      const dayCounts = DAYS.map((d) => assigned.filter((s) => s.day === d).length);
+      const classesList = [...new Set(assigned.map((s) => `${s.grade} ${s.stream || ""}`.trim()))].join(", ");
+      const subsList = [...new Set(assigned.map((s) => s.subjectName || s.subjectCode))].join(", ");
+      const homeroom = t.homeroom ? t.homeroom.replace("|", " ").trim() : "None";
+
+      workloadRows.push([
+        t.fullName || t.name || "Unknown",
+        t.tscNumber || "N/A",
+        homeroom,
+        count,
+        status,
+        ...dayCounts,
+        classesList || "—",
+        subsList || "—",
+      ]);
+    }
+
+    const wsWorkload = XLSX.utils.aoa_to_sheet(workloadRows);
+    wsWorkload["!cols"] = [
+      { wch: 24 },
+      { wch: 14 },
+      { wch: 22 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 8 },
+      { wch: 28 },
+      { wch: 32 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsWorkload, "Faculty Workloads");
+
+    // Sheet 3: Flat Schedule List
+    const flatRows = [
+      ["Day", "Period", "Start Time", "End Time", "Grade", "Stream", "Class Cohort", "Subject Code", "Subject Name", "Teacher Name", "Room"]
+    ];
+    for (const s of masterSlots) {
+      const p = periods.find((x) => x.id === s.periodId);
+      flatRows.push([
+        s.day,
+        s.periodName || (p ? p.name : ""),
+        p ? p.startTime : "",
+        p ? p.endTime : "",
+        s.grade,
+        s.stream || "",
+        `${s.grade} ${s.stream || ""}`.trim(),
+        s.subjectCode,
+        s.subjectName || "",
+        s.teacherName || "",
+        s.room || "",
+      ]);
+    }
+    const wsFlat = XLSX.utils.aoa_to_sheet(flatRows);
+    wsFlat["!cols"] = [
+      { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 22 }, { wch: 24 }, { wch: 14 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsFlat, "All Lessons Flat");
+
+    const schoolSlug = (schoolSettings.name || "School").replace(/[^a-zA-Z0-9_-]/g, "_");
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${schoolSlug}_Master_Timetable_${dateStr}.xlsx`;
+
+    const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 150);
+
+    toast("Master timetable exported to Excel successfully!", "success");
+  } catch (err) {
+    console.error("Failed to export Excel timetable:", err);
+    toast("Could not export Excel: " + (err.message || err), "error");
+  } finally {
+    if (typeof restore === "function") restore();
+  }
+}
+
 // ------------------------------------------------------------------ Periods --
 
 function renderPeriods(container, profile) {
@@ -1512,9 +1849,10 @@ function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pi
       const slot = getSlot(day, period.id);
       const cellWrap = el("td", { class: "tt-cell" });
       if (slot) {
+        const deptClass = getSubjectDepartmentClass(slot.subjectCode);
         const pill = el("button", {
           type: "button",
-          class: `tt-pill${canManage ? "" : " tt-pill--readonly"}`
+          class: `tt-pill ${deptClass}${canManage ? "" : " tt-pill--readonly"}`.trim()
         }, pillRenderer(slot));
         if (canManage) pill.addEventListener("click", () => onCellClick(day, period));
         cellWrap.append(pill);
