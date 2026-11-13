@@ -18,9 +18,7 @@ import { getEffectiveTheme, getTheme, toggleTheme, setTheme } from "../theme.js"
 import { initCommandPalette, openCommandPalette } from "./command-palette.js";
 import {
   subscribeNetworkHealth,
-  triggerSyncCheck,
   getOfflineDurationInfo,
-  getNetworkHealthState,
 } from "../services/network-health.service.js";
 
 // First-time visitors get the tour started for them automatically, once
@@ -247,173 +245,34 @@ function showIosInstallHint() {
 }
 
 // ---------------------------------------------------------------------------
-// Real-Time Network Health & Sync Pill
+// Network Status Pill (Offline / Syncing indicator)
 //
-// Provides a live status pill in the topbar tracking network connectivity
-// and Firestore cloud persistence:
-//   - "online": Subtle green pulse dot + "Online · Synced" (auto-compacts
-//     after 3.5s quiet so topbar remains sleek, expanding on hover/tap)
+// Stays completely hidden when online so the topbar remains clean.
+// Appears only when connectivity is disrupted or changes are actively syncing:
+//   - "offline": Amber badge + "Offline - will sync" (or duration nudge)
 //   - "syncing": Blue badge + spinning sync icon + "Syncing changes…"
-//   - "offline": Amber badge + "Offline (Local Cache Active)" or nudge
-//
-// Clicking the pill toggles a System Sync Health popover showing detailed
-// connection status, IndexedDB persistence state, last sync time, and a
-// manual "Sync Now" trigger.
+//   - "online":  Hidden (display: none)
 // ---------------------------------------------------------------------------
 let offlinePillCleanup = null;
 
-function formatRelativeSyncTime(timestamp) {
-  if (!timestamp) return "Just now";
-  const diffSec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-  if (diffSec < 45) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  return `${diffHr}h ago`;
-}
-
 function networkHealthPill() {
   const iconSlot = el("span", { class: "network-pill__icon-slot" });
-  const textLabel = el("span", { class: "network-pill-text" }, "Online · Synced");
+  const textLabel = el("span", { class: "network-pill-text" }, "");
 
-  const pillBtn = el(
-    "button",
+  const pillEl = el(
+    "div",
     {
-      type: "button",
-      class: "badge topbar__network-pill topbar__offline-pill topbar__network-pill--online",
+      class: "badge topbar__network-pill topbar__offline-pill",
       "aria-label": "Network & Cloud Sync Status",
-      title: "Connected • Local cache synchronized with cloud server",
     },
     [iconSlot, textLabel]
   );
 
-  const wrap = el("div", { class: "topbar__network-pill-wrap" }, [pillBtn]);
+  const wrap = el("div", { class: "topbar__network-pill-wrap", style: "display: none;" }, [pillEl]);
 
-  let popoverEl = null;
-  let compactTimer = null;
   let durationTimer = null;
 
-  function closePopover() {
-    if (popoverEl) {
-      popoverEl.remove();
-      popoverEl = null;
-    }
-  }
-
-  function renderPopover(state) {
-    const isOnline = state.status !== "offline";
-    const isSyncing = state.status === "syncing";
-    const lastSyncStr = formatRelativeSyncTime(state.lastSyncedAt);
-
-    const closeBtn = el(
-      "button",
-      {
-        type: "button",
-        class: "network-health-popover__close",
-        "aria-label": "Close",
-        onClick: (e) => {
-          e.stopPropagation();
-          closePopover();
-        },
-      },
-      "✕"
-    );
-
-    const syncNowBtn = el(
-      "button",
-      {
-        type: "button",
-        class: "btn btn--primary network-health-popover__btn",
-        disabled: isSyncing,
-        onClick: async (e) => {
-          e.stopPropagation();
-          syncNowBtn.disabled = true;
-          syncNowBtn.textContent = "Syncing…";
-          try {
-            await triggerSyncCheck();
-            toast("Sync completed", "success");
-          } catch {
-            toast("Sync check completed", "info");
-          } finally {
-            closePopover();
-          }
-        },
-      },
-      [icon("sync", isSyncing ? "icon-spin" : ""), isSyncing ? " Synchronizing…" : " Force Cloud Sync"]
-    );
-
-    const card = el("div", { class: "network-health-popover", role: "dialog", "aria-modal": "false" }, [
-      el("div", { class: "network-health-popover__header" }, [
-        el("div", { class: "network-health-popover__title" }, [
-          icon(isOnline ? "cloud_done" : "cloud_off"),
-          el("span", {}, "System Sync Health"),
-        ]),
-        closeBtn,
-      ]),
-      el("div", { class: "network-health-popover__body" }, [
-        el("div", { class: "network-health-popover__item" }, [
-          el("div", { class: `network-health-popover__icon-badge network-health-popover__icon-badge--${isOnline ? "green" : "amber"}` }, [
-            icon(isOnline ? "wifi" : "wifi_off"),
-          ]),
-          el("div", { class: "network-health-popover__content" }, [
-            el("div", { class: "network-health-popover__item-header" }, [
-              el("span", { class: "network-health-popover__label" }, "Network Connection"),
-              el("span", { class: `badge badge--${isOnline ? "success" : "warning"}` }, isOnline ? "Connected" : "Disconnected"),
-            ]),
-            el("div", { class: "network-health-popover__desc" },
-              isOnline ? "Real-time cloud database connection active" : "Offline mode with local browser cache"
-            ),
-          ]),
-        ]),
-        el("div", { class: "network-health-popover__item" }, [
-          el("div", { class: "network-health-popover__icon-badge network-health-popover__icon-badge--blue" }, [
-            icon("database"),
-          ]),
-          el("div", { class: "network-health-popover__content" }, [
-            el("div", { class: "network-health-popover__item-header" }, [
-              el("span", { class: "network-health-popover__label" }, "Local Persistence"),
-              el("span", { class: "badge badge--primary" }, "Active"),
-            ]),
-            el("div", { class: "network-health-popover__desc" }, "Instant IndexedDB offline transaction queue"),
-          ]),
-        ]),
-        el("div", { class: "network-health-popover__item" }, [
-          el("div", { class: "network-health-popover__icon-badge network-health-popover__icon-badge--slate" }, [
-            icon("schedule"),
-          ]),
-          el("div", { class: "network-health-popover__content" }, [
-            el("div", { class: "network-health-popover__item-header" }, [
-              el("span", { class: "network-health-popover__label" }, "Last Synchronized"),
-              el("span", { class: "network-health-popover__timestamp" }, lastSyncStr),
-            ]),
-            el("div", { class: "network-health-popover__desc" },
-              isOnline ? "All local changes synchronized to cloud" : "Edits will automatically push upon reconnection"
-            ),
-          ]),
-        ]),
-      ]),
-      el("div", { class: "network-health-popover__actions" }, [
-        syncNowBtn,
-      ]),
-    ]);
-
-    return card;
-  }
-
-  function togglePopover(state) {
-    if (popoverEl) {
-      closePopover();
-      return;
-    }
-    popoverEl = renderPopover(state);
-    wrap.append(popoverEl);
-  }
-
   function applyState(state) {
-    if (compactTimer) {
-      clearTimeout(compactTimer);
-      compactTimer = null;
-    }
     if (durationTimer) {
       clearInterval(durationTimer);
       durationTimer = null;
@@ -422,17 +281,18 @@ function networkHealthPill() {
     iconSlot.replaceChildren();
 
     if (state.status === "offline") {
-      pillBtn.className = "badge badge--warning topbar__network-pill topbar__offline-pill topbar__network-pill--offline";
+      wrap.style.display = "inline-flex";
+      pillEl.className = "badge badge--warning topbar__network-pill topbar__offline-pill topbar__network-pill--offline";
       iconSlot.append(icon("wifi_off"));
 
       const updateOfflineLabel = () => {
         const info = getOfflineDurationInfo(state.lastOnlineAt);
         if (info.needsNudge) {
           textLabel.textContent = `Offline ${info.readableDuration} - reconnect to sync`;
-          pillBtn.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
+          pillEl.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
         } else {
-          textLabel.textContent = "Offline (Local Cache Active)";
-          pillBtn.title = "No connection right now. Edits are saved in local offline cache and will sync automatically once you are back online.";
+          textLabel.textContent = "Offline - will sync";
+          pillEl.title = "No connection right now. Edits are saved in local offline cache and will sync automatically once you are back online.";
         }
       };
 
@@ -442,59 +302,25 @@ function networkHealthPill() {
     }
 
     if (state.status === "syncing") {
-      pillBtn.className = "badge badge--primary topbar__network-pill topbar__offline-pill topbar__network-pill--syncing";
+      wrap.style.display = "inline-flex";
+      pillEl.className = "badge badge--primary topbar__network-pill topbar__offline-pill topbar__network-pill--syncing";
       const syncIcon = icon("sync", "icon-spin");
       iconSlot.append(syncIcon);
       textLabel.textContent = "Syncing changes…";
-      pillBtn.title = "Uploading pending edits to the cloud server…";
+      pillEl.title = "Uploading pending edits to the cloud server…";
       return;
     }
 
-    // "online"
-    pillBtn.className = "badge badge--success topbar__network-pill topbar__offline-pill topbar__network-pill--online";
-    const cloudIcon = icon("cloud_done");
-    iconSlot.append(cloudIcon);
-    textLabel.textContent = "Online · Synced";
-    pillBtn.title = "Connected to cloud server • Local cache synchronized. Click for details.";
-
-    // Compact mode after 3.5 seconds quiet in online state
-    compactTimer = setTimeout(() => {
-      pillBtn.classList.add("topbar__network-pill--compact");
-    }, 3500);
+    // "online" -> hidden completely
+    wrap.style.display = "none";
   }
-
-  pillBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    pillBtn.classList.remove("topbar__network-pill--compact");
-    const state = typeof getNetworkHealthState === "function"
-      ? getNetworkHealthState()
-      : { status: "online", isOnline: true, lastSyncedAt: Date.now() };
-    togglePopover(state);
-  });
-
-  const onDocClick = (e) => {
-    if (!wrap.contains(e.target)) {
-      closePopover();
-    }
-  };
-  const onDocKeyDown = (e) => {
-    if (e.key === "Escape") {
-      closePopover();
-    }
-  };
-  document.addEventListener("click", onDocClick);
-  document.addEventListener("keydown", onDocKeyDown);
 
   const unsub = subscribeNetworkHealth(applyState);
 
   if (offlinePillCleanup) offlinePillCleanup();
   offlinePillCleanup = () => {
     unsub();
-    document.removeEventListener("click", onDocClick);
-    document.removeEventListener("keydown", onDocKeyDown);
-    if (compactTimer) clearTimeout(compactTimer);
     if (durationTimer) clearInterval(durationTimer);
-    closePopover();
   };
 
   return wrap;

@@ -42,15 +42,6 @@ if ("serviceWorker" in navigator) {
       forceHardRefresh({ reason: "sw_updated_login_gate" });
       return;
     }
-
-    const root = document.getElementById("toast-root");
-    if (!root) return;
-    const bar = document.createElement("div");
-    bar.className = "toast toast--info";
-    bar.style.cursor = "pointer";
-    bar.textContent = "A new version of Eeskia is ready - tap to refresh.";
-    bar.addEventListener("click", () => forceHardRefresh({ reason: "sw_updated_toast_click" }));
-    root.appendChild(bar);
   });
 }
 
