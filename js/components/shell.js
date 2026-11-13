@@ -309,7 +309,7 @@ function networkHealthPill() {
       "button",
       {
         type: "button",
-        style: "background:none;border:none;cursor:pointer;color:var(--color-ink-soft);padding:2px 4px;font-size:16px;line-height:1;",
+        class: "network-health-popover__close",
         "aria-label": "Close",
         onClick: (e) => {
           e.stopPropagation();
@@ -323,7 +323,7 @@ function networkHealthPill() {
       "button",
       {
         type: "button",
-        class: "btn btn--sm btn--primary network-health-popover__btn",
+        class: "btn btn--primary network-health-popover__btn",
         disabled: isSyncing,
         onClick: async (e) => {
           e.stopPropagation();
@@ -339,43 +339,57 @@ function networkHealthPill() {
           }
         },
       },
-      [icon("sync", isSyncing ? "icon-spin" : ""), isSyncing ? " Syncing…" : " Sync Now"]
+      [icon("sync", isSyncing ? "icon-spin" : ""), isSyncing ? " Synchronizing…" : " Force Cloud Sync"]
     );
 
     const card = el("div", { class: "network-health-popover", role: "dialog", "aria-modal": "false" }, [
       el("div", { class: "network-health-popover__header" }, [
         el("div", { class: "network-health-popover__title" }, [
           icon(isOnline ? "cloud_done" : "cloud_off"),
-          "System Sync Health",
+          el("span", {}, "System Sync Health"),
         ]),
         closeBtn,
       ]),
-      el("div", { class: "network-health-popover__row" }, [
-        icon(isOnline ? "wifi" : "wifi_off"),
-        el("div", {}, [
-          el("div", {}, [
-            "Network: ",
-            el("span", { class: `badge badge--${isOnline ? "success" : "warning"}` }, isOnline ? "Connected" : "Disconnected"),
+      el("div", { class: "network-health-popover__body" }, [
+        el("div", { class: "network-health-popover__item" }, [
+          el("div", { class: `network-health-popover__icon-badge network-health-popover__icon-badge--${isOnline ? "green" : "amber"}` }, [
+            icon(isOnline ? "wifi" : "wifi_off"),
           ]),
-          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" },
-            isOnline ? "High-speed multi-tab cloud sync enabled" : "Working offline with local cache"
-          ),
+          el("div", { class: "network-health-popover__content" }, [
+            el("div", { class: "network-health-popover__item-header" }, [
+              el("span", { class: "network-health-popover__label" }, "Network Connection"),
+              el("span", { class: `badge badge--${isOnline ? "success" : "warning"}` }, isOnline ? "Connected" : "Disconnected"),
+            ]),
+            el("div", { class: "network-health-popover__desc" },
+              isOnline ? "Real-time cloud database connection active" : "Offline mode with local browser cache"
+            ),
+          ]),
         ]),
-      ]),
-      el("div", { class: "network-health-popover__row" }, [
-        icon("database"),
-        el("div", {}, [
-          el("div", {}, ["Local Persistence: ", el("b", { class: "network-health-popover__meta-val" }, "Active")]),
-          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" }, "IndexedDB offline read/write queue"),
+        el("div", { class: "network-health-popover__item" }, [
+          el("div", { class: "network-health-popover__icon-badge network-health-popover__icon-badge--blue" }, [
+            icon("database"),
+          ]),
+          el("div", { class: "network-health-popover__content" }, [
+            el("div", { class: "network-health-popover__item-header" }, [
+              el("span", { class: "network-health-popover__label" }, "Local Persistence"),
+              el("span", { class: "badge badge--primary" }, "Active"),
+            ]),
+            el("div", { class: "network-health-popover__desc" }, "Instant IndexedDB offline transaction queue"),
+          ]),
         ]),
-      ]),
-      el("div", { class: "network-health-popover__row" }, [
-        icon("schedule"),
-        el("div", {}, [
-          el("div", {}, ["Last Synced: ", el("span", { class: "network-health-popover__meta-val" }, lastSyncStr)]),
-          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" },
-            isOnline ? "All local changes synchronized" : "Changes will push upon reconnection"
-          ),
+        el("div", { class: "network-health-popover__item" }, [
+          el("div", { class: "network-health-popover__icon-badge network-health-popover__icon-badge--slate" }, [
+            icon("schedule"),
+          ]),
+          el("div", { class: "network-health-popover__content" }, [
+            el("div", { class: "network-health-popover__item-header" }, [
+              el("span", { class: "network-health-popover__label" }, "Last Synchronized"),
+              el("span", { class: "network-health-popover__timestamp" }, lastSyncStr),
+            ]),
+            el("div", { class: "network-health-popover__desc" },
+              isOnline ? "All local changes synchronized to cloud" : "Edits will automatically push upon reconnection"
+            ),
+          ]),
         ]),
       ]),
       el("div", { class: "network-health-popover__actions" }, [
@@ -1171,15 +1185,17 @@ export function renderShell(app, profile, activePath) {
       el("kbd", { class: "topbar__search-kbd" }, "Ctrl K"),
     ]
   );
-  topbar.append(el("div", { class: "topbar__left" }, [
-    mobileMenuBtn,
-    collapseBtn,
-    el("div", { class: "topbar__titles" }, [
-      schoolNameEl,
-      el("div", { class: "topbar__title" }, currentTitle(activePath)),
+  topbar.append(
+    el("div", { class: "topbar__left" }, [
+      mobileMenuBtn,
+      collapseBtn,
+      el("div", { class: "topbar__titles" }, [
+        schoolNameEl,
+        el("div", { class: "topbar__title" }, currentTitle(activePath)),
+      ]),
     ]),
-    searchTriggerBtn,
-  ]));
+    el("div", { class: "topbar__center" }, [searchTriggerBtn])
+  );
   const tourButton = el(
     "button",
     {

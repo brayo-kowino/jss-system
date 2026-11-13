@@ -667,9 +667,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--sp-4);
   padding: 8px var(--sp-6);
+  min-height: var(--topbar-h, 64px);
 }
-.topbar__left { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.topbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.topbar__center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  max-width: 420px;
+}
+.topbar__center .topbar__search-trigger {
+  width: 100%;
+  max-width: 380px;
+}
 .topbar__icon-btn,
 .topbar__collapse-btn,
 .topbar__mobile-menu-btn {
@@ -703,24 +722,29 @@
 .topbar__mobile-menu-btn .material-symbols-rounded {
   font-size: 22px;
 }
-.topbar__titles { display: flex; flex-direction: column; gap: 1px; min-width: 0; overflow: hidden; }
+.topbar__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
 .topbar__school-name {
   font-family: var(--font-display);
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md, 1.125rem);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.2;
   color: var(--color-primary-900);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 100%;
+  letter-spacing: -0.01em;
 }
 .topbar__title {
-  font-size: var(--fs-xs);
+  font-size: 0.7rem;
   font-weight: 600;
   color: var(--color-ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
 .topbar__user {
   display: flex;
@@ -851,19 +875,26 @@
 /* Network Popover */
 .network-health-popover {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 10px);
   right: 0;
-  width: 290px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
-  padding: var(--sp-4);
-  z-index: 1000;
+  width: 330px;
+  background: var(--color-white, #FFFFFF) !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid var(--color-line, #DCE3E8);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 16px 40px -8px rgba(11, 37, 69, 0.22), 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 9999;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  overflow: hidden;
   animation: network-popover-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] .network-health-popover {
+  background: #1E293B !important;
+  background-color: #1E293B !important;
+  border-color: #334155;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.7);
 }
 
 @keyframes network-popover-slide-in {
@@ -881,48 +912,170 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--color-line);
-  padding-bottom: var(--sp-2);
+  padding: 12px 16px;
+  background: var(--color-cream, #FAF6F0);
+  border-bottom: 1px solid var(--color-line, #DCE3E8);
 }
+[data-theme="dark"] .network-health-popover__header {
+  background: #0F172A;
+  border-color: #334155;
+}
+
 .network-health-popover__title {
-  font-size: var(--fs-sm);
-  font-weight: 600;
+  font-size: var(--fs-sm, 13px);
+  font-weight: 700;
   color: var(--color-ink);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  letter-spacing: -0.01em;
 }
-.network-health-popover__row {
+.network-health-popover__title .icon {
+  font-size: 18px;
+  color: var(--color-primary-700, #14538A);
+}
+[data-theme="dark"] .network-health-popover__title .icon {
+  color: #38BDF8;
+}
+
+.network-health-popover__close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-ink-soft);
+  font-size: 15px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm, 4px);
+  transition: all var(--transition);
+}
+.network-health-popover__close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-ink);
+}
+[data-theme="dark"] .network-health-popover__close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #F8FAFC;
+}
+
+.network-health-popover__body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.network-health-popover__item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: var(--fs-xs);
-  color: var(--color-ink-soft);
-  line-height: 1.4;
+  gap: 12px;
 }
-.network-health-popover__row .icon {
-  font-size: 16px;
-  color: var(--color-ink);
+
+.network-health-popover__icon-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   margin-top: 1px;
 }
-.network-health-popover__meta-val {
-  color: var(--color-ink);
-  font-weight: 500;
+.network-health-popover__icon-badge .icon {
+  font-size: 18px;
+  line-height: 1;
 }
+.network-health-popover__icon-badge--green {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+[data-theme="dark"] .network-health-popover__icon-badge--green {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+.network-health-popover__icon-badge--amber {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+[data-theme="dark"] .network-health-popover__icon-badge--amber {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fbbf24;
+}
+.network-health-popover__icon-badge--blue {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+[data-theme="dark"] .network-health-popover__icon-badge--blue {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+}
+.network-health-popover__icon-badge--slate {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+[data-theme="dark"] .network-health-popover__icon-badge--slate {
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+}
+
+.network-health-popover__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.network-health-popover__item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.network-health-popover__label {
+  font-size: var(--fs-xs, 12px);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.network-health-popover__timestamp {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  background: var(--color-cream-dim, #F1EAE0);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm, 4px);
+}
+[data-theme="dark"] .network-health-popover__timestamp {
+  background: #0F172A;
+  color: #94A3B8;
+}
+
+.network-health-popover__desc {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
 .network-health-popover__actions {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--color-line, #DCE3E8);
+  background: var(--color-cream, #FAF6F0);
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: var(--sp-1);
 }
+[data-theme="dark"] .network-health-popover__actions {
+  background: #0F172A;
+  border-color: #334155;
+}
+
 .network-health-popover__btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--fs-xs);
-  padding: 5px 12px;
-  border-radius: var(--radius-md);
+  width: 100%;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--fs-xs, 12px);
+  padding: 8px 14px;
+  border-radius: var(--radius-md, 6px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .topbar__offline-pill {

@@ -18,6 +18,8 @@
   --color-red: #B3261E;
   --color-line: #DCE3E8;
   --color-white: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F8FAFC;
 
   /* Typography */
   --font-display: 'Georgia', 'Times New Roman', Times, serif;
@@ -78,7 +80,8 @@
   --color-red: #EF4444;
   --color-line: #263345;
   --color-white: #111827;
-  --color-surface-alt: #1E293B;
+  --color-surface: #1E293B;
+  --color-surface-alt: #0F172A;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
@@ -101,7 +104,8 @@
     --color-red: #EF4444;
     --color-line: #263345;
     --color-white: #111827;
-    --color-surface-alt: #1E293B;
+    --color-surface: #1E293B;
+    --color-surface-alt: #0F172A;
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
