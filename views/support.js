@@ -10,7 +10,8 @@ let tickets = [];
 let activeFilter = "all";
 let tableContainer = null;
 
-export { buildSupportMascotSvg } from "../js/components/mascot.js";
+import { buildSupportMascotSvg } from "../js/components/mascot.js";
+export { buildSupportMascotSvg };
 
 function renderRow(ticket, profile) {
   const isOpen = ticket.status === "open";

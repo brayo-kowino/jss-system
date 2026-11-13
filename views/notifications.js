@@ -59,7 +59,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildNotificationsMascotSvg } from "../js/components/mascot.js";
+import { buildNotificationsMascotSvg } from "../js/components/mascot.js";
+export { buildNotificationsMascotSvg };
 
 export async function render({ profile }) {
   [notifications, newsletters, settings, classes, students, parents] = await Promise.all([

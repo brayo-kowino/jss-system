@@ -48,7 +48,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildFinanceMascotSvg } from "../js/components/mascot.js";
+import { buildFinanceMascotSvg } from "../js/components/mascot.js";
+export { buildFinanceMascotSvg };
 
 export async function render({ profile }) {
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);

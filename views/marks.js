@@ -55,7 +55,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildMarksMascotSvg } from "../js/components/mascot.js";
+import { buildMarksMascotSvg } from "../js/components/mascot.js";
+export { buildMarksMascotSvg };
 
 // ------------------------------------------------------------------ Render --
 

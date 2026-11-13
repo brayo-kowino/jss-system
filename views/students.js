@@ -58,7 +58,8 @@ let sortDirection = "asc";
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
-export { buildStudentsMascotSvg } from "../js/components/mascot.js";
+import { buildStudentsMascotSvg } from "../js/components/mascot.js";
+export { buildStudentsMascotSvg };
 
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();

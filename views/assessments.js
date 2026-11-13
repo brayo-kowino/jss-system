@@ -45,7 +45,8 @@ let statsCache = new Map();
 let filters = { search: "", type: "all", term: "all", year: "all", status: "all", grade: "all", subject: "all" };
 let sort = { key: "date", dir: "desc" };
 
-export { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
+import { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
+export { buildAssessmentsMascotSvg };
 
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();

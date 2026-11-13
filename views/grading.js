@@ -45,7 +45,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildGradingMascotSvg } from "../js/components/mascot.js";
+import { buildGradingMascotSvg } from "../js/components/mascot.js";
+export { buildGradingMascotSvg };
 
 // ------------------------------------------------------------------ Render --
 

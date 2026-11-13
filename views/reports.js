@@ -114,7 +114,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildReportsMascotSvg } from "../js/components/mascot.js";
+import { buildReportsMascotSvg } from "../js/components/mascot.js";
+export { buildReportsMascotSvg };
 
 export async function render({ profile }) {
   prewarmPdfLibs();

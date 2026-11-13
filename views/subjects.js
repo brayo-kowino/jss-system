@@ -40,7 +40,8 @@ const CBC_PRESETS = [
   { code: "PTS", name: "Pre-Technical Studies", department: "Technical & Applied", pathway: "STEM" },
 ];
 
-export { buildSubjectsMascotSvg } from "../js/components/mascot.js";
+import { buildSubjectsMascotSvg } from "../js/components/mascot.js";
+export { buildSubjectsMascotSvg };
 
 // ------------------------------------------------------------------ Render --
 

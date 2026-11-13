@@ -37,7 +37,8 @@ function getInitials(name = "") {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-export { buildIssuesMascotSvg } from "../js/components/mascot.js";
+import { buildIssuesMascotSvg } from "../js/components/mascot.js";
+export { buildIssuesMascotSvg };
 
 let issues = [];
 let cachedStudents = [];

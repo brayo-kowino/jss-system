@@ -62,7 +62,8 @@ function renderRelationshipBadge(rel) {
   ]);
 }
 
-export { buildParentsMascotSvg } from "../js/components/mascot.js";
+import { buildParentsMascotSvg } from "../js/components/mascot.js";
+export { buildParentsMascotSvg };
 
 function getFilteredParents() {
   return parents.filter((p) => {

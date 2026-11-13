@@ -37,7 +37,8 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-export { buildAcademicsMascotSvg } from "../js/components/mascot.js";
+import { buildAcademicsMascotSvg } from "../js/components/mascot.js";
+export { buildAcademicsMascotSvg };
 
 /**
  * Determine curriculum cohort badge for Kenya CBC framework.

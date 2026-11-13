@@ -44,7 +44,8 @@ function cleanPhoneForWhatsApp(phone = "") {
   return cleaned;
 }
 
-export { buildAnalyticsMascotSvg } from "../js/components/mascot.js";
+import { buildAnalyticsMascotSvg } from "../js/components/mascot.js";
+export { buildAnalyticsMascotSvg };
 
 const RESULT_MODE_PRIORITY = ["average", "endterm", "midterm"];
 

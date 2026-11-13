@@ -104,7 +104,8 @@ function getAllCohorts() {
   return opts;
 }
 
-export { buildTimetableMascotSvg } from "../js/components/mascot.js";
+import { buildTimetableMascotSvg } from "../js/components/mascot.js";
+export { buildTimetableMascotSvg };
 
 /**
  * 6-Step Visual Workflow Guide

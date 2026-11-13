@@ -34,7 +34,8 @@ let subjects = [];
 let classes = [];
 let staffUsers = [];
 
-export { buildStaffMascotSvg } from "../js/components/mascot.js";
+import { buildStaffMascotSvg } from "../js/components/mascot.js";
+export { buildStaffMascotSvg };
 
 function showInstructionsModal() {
   const body = el("div", { style: "padding-bottom: 8px; font-family: var(--font-body, sans-serif); color: var(--color-ink);" }, [
