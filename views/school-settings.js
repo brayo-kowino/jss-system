@@ -921,8 +921,9 @@ function buildCalendarTab() {
 // ===========================================================================
 
 function buildGradingTab() {
-  const grid = el("div", { class: "settings-studio-grid" });
+  const wrap = el("div", { class: "settings-stack" });
 
+  // 1. Full-Width CBC Grading Scale Card
   const card = el("div", { class: "card settings-card" });
   card.append(
     el("h3", {}, [
@@ -936,15 +937,15 @@ function buildGradingTab() {
     el("p", { class: "settings-card__sub" }, "Configure performance level thresholds, point weights, and official remarks for report cards.")
   );
 
-  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-top:12px;" });
-  const table = el("table", {}, [
+  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-top:16px;" });
+  const table = el("table", { class: "grading-scale-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", {}, "Min %"),
-      el("th", {}, "Max %"),
-      el("th", {}, "Grade Code"),
-      el("th", {}, "Points"),
-      el("th", {}, "Remark"),
-      el("th", { style: "width:44px;" }, ""),
+      el("th", { style: "width:110px;" }, "Min %"),
+      el("th", { style: "width:110px;" }, "Max %"),
+      el("th", { style: "width:130px;" }, "Grade Code"),
+      el("th", { style: "width:110px;" }, "Points"),
+      el("th", {}, "Official Remark"),
+      el("th", { style: "width:50px; text-align:center;" }, ""),
     ])),
   ]);
 
@@ -955,13 +956,13 @@ function buildGradingTab() {
   card.append(tableWrap);
 
   card.append(
-    el("div", { class: "settings-form-actions" }, [
+    el("div", { class: "settings-form-actions", style: "margin-top:16px;" }, [
       el("button", { type: "button", id: "add-grading-row", class: "btn btn--ghost btn--sm" }, [icon("add"), "Add Grade Band"]),
       el("button", { type: "button", id: "save-grading", class: "btn btn--primary" }, [icon("save"), "Save Grading Scale"]),
     ])
   );
 
-  // Column 2: CBC Assessment Standards Reference Card
+  // 2. Full-Width CBC Assessment Standards Reference Card
   const standardsCard = el("div", { class: "card settings-card" });
   standardsCard.append(
     el("h3", {}, [
@@ -975,7 +976,7 @@ function buildGradingTab() {
     el("p", { class: "settings-card__sub" }, "Standard 4-tier competency descriptors informing cumulative points, GPA, and term positions.")
   );
 
-  const standardsList = el("div", { class: "cbc-standards-list" }, [
+  const standardsGrid = el("div", { class: "cbc-standards-grid" }, [
     el("div", { class: "cbc-standard-item" }, [
       el("div", { class: "cbc-standard-header" }, [
         el("strong", { style: "font-size:var(--fs-sm);" }, "Exceeding Expectations (EE)"),
@@ -1006,20 +1007,20 @@ function buildGradingTab() {
     ]),
   ]);
 
-  standardsCard.append(standardsList);
-  grid.append(card, standardsCard);
+  standardsCard.append(standardsGrid);
+  wrap.append(card, standardsCard);
 
-  return grid;
+  return wrap;
 }
 
 function gradingRow(row = {}) {
   const tr = el("tr", {}, [
-    el("td", { "data-label": "Min %" }, el("input", { type: "number", value: row.min ?? "", class: "grade-min", style: "width:72px;" })),
-    el("td", { "data-label": "Max %" }, el("input", { type: "number", value: row.max ?? "", class: "grade-max", style: "width:72px;" })),
-    el("td", { "data-label": "Grade" }, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", style: "width:72px;" })),
-    el("td", { "data-label": "Points" }, el("input", { type: "number", value: row.points ?? "", class: "grade-points", style: "width:72px;" })),
-    el("td", { "data-label": "Remark" }, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark" })),
-    el("td", { class: "row-actions", "data-label": "Remove" }, el("button", {
+    el("td", { "data-label": "Min %" }, el("input", { type: "number", value: row.min ?? "", class: "grade-min", style: "width:80px;" })),
+    el("td", { "data-label": "Max %" }, el("input", { type: "number", value: row.max ?? "", class: "grade-max", style: "width:80px;" })),
+    el("td", { "data-label": "Grade" }, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", style: "width:100px;" })),
+    el("td", { "data-label": "Points" }, el("input", { type: "number", value: row.points ?? "", class: "grade-points", style: "width:80px;" })),
+    el("td", { "data-label": "Remark", style: "width:100%;" }, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark", style: "width:100%; min-width:180px;" })),
+    el("td", { class: "row-actions", "data-label": "Remove", style: "text-align:center; width:50px;" }, el("button", {
       type: "button", class: "btn btn--ghost btn--sm", title: "Remove row",
       onClick: (e) => e.currentTarget.closest("tr").remove(),
     }, icon("delete"))),
