@@ -15,6 +15,7 @@ import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissK
 import { registerFCMToken } from "../services/fcm.service.js";
 import { mountTrialBanner } from "./trial-banner.js";
 import { getEffectiveTheme, getTheme, toggleTheme, setTheme } from "../theme.js";
+import { applyThemeVariables, updateThemeColor, shade, tint } from "../theme-engine.js";
 import { initCommandPalette, openCommandPalette } from "./command-palette.js";
 import {
   subscribeNetworkHealth,
@@ -43,75 +44,35 @@ function markTourSeen(uid) {
   }
 }
 
-// Lightens/darkens a hex color by `amt` (-255..255), used to derive a darker
-// sidebar shade from the school's single primary brand color.
-function shade(hex, amt) {
-  const n = parseInt((hex || "#14538A").replace("#", ""), 16);
-  const clamp = (v) => Math.max(0, Math.min(255, v));
-  const r = clamp(((n >> 16) & 255) + amt);
-  const g = clamp(((n >> 8) & 255) + amt);
-  const b = clamp((n & 255) + amt);
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
-function tint(hex, ratio = 0.12) {
-  const n = parseInt((hex || "#14538A").replace("#", ""), 16);
-  const r = Math.round(((n >> 16) & 255) * ratio + 255 * (1 - ratio));
-  const g = Math.round(((n >> 8) & 255) * ratio + 255 * (1 - ratio));
-  const b = Math.round((n & 255) * ratio + 255 * (1 - ratio));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
+// Re-export color helpers for backwards compatibility
+export { updateThemeColor, shade, tint };
 
 // Captured once, before any school branding has had a chance to overwrite
 // it, so there's a real generic title to fall back to for contexts with no
 // resolved school (e.g. super_admin/Platform Admin).
 const DEFAULT_TITLE = document.title;
 
-export function updateThemeColor(color) {
-  if (!color || typeof document === "undefined") return;
-  const metas = document.querySelectorAll('meta[name="theme-color"]');
-  if (!metas.length) {
-    const meta = document.createElement("meta");
-    meta.name = "theme-color";
-    meta.content = color;
-    document.head.appendChild(meta);
-  } else {
-    metas.forEach((m) => m.setAttribute("content", color));
-  }
-}
-
 // Re-themes the whole app (sidebar, buttons, letterhead accents, browser
 // tab title, PWA status bar / window title bar) to a school's chosen brand - colors from CSS custom properties
 // every stylesheet already keys off of, plus the tab title so a user with
 // several schools open in different tabs can tell them apart at a glance.
 export function applyBranding(settings) {
-  const root = document.documentElement.style;
-  const primary = settings?.themeColor || "#14538A";
-  const accent = settings?.secondaryColor || "#C9A227";
-  root.setProperty("--color-primary-700", primary);
-  root.setProperty("--color-primary-600", shade(primary, 25));
-  root.setProperty("--color-gold", accent);
-  root.setProperty("--color-gold-soft", shade(accent, 60));
-
-  if (getEffectiveTheme() !== "dark") {
-    root.setProperty("--color-primary-900", shade(primary, -30));
-    root.setProperty("--color-primary-100", tint(primary, 0.12));
-    updateThemeColor(primary);
-  } else {
-    root.removeProperty("--color-primary-900");
-    root.removeProperty("--color-primary-100");
-    updateThemeColor("#0B0F19");
+  if (settings) {
+    cachedSettings = settings;
   }
+  const primary = settings?.themeColor || cachedSettings?.themeColor || "#14538A";
+  const accent = settings?.secondaryColor || cachedSettings?.secondaryColor || "#C9A227";
+  const effectiveTheme = getEffectiveTheme();
 
-  document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;
-  setFavicon(settings?.logoUrl || "/assets/logo.png");
+  applyThemeVariables(primary, accent, effectiveTheme);
+
+  document.title = settings?.schoolName ? `${settings.schoolName} ` : (cachedSettings?.schoolName ? `${cachedSettings.schoolName} ` : DEFAULT_TITLE);
+  setFavicon(settings?.logoUrl || cachedSettings?.logoUrl || "/assets/logo.png");
 }
 
 if (typeof window !== "undefined") {
   window.addEventListener("themechange", () => {
-    if (cachedSettings) {
-      applyBranding(cachedSettings);
-    }
+    applyBranding(cachedSettings || {});
   });
 }
 

@@ -2,6 +2,8 @@
 // Eeskia Theme Management (Light / Dark / System)
 // ==========================================================================
 
+import { applyThemeVariables } from "./theme-engine.js";
+
 const STORAGE_KEY = "eeskia_theme";
 
 /**
@@ -48,10 +50,18 @@ export function setTheme(mode) {
   if (typeof document !== "undefined") {
     document.documentElement.setAttribute("data-theme", effective);
 
-    // Update meta theme-color for browser chromes and status bars
-    const metas = document.querySelectorAll('meta[name="theme-color"]');
-    const color = effective === "dark" ? "#0B0F19" : (document.documentElement.style.getPropertyValue("--color-primary-700") || "#14538A");
-    metas.forEach((m) => m.setAttribute("content", color));
+    // Apply active branding variables for the new mode immediately
+    try {
+      const raw = localStorage.getItem("eeskia_branding_cache");
+      if (raw) {
+        const { primary, secondary } = JSON.parse(raw);
+        if (primary && secondary) {
+          applyThemeVariables(primary, secondary, effective);
+        }
+      }
+    } catch {
+      // best-effort
+    }
   }
 
   if (typeof window !== "undefined") {
@@ -78,6 +88,18 @@ export function initTheme() {
 
   const effective = getEffectiveTheme();
   document.documentElement.setAttribute("data-theme", effective);
+
+  try {
+    const raw = localStorage.getItem("eeskia_branding_cache");
+    if (raw) {
+      const { primary, secondary } = JSON.parse(raw);
+      if (primary && secondary) {
+        applyThemeVariables(primary, secondary, effective);
+      }
+    }
+  } catch {
+    // best-effort
+  }
 
   // Watch for system appearance changes when in system mode
   if (window.matchMedia) {

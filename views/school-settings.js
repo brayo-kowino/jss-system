@@ -1,6 +1,8 @@
 import { getSchoolSettings, saveSchoolSettings, uploadSchoolLogo, isSlugAvailable, publishSchoolBranding, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { activateSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, REVOKE_REASONS, isStarterPlan } from "../js/services/subscription.service.js";
-import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor, showApprovalModal } from "../js/components/shell.js";
+import { invalidateSchoolSettingsCache, refreshSchoolChrome, updateThemeColor, showApprovalModal, applyBranding } from "../js/components/shell.js";
+import { getEffectiveTheme } from "../js/theme.js";
+import { deriveDarkPalette } from "../js/theme-engine.js";
 import { getCurrentSchoolId, refreshCurrentSchool, getCurrentProfile } from "../js/services/auth.service.js";
 import { THEME_PRESETS, matchThemeId } from "../js/theme-presets.js";
 import { el, icon, toast, busyButton, formatDate } from "../js/utils.js";
@@ -551,7 +553,7 @@ function applyThemePreset(t) {
     status.append(...(active ? [icon("check_circle")] : []), active ? "Installed" : "Apply");
   }
   updateThemePreview(t.primary, t.secondary);
-  updateThemeColor(t.primary);
+  applyBranding({ themeColor: t.primary, secondaryColor: t.secondary });
   toast(`${t.name} theme ready to save.`, "info", 2500);
 }
 
@@ -593,11 +595,22 @@ function updateThemePreview(primary, secondary) {
   const sidebar = document.getElementById("preview-sidebar");
   const btn = document.getElementById("preview-btn");
   const chip = document.getElementById("preview-chip");
-  if (sidebar) sidebar.style.background = primary;
-  if (btn) btn.style.background = primary;
-  if (chip) {
-    chip.style.background = secondary;
-    chip.style.color = "var(--color-ink)";
+  const isDark = getEffectiveTheme() === "dark";
+  if (isDark) {
+    const dark = deriveDarkPalette(primary, secondary);
+    if (sidebar) sidebar.style.background = dark.sidebarBg;
+    if (btn) btn.style.background = dark.primary700;
+    if (chip) {
+      chip.style.background = dark.gold;
+      chip.style.color = "#0F172A";
+    }
+  } else {
+    if (sidebar) sidebar.style.background = primary;
+    if (btn) btn.style.background = primary;
+    if (chip) {
+      chip.style.background = secondary;
+      chip.style.color = "var(--color-ink)";
+    }
   }
 }
 
@@ -1288,7 +1301,7 @@ export function init({ profile }) {
   if (themeInput && secondaryInput) {
     const onColorChange = () => {
       updateThemePreview(themeInput.value, secondaryInput.value);
-      updateThemeColor(themeInput.value);
+      applyBranding({ themeColor: themeInput.value, secondaryColor: secondaryInput.value });
     };
     themeInput.addEventListener("input", onColorChange);
     secondaryInput.addEventListener("input", onColorChange);
@@ -1326,7 +1339,7 @@ export function init({ profile }) {
         if (themeEl) themeEl.value = primary;
         if (accentEl) accentEl.value = accent;
         updateThemePreview(primary, accent);
-        updateThemeColor(primary);
+        applyBranding({ themeColor: primary, secondaryColor: accent });
         // Deselect any active preset — colors are now "custom"
         for (const c of document.querySelectorAll(".theme-card")) {
           c.classList.remove("theme-card--active");

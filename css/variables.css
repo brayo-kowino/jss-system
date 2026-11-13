@@ -21,6 +21,10 @@
   --color-surface: #FFFFFF;
   --color-surface-alt: #F8FAFC;
 
+  --color-primary-800: #0E3A62;
+  --color-sidebar-bg: var(--color-primary-900);
+  --hero-gradient: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+
   /* Typography */
   --font-display: 'Georgia', 'Times New Roman', Times, serif;
   --font-body: 'Arial', 'Helvetica Neue', Helvetica, sans-serif;
@@ -66,10 +70,12 @@
    Dark Mode Design Tokens
    ========================================================================== */
 [data-theme="dark"] {
-  --color-primary-900: #F1F5F9;
+  --color-primary-900: #F8FAFC;
   --color-primary-700: #38BDF8;
   --color-primary-600: #60A5FA;
-  --color-primary-100: #1E293B;
+  --color-primary-800: #14538A;
+  --color-primary-100: #1D3244;
+  --color-sidebar-bg: #0C121E;
   --color-cream: #0B0F19;
   --color-cream-dim: #162032;
   --color-ink: #F8FAFC;
@@ -82,6 +88,7 @@
   --color-white: #111827;
   --color-surface: #1E293B;
   --color-surface-alt: #0F172A;
+  --hero-gradient: linear-gradient(135deg, #1B262F 0%, #13191E 100%);
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
@@ -90,10 +97,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --color-primary-900: #F1F5F9;
+    --color-primary-900: #F8FAFC;
     --color-primary-700: #38BDF8;
     --color-primary-600: #60A5FA;
-    --color-primary-100: #1E293B;
+    --color-primary-800: #14538A;
+    --color-primary-100: #1D3244;
+    --color-sidebar-bg: #0C121E;
     --color-cream: #0B0F19;
     --color-cream-dim: #162032;
     --color-ink: #F8FAFC;
@@ -106,6 +115,7 @@
     --color-white: #111827;
     --color-surface: #1E293B;
     --color-surface-alt: #0F172A;
+    --hero-gradient: linear-gradient(135deg, #1B262F 0%, #13191E 100%);
 
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);

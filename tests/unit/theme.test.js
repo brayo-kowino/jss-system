@@ -48,4 +48,13 @@ describe("Theme Service", () => {
 
     window.removeEventListener("themechange", handler);
   });
+
+  it("applies cached branding when dark mode is enabled", () => {
+    localStorage.setItem("eeskia_branding_cache", JSON.stringify({ primary: "#1B5E4A", secondary: "#D9A441" }));
+    setTheme("dark");
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue("--color-primary-900")).toBe("#F8FAFC");
+    expect(style.getPropertyValue("--color-cream")).toMatch(/^#[0-9A-F]{6}$/);
+    expect(style.getPropertyValue("--color-cream")).not.toBe("#FAF6F0");
+  });
 });
