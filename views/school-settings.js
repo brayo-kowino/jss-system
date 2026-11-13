@@ -179,11 +179,48 @@ function switchTab(tabId, tabsNav, panels) {
 // Profile tab
 // ===========================================================================
 
-function buildProfileTab() {
-  const wrap = el("div", { class: "settings-stack" });
-  const form = el("form", { id: "settings-form" });
+function buildStationeryPreviewCard() {
+  const card = el("div", { class: "card settings-card" });
+  card.append(
+    el("h3", {}, [
+      icon("badge"),
+      "Document Letterhead & Stationery",
+      infoTooltip(
+        "Stationery Preview",
+        "Live preview of how your school's official identity and contact details are composed on printed report cards, certificates, and invoices."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Real-time layout as rendered atop official transcripts, receipts, and parent bulletins.")
+  );
 
-  // 1. General Institution Details Card
+  const preview = el("div", { class: "stationery-preview" }, [
+    el("div", { class: "stationery-preview__header" }, [
+      settings.logoUrl
+        ? el("img", { src: settings.logoUrl, alt: "School Emblem", class: "stationery-preview__logo" })
+        : el("div", { class: "stationery-preview__logo", style: "display:flex;align-items:center;justify-content:center;background:var(--color-primary-100);color:var(--color-primary-700);" }, [
+            icon("school", "text-xl"),
+          ]),
+      el("div", {}, [
+        el("div", { class: "stationery-preview__name", id: "preview-school-name" }, settings.schoolName || "Institution Name"),
+        el("div", { class: "stationery-preview__motto", id: "preview-school-motto" }, settings.motto ? `“${settings.motto}”` : "“Excellence in Education”"),
+      ]),
+    ]),
+    el("div", { class: "stationery-preview__meta" }, [
+      el("span", { id: "preview-school-address" }, [icon("location_on", "text-xs"), ` ${settings.address || "P.O. Box Address"}`]),
+      el("span", { id: "preview-school-phone" }, [icon("call", "text-xs"), ` ${settings.phone || "Telephone Line"}`]),
+      el("span", { id: "preview-school-email" }, [icon("mail", "text-xs"), ` ${settings.email || "official@school.com"}`]),
+    ]),
+  ]);
+
+  card.append(preview);
+  return card;
+}
+
+function buildProfileTab() {
+  const form = el("form", { id: "settings-form" });
+  const grid = el("div", { class: "settings-grid-2col" });
+
+  // 1. General Institution Details Card (Left Column)
   const infoCard = el("div", { class: "card settings-card" }, [
     el("h3", {}, [icon("account_balance"), "Institution Profile"]),
     el("p", { class: "settings-card__sub" }, "Official school identity and contact details printed on terminal report cards, fee receipts, and newsletters."),
@@ -211,19 +248,22 @@ function buildProfileTab() {
     ]),
   ]);
 
-  // 2. Branded Sign-in Portal Card
-  const portalCard = buildLoginLinkCard();
+  // 2. Right Column: Branded Portal URL + Live Letterhead Preview
+  const rightCol = el("div", { class: "settings-stack" }, [
+    buildLoginLinkCard(),
+    buildStationeryPreviewCard(),
+  ]);
+
+  grid.append(infoCard, rightCol);
 
   form.append(
-    infoCard,
-    portalCard,
+    grid,
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Profile"]),
     ])
   );
 
-  wrap.append(form);
-  return wrap;
+  return form;
 }
 
 // ===========================================================================
@@ -585,7 +625,7 @@ function updateThemePreview(primary, secondary) {
 // ===========================================================================
 
 function buildLeadershipTab(profile) {
-  const wrap = el("div", { class: "settings-stack" });
+  const wrap = el("div", { class: "settings-grid-2col" });
 
   const card = el("div", { class: "card settings-card" });
   card.append(
@@ -640,7 +680,7 @@ function buildLeadershipTab(profile) {
   card.append(form);
 
   // Digital Signature Studio Card
-  const sigCard = el("div", { class: "card settings-card", style: "margin-top:var(--sp-4);" }, [
+  const sigCard = el("div", { class: "card settings-card" }, [
     el("h3", {}, [
       icon("draw"),
       "Report Card Signatures & Touchscreen Studio",
@@ -787,6 +827,10 @@ function buildSignatureStudioGrid(profile) {
 // ===========================================================================
 
 function buildCalendarTab() {
+  const calForm = el("form", { id: "calendar-form" });
+  const grid = el("div", { class: "settings-grid-2col" });
+
+  // Column 1: Academic Schedule & Key Dates Form Card
   const card = el("div", { class: "card settings-card" });
   card.append(
     el("h3", {}, [
@@ -800,9 +844,6 @@ function buildCalendarTab() {
     el("p", { class: "settings-card__sub" }, "Set the active operational term and schedule key milestone dates.")
   );
 
-  const calForm = el("form", { id: "calendar-form" });
-
-  // 1. Term Identification
   const termSelect = el("select", { id: "currentTerm" });
   for (const term of settings.terms || ["Term 1", "Term 2", "Term 3"]) {
     termSelect.append(el("option", { value: term, ...(term === settings.currentTerm ? { selected: "true" } : {}) }, term));
@@ -822,7 +863,28 @@ function buildCalendarTab() {
     ]),
   ]);
 
-  // 2. Timeline visualizer
+  const dateRow = el("div", { class: "settings-form-grid", style: "margin-top:16px;" }, [
+    field("termBegins", "Current Term Begins", settings.termBegins, "date"),
+    field("closingDate", "Term Closing Date", settings.closingDate, "date"),
+    field("openingDate", "Next Term Begins", settings.openingDate, "date"),
+  ]);
+
+  card.append(topRow, dateRow);
+
+  // Column 2: Milestone Roadmap & Status Card
+  const roadmapCard = el("div", { class: "card settings-card" });
+  roadmapCard.append(
+    el("h3", {}, [
+      icon("flag"),
+      "Milestone Roadmap & Progress",
+      infoTooltip(
+        "Term Roadmap",
+        "Chronological visual milestone progression for the current reporting term."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Sequential operational timeline automatically printed on official report cards.")
+  );
+
   const timeline = el("div", { class: "settings-timeline" }, [
     el("div", { class: "settings-timeline__step" }, [
       el("span", { class: "settings-timeline__icon material-symbols-rounded" }, "login"),
@@ -843,23 +905,34 @@ function buildCalendarTab() {
     ]),
   ]);
 
-  // 3. Milestone Date Pickers
-  const dateRow = el("div", { class: "settings-form-grid", style: "margin-top:16px;" }, [
-    field("termBegins", "Current Term Begins", settings.termBegins, "date"),
-    field("closingDate", "Term Closing Date", settings.closingDate, "date"),
-    field("openingDate", "Next Term Begins", settings.openingDate, "date"),
+  const roadmapSummary = el("div", { class: "calendar-milestones-summary", style: "margin-top:20px;" }, [
+    el("div", { class: "calendar-summary-stat" }, [
+      el("div", {}, [
+        el("strong", { style: "display:block;font-size:var(--fs-sm);" }, "Automated Report Card Synchronization"),
+        el("span", { class: "text-xs text-muted" }, "Reopening and closing dates are stamped onto terminal report cards automatically."),
+      ]),
+      el("span", { class: "badge badge--success" }, "Active"),
+    ]),
+    el("div", { class: "calendar-summary-stat" }, [
+      el("div", {}, [
+        el("strong", { style: "display:block;font-size:var(--fs-sm);" }, "Active Reporting Scope"),
+        el("span", { class: "text-xs text-muted" }, `${settings.currentTerm || "Term 1"} · Year ${settings.currentAcademicYear || new Date().getFullYear()}`),
+      ]),
+      el("span", { class: "badge badge--primary" }, "Current"),
+    ]),
   ]);
 
-  calForm.append(topRow, timeline, dateRow);
+  roadmapCard.append(timeline, roadmapSummary);
+  grid.append(card, roadmapCard);
 
   calForm.append(
+    grid,
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Calendar"]),
     ])
   );
 
-  card.append(calForm);
-  return card;
+  return calForm;
 }
 
 // ===========================================================================
@@ -867,6 +940,8 @@ function buildCalendarTab() {
 // ===========================================================================
 
 function buildGradingTab() {
+  const grid = el("div", { class: "settings-studio-grid" });
+
   const card = el("div", { class: "card settings-card" });
   card.append(
     el("h3", {}, [
@@ -905,7 +980,55 @@ function buildGradingTab() {
     ])
   );
 
-  return card;
+  // Column 2: CBC Assessment Standards Reference Card
+  const standardsCard = el("div", { class: "card settings-card" });
+  standardsCard.append(
+    el("h3", {}, [
+      icon("menu_book"),
+      "CBC Assessment Framework",
+      infoTooltip(
+        "CBC Evaluation Standards",
+        "Kenya National Examinations Council (KNEC) 4-level competency evaluation framework utilized across Junior and Senior School reporting."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Standard 4-tier competency descriptors informing cumulative points, GPA, and term positions.")
+  );
+
+  const standardsList = el("div", { class: "cbc-standards-list" }, [
+    el("div", { class: "cbc-standard-item" }, [
+      el("div", { class: "cbc-standard-header" }, [
+        el("strong", { style: "font-size:var(--fs-sm);" }, "Exceeding Expectations (EE)"),
+        el("span", { class: "cbc-standard-badge cbc-standard-badge--ee" }, "Level 4 · 4 Pts"),
+      ]),
+      el("p", { class: "cbc-standard-desc" }, "Exemplary mastery of core competencies. Applies learning critically and independently solves novel problems."),
+    ]),
+    el("div", { class: "cbc-standard-item" }, [
+      el("div", { class: "cbc-standard-header" }, [
+        el("strong", { style: "font-size:var(--fs-sm);" }, "Meeting Expectations (ME)"),
+        el("span", { class: "cbc-standard-badge cbc-standard-badge--me" }, "Level 3 · 3 Pts"),
+      ]),
+      el("p", { class: "cbc-standard-desc" }, "Achieves intended learning outcomes with proficient consistency and clear conceptual grasp."),
+    ]),
+    el("div", { class: "cbc-standard-item" }, [
+      el("div", { class: "cbc-standard-header" }, [
+        el("strong", { style: "font-size:var(--fs-sm);" }, "Approaching Expectations (AE)"),
+        el("span", { class: "cbc-standard-badge cbc-standard-badge--ae" }, "Level 2 · 2 Pts"),
+      ]),
+      el("p", { class: "cbc-standard-desc" }, "Emerging competency demonstration. Requires periodic scaffolding and guided practice."),
+    ]),
+    el("div", { class: "cbc-standard-item" }, [
+      el("div", { class: "cbc-standard-header" }, [
+        el("strong", { style: "font-size:var(--fs-sm);" }, "Below Expectations (BE)"),
+        el("span", { class: "cbc-standard-badge cbc-standard-badge--be" }, "Level 1 · 1 Pt"),
+      ]),
+      el("p", { class: "cbc-standard-desc" }, "Noticeable learning gaps across fundamental areas. Requires diagnostic remediation and support."),
+    ]),
+  ]);
+
+  standardsCard.append(standardsList);
+  grid.append(card, standardsCard);
+
+  return grid;
 }
 
 function gradingRow(row = {}) {
@@ -928,31 +1051,23 @@ function gradingRow(row = {}) {
 // ===========================================================================
 
 function buildNotificationsTab() {
-  const card = el("div", { class: "card settings-card" });
-  card.append(
-    el("h3", {}, [
-      icon("notifications_active"),
-      "Messaging Gateways",
-      infoTooltip(
-        "Communication Gateways",
-        "Used for dispatching student report cards, fee payment alerts, attendance notifications, and event announcements directly to parents."
-      ),
-    ]),
-    el("p", { class: "settings-card__sub" }, "Configure automated email and SMS gateways for seamless parent communication.")
-  );
-
   const form = el("form", { id: "notifications-form" });
   const p = settings.notificationProviders || { gmail: {}, africasTalking: {} };
 
   const grid = el("div", { class: "settings-grid-2col" });
 
-  // 1. Email Gateway (Gmail)
-  const emailGroup = el("div", { class: "leadership-group" }, [
-    el("div", { class: "leadership-group__title" }, [
+  // 1. Email Service Card (Gmail)
+  const emailCard = el("div", { class: "card settings-card" });
+  emailCard.append(
+    el("h3", {}, [
       icon("mail"),
       "Email Service (Google Workspace / Gmail)",
+      infoTooltip(
+        "Email Dispatch",
+        "Dispatches student report cards, fee payment receipts, attendance notifications, and event announcements directly to parent inboxes."
+      ),
     ]),
-    el("p", { class: "text-sm text-muted", style: "margin:-8px 0 12px;" }, "Sends digital report cards and official receipts via SMTP."),
+    el("p", { class: "settings-card__sub" }, "Connect an official Google account to dispatch academic report cards via secure SMTP."),
     field("gmail-address", "Gmail Sender Address", p.gmail?.address, "email", false, {
       title: "Sender Email",
       text: "The official Google email address sending messages to parents.",
@@ -960,16 +1075,21 @@ function buildNotificationsTab() {
     passwordField("gmail-app-password", "Google App Password (16 chars)", p.gmail?.appPassword, {
       title: "Google App Password",
       text: "Requires a 16-character Google App Password created under Google Account > Security > 2-Step Verification > App Passwords. Do NOT use your standard account password.",
-    }, "•••• •••• •••• ••••"),
-  ]);
+    }, "•••• •••• •••• ••••")
+  );
 
-  // 2. SMS Gateway (Africa's Talking)
-  const smsGroup = el("div", { class: "leadership-group" }, [
-    el("div", { class: "leadership-group__title" }, [
+  // 2. SMS Gateway Card (Africa's Talking)
+  const smsCard = el("div", { class: "card settings-card" });
+  smsCard.append(
+    el("h3", {}, [
       icon("sms"),
       "SMS Gateway (Africa's Talking)",
+      infoTooltip(
+        "SMS Dispatch",
+        "Dispatches real-time SMS alerts and exam results directly to parent mobile numbers."
+      ),
     ]),
-    el("p", { class: "text-sm text-muted", style: "margin:-8px 0 12px;" }, "Dispatches real-time SMS alerts and exam results to parent phones."),
+    el("p", { class: "settings-card__sub" }, "Connect Africa's Talking telecom gateway for real-time mobile SMS delivery."),
     field("at-username", "API Username", p.africasTalking?.username, "text", false, {
       title: "Africa's Talking Username",
       text: "Your registered Africa's Talking application username (default is 'sandbox' for testing).",
@@ -981,20 +1101,18 @@ function buildNotificationsTab() {
     field("at-senderid", "Alphanumeric Sender ID (Optional)", p.africasTalking?.senderId, "text", false, {
       title: "Custom Sender ID",
       text: "Approved 11-character telecom sender name (e.g. 'GREENHILL'). Leave empty to use Africa's Talking shared shortcode.",
-    }),
-  ]);
+    })
+  );
 
-  grid.append(emailGroup, smsGroup);
-  form.append(grid);
-
+  grid.append(emailCard, smsCard);
   form.append(
+    grid,
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Notifications"]),
     ])
   );
 
-  card.append(form);
-  return card;
+  return form;
 }
 
 // ===========================================================================
@@ -1002,10 +1120,13 @@ function buildNotificationsTab() {
 // ===========================================================================
 
 function buildSubscriptionTab() {
-  const card = el("div", { class: "card settings-card" });
-  card.append(
+  const grid = el("div", { class: "settings-grid-2col" });
+
+  // Column 1: Current License Status Card
+  const statusCard = el("div", { class: "card settings-card" });
+  statusCard.append(
     el("h3", {}, [icon("workspace_premium"), "License & Subscription"]),
-    el("p", { class: "settings-card__sub" }, "Review your institution's subscription status and activate new license keys.")
+    el("p", { class: "settings-card__sub" }, "Review your institution's active subscription tier, validity window, and module entitlements.")
   );
 
   const { active, daysRemaining, revoked, revokeReason, trial } = getSubscriptionState(settings);
@@ -1051,27 +1172,54 @@ function buildSubscriptionTab() {
   } else {
     statusBanner.append(icon("error"), el("span", {}, `Your license expired on ${formatDate(trial ? settings.trialExpiresAt : settings.subscriptionExpiresAt)}. Renew by pasting a new activation token below.`));
   }
-  card.append(statusBanner);
+  statusCard.append(statusBanner);
 
-  const form = el("form", { id: "subscription-form", class: "settings-form-grid", style: "margin-top:20px;" }, [
-    el("div", { class: "field field--full" }, [
-      el("label", { for: "sub-token" }, [
-        "License Activation Token",
-        infoTooltip("Activation Key", "Cryptographically signed license token provided by the platform administrator."),
-      ]),
+  const featuresList = el("div", { class: "sub-features-list" }, [
+    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Core CBC Academic Engine & Automated Grading"]),
+    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Terminal Report Card & Official Transcripts Generator"]),
+    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Student Fee Accounting & Mobile Receipting"]),
+    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Multi-Role Staff Access with 2FA Security"]),
+    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Multi-Tab Cloud Synchronization with Offline Persistence"]),
+  ]);
+  statusCard.append(featuresList);
+
+  // Column 2: License Key Activation Studio Card
+  const activationCard = el("div", { class: "card settings-card" });
+  activationCard.append(
+    el("h3", {}, [
+      icon("key"),
+      "License Activation Studio",
+      infoTooltip(
+        "Activation Key",
+        "Cryptographically signed token provided by platform administrators or through support renewal."
+      ),
+    ]),
+    el("p", { class: "settings-card__sub" }, "Paste your cryptographic token to renew or upgrade your institution's subscription.")
+  );
+
+  const form = el("form", { id: "subscription-form", style: "display:flex; flex-direction:column; gap:16px;" }, [
+    el("div", { class: "field" }, [
+      el("label", { for: "sub-token" }, "License Activation Token"),
       el("textarea", {
         id: "sub-token",
-        rows: "3",
+        rows: "4",
         placeholder: "Paste your signed activation token here…",
-        style: "font-family:var(--font-mono); font-size:0.85rem; padding:10px;",
+        style: "font-family:var(--font-mono); font-size:0.85rem; padding:10px; resize:vertical;",
       }),
     ]),
-    el("div", { class: "settings-form-actions" }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-top:4px;" }, [
+      el("a", {
+        href: "mailto:iskify360.tech@gmail.com?subject=License%20Renewal%20Inquiry",
+        class: "btn btn--ghost btn--sm",
+      }, [icon("help"), "Contact Support for Token"]),
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("key"), "Activate Subscription"]),
     ]),
   ]);
-  card.append(form);
-  return card;
+
+  activationCard.append(form);
+  grid.append(statusCard, activationCard);
+
+  return grid;
 }
 
 export function init({ profile }) {
@@ -1118,6 +1266,31 @@ export function init({ profile }) {
     } finally {
       restore();
     }
+  });
+
+  // Live Stationery Letterhead Preview Update
+  const updateStationeryPreview = () => {
+    const nameEl = document.getElementById("preview-school-name");
+    const mottoEl = document.getElementById("preview-school-motto");
+    const addressEl = document.getElementById("preview-school-address");
+    const phoneEl = document.getElementById("preview-school-phone");
+    const emailEl = document.getElementById("preview-school-email");
+
+    const schoolNameInput = document.getElementById("schoolName");
+    const mottoInput = document.getElementById("motto");
+    const addressInput = document.getElementById("address");
+    const phoneInput = document.getElementById("phone");
+    const emailInput = document.getElementById("email");
+
+    if (nameEl && schoolNameInput) nameEl.textContent = schoolNameInput.value || "Institution Name";
+    if (mottoEl && mottoInput) mottoEl.textContent = mottoInput.value ? `“${mottoInput.value}”` : "“Excellence in Education”";
+    if (addressEl && addressInput) addressEl.replaceChildren(icon("location_on", "text-xs"), ` ${addressInput.value || "P.O. Box Address"}`);
+    if (phoneEl && phoneInput) phoneEl.replaceChildren(icon("call", "text-xs"), ` ${phoneInput.value || "Telephone Line"}`);
+    if (emailEl && emailInput) emailEl.replaceChildren(icon("mail", "text-xs"), ` ${emailInput.value || "official@school.com"}`);
+  };
+
+  ["schoolName", "motto", "address", "phone", "email"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", updateStationeryPreview);
   });
 
   const themeInput = document.getElementById("themeColor");

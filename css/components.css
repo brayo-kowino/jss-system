@@ -2104,6 +2104,7 @@ tbody tr:hover { background: var(--color-primary-100); }
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--sp-5);
+  align-items: start;
 }
 @media (min-width: 860px) {
   .settings-grid-2col {
@@ -2115,11 +2116,177 @@ tbody tr:hover { background: var(--color-primary-100); }
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--sp-5);
+  align-items: start;
 }
 @media (min-width: 960px) {
   .settings-studio-grid {
     grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.15fr);
   }
+}
+
+/* Document letterhead preview inside School Settings */
+.stationery-preview {
+  background: var(--color-cream);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.stationery-preview::before {
+  content: "OFFICIAL LETTERHEAD PREVIEW";
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-soft);
+  opacity: 0.6;
+}
+.stationery-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.stationery-preview__logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-seal);
+  object-fit: cover;
+  border: 2px solid var(--color-gold);
+  flex-shrink: 0;
+}
+.stationery-preview__name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-primary-900);
+  line-height: 1.2;
+}
+.stationery-preview__motto {
+  font-size: var(--fs-xs);
+  font-style: italic;
+  color: var(--color-gold-dark, #8A6D1C);
+  background: rgba(201, 162, 39, 0.12);
+  padding: 2px 10px;
+  border-radius: 999px;
+  display: inline-block;
+  margin: 4px auto 0;
+}
+.stationery-preview__meta {
+  font-size: 11px;
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+  border-top: 1px solid rgba(20, 83, 138, 0.1);
+  padding-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+[data-theme="dark"] .stationery-preview {
+  background: #0F172A;
+  border-color: #334155;
+}
+[data-theme="dark"] .stationery-preview__name {
+  color: #F8FAFC;
+}
+[data-theme="dark"] .stationery-preview__motto {
+  color: #FCD34D;
+  background: rgba(252, 211, 77, 0.15);
+}
+
+/* CBC Standards reference card in Grading */
+.cbc-standards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: var(--sp-3);
+}
+.cbc-standard-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-cream);
+}
+[data-theme="dark"] .cbc-standard-item {
+  background: #0F172A;
+  border-color: #334155;
+}
+.cbc-standard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cbc-standard-badge {
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.cbc-standard-badge--ee { background: rgba(16, 185, 129, 0.15); color: #059669; }
+.cbc-standard-badge--me { background: rgba(37, 99, 235, 0.15); color: #2563eb; }
+.cbc-standard-badge--ae { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+.cbc-standard-badge--be { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+.cbc-standard-desc {
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Calendar milestones card */
+.calendar-milestones-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.calendar-summary-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+}
+[data-theme="dark"] .calendar-summary-stat {
+  background: #0F172A;
+  border-color: #334155;
+}
+
+/* Subscription feature scope checklist */
+.sub-features-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.sub-feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-sm);
+  color: var(--color-ink);
+}
+.sub-feature-item .icon {
+  font-size: 18px;
+  color: var(--color-green);
+  flex-shrink: 0;
 }
 
 .settings-form-grid {
