@@ -2326,30 +2326,30 @@ tbody tr:hover { background: var(--color-primary-100); }
   border-left: 4px solid var(--color-primary-600);
   box-sizing: border-box;
 }
-.cbc-standard-item:nth-child(1) { border-left-color: #059669; }
-.cbc-standard-item:nth-child(2) { border-left-color: #2563eb; }
-.cbc-standard-item:nth-child(3) { border-left-color: #d97706; }
-.cbc-standard-item:nth-child(4) { border-left-color: #dc2626; }
+.cbc-standard-item:nth-child(1) { border-left-color: var(--color-green); }
+.cbc-standard-item:nth-child(2) { border-left-color: var(--color-primary-600); }
+.cbc-standard-item:nth-child(3) { border-left-color: var(--color-gold); }
+.cbc-standard-item:nth-child(4) { border-left-color: var(--color-red); }
 
 [data-theme="dark"] .grading-table-wrap {
-  background: #0F172A;
-  border-color: #334155;
+  background: var(--color-surface-alt);
+  border-color: var(--color-line);
 }
 [data-theme="dark"] .grading-scale-table tbody td {
-  border-top-color: #334155;
+  border-top-color: var(--color-line);
 }
 [data-theme="dark"] .grading-scale-table input {
-  background: #1E293B;
-  border-color: #334155;
-  color: #F8FAFC;
+  background: var(--color-surface);
+  border-color: var(--color-line);
+  color: var(--color-ink);
 }
 [data-theme="dark"] .grading-scale-table input:focus {
-  border-color: var(--color-primary-400);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  border-color: var(--color-primary-600);
+  box-shadow: 0 0 0 2px var(--color-primary-100);
 }
 [data-theme="dark"] .cbc-standard-item {
-  background: #1E293B;
-  border-color: #334155;
+  background: var(--color-surface);
+  border-color: var(--color-line);
 }
 
 /* Calendar milestones card */
@@ -3620,10 +3620,10 @@ tbody tr:hover { background: var(--color-primary-100); }
   font-family: var(--font-display);
   color: var(--color-primary-900);
 }
-.attendance-kpi-card__val--green { color: #059669; }
-.attendance-kpi-card__val--red { color: #DC2626; }
-.attendance-kpi-card__val--amber { color: #D97706; }
-.attendance-kpi-card__val--purple { color: #7C3AED; }
+.attendance-kpi-card__val--green { color: var(--color-green); }
+.attendance-kpi-card__val--red { color: var(--color-red); }
+.attendance-kpi-card__val--amber { color: var(--color-gold); }
+.attendance-kpi-card__val--purple { color: var(--color-primary-600); }
 
 /* Status pill buttons in Attendance table */
 .status-pill-group {
@@ -3651,81 +3651,81 @@ tbody tr:hover { background: var(--color-primary-100); }
   display: none;
 }
 .status-pill:hover {
-  border-color: var(--color-primary-400);
+  border-color: var(--color-primary-600);
   background: var(--color-white);
 }
 .status-pill.is-active.status-pill--present {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: #10B981;
-  color: #065F46;
-  box-shadow: 0 0 0 1px #10B981;
+  background: var(--color-cream);
+  border-color: var(--color-green);
+  color: var(--color-green);
+  box-shadow: 0 0 0 1px var(--color-green);
 }
 .status-pill.is-active.status-pill--absent {
-  background: rgba(239, 68, 68, 0.15);
-  border-color: #EF4444;
-  color: #991B1B;
-  box-shadow: 0 0 0 1px #EF4444;
+  background: var(--color-cream);
+  border-color: var(--color-red);
+  color: var(--color-red);
+  box-shadow: 0 0 0 1px var(--color-red);
 }
 .status-pill.is-active.status-pill--late {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: #F59E0B;
-  color: #92400E;
-  box-shadow: 0 0 0 1px #F59E0B;
+  background: var(--color-cream);
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  box-shadow: 0 0 0 1px var(--color-gold);
 }
 .status-pill.is-active.status-pill--excused {
-  background: rgba(139, 92, 246, 0.15);
-  border-color: #8B5CF6;
-  color: #5B21B6;
-  box-shadow: 0 0 0 1px #8B5CF6;
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-600);
+  color: var(--color-primary-700);
+  box-shadow: 0 0 0 1px var(--color-primary-600);
 }
 
 [data-theme="dark"] .attendance-hero {
-  background: #1E293B;
-  border-color: #334155;
+  background: var(--color-surface);
+  border-color: var(--color-line);
 }
 [data-theme="dark"] .attendance-hero__title {
-  color: #F8FAFC;
+  color: var(--color-ink);
 }
 [data-theme="dark"] .attendance-pill {
-  background: #0F172A;
-  border-color: #334155;
-  color: #94A3B8;
+  background: var(--color-surface-alt);
+  border-color: var(--color-line);
+  color: var(--color-ink-soft);
 }
 [data-theme="dark"] .attendance-kpi-card {
-  background: #1E293B;
-  border-color: #334155;
+  background: var(--color-surface);
+  border-color: var(--color-line);
 }
 [data-theme="dark"] .attendance-kpi-card__val {
-  color: #F8FAFC;
+  color: var(--color-ink);
 }
 [data-theme="dark"] .status-pill {
-  background: #0F172A;
-  border-color: #334155;
-  color: #94A3B8;
+  background: var(--color-surface-alt);
+  border-color: var(--color-line);
+  color: var(--color-ink-soft);
 }
 [data-theme="dark"] .status-pill:hover {
-  background: #1E293B;
-  border-color: #475569;
+  background: var(--color-surface);
+  border-color: var(--color-primary-600);
 }
 [data-theme="dark"] .status-pill.is-active.status-pill--present {
-  background: rgba(16, 185, 129, 0.25);
-  border-color: #10B981;
-  color: #6EE7B7;
+  background: var(--color-surface);
+  border-color: var(--color-green);
+  color: var(--color-green);
 }
 [data-theme="dark"] .status-pill.is-active.status-pill--absent {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: #EF4444;
-  color: #FCA5A5;
+  background: var(--color-surface);
+  border-color: var(--color-red);
+  color: var(--color-red);
 }
 [data-theme="dark"] .status-pill.is-active.status-pill--late {
-  background: rgba(245, 158, 11, 0.25);
-  border-color: #F59E0B;
-  color: #FDE68A;
+  background: var(--color-surface);
+  border-color: var(--color-gold);
+  color: var(--color-gold-soft);
 }
 [data-theme="dark"] .status-pill.is-active.status-pill--excused {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: #8B5CF6;
-  color: #DDD6FE;
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-600);
+  color: var(--color-primary-700);
 }
 
 /* ==========================================================================

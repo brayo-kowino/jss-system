@@ -597,7 +597,7 @@ function updateThemePreview(primary, secondary) {
   if (btn) btn.style.background = primary;
   if (chip) {
     chip.style.background = secondary;
-    chip.style.color = "#3a2f0b";
+    chip.style.color = "var(--color-ink)";
   }
 }
 
@@ -686,7 +686,7 @@ function buildSignatureStudioGrid(profile) {
   const principalTitle = el("div", { class: "leadership-group__title" }, [icon("military_tech"), "School Head / Principal Signature"]);
 
   const pPreviewWrap = el("div", {
-    style: "background:#ffffff; border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
+    style: "background:var(--color-surface); border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
   });
   const pImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
   const pFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [
@@ -745,7 +745,7 @@ function buildSignatureStudioGrid(profile) {
   const teacherTitle = el("div", { class: "leadership-group__title" }, [icon("school"), "Class Teacher Signature (Default)"]);
 
   const tPreviewWrap = el("div", {
-    style: "background:#ffffff; border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
+    style: "background:var(--color-surface); border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
   });
   const tImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
   const tFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [

@@ -331,21 +331,21 @@ function renderRoster(container, profile) {
     el("div", { class: "attendance-kpi-card" }, [
       el("div", { class: "attendance-kpi-card__head" }, [
         el("span", { class: "attendance-kpi-card__label" }, "Present"),
-        icon("check_circle", "text-xs", "style:color:#059669;"),
+        icon("check_circle", "text-xs", "style:color:var(--color-green);"),
       ]),
       el("div", { class: "attendance-kpi-card__val attendance-kpi-card__val--green", id: "kpi-att-present" }, `${present}`),
     ]),
     el("div", { class: "attendance-kpi-card" }, [
       el("div", { class: "attendance-kpi-card__head" }, [
         el("span", { class: "attendance-kpi-card__label" }, "Absent"),
-        icon("cancel", "text-xs", "style:color:#DC2626;"),
+        icon("cancel", "text-xs", "style:color:var(--color-red);"),
       ]),
       el("div", { class: "attendance-kpi-card__val attendance-kpi-card__val--red", id: "kpi-att-absent" }, `${absent}`),
     ]),
     el("div", { class: "attendance-kpi-card" }, [
       el("div", { class: "attendance-kpi-card__head" }, [
         el("span", { class: "attendance-kpi-card__label" }, "Late / Excused"),
-        icon("schedule", "text-xs", "style:color:#D97706;"),
+        icon("schedule", "text-xs", "style:color:var(--color-gold);"),
       ]),
       el("div", { class: "attendance-kpi-card__val attendance-kpi-card__val--amber", id: "kpi-att-late-excused" }, `${late + excused}`),
     ]),

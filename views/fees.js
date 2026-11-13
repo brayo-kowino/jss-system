@@ -641,9 +641,9 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
         ]);
       }
 
-      const paidColor = (paid || 0) > 0 ? "#059669" : "var(--color-ink-soft)";
+      const paidColor = (paid || 0) > 0 ? "var(--color-green)" : "var(--color-ink-soft)";
       const paidWeight = (paid || 0) > 0 ? "600" : "400";
-      const balColor = isCleared ? "#059669" : "#dc2626";
+      const balColor = isCleared ? "var(--color-green)" : "var(--color-red)";
 
       targetTbody.append(el("tr", {}, [
         el("td", { "data-label": "Adm No." }, [
@@ -937,7 +937,7 @@ function buildReceiptCard(payment) {
       logoNode,
       el("div", {}, [
         el("h3", { class: "receipt__school-name" }, settings.schoolName || "Institution Name"),
-        settings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold-dark, #8A6D1C);" }, `“${settings.motto}”`) : null,
+        settings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold);" }, `“${settings.motto}”`) : null,
         el("p", { class: "receipt__address" }, settings.address || ""),
       ]),
     ]),
