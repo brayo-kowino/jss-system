@@ -788,7 +788,18 @@
 .network-pill__icon-slot {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+}
+
+.topbar__network-pill--online {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.25);
+  padding: 4px 7px;
+}
+[data-theme="dark"] .topbar__network-pill--online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
 }
 
 .topbar__network-pill--syncing {

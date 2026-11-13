@@ -245,30 +245,31 @@ function showIosInstallHint() {
 }
 
 // ---------------------------------------------------------------------------
-// Network Status Pill (Offline / Syncing indicator)
+// Network Status Pill (Cloud Sync indicator)
 //
-// Stays completely hidden when online so the topbar remains clean.
-// Appears only when connectivity is disrupted or changes are actively syncing:
-//   - "offline": Amber badge + "Offline - will sync" (or duration nudge)
-//   - "syncing": Blue badge + spinning sync icon + "Syncing changes…"
-//   - "online":  Hidden (display: none)
+// Displays a sleek, non-intrusive compact icon indicator in the topbar:
+//   - "online":  Compact cloud icon with tooltip ("Connected • Cloud synchronized")
+//                without expanding text or dropdown popovers.
+//   - "syncing": Primary blue badge + spinning sync icon + "Syncing…"
+//   - "offline": Amber badge + "Offline" (with duration tooltip)
 // ---------------------------------------------------------------------------
 let offlinePillCleanup = null;
 
 function networkHealthPill() {
   const iconSlot = el("span", { class: "network-pill__icon-slot" });
-  const textLabel = el("span", { class: "network-pill-text" }, "");
+  const textLabel = el("span", { class: "network-pill-text", style: "display: none;" }, "");
 
   const pillEl = el(
     "div",
     {
-      class: "badge topbar__network-pill topbar__offline-pill",
+      class: "badge topbar__network-pill topbar__network-pill--online",
       "aria-label": "Network & Cloud Sync Status",
+      title: "Connected • Cloud synchronized",
     },
     [iconSlot, textLabel]
   );
 
-  const wrap = el("div", { class: "topbar__network-pill-wrap", style: "display: none;" }, [pillEl]);
+  const wrap = el("div", { class: "topbar__network-pill-wrap" }, [pillEl]);
 
   let durationTimer = null;
 
@@ -281,18 +282,17 @@ function networkHealthPill() {
     iconSlot.replaceChildren();
 
     if (state.status === "offline") {
-      wrap.style.display = "inline-flex";
       pillEl.className = "badge badge--warning topbar__network-pill topbar__offline-pill topbar__network-pill--offline";
       iconSlot.append(icon("wifi_off"));
+      textLabel.textContent = "Offline";
+      textLabel.style.display = "inline-block";
 
       const updateOfflineLabel = () => {
         const info = getOfflineDurationInfo(state.lastOnlineAt);
         if (info.needsNudge) {
-          textLabel.textContent = `Offline ${info.readableDuration} - reconnect to sync`;
-          pillEl.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
+          pillEl.title = `Offline ${info.readableDuration} - reconnect to sync. Local edits safe on this device.`;
         } else {
-          textLabel.textContent = "Offline - will sync";
-          pillEl.title = "No connection right now. Edits are saved in local offline cache and will sync automatically once you are back online.";
+          pillEl.title = "Offline - edits are saved in local cache and will sync automatically when reconnected.";
         }
       };
 
@@ -302,17 +302,21 @@ function networkHealthPill() {
     }
 
     if (state.status === "syncing") {
-      wrap.style.display = "inline-flex";
       pillEl.className = "badge badge--primary topbar__network-pill topbar__offline-pill topbar__network-pill--syncing";
       const syncIcon = icon("sync", "icon-spin");
       iconSlot.append(syncIcon);
-      textLabel.textContent = "Syncing changes…";
+      textLabel.textContent = "Syncing…";
+      textLabel.style.display = "inline-block";
       pillEl.title = "Uploading pending edits to the cloud server…";
       return;
     }
 
-    // "online" -> hidden completely
-    wrap.style.display = "none";
+    // "online" -> Sleek compact cloud icon, zero text expansion, zero layout shift
+    pillEl.className = "badge topbar__network-pill topbar__network-pill--online";
+    iconSlot.append(icon("cloud_done"));
+    textLabel.textContent = "";
+    textLabel.style.display = "none";
+    pillEl.title = "Connected • Cloud synchronized";
   }
 
   const unsub = subscribeNetworkHealth(applyState);
