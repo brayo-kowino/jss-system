@@ -165,4 +165,71 @@ describe("Global Command Palette", () => {
     const firstShortcut = shortcuts[0].textContent;
     expect(firstShortcut).toMatch(/(Ctrl|⌘)\+[A-Z0-9]/);
   });
+
+  it("opens directly in Key Hints view when defaultTab is 'hints'", () => {
+    openCommandPalette({ profile: adminProfile, defaultTab: "hints" });
+    const hintsView = document.querySelector(".cmd-palette-view--hints");
+    expect(hintsView).not.toBeNull();
+    expect(hintsView.style.display).not.toBe("none");
+
+    const searchView = document.querySelector(".cmd-palette-view--search");
+    expect(searchView.style.display).toBe("none");
+
+    const rows = document.querySelectorAll(".cmd-palette-hint-row");
+    expect(rows.length).toBeGreaterThan(10);
+  });
+
+  it("switches tabs between Search and Key Hints on click", () => {
+    openCommandPalette({ profile: adminProfile, defaultTab: "search" });
+
+    const tabs = document.querySelectorAll(".cmd-palette-tab");
+    expect(tabs.length).toBe(2);
+
+    // Click hints tab
+    tabs[1].click();
+    const hintsView = document.querySelector(".cmd-palette-view--hints");
+    expect(hintsView.style.display).not.toBe("none");
+
+    // Click search tab
+    tabs[0].click();
+    const searchView = document.querySelector(".cmd-palette-view--search");
+    expect(searchView.style.display).not.toBe("none");
+  });
+
+  it("filters shortcut hints when typing in hints filter input", () => {
+    openCommandPalette({ profile: adminProfile, defaultTab: "hints" });
+    const filterInput = document.querySelector(".cmd-palette-hints-filter");
+    expect(filterInput).not.toBeNull();
+
+    filterInput.value = "settings";
+    filterInput.dispatchEvent(new Event("input"));
+
+    const rows = document.querySelectorAll(".cmd-palette-hint-row");
+    const titles = Array.from(rows).map((r) => r.querySelector(".cmd-palette-hint-title")?.textContent || "");
+    expect(titles.some((t) => t.includes("School Settings"))).toBe(true);
+  });
+
+  it("navigates directly when clicking a shortcut hint card", async () => {
+    const { navigate } = await import("../../js/router.js");
+    openCommandPalette({ profile: adminProfile, defaultTab: "hints" });
+
+    const rows = document.querySelectorAll(".cmd-palette-hint-row");
+    const settingsRow = Array.from(rows).find((r) =>
+      r.querySelector(".cmd-palette-hint-title")?.textContent.includes("School Settings")
+    );
+    expect(settingsRow).toBeDefined();
+
+    settingsRow.click();
+    expect(navigate).toHaveBeenCalledWith("/settings");
+    expect(document.querySelector(".cmd-palette-backdrop")).toBeNull();
+  });
+
+  it("opens Key Hints view when '?' is pressed outside input", () => {
+    initCommandPalette(adminProfile);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }));
+
+    const hintsView = document.querySelector(".cmd-palette-view--hints");
+    expect(hintsView).not.toBeNull();
+    expect(hintsView.style.display).not.toBe("none");
+  });
 });

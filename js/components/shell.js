@@ -1063,15 +1063,16 @@ export function renderShell(app, profile, activePath) {
         {
           type: "button",
           class: "topbar__profile-item",
+          title: "View all keyboard shortcuts and letter jump instructions (Ctrl+K or ?)",
           onClick: () => {
             dropdown.classList.remove("open");
-            openCommandPalette({ profile });
+            openCommandPalette({ profile, defaultTab: "hints" });
           },
         },
         [
-          icon("search"),
-          "Command Palette",
-          el("kbd", { class: "topbar__search-kbd", style: "margin-left:auto; font-size:10px;" }, "Ctrl K"),
+          icon("keyboard"),
+          "Command Palette & Shortcuts",
+          el("kbd", { class: "topbar__search-kbd", style: "margin-left:auto; font-size:10px;" }, "Ctrl K / ?"),
         ]
       ),
       ...(profile.role === "super_admin" ? [
