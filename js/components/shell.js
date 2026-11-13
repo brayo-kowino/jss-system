@@ -1071,7 +1071,7 @@ export function renderShell(app, profile, activePath) {
         },
         [
           icon("keyboard"),
-          "Command Palette & Shortcuts",
+          "Commands & Shortcuts",
           el("kbd", { class: "topbar__search-kbd", style: "margin-left:auto; font-size:10px;" }, "Ctrl K / ?"),
         ]
       ),
