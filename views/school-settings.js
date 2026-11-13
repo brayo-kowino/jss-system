@@ -407,17 +407,11 @@ function buildLoginLinkCard() {
 // ===========================================================================
 
 function buildBrandingTab() {
-  const wrap = el("div", { class: "settings-stack" });
-  const form = el("form", { id: "branding-form" });
+  const form = el("form", { id: "branding-form", class: "settings-stack" });
 
-  const grid = el("div", { class: "settings-studio-grid" });
+  const topGrid = el("div", { class: "settings-grid-2col" });
 
-  // ---------------------------------------------------------------------------
-  // Left Column: Identity & Palette Controls
-  // ---------------------------------------------------------------------------
-  const leftCol = el("div", { class: "settings-stack" });
-
-  // 1. School Crest / Logo Card
+  // 1. School Crest / Logo Card (Left Column)
   const logoCard = el("div", { class: "card settings-card" });
   logoCard.append(
     el("h3", {}, [
@@ -467,20 +461,19 @@ function buildBrandingTab() {
     ]),
   ]);
   logoCard.append(smartThemeBox);
-  leftCol.append(logoCard);
 
-  // 2. Custom Colors Fine-Tuning Card
-  const customCard = el("div", { class: "card settings-card" });
-  customCard.append(
+  // 2. Color Palette & Live Interactive Simulation Card (Right Column)
+  const paletteCard = el("div", { class: "card settings-card" });
+  paletteCard.append(
     el("h3", {}, [
       icon("tune"),
-      "Color Palette",
+      "Color Palette & Live Preview",
       infoTooltip("Theme Colors", "Primary color is applied to the main navigation, headers, and major buttons. Accent color provides high-contrast badges, chips, and progress indicators."),
     ]),
     el("p", { class: "settings-card__sub" }, "Fine-tune specific hex shades to match your institution's official brand guidelines.")
   );
 
-  const brandingRow = el("div", { style: "display:flex; gap:16px; flex-wrap:wrap;" }, [
+  const brandingRow = el("div", { style: "display:flex; gap:16px; flex-wrap:wrap; margin-bottom:var(--sp-4);" }, [
     el("div", { class: "field", style: "flex:1; min-width:140px;" }, [
       el("label", { for: "themeColor" }, "Primary Color"),
       el("input", { id: "themeColor", type: "color", value: settings.themeColor || "#14538A" }),
@@ -490,47 +483,35 @@ function buildBrandingTab() {
       el("input", { id: "secondaryColor", type: "color", value: settings.secondaryColor || "#C9A227" }),
     ]),
   ]);
-  customCard.append(brandingRow);
-  leftCol.append(customCard);
+  paletteCard.append(
+    brandingRow,
+    buildThemePreview()
+  );
 
-  // ---------------------------------------------------------------------------
-  // Right Column: Live Interactive Preview & Preset Gallery
-  // ---------------------------------------------------------------------------
-  const rightCol = el("div", { class: "settings-stack" });
+  topGrid.append(logoCard, paletteCard);
 
-  // 3. Live Preview Card
-  const previewCard = el("div", { class: "card settings-card" }, [
-    el("h3", {}, [
-      icon("visibility"),
-      "Live Dashboard Preview",
-      infoTooltip("Theme Simulation", "A live simulation of your dashboard UI, topbar accents, and button styles responding dynamically to your color choices."),
-    ]),
-    el("p", { class: "settings-card__sub" }, "Real-time preview of how your brand colors appear across the system."),
-    buildThemePreview(),
-  ]);
-  rightCol.append(previewCard);
-
-  // 4. Presets Gallery Card
+  // 3. Full-width Curated Theme Presets Gallery Card (Spanning whole width)
   const galleryCard = el("div", { class: "card settings-card" }, [
-    el("h3", {}, [icon("style"), "Curated Theme Presets"]),
+    el("h3", {}, [
+      icon("style"),
+      "Curated Theme Presets",
+      infoTooltip("Presets Gallery", "Pre-tuned institutional palettes configured for high readability and official contrast. Click any preset to apply it immediately."),
+    ]),
     el("p", { class: "settings-card__sub" }, "Pre-tuned institutional palettes. Click any preset to apply it immediately."),
   ]);
   const gallery = el("div", { class: "theme-gallery", id: "theme-gallery" });
   for (const t of THEME_PRESETS) gallery.append(themeCard(t));
   galleryCard.append(gallery);
-  rightCol.append(galleryCard);
-
-  grid.append(leftCol, rightCol);
-  form.append(grid);
 
   form.append(
+    topGrid,
+    galleryCard,
     el("div", { class: "settings-form-actions" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Branding"]),
     ])
   );
 
-  wrap.append(form);
-  return wrap;
+  return form;
 }
 
 function themeCard(t) {

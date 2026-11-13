@@ -2445,18 +2445,19 @@ tbody tr:hover { background: var(--color-primary-100); }
 /* Theme gallery */
 .theme-gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-  gap: var(--sp-3);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--sp-4);
 }
 .theme-card {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: var(--sp-2);
   text-align: left;
   background: var(--color-white);
   border: 1.5px solid var(--color-line);
   border-radius: var(--radius-lg);
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4);
   cursor: pointer;
   transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
@@ -2472,14 +2473,19 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .theme-card__swatches {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 .theme-card__dot {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 2px solid var(--color-white);
   box-shadow: 0 0 0 1px var(--color-line);
+}
+.theme-card__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 .theme-card__name {
   font-weight: 700;
@@ -2489,13 +2495,13 @@ tbody tr:hover { background: var(--color-primary-100); }
 .theme-card__desc {
   font-size: var(--fs-xs);
   color: var(--color-ink-soft);
-  margin-top: 2px;
-  line-height: 1.35;
+  margin-top: 4px;
+  line-height: 1.4;
 }
 .theme-card__status {
   align-self: flex-start;
-  margin-top: 4px;
-  display: flex;
+  margin-top: var(--sp-3);
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: var(--fs-xs);
@@ -2508,6 +2514,28 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 .theme-card--active .theme-card__status .material-symbols-rounded {
   font-size: 16px;
+}
+[data-theme="dark"] .theme-card {
+  background: #1E293B;
+  border-color: #334155;
+}
+[data-theme="dark"] .theme-card:hover {
+  border-color: var(--color-primary-400);
+}
+[data-theme="dark"] .theme-card--active {
+  background: #0F172A;
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+}
+[data-theme="dark"] .theme-card__name {
+  color: #F8FAFC;
+}
+[data-theme="dark"] .theme-card__desc {
+  color: #94A3B8;
+}
+[data-theme="dark"] .theme-card__dot {
+  border-color: #1E293B;
+  box-shadow: 0 0 0 1px #475569;
 }
 
 /* Enhanced Live branding preview */
