@@ -230,7 +230,7 @@ function networkHealthPill() {
     [iconSlot, textLabel]
   );
 
-  const wrap = el("div", { class: "topbar__network-pill-wrap" }, [pillEl]);
+  const wrap = el("div", { class: "topbar__network-pill-wrap", "data-tour": "topbar-sync" }, [pillEl]);
 
   let durationTimer = null;
 
@@ -902,7 +902,13 @@ export function renderShell(app, profile, activePath) {
   // shift position as nav groups expand/collapse.
   const collapseBtn = el(
     "button",
-    { type: "button", class: "topbar__collapse-btn topbar__icon-btn" },
+    {
+      type: "button",
+      class: "topbar__collapse-btn topbar__icon-btn",
+      "data-tour": "sidebar-collapse",
+      title: "Collapse sidebar",
+      "aria-label": "Collapse sidebar",
+    },
     [el("span", { class: "material-symbols-rounded icon" }, "left_panel_close")]
   );
   const applyCollapsedState = (collapsed) => {
@@ -1136,6 +1142,7 @@ export function renderShell(app, profile, activePath) {
       {
         type: "button",
         class: "topbar__icon-btn",
+        "data-tour": "topbar-theme",
         title: getTitle(),
         "aria-label": getTitle(),
         onClick: () => {
