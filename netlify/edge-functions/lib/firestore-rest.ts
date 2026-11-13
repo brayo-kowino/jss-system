@@ -453,6 +453,15 @@ export async function addFsDoc(token: string, collectionId: string, fields: Reco
   return await res.json();
 }
 
+export async function deleteFsDoc(token: string, path: string): Promise<void> {
+  const res = await fetch(`${FIRESTORE_BASE}/${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 404) return;
+  if (!res.ok) throw new Error(`Firestore delete failed: ${res.status}`);
+}
+
 // Lists all documents directly under a subcollection path (e.g.
 // "users/abc123/trusted_devices"). Uses the plain documents.list REST
 // endpoint rather than runQuery, since runFsQuery above always queries
