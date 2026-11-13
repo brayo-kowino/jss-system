@@ -2073,6 +2073,8 @@ tbody tr:hover { background: var(--color-primary-100); }
   background: var(--color-white);
   padding: var(--sp-6);
   box-shadow: 0 4px 20px -4px rgba(20, 83, 138, 0.04), 0 2px 8px -2px rgba(20, 83, 138, 0.03);
+  min-width: 0;
+  box-sizing: border-box;
 }
 .settings-card h3 {
   margin: 0 0 var(--sp-2);
@@ -2204,23 +2206,114 @@ tbody tr:hover { background: var(--color-primary-100); }
   background: rgba(252, 211, 77, 0.15);
 }
 
-/* CBC Standards reference card in Grading */
-.cbc-standards-grid,
-.cbc-standards-list {
+/* Grading Tab Studio Grid */
+.settings-grading-grid {
   display: grid;
   grid-template-columns: 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+}
+@media (min-width: 992px) {
+  .settings-grading-grid {
+    grid-template-columns: minmax(0, 1.48fr) minmax(280px, 1fr);
+  }
+}
+
+.grading-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  box-sizing: border-box;
+}
+
+.grading-scale-table {
+  width: 100% !important;
+  min-width: 480px !important;
+  max-width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0;
+}
+
+.grading-scale-table thead th {
+  background: var(--color-primary-700);
+  color: var(--color-white);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 6px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.grading-scale-table thead th.col-min,
+.grading-scale-table thead th.col-max,
+.grading-scale-table thead th.col-points {
+  text-align: center;
+}
+
+.grading-scale-table tbody td {
+  padding: 6px 6px;
+  border-top: 1px solid var(--color-line);
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+.grading-scale-table input {
+  padding: 6px 8px;
+  font-size: var(--fs-xs);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-ink);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.grading-scale-table input:focus {
+  border-color: var(--color-primary-600);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary-100);
+}
+
+.grading-scale-table .grade-min,
+.grading-scale-table .grade-max,
+.grading-scale-table .grade-points {
+  text-align: center;
+}
+
+.grading-scale-table .grade-code {
+  text-align: center;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.grading-scale-table .grade-del-btn {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-soft);
+  border-radius: var(--radius-sm);
+}
+.grading-scale-table .grade-del-btn:hover {
+  color: var(--color-red);
+  background: rgba(220, 38, 38, 0.08);
+}
+
+/* CBC Standards reference card in Grading */
+.cbc-standards-list {
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-3);
   margin-top: var(--sp-3);
-}
-@media (min-width: 640px) {
-  .cbc-standards-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (min-width: 1024px) {
-  .cbc-standards-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
 }
 .cbc-standard-item {
   display: flex;
@@ -2230,52 +2323,20 @@ tbody tr:hover { background: var(--color-primary-100); }
   border-radius: var(--radius-md);
   border: 1px solid var(--color-line);
   background: var(--color-cream);
+  border-left: 4px solid var(--color-primary-600);
+  box-sizing: border-box;
 }
-[data-theme="dark"] .cbc-standard-item {
+.cbc-standard-item:nth-child(1) { border-left-color: #059669; }
+.cbc-standard-item:nth-child(2) { border-left-color: #2563eb; }
+.cbc-standard-item:nth-child(3) { border-left-color: #d97706; }
+.cbc-standard-item:nth-child(4) { border-left-color: #dc2626; }
+
+[data-theme="dark"] .grading-table-wrap {
   background: #0F172A;
   border-color: #334155;
 }
-.cbc-standard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cbc-standard-badge {
-  font-weight: 700;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.cbc-standard-badge--ee { background: rgba(16, 185, 129, 0.15); color: #059669; }
-.cbc-standard-badge--me { background: rgba(37, 99, 235, 0.15); color: #2563eb; }
-.cbc-standard-badge--ae { background: rgba(245, 158, 11, 0.15); color: #d97706; }
-.cbc-standard-badge--be { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
-.cbc-standard-desc {
-  font-size: var(--fs-xs);
-  color: var(--color-ink-soft);
-  line-height: 1.4;
-  margin: 0;
-}
-
-/* Grading scale table styling */
-.grading-scale-table {
-  width: 100%;
-}
-.grading-scale-table input {
-  padding: 6px 10px;
-  font-size: var(--fs-sm);
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-sm);
-  background: var(--color-white);
-  color: var(--color-ink);
-  box-sizing: border-box;
-}
-.grading-scale-table input:focus {
-  border-color: var(--color-primary-600);
-  outline: none;
-  box-shadow: 0 0 0 2px var(--color-primary-100);
+[data-theme="dark"] .grading-scale-table tbody td {
+  border-top-color: #334155;
 }
 [data-theme="dark"] .grading-scale-table input {
   background: #1E293B;
@@ -2285,6 +2346,10 @@ tbody tr:hover { background: var(--color-primary-100); }
 [data-theme="dark"] .grading-scale-table input:focus {
   border-color: var(--color-primary-400);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+}
+[data-theme="dark"] .cbc-standard-item {
+  background: #1E293B;
+  border-color: #334155;
 }
 
 /* Calendar milestones card */
