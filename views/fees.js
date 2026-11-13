@@ -924,26 +924,57 @@ async function handleBulkReceiptDownload(button, payments) {
 
 function buildReceiptCard(payment) {
   const card = el("div", { class: "receipt" });
+
+  const logoNode = settings.logoUrl
+    ? el("img", { class: "receipt__logo", src: settings.logoUrl, alt: "School Crest" })
+    : el("div", {
+        class: "receipt__logo",
+        style: "display:flex; align-items:center; justify-content:center; background:var(--color-primary-100); color:var(--color-primary-700); font-weight:700; border-radius:50%; width:44px; height:44px;",
+      }, [icon("school", "text-lg")]);
+
   card.append(
     el("div", { class: "receipt__header" }, [
-      el("img", { class: "receipt__logo", src: settings.logoUrl || "/assets/logo.png", alt: "logo" }),
+      logoNode,
       el("div", {}, [
-        el("h3", { class: "receipt__school-name" }, settings.schoolName || "School Name"),
+        el("h3", { class: "receipt__school-name" }, settings.schoolName || "Institution Name"),
+        settings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold-dark, #8A6D1C);" }, `“${settings.motto}”`) : null,
         el("p", { class: "receipt__address" }, settings.address || ""),
       ]),
     ]),
-    el("div", { class: "receipt__banner" }, "FEE PAYMENT RECEIPT"),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", {}, payment.id.slice(0, 10).toUpperCase())]),
+    el("div", { class: "receipt__banner" }, "OFFICIAL FEE PAYMENT RECEIPT"),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", { style: "font-family:var(--font-mono, monospace);" }, payment.id.slice(0, 10).toUpperCase())]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Date"), el("b", {}, formatDate(payment.date))]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Student"), el("b", {}, payment.studentName || "N/A")]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Class"), el("b", {}, `${payment.grade} ${payment.stream}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Term"), el("b", {}, `${payment.term} ${payment.academicYear}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Method"), el("b", {}, payment.method || "N/A")]),
-    ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Reference"), el("b", {}, payment.reference)])] : []),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Learner Name"), el("b", {}, payment.studentName || "N/A")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Class & Stream"), el("b", {}, `${payment.grade} ${payment.stream || ""}`)]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Term & Year"), el("b", {}, `${payment.term} ${payment.academicYear}`)]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Payment Method"), el("b", {}, payment.method || "N/A")]),
+    ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Ref / Transaction ID"), el("b", { style: "font-family:var(--font-mono, monospace);" }, payment.reference)])] : []),
     el("div", { class: "receipt__amount" }, formatKES(payment.amount)),
-    el("div", { class: "receipt__footer" }, "Thank you. Keep this receipt for your records.")
+    el("div", { class: "receipt__footer" }, "Thank you for supporting quality CBC education. Keep this receipt for institutional records.")
   );
   return card;
+}
+
+function showReceiptModal(payment) {
+  const card = buildReceiptCard(payment);
+  const actions = el("div", {
+    class: "no-print",
+    style: "display:flex; gap:10px; justify-content:flex-end; width:100%; margin-top:16px; border-top:1px solid var(--color-line); padding-top:12px;",
+  }, [
+    el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print Receipt"]),
+    el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.currentTarget, card, payment) }, [icon("download"), "Download PDF"]),
+  ]);
+
+  const body = el("div", { style: "display:flex; flex-direction:column; align-items:center; width:100%;" }, [
+    card,
+    actions,
+  ]);
+
+  openModal({
+    title: `Payment Receipt: ${payment.studentName || "Learner"}`,
+    body,
+    maxWidth: "460px",
+  });
 }
 
 function renderReceipt(container, payment) {
@@ -956,7 +987,7 @@ function renderReceipt(container, payment) {
   ]);
 
   container.append(card, actions);
-  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  showReceiptModal(payment);
 }
 
 async function handleDownload(btn, node, payment) {

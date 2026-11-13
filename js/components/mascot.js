@@ -79,6 +79,26 @@ function getPropsForType(type) {
           <circle cx="148" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
         </g>
       `;
+    case "attendance":
+      return `
+        <!-- Left Arm Holding Attendance Register Clipboard -->
+        <g class="attendance-mascot__clipboard">
+          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <rect x="52" y="122" width="30" height="34" rx="3" fill="#0B2545" stroke="#14538A" stroke-width="1.2" transform="rotate(-6 67 139)" />
+          <rect x="55" y="125" width="24" height="28" rx="2" fill="#FFFFFF" transform="rotate(-6 67 139)" />
+          <line x1="58" y1="131" x2="68" y2="129.5" stroke="#10B981" stroke-width="2" stroke-linecap="round" />
+          <line x1="58" y1="137" x2="72" y2="135.5" stroke="#10B981" stroke-width="2" stroke-linecap="round" />
+          <line x1="58" y1="143" x2="66" y2="141.5" stroke="#10B981" stroke-width="2" stroke-linecap="round" />
+          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+        </g>
+        <!-- Right Arm Holding Green Checkmarker Wand -->
+        <g class="attendance-mascot__marker">
+          <path d="M136,128 C146,134 154,120 148,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <line x1="148" y1="110" x2="164" y2="82" stroke="#10B981" stroke-width="3.5" stroke-linecap="round" />
+          <circle cx="148" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
+          <polyline points="163,80 167,84 174,75" fill="none" stroke="#10B981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </g>
+      `;
     case "students":
     case "reports":
     case "teachers":
@@ -193,3 +213,4 @@ export const buildSubjectsMascotSvg = (opts) => buildMascotSvg({ type: "subjects
 export const buildSupportMascotSvg = (opts) => buildMascotSvg({ type: "support", width: 150, height: 140, label: "Support Assistant", ...opts });
 export const buildStaffMascotSvg = (opts) => buildMascotSvg({ type: "teachers", width: 125, height: 110, label: "Staff Assistant", ...opts });
 export const buildTimetableMascotSvg = (opts) => buildMascotSvg({ type: "timetable", width: 165, height: 150, label: "Timetable Assistant", ...opts });
+export const buildAttendanceMascotSvg = (opts) => buildMascotSvg({ type: "attendance", width: 125, height: 110, label: "Attendance Assistant", ...opts });

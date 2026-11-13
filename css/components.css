@@ -3412,6 +3412,258 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* ==========================================================================
+   Attendance Tracking & Roll Call Modernization
+   ========================================================================== */
+.attendance-hero {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--sp-4);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+}
+.attendance-hero__content {
+  flex: 1;
+  min-width: min(100%, 300px);
+}
+.attendance-hero__status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.attendance-cycle-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: var(--color-primary-100);
+  color: var(--color-primary-800);
+  border: 1px solid var(--color-primary-200);
+  border-radius: 999px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.attendance-hero__title {
+  margin: 0 0 4px 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+.attendance-hero__desc {
+  margin: 0 0 var(--sp-2) 0;
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  max-width: 560px;
+  line-height: 1.4;
+}
+.attendance-hero__pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.attendance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+.attendance-pill .material-symbols-rounded {
+  font-size: 14px;
+  color: var(--color-primary-600);
+}
+.attendance-hero__mascot-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  user-select: none;
+}
+.attendance-hero__mascot-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.attendance-mascot-svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 6px 12px rgba(11, 37, 69, 0.1));
+}
+
+@media (max-width: 860px) {
+  .attendance-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .attendance-hero__mascot-box {
+    align-self: center;
+    margin-top: var(--sp-2);
+  }
+}
+
+/* Attendance Live KPI Grid */
+.attendance-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.attendance-kpi-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+}
+.attendance-kpi-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.attendance-kpi-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+}
+.attendance-kpi-card__val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  color: var(--color-primary-900);
+}
+.attendance-kpi-card__val--green { color: #059669; }
+.attendance-kpi-card__val--red { color: #DC2626; }
+.attendance-kpi-card__val--amber { color: #D97706; }
+.attendance-kpi-card__val--purple { color: #7C3AED; }
+
+/* Status pill buttons in Attendance table */
+.status-pill-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1.5px solid var(--color-line);
+  background: var(--color-cream);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+.status-pill input[type="radio"] {
+  display: none;
+}
+.status-pill:hover {
+  border-color: var(--color-primary-400);
+  background: var(--color-white);
+}
+.status-pill.is-active.status-pill--present {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10B981;
+  color: #065F46;
+  box-shadow: 0 0 0 1px #10B981;
+}
+.status-pill.is-active.status-pill--absent {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #EF4444;
+  color: #991B1B;
+  box-shadow: 0 0 0 1px #EF4444;
+}
+.status-pill.is-active.status-pill--late {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #F59E0B;
+  color: #92400E;
+  box-shadow: 0 0 0 1px #F59E0B;
+}
+.status-pill.is-active.status-pill--excused {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: #8B5CF6;
+  color: #5B21B6;
+  box-shadow: 0 0 0 1px #8B5CF6;
+}
+
+[data-theme="dark"] .attendance-hero {
+  background: #1E293B;
+  border-color: #334155;
+}
+[data-theme="dark"] .attendance-hero__title {
+  color: #F8FAFC;
+}
+[data-theme="dark"] .attendance-pill {
+  background: #0F172A;
+  border-color: #334155;
+  color: #94A3B8;
+}
+[data-theme="dark"] .attendance-kpi-card {
+  background: #1E293B;
+  border-color: #334155;
+}
+[data-theme="dark"] .attendance-kpi-card__val {
+  color: #F8FAFC;
+}
+[data-theme="dark"] .status-pill {
+  background: #0F172A;
+  border-color: #334155;
+  color: #94A3B8;
+}
+[data-theme="dark"] .status-pill:hover {
+  background: #1E293B;
+  border-color: #475569;
+}
+[data-theme="dark"] .status-pill.is-active.status-pill--present {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #10B981;
+  color: #6EE7B7;
+}
+[data-theme="dark"] .status-pill.is-active.status-pill--absent {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #EF4444;
+  color: #FCA5A5;
+}
+[data-theme="dark"] .status-pill.is-active.status-pill--late {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #F59E0B;
+  color: #FDE68A;
+}
+[data-theme="dark"] .status-pill.is-active.status-pill--excused {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: #8B5CF6;
+  color: #DDD6FE;
+}
+
+/* ==========================================================================
    Fees Management & Finance Mascot Modernization
    ========================================================================== */
 .fees-hero {
