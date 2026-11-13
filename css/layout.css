@@ -811,25 +811,6 @@
   filter: brightness(1.1);
 }
 
-/* Pulsing dot for online status */
-.network-pill__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #10b981;
-  display: inline-block;
-  flex-shrink: 0;
-}
-.network-pill__dot--pulse {
-  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
-  animation: network-pulse-green 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
-}
-@keyframes network-pulse-green {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-  70% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-}
-
 /* Spin animation for sync icon */
 .icon-spin {
   animation: network-icon-spin 1s linear infinite;

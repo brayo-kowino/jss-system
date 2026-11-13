@@ -15,9 +15,9 @@ export const TOUR_STEPS = [
     body: "This quick tour points out where everything lives. You can replay it anytime from the help icon in the top bar.",
   },
   {
-    target: '[data-tour="sidebar-search"]',
-    title: "Find a page fast",
-    body: "Type here to filter the menu on the left down to matching pages - handy once you know the system and just want to jump straight in.",
+    target: '[data-tour="topbar-search"]',
+    title: "Quick Search & Jump",
+    body: "Use the search bar or press Ctrl+K anytime to quickly jump between pages, find students, or run common commands across the school.",
   },
   {
     target: '[data-tour="nav-dashboard"]',

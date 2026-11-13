@@ -438,9 +438,8 @@ function networkHealthPill() {
 
     // "online"
     pillBtn.className = "badge badge--success topbar__network-pill topbar__offline-pill topbar__network-pill--online";
-    const dot = el("span", { class: "network-pill__dot network-pill__dot--pulse" });
     const cloudIcon = icon("cloud_done");
-    iconSlot.append(dot, cloudIcon);
+    iconSlot.append(cloudIcon);
     textLabel.textContent = "Online · Synced";
     pillBtn.title = "Connected to cloud server • Local cache synchronized. Click for details.";
 
@@ -1035,32 +1034,7 @@ export function renderShell(app, profile, activePath) {
 
   sidebar.append(logoMount);
 
-  // Sidebar search: filters nav links by label as the user types. Matching
-  // groups stay expanded for the duration of the search; clearing the box
-  // restores each group's normal collapsed/expanded state.
-  const searchInput = el("input", {
-    class: "sidebar__search-input",
-    type: "text",
-    placeholder: "Search menu (Ctrl+K)",
-    autocomplete: "off",
-  });
-  searchInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      openCommandPalette({ profile });
-    }
-  });
-  sidebar.append(
-    el("div", { class: "sidebar__search", "data-tour": "sidebar-search" }, [
-      el("span", { class: "material-symbols-rounded icon sidebar__search-icon" }, "search"),
-      searchInput,
-    ])
-  );
-
   const collapsedGroups = getCollapsedGroups();
-  // Collected while building the groups below, then used by the search
-  // handler to filter/restore without re-rendering the whole sidebar.
-  const groupRefs = [];
   let mainNavBadge = null;
 
   for (const group of NAV) {
@@ -1082,7 +1056,6 @@ export function renderShell(app, profile, activePath) {
     groupEl.append(labelRow);
 
     const linksWrap = el("div", { class: "nav-group__links" });
-    const linkRefs = [];
     for (const link of visibleLinks) {
       const isActive = activePath === link.path;
       
@@ -1106,7 +1079,6 @@ export function renderShell(app, profile, activePath) {
         [iconWrap, el("span", {}, link.text)]
       );
       linksWrap.append(linkEl);
-      linkRefs.push({ linkEl, text: link.text.toLowerCase() });
     }
     groupEl.append(linksWrap);
 
@@ -1118,36 +1090,7 @@ export function renderShell(app, profile, activePath) {
     }
 
     sidebar.append(groupEl);
-    groupRefs.push({ label: group.label, groupEl, chevron, hasActiveLink, linkRefs });
   }
-
-  searchInput.addEventListener("input", () => {
-    const query = searchInput.value.trim().toLowerCase();
-    if (!query) {
-      // Restore each group to its persisted collapsed/expanded state.
-      for (const ref of groupRefs) {
-        ref.groupEl.style.display = "";
-        for (const linkRef of ref.linkRefs) linkRef.linkEl.style.display = "";
-        const shouldCollapse = collapsedGroups.has(ref.label) && !ref.hasActiveLink;
-        ref.groupEl.classList.toggle("nav-group--collapsed", shouldCollapse);
-        ref.chevron.classList.toggle("nav-group__chevron--collapsed", shouldCollapse);
-      }
-      return;
-    }
-    // While searching, force every group open and show only matching links;
-    // hide a group entirely if nothing in it matches.
-    for (const ref of groupRefs) {
-      let anyMatch = false;
-      for (const linkRef of ref.linkRefs) {
-        const matches = linkRef.text.includes(query);
-        linkRef.linkEl.style.display = matches ? "" : "none";
-        if (matches) anyMatch = true;
-      }
-      ref.groupEl.style.display = anyMatch ? "" : "none";
-      ref.groupEl.classList.remove("nav-group--collapsed");
-      ref.chevron.classList.remove("nav-group__chevron--collapsed");
-    }
-  });
 
   // Collapse-to-icons toggle now lives at the top of the topbar, before the
   // school name, so it's always reachable without scrolling and doesn't
@@ -1217,6 +1160,7 @@ export function renderShell(app, profile, activePath) {
     {
       type: "button",
       class: "topbar__search-trigger",
+      "data-tour": "topbar-search",
       title: "Search commands, students, classes (Ctrl+K)",
       "aria-label": "Search commands, students, classes (Ctrl+K)",
       onClick: () => openCommandPalette({ profile }),
