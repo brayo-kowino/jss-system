@@ -59,3 +59,52 @@
   --topbar-h: 64px;
   --transition: 160ms ease;
 }
+
+/* ==========================================================================
+   Dark Mode Design Tokens
+   ========================================================================== */
+[data-theme="dark"] {
+  --color-primary-900: #F1F5F9;
+  --color-primary-700: #38BDF8;
+  --color-primary-600: #60A5FA;
+  --color-primary-100: #1E293B;
+  --color-cream: #0B0F19;
+  --color-cream-dim: #162032;
+  --color-ink: #F8FAFC;
+  --color-ink-soft: #94A3B8;
+  --color-gold: #F59E0B;
+  --color-gold-soft: #FDE68A;
+  --color-green: #10B981;
+  --color-red: #EF4444;
+  --color-line: #263345;
+  --color-white: #111827;
+  --color-surface-alt: #1E293B;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-primary-900: #F1F5F9;
+    --color-primary-700: #38BDF8;
+    --color-primary-600: #60A5FA;
+    --color-primary-100: #1E293B;
+    --color-cream: #0B0F19;
+    --color-cream-dim: #162032;
+    --color-ink: #F8FAFC;
+    --color-ink-soft: #94A3B8;
+    --color-gold: #F59E0B;
+    --color-gold-soft: #FDE68A;
+    --color-green: #10B981;
+    --color-red: #EF4444;
+    --color-line: #263345;
+    --color-white: #111827;
+    --color-surface-alt: #1E293B;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.7);
+  }
+}

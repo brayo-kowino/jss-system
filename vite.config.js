@@ -146,6 +146,9 @@ function obfuscatorPlugin() {
       for (const fileName of Object.keys(bundle)) {
         const asset = bundle[fileName];
         if (asset.type !== "chunk" || !fileName.endsWith(".js")) continue;
+        // Skip third-party vendor chunks - they are already minified and obfuscating
+        // open-source libraries drastically slows down build time and bloats bundle sizes.
+        if (asset.name?.startsWith("vendor-") || fileName.includes("vendor-")) continue;
         const result = JavaScriptObfuscator.obfuscate(asset.code, {
           compact: true,
           controlFlowFlattening: false,
@@ -174,6 +177,9 @@ function obfuscatorPlugin() {
 export default {
   root,
   publicDir: "public",
+  worker: {
+    format: "es",
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -199,6 +205,7 @@ export default {
     sourcemap: false, // no sourcemaps in a build meant to obfuscate the output
     minify: "esbuild",
     cssMinify: true,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       input: {
         landing: resolve(root, "index.html"),
@@ -213,6 +220,14 @@ export default {
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
+        manualChunks(id) {
+          if (id.includes("node_modules/xlsx")) return "vendor-xlsx";
+          if (id.includes("node_modules/jspdf")) return "vendor-jspdf";
+          if (id.includes("node_modules/html2canvas-pro") || id.includes("node_modules/html2canvas")) return "vendor-html2canvas";
+          if (id.includes("node_modules/chart.js")) return "vendor-chart";
+          if (id.includes("node_modules/jszip")) return "vendor-jszip";
+          if (id.includes("node_modules/flatpickr")) return "vendor-flatpickr";
+        },
       },
     },
   },

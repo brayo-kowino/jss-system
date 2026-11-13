@@ -15,7 +15,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Same TTL as device-register.ts - keep the two in sync since they grant
@@ -120,7 +120,10 @@ export default async (request: Request, context: Context) => {
   // now genuinely on record too, having gone through a separate approver's
   // sign-off rather than self-bootstrap.
   try {
-    await setCustomClaims(accessToken, uid, { deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS) });
+    await setCustomClaims(accessToken, uid, {
+      deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS),
+      deviceApprovedUntilMs: claimExpiryMs(DEVICE_CLAIM_TTL_MS),
+    });
   } catch (err) {
     console.error("login-approval-redeem: setCustomClaims failed", err);
   }

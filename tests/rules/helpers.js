@@ -34,7 +34,9 @@ export async function getTestEnv() {
 export function authedDb(env, uid, claims = null) {
   const defaultClaims = {
     deviceApprovedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-    twoFactorVerifiedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    deviceApprovedUntilMs: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    twoFactorVerifiedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    twoFactorVerifiedUntilMs: Date.now() + 365 * 24 * 60 * 60 * 1000
   };
   return env.authenticatedContext(uid, claims || defaultClaims).firestore();
 }

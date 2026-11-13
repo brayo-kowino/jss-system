@@ -28,6 +28,21 @@
 <meta name="twitter:image" content="https://eeskia.iskify360.tech/assets/eeskia-hero-image.png" />
 <meta name="twitter:image:alt" content="Eeskia dashboard preview" />
 <meta name="theme-color" content="#14538A" />
+<script>
+  (function() {
+    try {
+      var t = localStorage.getItem("eeskia_theme");
+      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (t === "dark" || (!t && prefersDark)) {
+        document.documentElement.setAttribute("data-theme", "dark");
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", "#0B0F19");
+      } else {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    } catch (e) {}
+  })();
+</script>
 
 <link rel="manifest" href="/site.webmanifest" />
 <link rel="stylesheet" href="../css/variables.css" />

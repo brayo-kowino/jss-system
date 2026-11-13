@@ -310,6 +310,10 @@ export function claimExpiryIso(ttlMs: number): string {
   return new Date(Date.now() + ttlMs).toISOString();
 }
 
+export function claimExpiryMs(ttlMs: number): number {
+  return Date.now() + ttlMs;
+}
+
 // --------------------------------------------------------------------------
 // subscriptionActiveUntil claim sync.
 // --------------------------------------------------------------------------
@@ -351,13 +355,21 @@ export async function syncSubscriptionClaims(accessToken: string, schoolId: stri
     !suspended && (!lapsed || isTrial) && expiresAt && expiresAt.getTime() > Date.now() ? expiresAt.toISOString() : null;
 
   const staff = await runFsQuery(accessToken, "users", [["schoolId", "EQUAL", schoolId]]);
-  for (const user of staff) {
-    if (!user.id) continue;
-    try {
-      await setCustomClaims(accessToken, user.id, { subscriptionActiveUntil: activeUntil });
-    } catch (err) {
-      console.error(`syncSubscriptionClaims: failed to set claim for ${user.id}`, err);
-    }
+  const usersWithId = staff.filter((u: any) => Boolean(u.id));
+
+  // Update claims in concurrent chunks of 6 to prevent hitting Netlify edge execution timeouts
+  const BATCH_SIZE = 6;
+  for (let i = 0; i < usersWithId.length; i += BATCH_SIZE) {
+    const chunk = usersWithId.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      chunk.map(async (user: any) => {
+        try {
+          await setCustomClaims(accessToken, user.id, { subscriptionActiveUntil: activeUntil });
+        } catch (err) {
+          console.error(`syncSubscriptionClaims: failed to set claim for ${user.id}`, err);
+        }
+      })
+    );
   }
 }
 

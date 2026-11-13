@@ -66,7 +66,7 @@ async function preloadImages() {
 
 async function preloadHeavyModules() {
   const loads = [
-    import("html2canvas").catch(() => null),
+    import("html2canvas-pro").catch(() => null),
     import("jspdf").catch(() => null),
     import("jszip").catch(() => null),
     import("chart.js").catch(() => null),
@@ -98,6 +98,23 @@ export async function preloadAllAppAssets(onProgress) {
   // Step 2: Preload core images & logos
   onProgress?.(45, "Loading graphics & branding…");
   await preloadImages();
+
+  if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
+    try {
+      navigator.serviceWorker.controller.postMessage({
+        type: "PRECACHE_ASSETS",
+        urls: [
+          "/assets/logo.png",
+          "/assets/eeskia-hero-image.png",
+          "/waving-hand.png",
+          "/waving-hand.svg",
+          "/site.webmanifest",
+        ],
+      });
+    } catch {
+      // Non-fatal if SW communication is unavailable
+    }
+  }
 
   // Step 3: Preload PDF engine & Chart.js
   onProgress?.(70, "Preparing PDF & charting tools…");

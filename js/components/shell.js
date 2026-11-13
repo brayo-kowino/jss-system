@@ -14,6 +14,14 @@ import { subscribeToNotifications, getNotificationsLastSeen, countUnreadNotifica
 import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissKey } from "../services/platform-announcement.service.js";
 import { registerFCMToken } from "../services/fcm.service.js";
 import { mountTrialBanner } from "./trial-banner.js";
+import { getEffectiveTheme, getTheme, toggleTheme, setTheme } from "../theme.js";
+import { initCommandPalette, openCommandPalette } from "./command-palette.js";
+import {
+  subscribeNetworkHealth,
+  triggerSyncCheck,
+  getOfflineDurationInfo,
+  getNetworkHealthState,
+} from "../services/network-health.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -83,14 +91,30 @@ export function applyBranding(settings) {
   const primary = settings?.themeColor || "#14538A";
   const accent = settings?.secondaryColor || "#C9A227";
   root.setProperty("--color-primary-700", primary);
-  root.setProperty("--color-primary-900", shade(primary, -30));
   root.setProperty("--color-primary-600", shade(primary, 25));
-  root.setProperty("--color-primary-100", tint(primary, 0.12));
   root.setProperty("--color-gold", accent);
   root.setProperty("--color-gold-soft", shade(accent, 60));
+
+  if (getEffectiveTheme() !== "dark") {
+    root.setProperty("--color-primary-900", shade(primary, -30));
+    root.setProperty("--color-primary-100", tint(primary, 0.12));
+    updateThemeColor(primary);
+  } else {
+    root.removeProperty("--color-primary-900");
+    root.removeProperty("--color-primary-100");
+    updateThemeColor("#0B0F19");
+  }
+
   document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;
   setFavicon(settings?.logoUrl || "/assets/logo.png");
-  updateThemeColor(primary);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("themechange", () => {
+    if (cachedSettings) {
+      applyBranding(cachedSettings);
+    }
+  });
 }
 
 const NAV = [
@@ -223,88 +247,248 @@ function showIosInstallHint() {
 }
 
 // ---------------------------------------------------------------------------
-// Offline status pill - a persistent (not auto-dismissing) indicator so
-// someone marking attendance or entering marks with no signal for an
-// extended stretch can see, at a glance, that they're still safely in
-// "will sync later" territory rather than wondering if anything is being
-// saved at all. error-handler.js's toasts cover the *moment* connectivity
-// changes; this covers the whole time in between.
+// Real-Time Network Health & Sync Pill
+//
+// Provides a live status pill in the topbar tracking network connectivity
+// and Firestore cloud persistence:
+//   - "online": Subtle green pulse dot + "Online · Synced" (auto-compacts
+//     after 3.5s quiet so topbar remains sleek, expanding on hover/tap)
+//   - "syncing": Blue badge + spinning sync icon + "Syncing changes…"
+//   - "offline": Amber badge + "Offline (Local Cache Active)" or nudge
+//
+// Clicking the pill toggles a System Sync Health popover showing detailed
+// connection status, IndexedDB persistence state, last sync time, and a
+// manual "Sync Now" trigger.
 // ---------------------------------------------------------------------------
 let offlinePillCleanup = null;
 
-// How long someone can be offline before the pill escalates from a calm
-// "will sync" note to an explicit nudge to reconnect. Deliberately not
-// instant - a dropped connection for a minute mid-lesson is normal and
-// shouldn't feel urgent; the nudge is for "I've been offline long enough
-// that I should probably go find signal soon," not every brief drop.
-const OFFLINE_NUDGE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
-const LAST_ONLINE_KEY = "jss_last_online_at";
-
-function readLastOnlineAt() {
-  const raw = Number(localStorage.getItem(LAST_ONLINE_KEY));
-  return Number.isFinite(raw) && raw > 0 ? raw : Date.now();
-}
-function markOnlineNow() {
-  try { localStorage.setItem(LAST_ONLINE_KEY, String(Date.now())); } catch { /* non-fatal */ }
+function formatRelativeSyncTime(timestamp) {
+  if (!timestamp) return "Just now";
+  const diffSec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (diffSec < 45) return "Just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  return `${diffHr}h ago`;
 }
 
-// Offline status pill - persistent (not auto-dismissing, unlike
-// error-handler.js's toasts) so someone marking attendance or entering
-// marks with no signal for an extended stretch can see, at a glance, that
-// they're still safely in "will sync later" territory. Past
-// OFFLINE_NUDGE_AFTER_MS it escalates to an explicit reconnect nudge -
-// partly so unsynced work (only ever saved on this one device until it
-// actually reaches the server) doesn't sit at risk indefinitely, and
-// partly because a lapsed subscription only gets caught and shown for
-// real once back online (see the "online" handler in app.js) - staying
-// offline doesn't grant continued access to anything, it just delays
-// finding out either way.
-function offlineStatusPill() {
-  const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;", title: "" }, [
-    icon("wifi_off"),
-    el("span", { class: "offline-pill-text" }, "Offline - will sync"),
-  ]);
-  const label = pill.querySelector(".offline-pill-text");
-  let nudgeTimer = null;
+function networkHealthPill() {
+  const iconSlot = el("span", { class: "network-pill__icon-slot" });
+  const textLabel = el("span", { class: "network-pill-text" }, "Online · Synced");
 
-  function applyState(online) {
-    pill.style.display = online ? "none" : "inline-flex";
-    if (online) {
-      markOnlineNow();
-      if (nudgeTimer) { clearInterval(nudgeTimer); nudgeTimer = null; }
+  const pillBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "badge topbar__network-pill topbar__offline-pill topbar__network-pill--online",
+      "aria-label": "Network & Cloud Sync Status",
+      title: "Connected • Local cache synchronized with cloud server",
+    },
+    [iconSlot, textLabel]
+  );
+
+  const wrap = el("div", { class: "topbar__network-pill-wrap" }, [pillBtn]);
+
+  let popoverEl = null;
+  let compactTimer = null;
+  let durationTimer = null;
+
+  function closePopover() {
+    if (popoverEl) {
+      popoverEl.remove();
+      popoverEl = null;
+    }
+  }
+
+  function renderPopover(state) {
+    const isOnline = state.status !== "offline";
+    const isSyncing = state.status === "syncing";
+    const lastSyncStr = formatRelativeSyncTime(state.lastSyncedAt);
+
+    const closeBtn = el(
+      "button",
+      {
+        type: "button",
+        style: "background:none;border:none;cursor:pointer;color:var(--color-ink-soft);padding:2px 4px;font-size:16px;line-height:1;",
+        "aria-label": "Close",
+        onClick: (e) => {
+          e.stopPropagation();
+          closePopover();
+        },
+      },
+      "✕"
+    );
+
+    const syncNowBtn = el(
+      "button",
+      {
+        type: "button",
+        class: "btn btn--sm btn--primary network-health-popover__btn",
+        disabled: isSyncing,
+        onClick: async (e) => {
+          e.stopPropagation();
+          syncNowBtn.disabled = true;
+          syncNowBtn.textContent = "Syncing…";
+          try {
+            await triggerSyncCheck();
+            toast("Sync completed", "success");
+          } catch {
+            toast("Sync check completed", "info");
+          } finally {
+            closePopover();
+          }
+        },
+      },
+      [icon("sync", isSyncing ? "icon-spin" : ""), isSyncing ? " Syncing…" : " Sync Now"]
+    );
+
+    const card = el("div", { class: "network-health-popover", role: "dialog", "aria-modal": "false" }, [
+      el("div", { class: "network-health-popover__header" }, [
+        el("div", { class: "network-health-popover__title" }, [
+          icon(isOnline ? "cloud_done" : "cloud_off"),
+          "System Sync Health",
+        ]),
+        closeBtn,
+      ]),
+      el("div", { class: "network-health-popover__row" }, [
+        icon(isOnline ? "wifi" : "wifi_off"),
+        el("div", {}, [
+          el("div", {}, [
+            "Network: ",
+            el("span", { class: `badge badge--${isOnline ? "success" : "warning"}` }, isOnline ? "Connected" : "Disconnected"),
+          ]),
+          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" },
+            isOnline ? "High-speed multi-tab cloud sync enabled" : "Working offline with local cache"
+          ),
+        ]),
+      ]),
+      el("div", { class: "network-health-popover__row" }, [
+        icon("database"),
+        el("div", {}, [
+          el("div", {}, ["Local Persistence: ", el("b", { class: "network-health-popover__meta-val" }, "Active")]),
+          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" }, "IndexedDB offline read/write queue"),
+        ]),
+      ]),
+      el("div", { class: "network-health-popover__row" }, [
+        icon("schedule"),
+        el("div", {}, [
+          el("div", {}, ["Last Synced: ", el("span", { class: "network-health-popover__meta-val" }, lastSyncStr)]),
+          el("div", { style: "font-size:11px;color:var(--color-ink-soft);margin-top:2px;" },
+            isOnline ? "All local changes synchronized" : "Changes will push upon reconnection"
+          ),
+        ]),
+      ]),
+      el("div", { class: "network-health-popover__actions" }, [
+        syncNowBtn,
+      ]),
+    ]);
+
+    return card;
+  }
+
+  function togglePopover(state) {
+    if (popoverEl) {
+      closePopover();
       return;
     }
-    checkDuration();
-    if (!nudgeTimer) nudgeTimer = setInterval(checkDuration, 60 * 1000);
+    popoverEl = renderPopover(state);
+    wrap.append(popoverEl);
   }
 
-  function checkDuration() {
-    const offlineMs = Date.now() - readLastOnlineAt();
-    if (offlineMs >= OFFLINE_NUDGE_AFTER_MS) {
-      const mins = Math.round(offlineMs / 60000);
-      const hrs = Math.floor(mins / 60);
-      const readable = hrs >= 1 ? `${hrs}h` : `${mins}m`;
-      label.textContent = `Offline ${readable} - reconnect to sync`;
-      pill.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
-    } else {
-      label.textContent = "Offline - will sync";
-      pill.title = "No connection right now. What you enter is saved and will sync automatically once you're back online.";
+  function applyState(state) {
+    if (compactTimer) {
+      clearTimeout(compactTimer);
+      compactTimer = null;
     }
+    if (durationTimer) {
+      clearInterval(durationTimer);
+      durationTimer = null;
+    }
+
+    iconSlot.replaceChildren();
+
+    if (state.status === "offline") {
+      pillBtn.className = "badge badge--warning topbar__network-pill topbar__offline-pill topbar__network-pill--offline";
+      iconSlot.append(icon("wifi_off"));
+
+      const updateOfflineLabel = () => {
+        const info = getOfflineDurationInfo(state.lastOnlineAt);
+        if (info.needsNudge) {
+          textLabel.textContent = `Offline ${info.readableDuration} - reconnect to sync`;
+          pillBtn.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
+        } else {
+          textLabel.textContent = "Offline (Local Cache Active)";
+          pillBtn.title = "No connection right now. Edits are saved in local offline cache and will sync automatically once you are back online.";
+        }
+      };
+
+      updateOfflineLabel();
+      durationTimer = setInterval(updateOfflineLabel, 60 * 1000);
+      return;
+    }
+
+    if (state.status === "syncing") {
+      pillBtn.className = "badge badge--primary topbar__network-pill topbar__offline-pill topbar__network-pill--syncing";
+      const syncIcon = icon("sync", "icon-spin");
+      iconSlot.append(syncIcon);
+      textLabel.textContent = "Syncing changes…";
+      pillBtn.title = "Uploading pending edits to the cloud server…";
+      return;
+    }
+
+    // "online"
+    pillBtn.className = "badge badge--success topbar__network-pill topbar__offline-pill topbar__network-pill--online";
+    const dot = el("span", { class: "network-pill__dot network-pill__dot--pulse" });
+    const cloudIcon = icon("cloud_done");
+    iconSlot.append(dot, cloudIcon);
+    textLabel.textContent = "Online · Synced";
+    pillBtn.title = "Connected to cloud server • Local cache synchronized. Click for details.";
+
+    // Compact mode after 3.5 seconds quiet in online state
+    compactTimer = setTimeout(() => {
+      pillBtn.classList.add("topbar__network-pill--compact");
+    }, 3500);
   }
 
-  const onOnline = () => applyState(true);
-  const onOffline = () => applyState(false);
-  window.addEventListener("actually-online", onOnline);
-  window.addEventListener("offline", onOffline);
-  applyState(navigator.onLine);
+  pillBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    pillBtn.classList.remove("topbar__network-pill--compact");
+    const state = typeof getNetworkHealthState === "function"
+      ? getNetworkHealthState()
+      : { status: "online", isOnline: true, lastSyncedAt: Date.now() };
+    togglePopover(state);
+  });
+
+  const onDocClick = (e) => {
+    if (!wrap.contains(e.target)) {
+      closePopover();
+    }
+  };
+  const onDocKeyDown = (e) => {
+    if (e.key === "Escape") {
+      closePopover();
+    }
+  };
+  document.addEventListener("click", onDocClick);
+  document.addEventListener("keydown", onDocKeyDown);
+
+  const unsub = subscribeNetworkHealth(applyState);
 
   if (offlinePillCleanup) offlinePillCleanup();
   offlinePillCleanup = () => {
-    window.removeEventListener("online", onOnline);
-    window.removeEventListener("offline", onOffline);
-    if (nudgeTimer) clearInterval(nudgeTimer);
+    unsub();
+    document.removeEventListener("click", onDocClick);
+    document.removeEventListener("keydown", onDocKeyDown);
+    if (compactTimer) clearTimeout(compactTimer);
+    if (durationTimer) clearInterval(durationTimer);
+    closePopover();
   };
-  return pill;
+
+  return wrap;
+}
+
+function offlineStatusPill() {
+  return networkHealthPill();
 }
 
 // ---------------------------------------------------------------------------
@@ -790,6 +974,7 @@ export function stopIdleTimeoutWatcher() {
 
 export function renderShell(app, profile, activePath) {
   teardownNotifListeners();
+  initCommandPalette(profile);
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
   const previousSidebar = app.querySelector(".sidebar");
@@ -856,8 +1041,14 @@ export function renderShell(app, profile, activePath) {
   const searchInput = el("input", {
     class: "sidebar__search-input",
     type: "text",
-    placeholder: "Search menu",
+    placeholder: "Search menu (Ctrl+K)",
     autocomplete: "off",
+  });
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      openCommandPalette({ profile });
+    }
   });
   sidebar.append(
     el("div", { class: "sidebar__search", "data-tour": "sidebar-search" }, [
@@ -1021,6 +1212,21 @@ export function renderShell(app, profile, activePath) {
 
   // Topbar
   const topbar = el("header", { class: "topbar" });
+  const searchTriggerBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "topbar__search-trigger",
+      title: "Search commands, students, classes (Ctrl+K)",
+      "aria-label": "Search commands, students, classes (Ctrl+K)",
+      onClick: () => openCommandPalette({ profile }),
+    },
+    [
+      icon("search", "topbar__search-icon"),
+      el("span", { class: "topbar__search-text" }, "Search or jump to…"),
+      el("kbd", { class: "topbar__search-kbd" }, "Ctrl K"),
+    ]
+  );
   topbar.append(el("div", { class: "topbar__left" }, [
     mobileMenuBtn,
     collapseBtn,
@@ -1028,6 +1234,7 @@ export function renderShell(app, profile, activePath) {
       schoolNameEl,
       el("div", { class: "topbar__title" }, currentTitle(activePath)),
     ]),
+    searchTriggerBtn,
   ]));
   const tourButton = el(
     "button",
@@ -1085,6 +1292,37 @@ export function renderShell(app, profile, activePath) {
         ]),
       ]),
       el("div", { class: "topbar__profile-divider" }),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            toggleTheme();
+          },
+        },
+        [
+          icon(getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode"),
+          getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme",
+        ]
+      ),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            openCommandPalette({ profile });
+          },
+        },
+        [
+          icon("search"),
+          "Command Palette",
+          el("kbd", { class: "topbar__search-kbd", style: "margin-left:auto; font-size:10px;" }, "Ctrl K"),
+        ]
+      ),
       ...(profile.role === "super_admin" ? [
         el(
           "button",
@@ -1137,10 +1375,43 @@ export function renderShell(app, profile, activePath) {
     return wrap;
   }
 
+  function themeToggleButton() {
+    const getIconName = () => (getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode");
+    const getTitle = () => (getEffectiveTheme() === "dark" ? "Switch to light theme" : "Switch to dark theme");
+
+    const btn = el(
+      "button",
+      {
+        type: "button",
+        class: "topbar__icon-btn",
+        title: getTitle(),
+        "aria-label": getTitle(),
+        onClick: () => {
+          toggleTheme();
+          const iconSpan = btn.querySelector(".icon");
+          if (iconSpan) iconSpan.textContent = getIconName();
+          btn.title = getTitle();
+          btn.setAttribute("aria-label", getTitle());
+        },
+      },
+      [icon(getIconName())]
+    );
+
+    window.addEventListener("themechange", () => {
+      const iconSpan = btn.querySelector(".icon");
+      if (iconSpan) iconSpan.textContent = getIconName();
+      btn.title = getTitle();
+      btn.setAttribute("aria-label", getTitle());
+    });
+
+    return btn;
+  }
+
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     offlineStatusPill(),
     installButton(),
     tourButton,
+    themeToggleButton(),
     renderUserProfileMenu(),
   ]);
   topbar.append(userBox);

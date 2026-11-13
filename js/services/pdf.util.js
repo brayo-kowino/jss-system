@@ -1,3 +1,5 @@
+import { packZipWithWorker } from "./export-worker.client.js";
+
 let libsPromise = null;
 
 function loadLibs() {
@@ -237,8 +239,7 @@ export async function downloadElementAsPdf(node, filename, opts) {
 // resolves to) the DOM node to render for that entry.
 // `onProgress(done, total, currentFilename)` fires after each item.
 export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 3 } = {}) {
-  const JSZip = await loadZipLib();
-  const zip = new JSZip();
+  const files = [];
   const usedNames = new Set();
   const BATCH_SIZE = 20;
   
@@ -255,7 +256,7 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
         flatName = `${base}_${i + 1}${ext}`;
       }
       usedNames.add(flatName);
-      zip.file(flatName, blob);
+      files.push({ name: flatName, data: blob });
     } finally {
       node?.remove?.();
     }
@@ -267,7 +268,12 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
       await new Promise((resolve) => setTimeout(resolve, 35));
     }
   }
-  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+
+  const zipBlob = await packZipWithWorker(files, (meta) => {
+    if (meta.percent) {
+      onProgress?.(items.length, items.length, `Compressing ZIP (${Math.round(meta.percent)}%)…`);
+    }
+  });
   triggerBlobDownload(zipBlob, zipFilename);
 }
 
@@ -277,8 +283,7 @@ export async function renderReportVectorPdfBlob(reportData, settings, opts = {})
 }
 
 export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, scale = 3 } = {}) {
-  const JSZip = await loadZipLib();
-  const zip = new JSZip();
+  const files = [];
   const usedNames = new Set();
   const BATCH_SIZE = 20;
 
@@ -293,7 +298,7 @@ export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, 
       flatName = `${base}_${i + 1}${ext}`;
     }
     usedNames.add(flatName);
-    zip.file(flatName, blob);
+    files.push({ name: flatName, data: blob });
     
     onProgress?.(i + 1, items.length, filename);
     
@@ -303,6 +308,11 @@ export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, 
       await new Promise((resolve) => setTimeout(resolve, 35));
     }
   }
-  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+
+  const zipBlob = await packZipWithWorker(files, (meta) => {
+    if (meta.percent) {
+      onProgress?.(items.length, items.length, `Compressing ZIP (${Math.round(meta.percent)}%)…`);
+    }
+  });
   triggerBlobDownload(zipBlob, zipFilename);
 }

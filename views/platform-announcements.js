@@ -19,6 +19,7 @@ import {
 } from "../js/services/platform-announcement.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils.js";
+import { auth } from "../js/firebase-config.js";
 
 let announcements = [];
 
@@ -238,9 +239,13 @@ function openComposeModal(profile, existing = null) {
       if (document.getElementById("a-email-broadcast")?.checked) {
         const style = document.getElementById("a-email-style")?.value || "letter";
         try {
+          const idToken = await auth.currentUser?.getIdToken();
           const res = await fetch("/.netlify/functions/broadcast-service-announcement", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(idToken ? { "Authorization": `Bearer ${idToken}` } : {})
+            },
             body: JSON.stringify({
               serviceName: "Eeskia Platform Operations",
               emailStyle: style,

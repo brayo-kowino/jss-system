@@ -111,8 +111,8 @@ export function getDefaultRoute(profile) {
 // isn't a plausible route path, and caps the length, so a malformed or
 // malicious link can never reach the route table or the DOM as-is.
 function currentPath(profile) {
-  let raw = location.hash.replace(/^#/, "");
-  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
+  let raw = location.hash.replace(/^#[!/]*/, "/");
+  if (!raw || raw === "/") return profile ? getDefaultRoute(profile) : "/dashboard";
   try {
     raw = decodeURIComponent(raw);
   } catch {

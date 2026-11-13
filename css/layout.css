@@ -735,6 +735,215 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+/* Network Health & Cloud Synchronization Pill */
+.topbar__network-pill-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar__network-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  line-height: 1.2;
+  transition: all var(--transition);
+  background: var(--color-surface);
+  user-select: none;
+}
+
+.topbar__network-pill .icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.network-pill__icon-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.topbar__network-pill--online {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border-color: rgba(16, 185, 129, 0.25);
+}
+[data-theme="dark"] .topbar__network-pill--online {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.topbar__network-pill--syncing {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+  border-color: rgba(37, 99, 235, 0.25);
+}
+[data-theme="dark"] .topbar__network-pill--syncing {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.topbar__network-pill--offline {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+[data-theme="dark"] .topbar__network-pill--offline {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.topbar__network-pill:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+}
+[data-theme="dark"] .topbar__network-pill:hover {
+  filter: brightness(1.1);
+}
+
+/* Pulsing dot for online status */
+.network-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.network-pill__dot--pulse {
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: network-pulse-green 2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes network-pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Spin animation for sync icon */
+.icon-spin {
+  animation: network-icon-spin 1s linear infinite;
+  display: inline-block;
+}
+@keyframes network-icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Compact mode for online state when quiet */
+.topbar__network-pill--compact:not(:hover):not(:focus-visible) {
+  padding: 4px 7px;
+}
+.topbar__network-pill--compact:not(:hover):not(:focus-visible) .network-pill-text {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin: 0;
+  pointer-events: none;
+}
+.topbar__network-pill .network-pill-text {
+  max-width: 260px;
+  opacity: 1;
+  transition: max-width 0.25s ease, opacity 0.2s ease;
+  display: inline-block;
+}
+
+@media (max-width: 860px) {
+  .topbar__network-pill .network-pill-text {
+    display: none;
+  }
+  .topbar__network-pill {
+    padding: 4px 7px;
+  }
+}
+
+/* Network Popover */
+.network-health-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 290px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.15));
+  padding: var(--sp-4);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  animation: network-popover-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes network-popover-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.network-health-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-line);
+  padding-bottom: var(--sp-2);
+}
+.network-health-popover__title {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.network-health-popover__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  line-height: 1.4;
+}
+.network-health-popover__row .icon {
+  font-size: 16px;
+  color: var(--color-ink);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.network-health-popover__meta-val {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+.network-health-popover__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: var(--sp-1);
+}
+.network-health-popover__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  padding: 5px 12px;
+  border-radius: var(--radius-md);
+}
+
 .topbar__offline-pill {
   align-items: center;
   gap: 4px;
@@ -1619,3 +1828,35 @@
   background: #fef3c7;
   color: #92400e;
 }
+
+/* ==========================================================================
+   Dark Mode Layout Refinements
+   ========================================================================== */
+[data-theme="dark"] .sidebar {
+  background: #080D1A !important;
+  border-right: 1px solid var(--color-line);
+}
+[data-theme="dark"] .sidebar-backdrop {
+  background: rgba(0, 0, 0, 0.75);
+}
+[data-theme="dark"] .topbar {
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-line);
+}
+[data-theme="dark"] .topbar__profile-dropdown {
+  background: #111827;
+  border-color: #263345;
+}
+[data-theme="dark"] .topbar__profile-item:hover {
+  background: #1E293B;
+}
+[data-theme="dark"] .topbar__profile-item--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+[data-theme="dark"] .auth-screen {
+  background: #0B0F19;
+}
+[data-theme="dark"] .auth-brand {
+  background: #080D1A;
+}
+

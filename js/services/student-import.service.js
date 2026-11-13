@@ -43,6 +43,8 @@ export const LEGACY_COLUMNS = [
 
 export const ALL_ACCEPTED_COLUMNS = [...IMPORT_COLUMNS, ...LEGACY_COLUMNS];
 
+import { buildXlsxTemplateWithWorker, parseXlsxWithWorker } from "./export-worker.client.js";
+
 const FIELD_MAX_LENGTH = 300;
 
 // Dynamic loader for SheetJS so the heavy library only loads when an Excel
@@ -234,13 +236,7 @@ export function parseStudentsCsv(text) {
 // arrayBuffer -> { rows: [{ rowNumber, raw: {key: value} }], error }
 export async function parseStudentsWorkbook(buffer) {
   try {
-    const XLSX = await loadXlsxLib();
-    const wb = XLSX.read(buffer, { type: "array", cellDates: true });
-    if (!wb.SheetNames || !wb.SheetNames.length) {
-      return { rows: [], error: "The Excel file has no worksheets." };
-    }
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rawTable = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+    const rawTable = await parseXlsxWithWorker(buffer);
     return parseStudentTable(rawTable);
   } catch (err) {
     return { rows: [], error: `Failed to read Excel file: ${err.message || "Invalid or corrupt format"}` };

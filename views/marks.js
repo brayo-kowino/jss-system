@@ -55,102 +55,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-/**
- * Dynamic Teacher / Grading Master mascot with scorecard clipboard and red grading pen.
- */
-export function buildMarksMascotSvg({ width = 165, height = 150 } = {}) {
-  return `
-    <svg class="marks-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Marks Entry Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
-
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Scholar Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Scorecard Clipboard -->
-        <g class="marks-mascot__clipboard">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- Clipboard Backing -->
-          <rect x="54" y="122" width="30" height="36" rx="3" fill="#9A3412" stroke="#7C2D12" stroke-width="1.2" transform="rotate(-6 69 140)" />
-          <!-- Paper Sheet -->
-          <rect x="57" y="125" width="24" height="30" rx="2" fill="#FFFFFF" transform="rotate(-6 69 140)" />
-          <!-- Clip on top -->
-          <rect x="63" y="121" width="12" height="5" rx="1.5" fill="#C9A227" transform="rotate(-6 69 140)" />
-          <!-- Checklist Items with Green Ticks -->
-          <line x1="60" y1="131" x2="74" y2="129.5" stroke="#10B981" stroke-width="1.4" stroke-linecap="round" />
-          <line x1="60" y1="137" x2="75" y2="135.5" stroke="#10B981" stroke-width="1.4" stroke-linecap="round" />
-          <line x1="60" y1="143" x2="72" y2="141.5" stroke="#10B981" stroke-width="1.4" stroke-linecap="round" />
-          <line x1="60" y1="149" x2="76" y2="147.5" stroke="#64748B" stroke-width="1.2" stroke-linecap="round" />
-          <!-- Hand Holding Clipboard -->
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Floating A+ Grade Badge (Animated) -->
-        <g class="marks-mascot__badge">
-          <circle cx="68" cy="116" r="10" fill="#059669" stroke="#FFFFFF" stroke-width="1.5" />
-          <text x="68" y="120" fill="#FFFFFF" font-size="9" font-weight="900" font-family="system-ui, sans-serif" text-anchor="middle">A+</text>
-        </g>
-
-        <!-- Right Arm Holding Red Grading Pen (Animated) -->
-        <g class="marks-mascot__pen">
-          <path d="M136,128 C146,132 152,122 148,112" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="148" cy="112" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Red Pen -->
-          <line x1="148" y1="112" x2="166" y2="82" stroke="#DC2626" stroke-width="3" stroke-linecap="round" />
-          <polygon points="166,82 168,78 163,80" fill="#C9A227" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
+export { buildMarksMascotSvg } from "../js/components/mascot.js";
 
 // ------------------------------------------------------------------ Render --
 
@@ -698,6 +603,319 @@ async function maybeLoad(profile, bodyMount) {
   }
 }
 
+// ---------------------------------------------------------------- CBC Level --
+
+export function getCbcLevel(score, maxScore) {
+  if (score == null || score === "" || Number.isNaN(Number(score))) return null;
+  const num = Number(score);
+  if (num < 0 || (maxScore > 0 && num > maxScore)) {
+    return { level: "INV", label: "Invalid", badgeClass: "badge--danger" };
+  }
+  const pct = maxScore > 0 ? (num / maxScore) * 100 : 0;
+  if (pct >= 80) return { level: "EE", label: "Exceeding Expectations", badgeClass: "badge--cbc-ee" };
+  if (pct >= 65) return { level: "ME", label: "Meeting Expectations", badgeClass: "badge--cbc-me" };
+  if (pct >= 50) return { level: "AE", label: "Approaching Expectations", badgeClass: "badge--cbc-ae" };
+  return { level: "BE", label: "Below Expectations", badgeClass: "badge--cbc-be" };
+}
+
+function buildDistributionCard(maxScore, isDirect) {
+  return el("div", { class: "marks-distribution-card" }, [
+    el("div", { class: "marks-distribution-header" }, [
+      el("div", { class: "marks-distribution-title" }, [
+        icon("insights"),
+        el("span", {}, "Live Class Performance & CBC Distribution"),
+      ]),
+      el("div", { class: "marks-distribution-stats" }, [
+        el("span", { class: "marks-stat-item" }, [
+          el("span", { class: "marks-stat-label" }, "Entered:"),
+          el("strong", { class: "marks-stat-val", id: "dist-progress" }, "0 / 0 (0%)"),
+        ]),
+        el("span", { class: "marks-stat-item" }, [
+          el("span", { class: "marks-stat-label" }, "Class Mean:"),
+          el("strong", { class: "marks-stat-val", id: "dist-mean" }, "—"),
+        ]),
+        el("span", { class: "marks-stat-item" }, [
+          el("span", { class: "marks-stat-label" }, "High:"),
+          el("strong", { class: "marks-stat-val text-green", id: "dist-high" }, "—"),
+        ]),
+        el("span", { class: "marks-stat-item" }, [
+          el("span", { class: "marks-stat-label" }, "Low:"),
+          el("strong", { class: "marks-stat-val text-amber", id: "dist-low" }, "—"),
+        ]),
+      ]),
+    ]),
+    el("div", { class: "marks-distribution-bar", title: "Class CBC Distribution" }, [
+      el("div", { class: "marks-distribution-segment marks-distribution-segment--ee", id: "dist-bar-ee", style: "width:0%" }),
+      el("div", { class: "marks-distribution-segment marks-distribution-segment--me", id: "dist-bar-me", style: "width:0%" }),
+      el("div", { class: "marks-distribution-segment marks-distribution-segment--ae", id: "dist-bar-ae", style: "width:0%" }),
+      el("div", { class: "marks-distribution-segment marks-distribution-segment--be", id: "dist-bar-be", style: "width:0%" }),
+    ]),
+    el("div", { class: "marks-distribution-pills" }, [
+      el("div", { class: "marks-dist-pill marks-dist-pill--ee" }, [
+        el("span", { class: "marks-dist-dot" }),
+        el("span", { class: "marks-dist-name" }, "EE (80–100%)"),
+        el("strong", { class: "marks-dist-count", id: "dist-count-ee" }, "0"),
+        el("span", { class: "marks-dist-pct", id: "dist-pct-ee" }, "(0%)"),
+      ]),
+      el("div", { class: "marks-dist-pill marks-dist-pill--me" }, [
+        el("span", { class: "marks-dist-dot" }),
+        el("span", { class: "marks-dist-name" }, "ME (65–79%)"),
+        el("strong", { class: "marks-dist-count", id: "dist-count-me" }, "0"),
+        el("span", { class: "marks-dist-pct", id: "dist-pct-me" }, "(0%)"),
+      ]),
+      el("div", { class: "marks-dist-pill marks-dist-pill--ae" }, [
+        el("span", { class: "marks-dist-dot" }),
+        el("span", { class: "marks-dist-name" }, "AE (50–64%)"),
+        el("strong", { class: "marks-dist-count", id: "dist-count-ae" }, "0"),
+        el("span", { class: "marks-dist-pct", id: "dist-pct-ae" }, "(0%)"),
+      ]),
+      el("div", { class: "marks-dist-pill marks-dist-pill--be" }, [
+        el("span", { class: "marks-dist-dot" }),
+        el("span", { class: "marks-dist-name" }, "BE (0–49%)"),
+        el("strong", { class: "marks-dist-count", id: "dist-count-be" }, "0"),
+        el("span", { class: "marks-dist-pct", id: "dist-pct-be" }, "(0%)"),
+      ]),
+    ]),
+  ]);
+}
+
+function updateDistributionUI(container, maxScore, isDirect) {
+  let count = 0;
+  let sum = 0;
+  let high = -Infinity;
+  let low = Infinity;
+  let ee = 0;
+  let me = 0;
+  let ae = 0;
+  let be = 0;
+
+  for (const s of roster) {
+    const input = container.querySelector(`input[data-student-id="${s.id}"]`);
+    const valStr = input ? input.value.trim() : (pendingValues[s.id] !== undefined ? pendingValues[s.id] : (marksByStudent[s.id]?.score != null ? String(marksByStudent[s.id].score) : ""));
+
+    if (valStr !== "") {
+      const num = Number(valStr);
+      if (!Number.isNaN(num) && num >= 0 && num <= maxScore) {
+        count++;
+        sum += num;
+        if (num > high) high = num;
+        if (num < low) low = num;
+
+        const info = getCbcLevel(num, maxScore);
+        if (info) {
+          if (info.level === "EE") ee++;
+          else if (info.level === "ME") me++;
+          else if (info.level === "AE") ae++;
+          else if (info.level === "BE") be++;
+        }
+      }
+    }
+  }
+
+  const total = roster.length;
+  const progressPct = total ? Math.round((count / total) * 100) : 0;
+  const meanPct = (count > 0 && maxScore > 0) ? ((sum / (count * maxScore)) * 100).toFixed(1) : "0.0";
+  const meanScore = count > 0 ? (sum / count).toFixed(1) : "0.0";
+
+  const elProgress = container.querySelector("#dist-progress");
+  const elMean = container.querySelector("#dist-mean");
+  const elHigh = container.querySelector("#dist-high");
+  const elLow = container.querySelector("#dist-low");
+
+  if (elProgress) elProgress.textContent = `${count} / ${total} (${progressPct}%)`;
+  if (elMean) elMean.textContent = count > 0 ? `${meanScore}/${maxScore} (${meanPct}%)` : "—";
+  if (elHigh) elHigh.textContent = high !== -Infinity ? `${high}` : "—";
+  if (elLow) elLow.textContent = low !== Infinity ? `${low}` : "—";
+
+  const eePct = count ? Math.round((ee / count) * 100) : 0;
+  const mePct = count ? Math.round((me / count) * 100) : 0;
+  const aePct = count ? Math.round((ae / count) * 100) : 0;
+  const bePct = count ? Math.max(0, 100 - (eePct + mePct + aePct)) : 0;
+
+  const barEE = container.querySelector("#dist-bar-ee");
+  const barME = container.querySelector("#dist-bar-me");
+  const barAE = container.querySelector("#dist-bar-ae");
+  const barBE = container.querySelector("#dist-bar-be");
+
+  if (barEE) barEE.style.width = `${eePct}%`;
+  if (barME) barME.style.width = `${mePct}%`;
+  if (barAE) barAE.style.width = `${aePct}%`;
+  if (barBE) barBE.style.width = `${bePct}%`;
+
+  const countEE = container.querySelector("#dist-count-ee");
+  const pctEE = container.querySelector("#dist-pct-ee");
+  if (countEE) countEE.textContent = String(ee);
+  if (pctEE) pctEE.textContent = `(${eePct}%)`;
+
+  const countME = container.querySelector("#dist-count-me");
+  const pctME = container.querySelector("#dist-pct-me");
+  if (countME) countME.textContent = String(me);
+  if (pctME) pctME.textContent = `(${mePct}%)`;
+
+  const countAE = container.querySelector("#dist-count-ae");
+  const pctAE = container.querySelector("#dist-pct-ae");
+  if (countAE) countAE.textContent = String(ae);
+  if (pctAE) pctAE.textContent = `(${aePct}%)`;
+
+  const countBE = container.querySelector("#dist-count-be");
+  const pctBE = container.querySelector("#dist-pct-be");
+  if (countBE) countBE.textContent = String(be);
+  if (pctBE) pctBE.textContent = `(${bePct}%)`;
+
+  const summaryRecorded = container.querySelector("#summary-recorded");
+  const summaryAvg = container.querySelector("#summary-avg");
+  const summaryHigh = container.querySelector("#summary-high");
+  if (summaryRecorded) summaryRecorded.textContent = `Recorded: ${count} of ${total} students (${progressPct}% complete)`;
+  if (summaryAvg) summaryAvg.textContent = `${meanPct}%`;
+  if (summaryHigh) summaryHigh.textContent = `${high !== -Infinity ? high : 0} / ${maxScore}`;
+}
+
+function openBulkActionsModal(container) {
+  const assessment = allAssessments.find((a) => a.id === selection.assessmentId);
+  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
+  const isDirect = (assessment?.contributionMode || "weighted") === "direct";
+
+  const body = el("div", { style: "display:flex; flex-direction:column; gap:var(--sp-4);" }, [
+    el("p", { class: "text-muted text-sm", style: "margin:0;" },
+      `Use these rapid bulk tools to quickly fill blanks or set uniform scores across enrolled students (Max Score: ${maxScore}).`
+    ),
+
+    // Card 1: Fill blank rows
+    el("div", {
+      style: "background:var(--color-cream-dim); padding:var(--sp-3) var(--sp-4); border-radius:var(--radius-md); border:1px solid var(--color-line);",
+    }, [
+      el("h4", { style: "margin:0 0 6px 0; font-size:var(--fs-sm); color:var(--color-primary-900);" }, "1. Fill Remaining Blank Rows"),
+      el("p", { class: "text-muted text-xs", style: "margin:0 0 10px 0;" }, "Assigns a score to students who currently have no mark entered (e.g. absent learners or zero default)."),
+      el("div", { style: "display:flex; gap:8px; align-items:center;" }, [
+        el("input", {
+          type: "number",
+          id: "bulk-fill-blank-val",
+          min: "0",
+          max: String(maxScore),
+          step: "0.5",
+          placeholder: `0 to ${maxScore}`,
+          style: "width:110px; padding:6px 10px; border:1px solid var(--color-line); border-radius:var(--radius-sm); font-family:var(--font-mono, monospace);",
+        }),
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          onClick: () => {
+            const val = document.getElementById("bulk-fill-blank-val")?.value.trim();
+            if (val === "" || Number.isNaN(Number(val))) {
+              toast("Please enter a valid score.", "error");
+              return;
+            }
+            const n = Number(val);
+            if (n < 0 || n > maxScore) {
+              toast(`Score must be between 0 and ${maxScore}.`, "error");
+              return;
+            }
+            let count = 0;
+            for (const s of roster) {
+              const input = container.querySelector(`input[data-student-id="${s.id}"]`);
+              if (input && input.value.trim() === "") {
+                input.value = String(n);
+                input.dispatchEvent(new Event("input"));
+                count++;
+              }
+            }
+            toast(count ? `Filled ${count} blank row(s) with score ${n}.` : "No blank rows found.", count ? "success" : "info");
+            close();
+          },
+        }, [icon("format_color_fill", "text-xs"), "Apply to Blank Rows"]),
+      ]),
+    ]),
+
+    // Card 2: Set uniform score for all
+    el("div", {
+      style: "background:var(--color-cream-dim); padding:var(--sp-3) var(--sp-4); border-radius:var(--radius-md); border:1px solid var(--color-line);",
+    }, [
+      el("h4", { style: "margin:0 0 6px 0; font-size:var(--fs-sm); color:var(--color-primary-900);" }, "2. Set Uniform Score for All Students"),
+      el("p", { class: "text-muted text-xs", style: "margin:0 0 10px 0;" }, "Assigns the specified mark to all students in this class (e.g. participation or uniform practical score)."),
+      el("div", { style: "display:flex; gap:8px; align-items:center;" }, [
+        el("input", {
+          type: "number",
+          id: "bulk-set-all-val",
+          min: "0",
+          max: String(maxScore),
+          step: "0.5",
+          placeholder: `0 to ${maxScore}`,
+          style: "width:110px; padding:6px 10px; border:1px solid var(--color-line); border-radius:var(--radius-sm); font-family:var(--font-mono, monospace);",
+        }),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          onClick: () => {
+            const val = document.getElementById("bulk-set-all-val")?.value.trim();
+            if (val === "" || Number.isNaN(Number(val))) {
+              toast("Please enter a valid score.", "error");
+              return;
+            }
+            const n = Number(val);
+            if (n < 0 || n > maxScore) {
+              toast(`Score must be between 0 and ${maxScore}.`, "error");
+              return;
+            }
+            for (const s of roster) {
+              const input = container.querySelector(`input[data-student-id="${s.id}"]`);
+              if (input) {
+                input.value = String(n);
+                input.dispatchEvent(new Event("input"));
+              }
+            }
+            toast(`Updated all ${roster.length} students with score ${n}.`, "success");
+            close();
+          },
+        }, [icon("done_all", "text-xs"), "Apply to All"]),
+      ]),
+    ]),
+
+    // Card 3: Discard unsaved
+    el("div", {
+      style: "display:flex; justify-content:space-between; align-items:center; padding-top:var(--sp-2); border-top:1px solid var(--color-line);",
+    }, [
+      el("span", { class: "text-muted text-xs" }, "Made an error? Discard all uncommitted changes:"),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        style: "color:var(--color-red);",
+        onClick: () => {
+          for (const s of roster) {
+            const input = container.querySelector(`input[data-student-id="${s.id}"]`);
+            if (input) {
+              const savedScore = marksByStudent[s.id]?.score != null ? String(marksByStudent[s.id].score) : "";
+              input.value = savedScore;
+              dirty.delete(s.id);
+              delete pendingValues[s.id];
+
+              const n = Number(savedScore);
+              const pctCell = container.querySelector(`#pct-${s.id}`);
+              const levelCell = container.querySelector(`#level-${s.id}`);
+              const statusCell = container.querySelector(`#status-${s.id}`);
+
+              if (pctCell) pctCell.textContent = savedScore !== "" && !Number.isNaN(n) ? ((n / maxScore) * 100).toFixed(1) + "%" : "—";
+              if (levelCell) {
+                const info = getCbcLevel(savedScore, maxScore);
+                levelCell.className = `badge ${info ? info.badgeClass : "badge--muted"}`;
+                levelCell.textContent = info ? info.level : "—";
+              }
+              if (statusCell) {
+                statusCell.className = `badge badge--${savedScore !== "" ? "success" : "muted"}`;
+                statusCell.textContent = savedScore !== "" ? "Saved" : "Not entered";
+              }
+            }
+          }
+          updateDistributionUI(container, maxScore, isDirect);
+          toast("Discarded unsaved edits.", "info");
+          close();
+        },
+      }, [icon("undo", "text-xs"), "Discard Unsaved"]),
+    ]),
+  ]);
+
+  const close = openModal("Rapid Bulk Mark Actions", body);
+}
+
 // ------------------------------------------------------------------ Roster --
 
 function renderRoster(container, profile) {
@@ -745,6 +963,11 @@ function renderRoster(container, profile) {
         el("button", {
           type: "button",
           class: "btn btn--ghost btn--sm",
+          onClick: () => openBulkActionsModal(container),
+        }, [icon("tune", "text-xs"), "Bulk Autofill"]),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
           onClick: () => openBulkPaste(container),
         }, [icon("content_paste", "text-xs"), "Paste Bulk Scores"]),
         el("button", {
@@ -769,6 +992,24 @@ function renderRoster(container, profile) {
   ]);
   rosterCard.append(disclaimerBanner);
 
+  if (!locked) {
+    const keyboardHint = el("div", { class: "marks-keyboard-hint", style: "margin-bottom:var(--sp-3);" }, [
+      icon("keyboard", "text-primary text-xs"),
+      el("span", {}, "Quick Entry: Use "),
+      el("kbd", { class: "marks-keyboard-key" }, "Enter"),
+      el("span", {}, " or "),
+      el("kbd", { class: "marks-keyboard-key" }, "↓"),
+      el("span", {}, " / "),
+      el("kbd", { class: "marks-keyboard-key" }, "↑"),
+      el("span", {}, " to seamlessly jump between students without lifting your hands from the numpad."),
+    ]);
+    rosterCard.append(keyboardHint);
+  }
+
+  // Live CBC Grade Distribution & Statistics Card
+  const distCard = buildDistributionCard(maxScore, isDirect);
+  rosterCard.append(distCard);
+
   if (!roster.length) {
     rosterCard.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
       icon("groups", "empty-state__icon"),
@@ -785,8 +1026,9 @@ function renderRoster(container, profile) {
       el("th", { style: "width:130px;" }, "Adm No."),
       el("th", { style: "min-width:200px;" }, "Student Name"),
       el("th", { class: "col-num", style: "width:160px;" }, `Score (Max ${maxScore})`),
-      el("th", { class: "col-num", style: "width:110px;" }, isDirect ? "Added" : "Score %"),
-      el("th", { class: "col-center", style: "width:130px;" }, "Save Status"),
+      el("th", { class: "col-num", style: "width:100px;" }, isDirect ? "Added" : "Score %"),
+      el("th", { class: "col-center", style: "width:100px;" }, "CBC Level"),
+      el("th", { class: "col-center", style: "width:120px;" }, "Save Status"),
     ])),
   ]);
 
@@ -797,7 +1039,8 @@ function renderRoster(container, profile) {
   let scoreSum = 0;
   let topScore = 0;
 
-  for (const student of roster) {
+  for (let i = 0; i < roster.length; i++) {
+    const student = roster[i];
     const existing = marksByStudent[student.id];
     if (existing?.score != null && existing?.score !== "") {
       enteredCount++;
@@ -814,6 +1057,7 @@ function renderRoster(container, profile) {
       max: String(maxScore),
       step: "0.5",
       "data-student-id": student.id,
+      "data-row-index": String(i),
       value: existing?.score ?? "",
       class: "marks-score-input",
       placeholder: "—",
@@ -827,6 +1071,20 @@ function renderRoster(container, profile) {
         id: `pct-${student.id}`,
       },
       existing != null && existing?.score !== "" ? formatHint(existing.score) : "—"
+    );
+
+    const initialLvl = existing?.score != null && existing?.score !== ""
+      ? getCbcLevel(existing.score, maxScore)
+      : null;
+
+    const levelCell = el(
+      "span",
+      {
+        class: `badge ${initialLvl ? initialLvl.badgeClass : "badge--muted"}`,
+        id: `level-${student.id}`,
+        style: "font-size:11px; font-weight:700; min-width:32px; text-align:center;",
+      },
+      initialLvl ? initialLvl.level : "—"
     );
 
     const statusCell = el(
@@ -849,6 +1107,9 @@ function renderRoster(container, profile) {
         statusCell.className = "badge badge--danger";
         statusCell.textContent = n > maxScore ? `Exceeds ${maxScore}` : "Below 0";
         pctCell.textContent = "Invalid";
+        levelCell.className = "badge badge--danger";
+        levelCell.textContent = "Invalid";
+        updateDistributionUI(rosterCard, maxScore, isDirect);
         return;
       }
 
@@ -858,9 +1119,37 @@ function renderRoster(container, profile) {
       statusCell.className = "badge badge--gold";
       statusCell.textContent = "Unsaved";
       pctCell.textContent = rawVal !== "" && !Number.isNaN(n) ? formatHint(n) : "—";
+
+      const lvl = rawVal !== "" && !Number.isNaN(n) ? getCbcLevel(n, maxScore) : null;
+      if (lvl) {
+        levelCell.className = `badge ${lvl.badgeClass}`;
+        levelCell.textContent = lvl.level;
+      } else {
+        levelCell.className = "badge badge--muted";
+        levelCell.textContent = "—";
+      }
+      updateDistributionUI(rosterCard, maxScore, isDirect);
     });
 
-    tbody.append(el("tr", {}, [
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextInput = tbody.querySelector(`input[data-row-index="${i + 1}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevInput = tbody.querySelector(`input[data-row-index="${i - 1}"]`);
+        if (prevInput) {
+          prevInput.focus();
+          prevInput.select();
+        }
+      }
+    });
+
+    const row = el("tr", { "data-student-row": student.id }, [
       el("td", { "data-label": "Adm No." }, [
         el("span", {
           style: "font-family:var(--font-mono, monospace); font-weight:600; font-size:var(--fs-xs); color:var(--color-ink-soft); background:var(--color-cream-dim); padding:2px 8px; border-radius:var(--radius-sm);",
@@ -876,8 +1165,20 @@ function renderRoster(container, profile) {
         ]),
       ]),
       el("td", { class: "col-num", "data-label": isDirect ? "Added" : "%" }, pctCell),
+      el("td", { class: "col-center", "data-label": "CBC Level" }, levelCell),
       el("td", { class: "col-center", "data-label": "Status" }, statusCell),
-    ]));
+    ]);
+
+    input.addEventListener("focus", () => {
+      input.select();
+      tbody.querySelectorAll("tr.marks-row--active").forEach((r) => r.classList.remove("marks-row--active"));
+      row.classList.add("marks-row--active");
+    });
+    input.addEventListener("blur", () => {
+      row.classList.remove("marks-row--active");
+    });
+
+    tbody.append(row);
   }
 
   table.append(tbody);
@@ -888,22 +1189,23 @@ function renderRoster(container, profile) {
   const classAvgPct = enteredCount > 0 ? ((scoreSum / (enteredCount * maxScore)) * 100).toFixed(1) : "0.0";
   const summaryBar = el("div", { class: "marks-roster-summary-bar" }, [
     el("div", {}, [
-      el("strong", { style: "color:var(--color-primary-900);" }, `Recorded: ${enteredCount} of ${roster.length} students`),
+      el("strong", { style: "color:var(--color-primary-900);", id: "summary-recorded" }, `Recorded: ${enteredCount} of ${roster.length} students`),
       el("span", { class: "text-muted text-xs", style: "margin-left:8px;" }, `(${roster.length ? Math.round((enteredCount / roster.length) * 100) : 0}% complete)`),
     ]),
     el("div", { style: "display:flex; gap:16px;" }, [
       el("span", {}, [
         el("span", { class: "text-muted" }, "Class Average: "),
-        el("strong", { style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace);" }, `${classAvgPct}%`),
+        el("strong", { style: "color:var(--color-primary-900); font-family:var(--font-mono, monospace);", id: "summary-avg" }, `${classAvgPct}%`),
       ]),
       el("span", {}, [
         el("span", { class: "text-muted" }, "Highest Score: "),
-        el("strong", { style: "color:#059669; font-family:var(--font-mono, monospace);" }, `${topScore} / ${maxScore}`),
+        el("strong", { style: "color:#059669; font-family:var(--font-mono, monospace);", id: "summary-high" }, `${topScore} / ${maxScore}`),
       ]),
     ]),
   ]);
   rosterCard.append(summaryBar);
 
+  updateDistributionUI(rosterCard, maxScore, isDirect);
   container.append(rosterCard);
 }
 

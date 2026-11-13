@@ -1,5 +1,6 @@
 import { initErrorHandling, showFatalError } from "./error-handler.js";
 import { checkVersionAtBoot, initVersionWatcher, forceHardRefresh } from "./services/version.service.js";
+import { initTheme } from "./theme.js";
 // Attaches the beforeinstallprompt listener as a side effect of import -
 // needs to happen this early since the event can fire before the router
 // or shell exist yet. See that module for why.
@@ -13,6 +14,7 @@ import "../css/datepicker.css";
 // or Firebase itself still gets caught and shown nicely instead of leaving
 // a blank/frozen splash screen.
 initErrorHandling();
+initTheme();
 
 // PWA shell caching (see /sw.js for what this does and doesn't cache).
 // The file is served from the site root (same reason site.webmanifest is),

@@ -51,10 +51,14 @@ service cloud.firestore {
       return isSignedIn()
         && (myProfile() == null
             || (!('role' in myProfile()) || (myProfile().role != 'admin' && myProfile().role != 'super_admin'))
-            || ('deviceApprovedUntil' in request.auth.token))
+            || (('deviceApprovedUntilMs' in request.auth.token)
+                 ? request.auth.token.deviceApprovedUntilMs > request.time.toMillis()
+                 : ('deviceApprovedUntil' in request.auth.token)))
         && (myProfile() == null
             || (!('twoFactorEnabled' in myProfile()) || myProfile().twoFactorEnabled != true)
-            || ('twoFactorVerifiedUntil' in request.auth.token));
+            || (('twoFactorVerifiedUntilMs' in request.auth.token)
+                 ? request.auth.token.twoFactorVerifiedUntilMs > request.time.toMillis()
+                 : ('twoFactorVerifiedUntil' in request.auth.token)));
     }
 
     function isUserActive() {

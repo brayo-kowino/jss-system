@@ -19,7 +19,7 @@ import {
   clearSlot,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice } from "../js/utils.js";
+import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 const CAN_SEE_ALL_TEACHERS = ["admin", "academic_master", "principal", "deputy_principal"];
@@ -104,61 +104,7 @@ function getAllCohorts() {
   return opts;
 }
 
-/**
- * Dynamic Academic Timekeeper mascot with master schedule clipboard.
- */
-export function buildTimetableMascotSvg({ width = 165, height = 150 } = {}) {
-  return `
-    <svg class="timetable-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Timetable Assistant">
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
-      <g class="support-mascot__body">
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#0EA5E9" stroke="#0284C7" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#BAE6FD" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-        <g class="timetable-mascot__schedule">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <rect x="54" y="122" width="32" height="36" rx="3" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.2" transform="rotate(-6 70 140)" />
-          <rect x="62" y="119" width="16" height="5" rx="1.5" fill="#C9A227" transform="rotate(-6 70 140)" />
-          <rect x="58" y="127" width="11" height="6" rx="1" fill="#0EA5E9" opacity="0.85" />
-          <rect x="71" y="127" width="11" height="6" rx="1" fill="#059669" opacity="0.85" />
-          <rect x="58" y="135" width="11" height="6" rx="1" fill="#C9A227" opacity="0.85" />
-          <rect x="71" y="135" width="11" height="6" rx="1" fill="#14538A" opacity="0.85" />
-          <rect x="58" y="143" width="24" height="4" rx="1" fill="#E2E8F0" />
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-        <g class="timetable-mascot__bell">
-          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <line x1="150" y1="110" x2="162" y2="92" stroke="#78350F" stroke-width="4" stroke-linecap="round" />
-          <rect x="159" y="90" width="6" height="4" rx="1" fill="#D97706" />
-          <path d="M155,94 C155,103 147,109 144,115 L178,115 C175,109 167,103 167,94 Z" fill="#F59E0B" stroke="#B45309" stroke-width="1.2" />
-          <ellipse cx="161" cy="115" rx="17" ry="4" fill="#FDE68A" stroke="#B45309" stroke-width="1" />
-          <circle cx="161" cy="118" r="3" fill="#78350F" />
-        </g>
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-        </g>
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
+export { buildTimetableMascotSvg } from "../js/components/mascot.js";
 
 /**
  * 6-Step Visual Workflow Guide
@@ -1041,14 +987,17 @@ function printTimetableDocument(htmlContent) {
 }
 
 function buildOfficialHeader(docTitle, metaSubtitle) {
-  const name = schoolSettings.schoolName || "Eeskia Academy";
-  const motto = schoolSettings.motto || "Excellence in Competency-Based Education";
-  const address = schoolSettings.address || "";
-  const phone = schoolSettings.phone || "";
-  const email = schoolSettings.email || "";
-  const logo = schoolSettings.logoUrl || "";
-  const year = schoolSettings.currentAcademicYear || new Date().getFullYear();
-  const term = schoolSettings.currentTerm || "Term 1";
+  const name = escapeHtml(schoolSettings.schoolName || "Eeskia Academy");
+  const motto = escapeHtml(schoolSettings.motto || "Excellence in Competency-Based Education");
+  const address = escapeHtml(schoolSettings.address || "");
+  const phone = escapeHtml(schoolSettings.phone || "");
+  const email = escapeHtml(schoolSettings.email || "");
+  const rawLogo = schoolSettings.logoUrl || "";
+  const logo = /^https?:\/\//i.test(rawLogo) ? escapeHtml(rawLogo) : "";
+  const year = escapeHtml(String(schoolSettings.currentAcademicYear || new Date().getFullYear()));
+  const term = escapeHtml(schoolSettings.currentTerm || "Term 1");
+  const safeTitle = escapeHtml(docTitle || "");
+  const safeSubtitle = escapeHtml(metaSubtitle || "");
 
   return `
     <div class="timetable-print-header">
@@ -1059,8 +1008,8 @@ function buildOfficialHeader(docTitle, metaSubtitle) {
         ${address ? `${address} · ` : ""}${phone ? `Tel: ${phone} · ` : ""}${email ? `Email: ${email}` : ""}
       </div>
       <div class="timetable-print-title-box">
-        <div class="timetable-print-title">${docTitle}</div>
-        <div class="timetable-print-meta">${term} · Academic Year ${year} · ${metaSubtitle || ""}</div>
+        <div class="timetable-print-title">${safeTitle}</div>
+        <div class="timetable-print-meta">${term} · Academic Year ${year} · ${safeSubtitle}</div>
       </div>
     </div>
   `;

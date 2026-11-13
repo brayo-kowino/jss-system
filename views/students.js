@@ -52,100 +52,13 @@ let filterText = "";
 let filterGrade = "";
 let filterStatus = "";
 let currentPage = 1;
-const PAGE_SIZE = 50;
+let pageSize = 50;
+let sortColumn = "admissionNumber";
+let sortDirection = "asc";
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
-/**
- * Dynamic Academic Registrar mascot with student folio and graduation diploma.
- */
-export function buildStudentsMascotSvg({ width = 125, height = 110 } = {}) {
-  return `
-    <svg class="students-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Student Registrar Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
-
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Scholar Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Student Portfolio Folio -->
-        <g class="students-mascot__folio">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- Blue Student Folio Binder -->
-          <rect x="52" y="124" width="32" height="26" rx="3" fill="#0B2545" stroke="#14538A" stroke-width="1.2" transform="rotate(-6 68 137)" />
-          <rect x="56" y="128" width="18" height="3" rx="1" fill="#C9A227" transform="rotate(-6 68 137)" />
-          <rect x="56" y="133" width="22" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
-          <rect x="56" y="137" width="15" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
-          <!-- Golden Star Seal -->
-          <polygon points="76,140 77.5,143 81,143.5 78.5,146 79,149.5 76,148 73,149.5 73.5,146 71,143.5 74.5,143" fill="#F59E0B" transform="rotate(-6 68 137)" />
-          <!-- Hand Holding Folio -->
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Right Arm Raising Rolled Diploma with Animated Tilt -->
-        <g class="students-mascot__diploma">
-          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Rolled Diploma Parchment -->
-          <rect x="144" y="94" width="26" height="11" rx="2" fill="#FAF6F0" stroke="#8C6F12" stroke-width="1.2" transform="rotate(-25 157 100)" />
-          <!-- Red Ribbon Tied Around Diploma -->
-          <rect x="154" y="93" width="5" height="13" rx="1" fill="#DC2626" transform="rotate(-25 157 100)" />
-          <!-- Ribbon Streamers -->
-          <path d="M157,105 Q161,114 158,121" stroke="#DC2626" stroke-width="2" fill="none" />
-          <path d="M156,105 Q152,113 155,120" stroke="#DC2626" stroke-width="2" fill="none" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
+export { buildStudentsMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile }) {
   await seedDefaultsIfEmpty();
@@ -339,6 +252,28 @@ export async function render({ profile }) {
     renderTable(tableWrap, profile);
   });
 
+  // Handle URL query filters and actions (e.g. from Command Palette)
+  const hashParts = location.hash.split("?");
+  const hashParams = new URLSearchParams(hashParts[1] || "");
+  const queryParam = hashParams.get("q");
+  const actionParam = hashParams.get("action");
+
+  if (queryParam) {
+    filterText = queryParam.toLowerCase();
+    searchInput.value = queryParam;
+    renderTable(tableWrap, profile);
+  } else {
+    filterText = "";
+  }
+
+  if (actionParam === "new") {
+    setTimeout(() => {
+      if (classes.length) {
+        openStudentForm(profile);
+      }
+    }, 120);
+  }
+
   setTimeout(() => {
     document.getElementById("new-admission-btn")?.addEventListener("click", () => {
       if (!classes.length) {
@@ -393,28 +328,72 @@ function renderTable(container, profile) {
     return;
   }
 
-  // Filtering runs on the full in-memory list (already fetched via
-  // listStudents()), so this is just capping how many rows we build DOM
-  // nodes for at once - keeps large rosters from turning the table render
-  // into the slow part. Clamp in case a filter change shrank the result
-  // set below the page currentPage was pointing at.
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortColumn === "admissionNumber") {
+      const aAdm = a.admissionNumber || "";
+      const bAdm = b.admissionNumber || "";
+      cmp = aAdm.localeCompare(bAdm, undefined, { numeric: true, sensitivity: "base" });
+    } else if (sortColumn === "fullName") {
+      cmp = (a.fullName || "").localeCompare(b.fullName || "");
+    } else if (sortColumn === "grade") {
+      const aClass = `${a.grade || ""} ${a.stream || ""}`;
+      const bClass = `${b.grade || ""} ${b.stream || ""}`;
+      cmp = aClass.localeCompare(bClass, undefined, { numeric: true });
+    } else if (sortColumn === "gender") {
+      cmp = (a.gender || "").localeCompare(b.gender || "");
+    } else if (sortColumn === "status") {
+      cmp = (a.status || "").localeCompare(b.status || "");
+    } else if (sortColumn === "admissionDate") {
+      const aDate = a.admissionDate ? new Date(a.admissionDate).getTime() : 0;
+      const bDate = b.admissionDate ? new Date(b.admissionDate).getTime() : 0;
+      cmp = aDate - bDate;
+    }
+    return sortDirection === "asc" ? cmp : -cmp;
+  });
+
+  const effectivePageSize = pageSize === 0 ? Math.max(1, sorted.length) : pageSize;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / effectivePageSize));
   if (currentPage > totalPages) currentPage = totalPages;
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageStart = (currentPage - 1) * effectivePageSize;
+  const pageItems = sorted.slice(pageStart, pageStart + effectivePageSize);
+
+  const makeSortTh = (colKey, label, style = "") => {
+    const isActive = sortColumn === colKey;
+    const sortIconName = isActive ? (sortDirection === "asc" ? "arrow_upward" : "arrow_downward") : "unfold_more";
+    const btn = el("button", {
+      type: "button",
+      class: `table-sort-btn ${isActive ? "table-sort-btn--active" : ""}`,
+      title: `Sort by ${label}`,
+      onClick: () => {
+        if (sortColumn === colKey) {
+          sortDirection = sortDirection === "asc" ? "desc" : "asc";
+        } else {
+          sortColumn = colKey;
+          sortDirection = "asc";
+        }
+        renderTable(container, profile);
+      },
+    }, [
+      el("span", {}, label),
+      icon(sortIconName, "table-sort-icon"),
+    ]);
+    return el("th", { style }, [btn]);
+  };
 
   const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", { style: "width:110px;" }, "Adm. No."),
-      el("th", { style: "min-width:200px;" }, "Student Name"),
-      el("th", { style: "width:140px;" }, "Class / Stream"),
-      el("th", { style: "width:90px;" }, "Gender"),
-      el("th", { style: "width:110px;" }, "Status"),
-      el("th", { style: "width:120px;" }, "Admitted"),
+      makeSortTh("admissionNumber", "Adm. No.", "width:115px;"),
+      makeSortTh("fullName", "Student Name", "min-width:200px;"),
+      makeSortTh("grade", "Class / Stream", "width:145px;"),
+      makeSortTh("gender", "Gender", "width:95px;"),
+      makeSortTh("status", "Status", "width:110px;"),
+      makeSortTh("admissionDate", "Admitted", "width:125px;"),
       el("th", { style: "width:80px;" }, "Alerts"),
       el("th", { class: "col-right", style: "width:100px;" }, "Actions"),
     ])),
   ]);
+
   const tbody = el("tbody", {});
   for (const s of pageItems) {
     const openCount = openIssueCounts.get(s.id) || 0;
@@ -450,37 +429,95 @@ function renderTable(container, profile) {
   table.append(tbody);
   container.innerHTML = "";
   container.append(table);
-  if (filtered.length > PAGE_SIZE) {
-    container.append(renderPagination(filtered.length, totalPages, container, profile));
+  if (sorted.length > 25 || pageSize > 0) {
+    container.append(renderPagination(sorted.length, totalPages, container, profile));
   }
 }
 
 function renderPagination(totalItems, totalPages, tableWrap, profile) {
-  const rangeStart = (currentPage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalItems);
+  const effectivePageSize = pageSize === 0 ? totalItems : pageSize;
+  const rangeStart = Math.min((currentPage - 1) * effectivePageSize + 1, totalItems);
+  const rangeEnd = Math.min(currentPage * effectivePageSize, totalItems);
 
   const goTo = (page) => {
     currentPage = Math.min(Math.max(page, 1), totalPages);
     renderTable(tableWrap, profile);
   };
 
-  const bar = el("div", {
-    style: "display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px; flex-wrap:wrap;",
+  const sizeSelect = el("select", {
+    class: "pagination-size-select",
+    "aria-label": "Learners per page",
+    onChange: (e) => {
+      pageSize = Number(e.target.value);
+      currentPage = 1;
+      renderTable(tableWrap, profile);
+    },
   }, [
-    el("span", { style: "color:var(--color-muted, #666); font-size:0.9em;" },
-      `Showing ${rangeStart}–${rangeEnd} of ${totalItems}`),
-    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+    el("option", { value: "25", ...(pageSize === 25 ? { selected: "true" } : {}) }, "25 / page"),
+    el("option", { value: "50", ...(pageSize === 50 ? { selected: "true" } : {}) }, "50 / page"),
+    el("option", { value: "100", ...(pageSize === 100 ? { selected: "true" } : {}) }, "100 / page"),
+    el("option", { value: "0", ...(pageSize === 0 ? { selected: "true" } : {}) }, "Show All"),
+  ]);
+
+  const pageButtons = [];
+  const maxButtons = 5;
+  let startP = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+  let endP = Math.min(totalPages, startP + maxButtons - 1);
+  if (endP - startP + 1 < maxButtons) {
+    startP = Math.max(1, endP - maxButtons + 1);
+  }
+
+  for (let p = startP; p <= endP; p++) {
+    const isCur = p === currentPage;
+    pageButtons.push(
       el("button", {
-        class: "btn btn--ghost btn--sm",
+        type: "button",
+        class: `pagination-page-btn ${isCur ? "pagination-page-btn--active" : ""}`,
+        "aria-current": isCur ? "page" : undefined,
+        onClick: () => goTo(p),
+      }, String(p))
+    );
+  }
+
+  const bar = el("div", { class: "pagination-bar" }, [
+    el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
+      el("span", { style: "color:var(--color-ink-soft); font-size:var(--fs-xs);" },
+        `Showing ${rangeStart}–${rangeEnd} of ${totalItems}`),
+      el("div", { style: "display:flex; align-items:center; gap:6px;" }, [
+        el("span", { class: "text-muted text-xs" }, "Rows:"),
+        sizeSelect,
+      ]),
+    ]),
+    el("div", { class: "pagination-controls" }, [
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "First page",
+        disabled: currentPage === 1 ? "true" : undefined,
+        onClick: () => goTo(1),
+      }, [icon("keyboard_double_arrow_left")]),
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Previous page",
         disabled: currentPage === 1 ? "true" : undefined,
         onClick: () => goTo(currentPage - 1),
-      }, [icon("chevron_left"), "Prev"]),
-      el("span", { style: "font-size:0.9em;" }, `Page ${currentPage} of ${totalPages}`),
+      }, [icon("chevron_left")]),
+      ...pageButtons,
       el("button", {
-        class: "btn btn--ghost btn--sm",
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Next page",
         disabled: currentPage === totalPages ? "true" : undefined,
         onClick: () => goTo(currentPage + 1),
-      }, ["Next", icon("chevron_right")]),
+      }, [icon("chevron_right")]),
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Last page",
+        disabled: currentPage === totalPages ? "true" : undefined,
+        onClick: () => goTo(totalPages),
+      }, [icon("keyboard_double_arrow_right")]),
     ]),
   ]);
   return bar;

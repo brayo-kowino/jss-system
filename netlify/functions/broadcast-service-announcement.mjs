@@ -8,6 +8,7 @@
 import { webcrypto } from "node:crypto";
 import nodemailer from "nodemailer";
 import { buildServiceAnnouncementEmail, buildPlatformBroadcastEmail } from "./lib/email-templates.mjs";
+import { verifyFirebaseIdToken } from "./lib/auth-helper.mjs";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -135,11 +136,23 @@ async function addDoc(token, collectionId, fields) {
 export default async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Missing authorization token" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+  const idToken = authHeader.split(" ")[1];
+
   let body;
   try {
     body = await req.json();
   } catch {
-    return new Response("Invalid JSON", { status: 400 });
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   const {
@@ -163,6 +176,23 @@ export default async (req) => {
   } catch (err) {
     console.error("broadcast-service-announcement: auth failed", err);
     return new Response("Auth failed", { status: 500 });
+  }
+
+  // Verify caller identity & role
+  const verifiedToken = await verifyFirebaseIdToken(idToken);
+  if (!verifiedToken?.sub) {
+    return new Response(JSON.stringify({ error: "Invalid ID token" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const callerUser = await getDoc(token, `users/${verifiedToken.sub}`);
+  if (!callerUser || callerUser.role !== "super_admin" || callerUser.status === "suspended") {
+    return new Response(JSON.stringify({ error: "Forbidden: Super admin privileges required" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   // 1. Fetch platform email settings from Firestore if available

@@ -37,13 +37,33 @@
 // bytes change. Without a version bump here, anyone who installed the SW
 // before a CSP change keeps enforcing the old policy indefinitely (only a
 // forced/hard reload bypasses the SW long enough to hide the symptom).
-const CACHE_VERSION = "eeskia-1.0.0.c88fb58";
+const CACHE_VERSION = "eeskia-1.0.0.7b6e1b7";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const ALL_CACHES = [SHELL_CACHE, STATIC_CACHE, RUNTIME_CACHE];
 
 const APP_SHELL_URL = "/app/index.html";
+
+// Core static assets and fonts precached on service worker installation
+// so an immediate offline cold start has zero missing fonts, zero broken icons,
+// and zero unstyled text flashes (FOUT).
+const CORE_PRECACHE_ASSETS = [
+  APP_SHELL_URL,
+  "/site.webmanifest",
+  "/assets/logo.png",
+  "/assets/learning-journey.png",
+  "/assets/learning-journey-192.png",
+  "/assets/learning-journey-maskable.png",
+  "/waving-hand.png",
+  "/waving-hand.svg",
+  "/fonts/material-symbols-rounded.woff2",
+  "/fonts/material-symbols-rounded-v2.woff2",
+  "/fonts/manrope-latin.woff2",
+  "/fonts/manrope-latin-ext.woff2",
+  "/fonts/lora-latin.woff2",
+  "/fonts/lora-latin-ext.woff2",
+];
 
 // Hosts this service worker is allowed to cache. Everything else
 // cross-origin (Firestore RPCs, auth, App Check token minting, the
@@ -65,8 +85,35 @@ self.addEventListener("install", (event) => {
   // told a new version is ready rather than being silently swapped under it.
   self.skipWaiting();
   event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) => cache.add(APP_SHELL_URL).catch(() => {}))
+    (async () => {
+      const [shellCache, staticCache] = await Promise.all([
+        caches.open(SHELL_CACHE),
+        caches.open(STATIC_CACHE),
+      ]);
+      // Precache app shell HTML
+      await shellCache.add(APP_SHELL_URL).catch(() => {});
+
+      // Precache essential static assets & fonts so offline cold start has zero missing fonts/icons
+      await Promise.allSettled(
+        CORE_PRECACHE_ASSETS.filter((url) => url !== APP_SHELL_URL).map((url) =>
+          staticCache.add(url)
+        )
+      );
+    })()
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+  if (event.data?.type === "PRECACHE_ASSETS" && Array.isArray(event.data?.urls)) {
+    event.waitUntil(
+      caches.open(STATIC_CACHE).then((cache) =>
+        Promise.allSettled(event.data.urls.map((u) => cache.add(u)))
+      )
+    );
+  }
 });
 
 self.addEventListener("activate", (event) => {
@@ -115,13 +162,61 @@ async function networkFirst(request, cacheName) {
   }
 }
 
+function isImageRequest(request, url) {
+  if (request.destination === "image") return true;
+  return /\.(png|jpe?g|svg|webp|gif|ico)(\?.*)?$/i.test(url.pathname) || url.hostname === "res.cloudinary.com";
+}
+
+function isAvatarRequest(url) {
+  return /avatar|profile|student_photos|users?|teachers?|parents?|photo/i.test(url.pathname + url.search);
+}
+
+function offlineAvatarFallbackResponse() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect width="100%" height="100%" fill="#E2E8F0"/>
+  <circle cx="50" cy="38" r="20" fill="#94A3B8"/>
+  <path d="M 20 86 C 20 68, 34 58, 50 58 C 66 58, 80 68, 80 86 Z" fill="#94A3B8"/>
+</svg>`;
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function offlineImageFallbackResponse() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect width="100%" height="100%" rx="16" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="2"/>
+  <path d="M60 28 L95 48 L25 48 Z M30 54 L38 54 L38 82 L30 82 Z M46 54 L54 54 L54 82 L46 82 Z M66 54 L74 54 L74 82 L66 82 Z M82 54 L90 54 L90 82 L82 82 Z M20 86 L100 86 L100 94 L20 94 Z" fill="#94A3B8"/>
+</svg>`;
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      "Content-Type": "image/svg+xml",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 async function cacheFirst(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cached = await cache.match(request, { ignoreVary: true, ignoreSearch: true });
   if (cached) return cached;
-  const response = await fetch(request);
-  if (response && response.ok) cache.put(request, response.clone());
-  return response;
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) cache.put(request, response.clone());
+    return response;
+  } catch (err) {
+    const url = new URL(request.url);
+    if (isImageRequest(request, url)) {
+      return isAvatarRequest(url)
+        ? offlineAvatarFallbackResponse()
+        : offlineImageFallbackResponse();
+    }
+    throw err;
+  }
 }
 
 async function staleWhileRevalidate(request, cacheName) {
@@ -133,7 +228,19 @@ async function staleWhileRevalidate(request, cacheName) {
       return response;
     })
     .catch(() => null);
-  return cached || (await networkPromise) || Response.error();
+
+  if (cached) return cached;
+  const networkResponse = await networkPromise;
+  if (networkResponse) return networkResponse;
+
+  const url = new URL(request.url);
+  if (isImageRequest(request, url)) {
+    return isAvatarRequest(url)
+      ? offlineAvatarFallbackResponse()
+      : offlineImageFallbackResponse();
+  }
+
+  return Response.error();
 }
 
 // Shown only when someone opens the app for the very first time ever with
@@ -176,7 +283,16 @@ self.addEventListener("fetch", (event) => {
 
   // Same-origin, but outside this SW's own scope (e.g. the marketing site,
   // /results/ lookup page) - leave those to the network untouched.
-  if (!url.pathname.startsWith("/app/") && !url.pathname.startsWith("/assets/") && !url.pathname.startsWith("/fonts/") && url.pathname !== "/site.webmanifest") {
+  const isManagedSameOriginPath =
+    url.pathname.startsWith("/app/") ||
+    url.pathname.startsWith("/assets/") ||
+    url.pathname.startsWith("/fonts/") ||
+    url.pathname === "/site.webmanifest" ||
+    url.pathname === "/waving-hand.png" ||
+    url.pathname === "/waving-hand.svg" ||
+    url.pathname.startsWith("/favicon");
+
+  if (!isManagedSameOriginPath) {
     return;
   }
 
