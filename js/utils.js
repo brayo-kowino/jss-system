@@ -1,7 +1,13 @@
 // Shared helpers used across views/components.
 
 export function toast(message, type = "info", ms = 4000) {
-  const root = document.getElementById("toast-root");
+  let root = document.getElementById("toast-root");
+  if (!root) {
+    if (typeof document === "undefined" || !document.body) return;
+    root = document.createElement("div");
+    root.id = "toast-root";
+    document.body.appendChild(root);
+  }
   const el = document.createElement("div");
   el.className = `toast${type !== "info" ? ` toast--${type}` : ""}`;
   el.textContent = message;

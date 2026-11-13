@@ -3,7 +3,7 @@
 // Fast keyboard-first search & action overlay for navigation, actions & records
 // ==========================================================================
 
-import { el, icon } from "../utils.js";
+import { el, icon, toast } from "../utils.js";
 import { navigate } from "../router.js";
 import { toggleTheme, getEffectiveTheme } from "../theme.js";
 import { listStudents } from "../services/student.service.js";
@@ -13,6 +13,9 @@ import { startTour } from "./tour.js";
 import { TOUR_STEPS } from "../tour-steps.js";
 import { logout } from "../services/auth.service.js";
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.platform || "");
+export const MODIFIER_LABEL = isMac ? "⌘" : "Ctrl";
+
 let paletteBackdrop = null;
 let currentProfile = null;
 let cachedStudents = null;
@@ -21,35 +24,35 @@ let cachedTeachers = null;
 let selectedIndex = 0;
 let currentItems = [];
 
-// Base Navigation Catalog with role permissions
-const NAV_CATALOG = [
-  { id: "nav-dash", title: "Dashboard", subtitle: "Executive overview & school statistics", icon: "dashboard", category: "Navigation", path: "/dashboard", roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"] },
-  { id: "nav-att", title: "Daily Attendance", subtitle: "Roll-call & class attendance register", icon: "fact_check", category: "Navigation", path: "/attendance", roles: ["class_teacher", "admin", "deputy_principal", "principal"] },
-  { id: "nav-marks", title: "Marks Entry", subtitle: "Record assessment scores & CBC rubrics", icon: "edit_note", category: "Navigation", path: "/marks", roles: ["subject_teacher", "class_teacher", "academic_master", "admin"] },
-  { id: "nav-assess", title: "Assessments", subtitle: "Formative & summative assessment setup", icon: "quiz", category: "Navigation", path: "/assessments", roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"] },
-  { id: "nav-students", title: "Students Directory", subtitle: "Learner rosters, admissions & profiles", icon: "school", category: "Navigation", path: "/students", roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"] },
-  { id: "nav-teachers", title: "Staff & Logins", subtitle: "Faculty directory, subject allocations & security", icon: "person", category: "Navigation", path: "/teachers", roles: ["admin", "principal", "deputy_principal"] },
-  { id: "nav-parents", title: "Parents & Guardians", subtitle: "Family contacts, links & SMS broadcast", icon: "groups", category: "Navigation", path: "/parents", roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"] },
-  { id: "nav-grading", title: "Grading & Positions", subtitle: "CBC level aggregation & merit analysis", icon: "analytics", category: "Navigation", path: "/grading", roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"] },
-  { id: "nav-reports", title: "Report Cards", subtitle: "Termly progress reports & printable PDF cards", icon: "description", category: "Navigation", path: "/reports", roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher"] },
-  { id: "nav-release", title: "Release Results", subtitle: "Publish term results for parent access", icon: "visibility", category: "Navigation", path: "/release-results", roles: ["admin", "academic_master"] },
-  { id: "nav-analytics", title: "School Analytics", subtitle: "Deep cohort performance trends & equity graphs", icon: "insert_chart", category: "Navigation", path: "/analytics", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
-  { id: "nav-promotions", title: "Promotions & Rollover", subtitle: "End-of-year cohort advancement", icon: "trending_up", category: "Navigation", path: "/promotions", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
-  { id: "nav-classes", title: "Classes & Streams", subtitle: "Configure grade cohorts & streams", icon: "meeting_room", category: "Navigation", path: "/academics", roles: ["admin", "deputy_principal", "principal", "academic_master"] },
-  { id: "nav-subjects", title: "Subjects & Curriculum", subtitle: "CBC learning areas & department matrix", icon: "menu_book", category: "Navigation", path: "/subjects", roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"] },
-  { id: "nav-timetable", title: "Timetable Schedule", subtitle: "Master lessons schedule & teacher clash solver", icon: "calendar_month", category: "Navigation", path: "/timetable", allRoles: true },
-  { id: "nav-fees", title: "Fees & Ledger", subtitle: "Student fee balances, invoicing & receipts", icon: "payments", category: "Navigation", path: "/fees", roles: ["admin", "deputy_principal", "principal", "bursar"] },
-  { id: "nav-issues", title: "Student Issues & Care", subtitle: "Discrepancies, attendance flags & discipline notes", icon: "assignment_late", category: "Navigation", path: "/student-issues", roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"] },
-  { id: "nav-notifs", title: "Notifications & Newsletters", subtitle: "Broadcast circulars, notices & parent SMS", icon: "notifications", category: "Navigation", path: "/notifications", roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"] },
-  { id: "nav-settings", title: "School Settings", subtitle: "School logo, motto, branding colors & grading scale", icon: "settings", category: "Navigation", path: "/settings", roles: ["admin"] },
-  { id: "nav-audit", title: "Audit Trail", subtitle: "Security logs, fee modifications & score change logs", icon: "policy", category: "Navigation", path: "/audit", roles: ["admin"] },
-  { id: "nav-support", title: "Contact Support Desk", subtitle: "Submit engineering tickets & feature requests", icon: "support_agent", category: "Navigation", path: "/support", roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"] },
+// Base Navigation Catalog with role permissions and predefined shortcut letters
+export const NAV_CATALOG = [
+  { id: "nav-dash", title: "Dashboard", subtitle: "Executive overview & school statistics", icon: "dashboard", category: "Navigation", path: "/dashboard", letter: "D", roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"] },
+  { id: "nav-att", title: "Daily Attendance", subtitle: "Roll-call & class attendance register", icon: "fact_check", category: "Navigation", path: "/attendance", letter: "A", roles: ["class_teacher", "admin", "deputy_principal", "principal"] },
+  { id: "nav-marks", title: "Marks Entry", subtitle: "Record assessment scores & CBC rubrics", icon: "edit_note", category: "Navigation", path: "/marks", letter: "M", roles: ["subject_teacher", "class_teacher", "academic_master", "admin"] },
+  { id: "nav-assess", title: "Assessments", subtitle: "Formative & summative assessment setup", icon: "quiz", category: "Navigation", path: "/assessments", letter: "Q", roles: ["admin", "academic_master", "subject_teacher", "class_teacher", "principal", "deputy_principal"] },
+  { id: "nav-students", title: "Students Directory", subtitle: "Learner rosters, admissions & profiles", icon: "school", category: "Navigation", path: "/students", letter: "S", roles: ["admin", "principal", "deputy_principal", "academic_master", "registrar", "class_teacher"] },
+  { id: "nav-teachers", title: "Staff & Logins", subtitle: "Faculty directory, subject allocations & security", icon: "person", category: "Navigation", path: "/teachers", letter: "E", roles: ["admin", "principal", "deputy_principal"] },
+  { id: "nav-parents", title: "Parents & Guardians", subtitle: "Family contacts, links & SMS broadcast", icon: "groups", category: "Navigation", path: "/parents", letter: "G", roles: ["admin", "deputy_principal", "principal", "class_teacher", "registrar"] },
+  { id: "nav-grading", title: "Grading & Positions", subtitle: "CBC level aggregation & merit analysis", icon: "analytics", category: "Navigation", path: "/grading", letter: "J", roles: ["admin", "academic_master", "principal", "deputy_principal", "class_teacher"] },
+  { id: "nav-reports", title: "Report Cards", subtitle: "Termly progress reports & printable PDF cards", icon: "description", category: "Navigation", path: "/reports", letter: "P", roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher"] },
+  { id: "nav-release", title: "Release Results", subtitle: "Publish term results for parent access", icon: "visibility", category: "Navigation", path: "/release-results", letter: "V", roles: ["admin", "academic_master"] },
+  { id: "nav-analytics", title: "School Analytics", subtitle: "Deep cohort performance trends & equity graphs", icon: "insert_chart", category: "Navigation", path: "/analytics", letter: "Y", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
+  { id: "nav-promotions", title: "Promotions & Rollover", subtitle: "End-of-year cohort advancement", icon: "trending_up", category: "Navigation", path: "/promotions", letter: "X", roles: ["admin", "principal", "deputy_principal", "academic_master"] },
+  { id: "nav-classes", title: "Classes & Streams", subtitle: "Configure grade cohorts & streams", icon: "meeting_room", category: "Navigation", path: "/academics", letter: "O", roles: ["admin", "deputy_principal", "principal", "academic_master"] },
+  { id: "nav-subjects", title: "Subjects & Curriculum", subtitle: "CBC learning areas & department matrix", icon: "menu_book", category: "Navigation", path: "/subjects", letter: "U", roles: ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal"] },
+  { id: "nav-timetable", title: "Timetable Schedule", subtitle: "Master lessons schedule & teacher clash solver", icon: "calendar_month", category: "Navigation", path: "/timetable", letter: "T", allRoles: true },
+  { id: "nav-fees", title: "Fees & Ledger", subtitle: "Student fee balances, invoicing & receipts", icon: "payments", category: "Navigation", path: "/fees", letter: "F", roles: ["admin", "deputy_principal", "principal", "bursar"] },
+  { id: "nav-issues", title: "Student Issues & Care", subtitle: "Discrepancies, attendance flags & discipline notes", icon: "assignment_late", category: "Navigation", path: "/student-issues", letter: "I", roles: ["admin", "principal", "deputy_principal", "registrar", "class_teacher"] },
+  { id: "nav-notifs", title: "Notifications & Newsletters", subtitle: "Broadcast circulars, notices & parent SMS", icon: "notifications", category: "Navigation", path: "/notifications", letter: "N", roles: ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"] },
+  { id: "nav-settings", title: "School Settings", subtitle: "School logo, motto, branding colors & grading scale", icon: "settings", category: "Navigation", path: "/settings", letter: "L", roles: ["admin"] },
+  { id: "nav-audit", title: "Audit Trail", subtitle: "Security logs, fee modifications & score change logs", icon: "policy", category: "Navigation", path: "/audit", letter: "B", roles: ["admin"] },
+  { id: "nav-support", title: "Contact Support Desk", subtitle: "Submit engineering tickets & feature requests", icon: "support_agent", category: "Navigation", path: "/support", letter: "H", roles: ["admin", "principal", "deputy_principal", "registrar", "bursar", "academic_master", "class_teacher"] },
   // Super admin routes
-  { id: "nav-schools", title: "Schools Directory", subtitle: "Manage registered school tenants & subscriptions", icon: "corporate_fare", category: "Platform", path: "/schools", roles: ["super_admin"] },
-  { id: "nav-plat-ann", title: "Platform Announcements", subtitle: "Broadcast global system banners", icon: "campaign", category: "Platform", path: "/platform-announcements", roles: ["super_admin"] },
-  { id: "nav-plat-tick", title: "Support Tickets Desk", subtitle: "Manage incoming school tickets", icon: "confirmation_number", category: "Platform", path: "/platform-tickets", roles: ["super_admin"] },
-  { id: "nav-plat-err", title: "System Error Logs", subtitle: "Review client & edge runtime logs", icon: "bug_report", category: "Platform", path: "/platform-error-logs", roles: ["super_admin"] },
-  { id: "nav-plat-set", title: "Platform Settings", subtitle: "System-wide security & configuration", icon: "settings", category: "Platform", path: "/platform-settings", roles: ["super_admin"] },
+  { id: "nav-schools", title: "Schools Directory", subtitle: "Manage registered school tenants & subscriptions", icon: "corporate_fare", category: "Platform", path: "/schools", letter: "1", roles: ["super_admin"] },
+  { id: "nav-plat-ann", title: "Platform Announcements", subtitle: "Broadcast global system banners", icon: "campaign", category: "Platform", path: "/platform-announcements", letter: "2", roles: ["super_admin"] },
+  { id: "nav-plat-tick", title: "Support Tickets Desk", subtitle: "Manage incoming school tickets", icon: "confirmation_number", category: "Platform", path: "/platform-tickets", letter: "3", roles: ["super_admin"] },
+  { id: "nav-plat-err", title: "System Error Logs", subtitle: "Review client & edge runtime logs", icon: "bug_report", category: "Platform", path: "/platform-error-logs", letter: "4", roles: ["super_admin"] },
+  { id: "nav-plat-set", title: "Platform Settings", subtitle: "System-wide security & configuration", icon: "settings", category: "Platform", path: "/platform-settings", letter: "5", roles: ["super_admin"] },
 ];
 
 /**
@@ -169,24 +172,32 @@ function searchItems(query, profile) {
   if (!cleanQ) {
     // Show Top Suggested Items when query is empty
     return [
-      ...quickActions.slice(0, 3),
-      ...allowedNav.slice(0, 5).map((n) => ({
+      ...allowedNav.slice(0, 6).map((n) => ({
         ...n,
         action: () => navigate(n.path),
-        badge: "Jump",
+        badge: n.letter ? `${MODIFIER_LABEL}+${n.letter}` : "Jump",
       })),
+      ...quickActions.slice(0, 3),
     ];
   }
 
-  // 1. Match Navigation Items
+  // 1. Match Navigation Items (by title, subtitle, category, or predefined shortcut letter)
   for (const item of allowedNav) {
-    const haystack = `${item.title} ${item.subtitle} ${item.category}`.toLowerCase();
+    const itemLetter = (item.letter || "").toLowerCase();
+    const haystack = `${item.title} ${item.subtitle} ${item.category} ${itemLetter} ctrl+${itemLetter} cmd+${itemLetter}`.toLowerCase();
     if (haystack.includes(cleanQ)) {
+      const isExactLetter = cleanQ === itemLetter || cleanQ === `ctrl+${itemLetter}` || cleanQ === `cmd+${itemLetter}`;
       results.push({
         ...item,
-        badge: "Navigation",
+        badge: item.letter ? `${MODIFIER_LABEL}+${item.letter}` : "Navigation",
         action: () => navigate(item.path),
-        score: item.title.toLowerCase().startsWith(cleanQ) ? 100 : (item.title.toLowerCase().includes(cleanQ) ? 80 : 50),
+        score: isExactLetter
+          ? 120
+          : item.title.toLowerCase().startsWith(cleanQ)
+            ? 100
+            : item.title.toLowerCase().includes(cleanQ)
+              ? 80
+              : 50,
       });
     }
   }
@@ -315,6 +326,7 @@ export function openCommandPalette({ profile }) {
     el("div", { class: "cmd-palette-hints" }, [
       el("span", {}, [el("kbd", {}, "↑"), el("kbd", {}, "↓"), " Navigate"]),
       el("span", {}, [el("kbd", {}, "↵"), " Select"]),
+      el("span", {}, [el("kbd", {}, MODIFIER_LABEL), " + Letter Jump"]),
       el("span", {}, [el("kbd", {}, "ESC"), " Close"]),
     ]),
     el("span", { class: "cmd-palette-brand" }, "Eeskia Spotlight"),
@@ -351,6 +363,8 @@ export function openCommandPalette({ profile }) {
       }
 
       const isSelected = index === selectedIndex;
+      const shortcutText = item.letter ? `${MODIFIER_LABEL}+${item.letter}` : null;
+
       const itemEl = el(
         "div",
         {
@@ -372,7 +386,13 @@ export function openCommandPalette({ profile }) {
               item.subtitle ? el("div", { class: "cmd-palette-item-sub" }, item.subtitle) : "",
             ]),
           ]),
-          item.badge ? el("span", { class: "cmd-palette-item-badge" }, item.badge) : "",
+          shortcutText
+            ? el("span", { class: "cmd-palette-item-shortcut", title: `Press ${shortcutText} to jump directly` }, [
+                el("kbd", {}, MODIFIER_LABEL),
+                "+",
+                el("kbd", {}, item.letter),
+              ])
+            : (item.badge ? el("span", { class: "cmd-palette-item-badge" }, item.badge) : ""),
         ]
       );
 
@@ -479,7 +499,33 @@ export function toggleCommandPalette({ profile }) {
 }
 
 /**
- * Global Keyboard Shortcut Listener for Ctrl+K / Cmd+K
+ * Direct shortcut executor for module jump letters (e.g. 'L' for Settings)
+ * @param {string} letter
+ * @param {Object} profile
+ * @returns {boolean} whether jump was handled
+ */
+export function executeShortcutLetter(letter, profile = currentProfile) {
+  if (!letter) return false;
+  const upper = String(letter).toUpperCase();
+  const hit = NAV_CATALOG.find((m) => m.letter === upper || (upper === "," && m.id === "nav-settings"));
+  if (!hit) return false;
+
+  const allowed =
+    hit.allRoles ||
+    (hit.roles && profile?.role && hit.roles.includes(profile.role)) ||
+    profile?.role === "super_admin";
+
+  if (!allowed) {
+    toast(`${hit.title} is restricted for your role`, "warning", 2500);
+    return false;
+  }
+
+  navigate(hit.path);
+  return true;
+}
+
+/**
+ * Global Keyboard Shortcut Listener for Ctrl+K and Ctrl/Alt+Letter Module Jumps
  */
 let isListenerAttached = false;
 export function initCommandPalette(profile) {
@@ -490,20 +536,54 @@ export function initCommandPalette(profile) {
   isListenerAttached = true;
 
   window.addEventListener("keydown", (e) => {
-    // Check for Ctrl+K or Cmd+K
-    const isK = e.key === "k" || e.key === "K";
     const isCmdOrCtrl = e.metaKey || e.ctrlKey;
+    const isAlt = e.altKey;
+    const isK = e.key === "k" || e.key === "K";
 
+    // 1. Toggle Palette on Ctrl+K / Cmd+K
     if (isCmdOrCtrl && isK) {
       e.preventDefault();
       toggleCommandPalette({ profile: currentProfile });
       return;
     }
 
-    // Escape closes palette if open
+    // 2. Escape closes palette if open
     if (e.key === "Escape" && paletteBackdrop) {
       e.preventDefault();
       closeCommandPalette();
+      return;
+    }
+
+    // 3. Predefined Module Jump Shortcuts (Ctrl + Letter or Alt + Letter)
+    // Example: Ctrl + L jumps directly to School Settings!
+    if ((isCmdOrCtrl || isAlt) && !e.shiftKey) {
+      const rawKey = e.key || "";
+      const upper = rawKey.toUpperCase();
+      const isSettingsComma = isCmdOrCtrl && rawKey === ",";
+      const targetLetter = isSettingsComma ? "L" : upper;
+
+      const hit = NAV_CATALOG.find((m) => m.letter === targetLetter);
+      if (!hit) return;
+
+      const activeEl = document.activeElement;
+      const isInsidePalette = paletteBackdrop && paletteBackdrop.contains(activeEl);
+      const isTextInput =
+        activeEl &&
+        (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable);
+
+      // Preserve native editing shortcuts in form inputs (like Ctrl+A select all) outside the palette
+      if (isTextInput && !isInsidePalette) {
+        if (["A", "Z", "Y", "C", "V", "X"].includes(upper) && isCmdOrCtrl) {
+          return;
+        }
+      }
+
+      e.preventDefault();
+      if (paletteBackdrop) {
+        closeCommandPalette();
+      }
+
+      executeShortcutLetter(targetLetter, currentProfile);
     }
   });
 }

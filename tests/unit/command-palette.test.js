@@ -123,4 +123,46 @@ describe("Global Command Palette", () => {
 
     expect(document.querySelector(".cmd-palette-backdrop")).not.toBeNull();
   });
+
+  it("jumps to School Settings when Ctrl+L is pressed", async () => {
+    const { navigate } = await import("../../js/router.js");
+    initCommandPalette(adminProfile);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "l", ctrlKey: true }));
+
+    expect(navigate).toHaveBeenCalledWith("/settings");
+  });
+
+  it("jumps to Attendance when Ctrl+A is pressed", async () => {
+    const { navigate } = await import("../../js/router.js");
+    initCommandPalette(adminProfile);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true }));
+
+    expect(navigate).toHaveBeenCalledWith("/attendance");
+  });
+
+  it("jumps to Fees when Ctrl+F is pressed", async () => {
+    const { navigate } = await import("../../js/router.js");
+    initCommandPalette(adminProfile);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "f", ctrlKey: true }));
+
+    expect(navigate).toHaveBeenCalledWith("/fees");
+  });
+
+  it("restricts navigation when role is unauthorized", async () => {
+    const { navigate } = await import("../../js/router.js");
+    const teacherProfile = { uid: "teacher1", email: "teacher@school.com", role: "subject_teacher", schoolId: "s1" };
+    initCommandPalette(teacherProfile);
+    // Subject teacher cannot access School Settings (/settings)
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "l", ctrlKey: true }));
+
+    expect(navigate).not.toHaveBeenCalledWith("/settings");
+  });
+
+  it("renders shortcut badge in command palette item", () => {
+    openCommandPalette({ profile: adminProfile });
+    const shortcuts = document.querySelectorAll(".cmd-palette-item-shortcut");
+    expect(shortcuts.length).toBeGreaterThan(0);
+    const firstShortcut = shortcuts[0].textContent;
+    expect(firstShortcut).toMatch(/(Ctrl|⌘)\+[A-Z0-9]/);
+  });
 });
