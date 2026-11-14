@@ -6,7 +6,8 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { navigate, getDefaultRoute } from "../js/router.js";
+import { navigate, getDefaultRoute, routes } from "../js/router.js";
+import { resolvePostLoginDestination } from "../js/services/deep-link.service.js";
 import { el, icon, toast, busyButton, setFavicon } from "../js/utils.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { applyBranding } from "../js/components/shell.js";
@@ -558,17 +559,17 @@ export function init() {
       // each screen (see js/components/auth-gate.js).
       if (result.needsApproval) {
         restore();
-        renderApprovalGate(result, () => navigate(getDefaultRoute(result)));
+        renderApprovalGate(result, () => navigate(resolvePostLoginDestination(result, routes, getDefaultRoute)));
         return;
       }
       if (result.needs2FA) {
         restore();
-        renderTwoFactorGate(result, () => navigate(getDefaultRoute(result)));
+        renderTwoFactorGate(result, () => navigate(resolvePostLoginDestination(result, routes, getDefaultRoute)));
         return;
       }
 
       eyes?.happy();
-      navigate(getDefaultRoute(result));
+      navigate(resolvePostLoginDestination(result, routes, getDefaultRoute));
     } catch (err) {
       errorEl.textContent = friendlyError(err);
       restore();

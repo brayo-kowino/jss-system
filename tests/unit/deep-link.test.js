@@ -7,6 +7,10 @@ import {
   renderAlienNotFound,
   navigateDeepLink,
   internalLink,
+  savePostLoginRedirect,
+  consumePostLoginRedirect,
+  resolvePostLoginDestination,
+  POST_LOGIN_REDIRECT_KEY,
 } from "../../js/services/deep-link.service.js";
 
 describe("Deep Linking Engine & Cosmic Alien 404", () => {
@@ -310,6 +314,66 @@ describe("Deep Linking Engine & Cosmic Alien 404", () => {
 
       link.click();
       expect(customClick).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("Post-Login Deep-Link Return", () => {
+    beforeEach(() => {
+      sessionStorage.clear();
+    });
+
+    afterEach(() => {
+      sessionStorage.clear();
+    });
+
+    it("saves target deep link with query parameters into sessionStorage", () => {
+      savePostLoginRedirect("#/fees?academicYear=2026&term=Term+3");
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBe("#/fees?academicYear=2026&term=Term+3");
+    });
+
+    it("ignores /login or root routes when saving redirect", () => {
+      savePostLoginRedirect("#/login");
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+
+      savePostLoginRedirect("#/");
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+
+      savePostLoginRedirect("");
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+    });
+
+    it("consumes and clears the saved post-login redirect for an authorized role", () => {
+      savePostLoginRedirect("#/fees?academicYear=2026&term=Term+3");
+
+      const adminProfile = { role: "admin" };
+      const dest = consumePostLoginRedirect(adminProfile, routes);
+      expect(dest).toBe("/fees?academicYear=2026&term=Term+3");
+      // Must be consumed (cleared) so it doesn't fire again
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+    });
+
+    it("blocks unauthorized roles from returning to restricted routes", () => {
+      // /settings is admin-only in routes
+      savePostLoginRedirect("#/settings");
+
+      const teacherProfile = { role: "teacher" };
+      const dest = consumePostLoginRedirect(teacherProfile, routes);
+      expect(dest).toBeNull();
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
+    });
+
+    it("resolvePostLoginDestination returns deep link for authorized user and default fallback otherwise", () => {
+      savePostLoginRedirect("#/fees?academicYear=2026&term=Term+3");
+
+      const adminProfile = { role: "admin" };
+      const fallbackFn = (p) => p.role === "admin" ? "/dashboard" : "/marks";
+
+      const dest = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
+      expect(dest).toBe("/fees?academicYear=2026&term=Term+3");
+
+      // Now with no redirect saved, it returns the fallback
+      const normalDest = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
+      expect(normalDest).toBe("/dashboard");
     });
   });
 });

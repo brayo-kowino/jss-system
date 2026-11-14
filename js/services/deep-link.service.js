@@ -435,3 +435,72 @@ export function renderAlienNotFound(container, { badRoute = "", routes = {}, aut
 
   container.append(wrap);
 }
+
+// ---------------------------------------------------- Post-Login Deep-Link Return --
+
+export const POST_LOGIN_REDIRECT_KEY = "eeskia_post_login_redirect";
+
+/**
+ * Saves a target deep link destination to sessionStorage so an unauthenticated visitor
+ * can be redirected back to their intended page and query parameters after logging in.
+ */
+export function savePostLoginRedirect(target) {
+  if (typeof sessionStorage === "undefined" || !target) return;
+  const trimmed = String(target).trim();
+  const parsed = parseDeepLink(trimmed);
+  // Never save login, root, or invalid routes as return destination
+  if (!parsed.path || ["/login", "/", "__invalid__"].includes(parsed.path)) return;
+  try {
+    sessionStorage.setItem(POST_LOGIN_REDIRECT_KEY, trimmed);
+  } catch (e) {
+    console.warn("Could not save post-login redirect:", e);
+  }
+}
+
+/**
+ * Retrieves and clears the saved post-login redirect, verifying whether the authenticated
+ * user's role is authorized to access the destination route.
+ * Returns null if no valid, authorized destination was stored.
+ */
+export function consumePostLoginRedirect(profile, routesMap) {
+  if (typeof sessionStorage === "undefined" || !profile) return null;
+  let saved = null;
+  try {
+    saved = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
+    if (saved) {
+      sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+    }
+  } catch {
+    return null;
+  }
+
+  if (!saved) return null;
+
+  const parsed = parseDeepLink(saved);
+  if (!parsed.path || ["/login", "/", "__invalid__"].includes(parsed.path)) return null;
+
+  if (routesMap) {
+    const routeDef = routesMap[parsed.path];
+    if (!routeDef) return null;
+    // Check role authorization
+    if (!routeDef.public && !routeDef.allRoles && (!routeDef.roles || !routeDef.roles.includes(profile.role))) {
+      return null;
+    }
+  }
+
+  // Normalize return value: ensure it starts with / (e.g. /fees?academicYear=2026&term=Term+3)
+  const norm = saved.startsWith("#") ? saved.slice(1) : saved;
+  return norm.startsWith("/") ? norm : `/${norm}`;
+}
+
+/**
+ * Resolves the destination route for an authenticated profile:
+ * Either the verified deep link they originally requested, or their default landing page.
+ */
+export function resolvePostLoginDestination(profile, routesMap, defaultFallback) {
+  const deepLinkTarget = consumePostLoginRedirect(profile, routesMap);
+  if (deepLinkTarget) {
+    return deepLinkTarget;
+  }
+  return typeof defaultFallback === "function" ? defaultFallback(profile) : defaultFallback;
+}

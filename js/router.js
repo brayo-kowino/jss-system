@@ -18,7 +18,13 @@ import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
-import { parseDeepLink, renderAlienNotFound, buildDeepLink } from "./services/deep-link.service.js";
+import {
+  parseDeepLink,
+  renderAlienNotFound,
+  buildDeepLink,
+  savePostLoginRedirect,
+  resolvePostLoginDestination,
+} from "./services/deep-link.service.js";
 
 // These three are the only views that can be reached *before* we know a
 // visitor is on an active subscription (login, forced password change, and
@@ -246,7 +252,7 @@ export async function renderRoute() {
         if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
           return;
         }
-        return navigate(getDefaultRoute(profile));
+        return navigate(resolvePostLoginDestination(profile, routes, getDefaultRoute));
       }
       const view = await loadView(path, route);
       if (isStale()) return;
@@ -261,6 +267,10 @@ export async function renderRoute() {
 
     if (!profile) {
       document.querySelectorAll(".signout-modal-backdrop").forEach((el) => el.remove());
+      const target = rawHash || (typeof location !== "undefined" ? location.hash : "");
+      if (target && !["#/login", "#/", "#", ""].includes(target.trim())) {
+        savePostLoginRedirect(target);
+      }
       return navigate("/login");
     }
 
