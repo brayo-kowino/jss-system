@@ -3,6 +3,7 @@ import {
   detectTimetableConflicts,
   buildCollisionFreeSchedule,
   DAYS,
+  DEFAULT_PERIODS,
 } from "../../js/services/timetable.service.js";
 
 describe("Timetable Conflict Detection & Scheduling Engine", () => {
@@ -395,6 +396,47 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       console.log("Realistic test - conflicts:", conflicts.length);
       expect(conflicts).toHaveLength(0);
       expect(generated).toHaveLength(8 * 40);
+    });
+  });
+
+  describe("JSS Default Periods & Daily Break Structure", () => {
+    it("contains 8 instructional periods, Short Break, Lunch, and Games & Clubs", () => {
+      expect(DEFAULT_PERIODS).toBeDefined();
+      expect(DEFAULT_PERIODS.length).toBe(11);
+
+      const breaks = DEFAULT_PERIODS.filter((p) => p.isBreak);
+      const instructional = DEFAULT_PERIODS.filter((p) => !p.isBreak);
+
+      expect(instructional).toHaveLength(8);
+      expect(breaks).toHaveLength(3);
+
+      expect(breaks.map((b) => b.name)).toEqual([
+        "Short Break",
+        "Lunch",
+        "Games & Clubs",
+      ]);
+    });
+
+    it("verifies JSS daily sequence: Periods 1-3 -> Short Break -> Periods 4-6 -> Lunch -> Periods 7-8 -> Games & Clubs", () => {
+      const names = DEFAULT_PERIODS.map((p) => p.name);
+      expect(names).toEqual([
+        "Period 1",
+        "Period 2",
+        "Period 3",
+        "Short Break",
+        "Period 4",
+        "Period 5",
+        "Period 6",
+        "Lunch",
+        "Period 7",
+        "Period 8",
+        "Games & Clubs",
+      ]);
+
+      const games = DEFAULT_PERIODS.find((p) => p.name === "Games & Clubs");
+      expect(games.startTime).toBe("14:30");
+      expect(games.endTime).toBe("15:30");
+      expect(games.isBreak).toBe(true);
     });
   });
 });

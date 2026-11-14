@@ -39,6 +39,7 @@ let masterSlots = [];
 let masterConflicts = [];
 let masterDayFilter = "All"; // "All" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday"
 let activeTab = "master"; // "master" | "classes" | "teachers" | "periods"
+let masterViewMode = "wall"; // "wall" (Institutional Master Wall Chart - JKUAT Format) | "cards" (Day Cards)
 
 // ---------------------------------------------------------------- Helpers --
 
@@ -200,6 +201,9 @@ export async function render({ profile, params = {} }) {
   if (params.day && ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(params.day)) {
     masterDayFilter = params.day;
   }
+  if (params.view && ["wall", "cards"].includes(params.view)) {
+    masterViewMode = params.view;
+  }
   if (params.grade || params.class) {
     classSelection = {
       grade: params.grade || params.class,
@@ -346,6 +350,22 @@ async function renderMasterTab(container, profile) {
 
     // 2. Controls Toolbar
     const controls = el("div", { class: "master-tt-controls no-print" }, [
+      // View Mode Toggle (JKUAT Institutional Wall Chart vs Cards)
+      el("div", { class: "tt-view-mode-toggle" }, [
+        el("button", {
+          type: "button",
+          class: `tt-view-mode-btn ${masterViewMode === "wall" ? "tt-view-mode-btn--active" : ""}`,
+          title: "Institutional Master Wall Chart (JKUAT Format)",
+          onClick: () => { masterViewMode = "wall"; refreshMaster(); }
+        }, [icon("view_quilt", "text-xs"), "Master Wall Chart"]),
+        el("button", {
+          type: "button",
+          class: `tt-view-mode-btn ${masterViewMode === "cards" ? "tt-view-mode-btn--active" : ""}`,
+          title: "Daily Class Cards View",
+          onClick: () => { masterViewMode = "cards"; refreshMaster(); }
+        }, [icon("calendar_view_day", "text-xs"), "Daily Cards"]),
+      ]),
+
       // Day filter pills
       el("div", { class: "master-tt-day-tabs" }, [
         el("button", {
@@ -375,6 +395,7 @@ async function renderMasterTab(container, profile) {
           onClick: () => {
             const p = { tab: "master" };
             if (masterDayFilter !== "All") p.day = masterDayFilter;
+            if (masterViewMode !== "wall") p.view = masterViewMode;
             copyDeepLink("/timetable", p, "Master Timetable link");
           },
         }, [icon("share", "text-xs"), "Share Link"]),
@@ -382,8 +403,9 @@ async function renderMasterTab(container, profile) {
         el("button", {
           type: "button",
           class: "btn btn--ghost btn--sm hide-on-mobile",
+          title: "Print Landscape Institutional Master Wall Chart",
           onClick: () => printMasterSchedule(),
-        }, [icon("print", "text-xs"), "Print Master Timetable"]),
+        }, [icon("print", "text-xs"), masterViewMode === "wall" ? "Print Master Wall Chart" : "Print Master Timetable"]),
 
         el("button", {
           type: "button",
@@ -443,6 +465,17 @@ async function renderMasterTab(container, profile) {
     const conflictSlotIds = new Set();
     for (const c of masterConflicts) {
       (c.slotIds || []).forEach((id) => conflictSlotIds.add(id));
+    }
+
+    if (masterViewMode === "wall") {
+      renderInstitutionalWallChart(mount, profile, {
+        cohorts,
+        daysToRender,
+        slotMap,
+        conflictSlotIds,
+        refreshMaster,
+      });
+      return;
     }
 
     for (const day of daysToRender) {
@@ -554,6 +587,283 @@ async function renderMasterTab(container, profile) {
   }
 
   refreshMaster();
+}
+
+// ------------------------------------ Institutional Master Wall Chart Engine --
+
+function renderInstitutionalWallChart(container, profile, { cohorts, daysToRender, slotMap, conflictSlotIds, refreshMaster }) {
+  const canManage = CAN_MANAGE.includes(profile.role);
+  const wrap = el("div", { class: "tt-wall-chart-wrap" });
+
+  const table = el("table", { class: "tt-wall-chart" });
+
+  // 1. thead
+  const thead = el("thead", {});
+  const headRow = el("tr", {});
+  headRow.append(
+    el("th", { class: "tt-wall-th-day" }, "DAY"),
+    el("th", { class: "tt-wall-th-class" }, "CLASS / STREAM")
+  );
+
+  for (const p of periods) {
+    if (p.isBreak) {
+      headRow.append(
+        el("th", { class: "tt-wall-th-break" }, [
+          el("div", { class: "tt-wall-p-name" }, p.name),
+          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
+        ])
+      );
+    } else {
+      headRow.append(
+        el("th", { class: "tt-wall-th-period" }, [
+          el("div", { class: "tt-wall-p-name" }, p.name),
+          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
+        ])
+      );
+    }
+  }
+  thead.append(headRow);
+  table.append(thead);
+
+  // 2. tbody
+  const tbody = el("tbody", {});
+
+  for (const day of daysToRender) {
+    for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+      const cohort = cohorts[cIdx];
+      const isFirstCohortOfDay = cIdx === 0;
+      const isLastCohortOfDay = cIdx === cohorts.length - 1;
+
+      const row = el("tr", {
+        class: `tt-wall-row ${isLastCohortOfDay ? "tt-wall-row--last-in-day" : ""}`,
+      });
+
+      // Day Column (rowspan across all cohorts of that day)
+      if (isFirstCohortOfDay) {
+        const dayCell = el("td", {
+          rowspan: String(cohorts.length),
+          class: "tt-wall-day-cell",
+        }, [
+          el("div", { class: "tt-wall-day-label" }, [
+            el("span", {}, day.substring(0, 4).toUpperCase()),
+          ]),
+        ]);
+        row.append(dayCell);
+      }
+
+      // Class / Stream Column
+      const ct = getClassTeacher(teachers, cohort.grade, cohort.stream);
+      const classCell = el("td", { class: "tt-wall-class-cell" }, [
+        el("span", { class: "tt-wall-class-name" }, cohort.label),
+        ct ? el("span", { class: "tt-wall-class-ct" }, `C.A: ${ct.fullName ? ct.fullName.split(" ")[0] : ct.name || "Teacher"}`) : null,
+      ].filter(Boolean));
+      row.append(classCell);
+
+      // Period Columns (handle breaks and double lesson merging)
+      for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+        const period = periods[pIdx];
+
+        if (period.isBreak) {
+          if (isFirstCohortOfDay) {
+            const breakCell = el("td", {
+              rowspan: String(cohorts.length),
+              class: "tt-wall-break-cell",
+            }, [
+              el("div", { class: "tt-wall-break-text" }, [
+                icon("coffee", "text-xs"),
+                `${period.name} (${period.startTime}–${period.endTime})`,
+              ]),
+            ]);
+            row.append(breakCell);
+          }
+          // Subsequent cohorts are covered by rowspan
+          continue;
+        }
+
+        // Instructional Period
+        const slotKey = `${cohort.grade}_${cohort.stream || ""}_${day}_${period.id}`;
+        const slot = slotMap.get(slotKey);
+
+        // Check for consecutive double lesson with identical subject & teacher
+        let isMergedDouble = false;
+        if (slot && pIdx + 1 < periods.length) {
+          const nextPeriod = periods[pIdx + 1];
+          if (!nextPeriod.isBreak) {
+            const nextKey = `${cohort.grade}_${cohort.stream || ""}_${day}_${nextPeriod.id}`;
+            const nextSlot = slotMap.get(nextKey);
+            if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+              isMergedDouble = true;
+            }
+          }
+        }
+
+        if (isMergedDouble) {
+          const hasConflict = conflictSlotIds.has(slot.id);
+          const td = el("td", {
+            colspan: "2",
+            class: `tt-wall-slot-cell tt-wall-slot-cell--merged ${hasConflict ? "tt-wall-slot-cell--conflict" : ""}`,
+          });
+
+          const teacherName = slot.teacherName ? slot.teacherName.split(" ")[0] : "—";
+          const slotBtn = el("button", {
+            type: "button",
+            class: "tt-wall-slot-btn",
+            title: `${slot.subjectName || slot.subjectCode} (Double Lesson) · ${slot.teacherName || "Unassigned"} · ${slot.room || "Room"}`,
+            onClick: () => {
+              if (canManage) {
+                classSelection = { grade: cohort.grade, stream: cohort.stream };
+                openAssignModal(profile, day, period, slot, async () => {
+                  masterSlots = await getMasterTimetable(true);
+                  masterConflicts = detectTimetableConflicts(masterSlots);
+                  refreshMaster();
+                });
+              }
+            },
+          }, [
+            el("div", { class: "tt-wall-subj-line" }, [
+              el("span", { class: "tt-wall-subj" }, slot.subjectCode),
+              el("span", { class: "tt-wall-tag-double" }, "Double"),
+              hasConflict ? el("span", { class: "tt-wall-tag-conflict" }, [icon("warning", "text-xs"), "Collision"]) : null,
+            ].filter(Boolean)),
+            el("div", { class: "tt-wall-teacher" }, teacherName),
+            el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+          ]);
+
+          td.append(slotBtn);
+          row.append(td);
+
+          pIdx++; // Skip next period
+          continue;
+        }
+
+        // Single Lesson or Empty
+        const hasConflict = slot && conflictSlotIds.has(slot.id);
+        const td = el("td", {
+          class: `tt-wall-slot-cell ${hasConflict ? "tt-wall-slot-cell--conflict" : ""}`,
+        });
+
+        if (slot) {
+          const teacherName = slot.teacherName ? slot.teacherName.split(" ")[0] : "—";
+          const slotBtn = el("button", {
+            type: "button",
+            class: "tt-wall-slot-btn",
+            title: `${slot.subjectName || slot.subjectCode} · ${slot.teacherName || "Unassigned"} · ${slot.room || "Room"}`,
+            onClick: () => {
+              if (canManage) {
+                classSelection = { grade: cohort.grade, stream: cohort.stream };
+                openAssignModal(profile, day, period, slot, async () => {
+                  masterSlots = await getMasterTimetable(true);
+                  masterConflicts = detectTimetableConflicts(masterSlots);
+                  refreshMaster();
+                });
+              }
+            },
+          }, [
+            el("div", { class: "tt-wall-subj-line" }, [
+              el("span", { class: "tt-wall-subj" }, slot.subjectCode),
+              hasConflict ? el("span", { class: "tt-wall-tag-conflict" }, [icon("warning", "text-xs"), "Collision"]) : null,
+            ].filter(Boolean)),
+            el("div", { class: "tt-wall-teacher" }, teacherName),
+            el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+          ]);
+          td.append(slotBtn);
+        } else if (canManage) {
+          const emptyBtn = el("button", {
+            type: "button",
+            class: "tt-wall-empty-btn",
+            title: `Assign ${cohort.label} ${day} ${period.name}`,
+            onClick: () => {
+              classSelection = { grade: cohort.grade, stream: cohort.stream };
+              openAssignModal(profile, day, period, null, async () => {
+                masterSlots = await getMasterTimetable(true);
+                masterConflicts = detectTimetableConflicts(masterSlots);
+                refreshMaster();
+              });
+            },
+          }, [icon("add", "text-xs")]);
+          td.append(emptyBtn);
+        } else {
+          td.append(el("span", { class: "text-muted text-xs", style: "display:block; text-align:center; padding:12px 0;" }, "—"));
+        }
+
+        row.append(td);
+      }
+
+      tbody.append(row);
+    }
+  }
+
+  table.append(tbody);
+  wrap.append(table);
+  container.append(wrap);
+
+  // 3. Institutional Footer (Class Teachers & Verification Sign-off)
+  renderInstitutionalFooter(container, cohorts);
+}
+
+function renderInstitutionalFooter(container, cohorts) {
+  const footerWrap = el("div", { class: "tt-wall-footer no-print" });
+
+  const grid = el("div", { class: "tt-wall-footer__grid" });
+
+  // Left: Class Homeroom Advisors (C.A.) Table
+  const leftCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("badge", "text-xs"),
+      "Class Teachers & Homeroom Advisors (C.A.) Directory",
+    ]),
+    el("table", { class: "tt-wall-advisors-table" }, [
+      el("thead", {}, el("tr", {}, [
+        el("th", {}, "Cohort / Class"),
+        el("th", {}, "Homeroom Advisor"),
+        el("th", {}, "TSC No. / Phone"),
+      ])),
+      el("tbody", {}, cohorts.map((c) => {
+        const ct = getClassTeacher(teachers, c.grade, c.stream);
+        return el("tr", {}, [
+          el("td", {}, el("strong", {}, c.label)),
+          el("td", {}, ct ? ct.fullName : el("span", { class: "text-muted" }, "Unassigned")),
+          el("td", {}, ct ? `${ct.tscNumber ? "TSC: " + ct.tscNumber : (ct.phone || "—")}` : "—"),
+        ]);
+      })),
+    ]),
+  ]);
+
+  // Right: Executive Sign-off & Quality Assurance Blocks
+  const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
+  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.term || "Term 1";
+
+  const rightCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("verified_user", "text-xs"),
+      "Executive Sign-off & Academic Quality Compliance",
+    ]),
+    el("div", { class: "tt-wall-signoff-card" }, [
+      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;" }, [
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Prepared By:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, "Academic Master / Timetable Coordinator"),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Signature & Date"),
+        ]),
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Approved By:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, "Principal / Headteacher"),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Official Stamp & Date"),
+        ]),
+      ]),
+      el("div", { style: "font-size:10.5px; color:var(--color-ink-soft); border-top:1px dashed var(--color-line); padding-top:8px;" }, [
+        el("strong", {}, `${schoolName} · ${currentYear} ${currentTerm} Master Schedule. `),
+        "Compiled in accordance with Kenya MOE guidelines and TSC workload distribution standards.",
+      ]),
+    ]),
+  ]);
+
+  grid.append(leftCol, rightCol);
+  footerWrap.append(grid);
+  container.append(footerWrap);
 }
 
 // --------------------------------------------------------- Class Schedules --
@@ -1320,6 +1630,179 @@ async function printMasterSchedule() {
   }
 
   const daysToPrint = masterDayFilter === "All" ? DAYS : [masterDayFilter];
+
+  if (masterViewMode === "wall") {
+    // Generate Landscape Institutional Master Wall Chart (JKUAT Format)
+    let theadHtml = `
+      <thead>
+        <tr>
+          <th style="width:45px;">DAY</th>
+          <th style="width:105px;">CLASS</th>
+          ${periods.map((p) => {
+            if (p.isBreak) {
+              return `<th class="print-wall-th-break" style="width:34px;">${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+            }
+            return `<th>${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+          }).join("")}
+        </tr>
+      </thead>
+    `;
+
+    let tbodyHtml = "<tbody>";
+    for (const day of daysToPrint) {
+      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+        const c = cohorts[cIdx];
+        const isFirst = cIdx === 0;
+        const isLast = cIdx === cohorts.length - 1;
+        const ct = getClassTeacher(teachers, c.grade, c.stream);
+
+        tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2pt solid #0f172a;' : ''}">`;
+
+        if (isFirst) {
+          tbodyHtml += `
+            <td rowspan="${cohorts.length}" class="print-wall-day-cell">
+              <div style="font-weight:900; letter-spacing:0.06em;">${day.substring(0, 4).toUpperCase()}</div>
+            </td>
+          `;
+        }
+
+        tbodyHtml += `
+          <td class="print-wall-class-cell">
+            <div><b>${escapeHtml(c.label)}</b></div>
+            ${ct ? `<div style="font-size:5.8pt; color:#475569;">C.A: ${escapeHtml(ct.fullName ? ct.fullName.split(" ")[0] : ct.name || "")}</div>` : ""}
+          </td>
+        `;
+
+        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+          const p = periods[pIdx];
+
+          if (p.isBreak) {
+            if (isFirst) {
+              tbodyHtml += `
+                <td rowspan="${cohorts.length}" class="print-wall-break-cell">
+                  <div class="print-vertical-label">${escapeHtml(p.name)} (${p.startTime}–${p.endTime})</div>
+                </td>
+              `;
+            }
+            continue;
+          }
+
+          const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+
+          // Check for consecutive double lesson
+          let isMerged = false;
+          if (slot && pIdx + 1 < periods.length) {
+            const nextP = periods[pIdx + 1];
+            if (!nextP.isBreak) {
+              const nextSlot = slotsMap[`${c.grade}_${c.stream}_${day}_${nextP.id}`];
+              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+                isMerged = true;
+              }
+            }
+          }
+
+          if (isMerged) {
+            tbodyHtml += `
+              <td colspan="2" class="print-wall-slot-cell print-wall-slot-cell--merged">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="print-wall-subj">${escapeHtml(slot.subjectCode)}</span>
+                  <span class="print-wall-tag-double">Double</span>
+                </div>
+                <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
+              </td>
+            `;
+            pIdx++;
+            continue;
+          }
+
+          if (slot) {
+            tbodyHtml += `
+              <td class="print-wall-slot-cell">
+                <div class="print-wall-subj">${escapeHtml(slot.subjectCode)}</div>
+                <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
+              </td>
+            `;
+          } else {
+            tbodyHtml += `<td class="print-wall-slot-cell" style="text-align:center; color:#cbd5e1;">—</td>`;
+          }
+        }
+
+        tbodyHtml += "</tr>";
+      }
+    }
+    tbodyHtml += "</tbody>";
+
+    // Build Advisors Directory Table HTML for print
+    const advisorsHtml = `
+      <div class="print-wall-advisors-wrap">
+        <div class="print-wall-footer-title">Class Homeroom Advisors (C.A.) Directory</div>
+        <table class="print-wall-advisors-table">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Class Teacher (Homeroom)</th>
+              <th>TSC No. / Contact</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cohorts.map((c) => {
+              const ct = getClassTeacher(teachers, c.grade, c.stream);
+              return `
+                <tr>
+                  <td><b>${escapeHtml(c.label)}</b></td>
+                  <td>${escapeHtml(ct ? ct.fullName : "Unassigned")}</td>
+                  <td>${escapeHtml(ct ? (ct.tscNumber ? `TSC: ${ct.tscNumber}` : (ct.phone || "—")) : "—")}</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Build Signatures HTML for print
+    const signaturesHtml = `
+      <div class="print-wall-signatures-wrap">
+        <div class="print-wall-footer-title">Institutional Approval & Certification</div>
+        <div class="print-wall-sig-box">
+          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+            <div>
+              <div style="font-weight:700;">Dean of Studies / Timetable Coordinator:</div>
+              <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
+              <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Signature & Date</div>
+            </div>
+            <div>
+              <div style="font-weight:700;">Principal / Headteacher:</div>
+              <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
+              <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Official Stamp & Date</div>
+            </div>
+          </div>
+          <div class="print-wall-motto-statement">
+            "${escapeHtml(schoolSettings.motto || "Excellence in Quality Competency-Based Education")}" · Kenya Junior School Compliance
+          </div>
+        </div>
+      </div>
+    `;
+
+    const pageHtml = `
+      <div class="timetable-print-page timetable-print-page--landscape">
+        <div>
+          ${buildOfficialHeader("INSTITUTIONAL MASTER TIMETABLE · WALL CHART", `Master Distribution Across All ${cohorts.length} Classes`)}
+          <table class="timetable-print-wall-chart">
+            ${theadHtml}
+            ${tbodyHtml}
+          </table>
+        </div>
+        <div class="print-wall-footer-grid">
+          ${advisorsHtml}
+          ${signaturesHtml}
+        </div>
+      </div>
+    `;
+
+    printTimetableDocument(pageHtml);
+    return;
+  }
 
   let pagesHtml = "";
   for (const day of daysToPrint) {

@@ -29,7 +29,7 @@ import { cached, invalidate, invalidatePrefix } from "./query-cache.js";
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-const DEFAULT_PERIODS = [
+export const DEFAULT_PERIODS = [
   { name: "Period 1", startTime: "08:00", endTime: "08:40", isBreak: false },
   { name: "Period 2", startTime: "08:40", endTime: "09:20", isBreak: false },
   { name: "Period 3", startTime: "09:20", endTime: "10:00", isBreak: false },
@@ -40,6 +40,7 @@ const DEFAULT_PERIODS = [
   { name: "Lunch", startTime: "12:20", endTime: "13:10", isBreak: true },
   { name: "Period 7", startTime: "13:10", endTime: "13:50", isBreak: false },
   { name: "Period 8", startTime: "13:50", endTime: "14:30", isBreak: false },
+  { name: "Games & Clubs", startTime: "14:30", endTime: "15:30", isBreak: true },
 ];
 
 // ------------------------------------------------------------------ Periods --

@@ -189,21 +189,21 @@ describe("Deep Linking Engine & Cosmic Alien 404", () => {
       container.remove();
     });
 
-    it("renders the cosmic alien 404 container and UFO illustration", () => {
+    it("renders the institutional 404 container and crest illustration", () => {
       renderAlienNotFound(container, {
         badRoute: "/nonexistent-page",
         routes,
         authed: true,
       });
 
-      const alienContainer = container.querySelector(".alien-404-container");
-      expect(alienContainer).not.toBeNull();
+      const cardContainer = container.querySelector(".alien-404-container");
+      expect(cardContainer).not.toBeNull();
 
-      const ufo = container.querySelector(".alien-404__ufo");
-      expect(ufo).not.toBeNull();
+      const crest = container.querySelector(".alien-404__ufo");
+      expect(crest).not.toBeNull();
 
       const title = container.querySelector(".alien-404__title");
-      expect(title.textContent).toContain("Aliens might have eaten that page");
+      expect(title.textContent).toBe("Page Not Found");
 
       const badPathCode = container.querySelector(".alien-bad-path");
       expect(badPathCode.textContent).toBe("/nonexistent-page");
