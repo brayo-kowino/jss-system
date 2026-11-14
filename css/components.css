@@ -2094,6 +2094,277 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 /* ==========================================================================
+   Cosmic Alien 404 Experience & Deep Link Engine
+   ========================================================================== */
+.alien-404-container {
+  max-width: 680px;
+  margin: var(--sp-6) auto;
+  text-align: center;
+  padding: var(--sp-7) var(--sp-6);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.alien-404__hero-art {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--sp-2);
+}
+
+.alien-404__ufo {
+  width: 220px;
+  height: 165px;
+  display: block;
+  animation: ufoFloat 4s ease-in-out infinite;
+  filter: drop-shadow(0 10px 16px rgba(56, 189, 248, 0.2));
+}
+
+@keyframes ufoFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-9px) rotate(1.8deg); }
+}
+
+.alien-beam {
+  animation: beamPulse 3s ease-in-out infinite;
+}
+
+@keyframes beamPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.45; }
+}
+
+.alien-page-abduction {
+  animation: pageWobble 3s ease-in-out infinite;
+  transform-origin: 120px 128px;
+}
+
+@keyframes pageWobble {
+  0%, 100% { transform: translateY(0) rotate(-15deg); }
+  50% { transform: translateY(-7px) rotate(-8deg); }
+}
+
+.alien-antenna-glow {
+  animation: antennaBlink 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes antennaBlink {
+  from { filter: drop-shadow(0 0 2px #FBBF24); }
+  to { filter: drop-shadow(0 0 7px #F59E0B); }
+}
+
+.alien-light {
+  animation: lightsSequencer 1.2s infinite alternate;
+}
+.alien-light--1 { animation-delay: 0s; }
+.alien-light--2 { animation-delay: 0.25s; }
+.alien-light--3 { animation-delay: 0.5s; }
+.alien-light--4 { animation-delay: 0.75s; }
+.alien-light--5 { animation-delay: 1s; }
+
+@keyframes lightsSequencer {
+  from { opacity: 0.4; }
+  to { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }
+}
+
+.alien-404__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #0284c7;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--sp-3);
+}
+
+.alien-404__title {
+  font-size: clamp(20px, 3.2vw, 28px);
+  font-weight: 800;
+  color: var(--color-ink);
+  margin-bottom: var(--sp-2);
+  line-height: 1.25;
+}
+
+.alien-404__subtitle {
+  font-size: var(--fs-sm);
+  color: var(--color-ink-soft);
+  line-height: 1.55;
+  max-width: 520px;
+  margin: 0 auto var(--sp-5);
+}
+
+.alien-bad-path {
+  background: var(--color-cream-dim, #f1f5f9);
+  color: #e11d48;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  word-break: break-all;
+  border: 1px solid rgba(225, 29, 72, 0.2);
+}
+
+.alien-404__suggestion {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin: 0 auto var(--sp-4);
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  font-size: var(--fs-xs);
+  color: #0369a1;
+}
+
+.alien-404__search-wrap {
+  max-width: 520px;
+  margin: 0 auto var(--sp-5);
+  text-align: left;
+}
+
+.alien-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-soft);
+  pointer-events: none;
+  font-size: 18px;
+}
+
+.alien-404__search-input {
+  padding-left: 38px !important;
+  width: 100%;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.alien-404__search-results {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  margin-top: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+
+.alien-search-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-ink);
+  font-size: var(--fs-sm);
+  transition: background 0.15s;
+}
+
+.alien-search-item:last-child {
+  border-bottom: none;
+}
+
+.alien-search-item:hover {
+  background: var(--color-cream-dim);
+}
+
+.alien-search-empty {
+  padding: 12px 14px;
+  font-size: var(--fs-xs);
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.alien-404__teleports {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+}
+
+/* Deep link button styling */
+.deep-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.deep-link-btn:hover {
+  background: var(--color-cream-dim);
+  color: var(--color-primary-800);
+  border-color: var(--color-primary-400);
+  transform: translateY(-1px);
+}
+
+/* Dark Mode Overrides for Alien 404 */
+[data-theme="dark"] .alien-404-container {
+  background: rgba(15, 23, 42, 0.75);
+  border-color: rgba(56, 189, 248, 0.28);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 35px rgba(56, 189, 248, 0.08);
+}
+
+[data-theme="dark"] .alien-404__badge {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38BDF8;
+}
+
+[data-theme="dark"] .alien-bad-path {
+  background: rgba(225, 29, 72, 0.2);
+  border-color: rgba(225, 29, 72, 0.4);
+  color: #FB7185;
+}
+
+[data-theme="dark"] .alien-404__suggestion {
+  background: rgba(14, 165, 233, 0.14);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #7DD3FC;
+}
+
+[data-theme="dark"] .alien-search-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="dark"] .deep-link-btn {
+  background: var(--color-surface);
+  border-color: var(--color-line);
+  color: var(--color-ink-soft);
+}
+
+[data-theme="dark"] .deep-link-btn:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-300);
+}
+
+/* ==========================================================================
    Student Profile (rich modal opened from the Students screen)
    ========================================================================== */
 .profile-header {

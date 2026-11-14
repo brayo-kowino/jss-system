@@ -5,6 +5,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listMarks, bulkUpsertMarks, listMarksByAssessment, upsertMark } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -60,11 +61,26 @@ export { buildMarksMascotSvg };
 
 // ------------------------------------------------------------------ Render --
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   currentProfile = profile;
   startAutoSaveLoop();
   [classes, allSubjects, allAssessments] = await Promise.all([listClasses(), listSubjects(), listAssessments()]);
+
+  // Resolve dynamic deep link parameters
+  if (params.tab && ["entry", "review"].includes(params.tab)) {
+    activeTab = params.tab;
+  }
+  if (params.grade || params.class) {
+    const g = params.grade || params.class;
+    selection.classKey = params.stream ? `${g}|${params.stream}` : `${g}|`;
+  }
+  if (params.subject || params.subjectCode) {
+    selection.subjectCode = params.subject || params.subjectCode;
+  }
+  if (params.assessment || params.assessmentId) {
+    selection.assessmentId = params.assessment || params.assessmentId;
+  }
 
   allowedSubjectCodes = null;
   allowedClassKeys = null;
@@ -385,6 +401,25 @@ function renderPicker(container, profile, bodyMount) {
     el("div", { class: "field" }, [
       el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("assignment", "text-xs"), "Assessment"]),
       assessmentSelect,
+    ]),
+    el("div", { class: "field", style: "display:flex; align-items:flex-end;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        style: "height:38px; width:100%; justify-content:center;",
+        title: "Copy direct link to this scoresheet",
+        onClick: () => {
+          const p = { tab: activeTab };
+          if (selection.classKey) {
+            const [g, s] = selection.classKey.split("|");
+            p.grade = g;
+            if (s) p.stream = s;
+          }
+          if (selection.subjectCode) p.subject = selection.subjectCode;
+          if (selection.assessmentId) p.assessment = selection.assessmentId;
+          copyDeepLink("/marks", p, "Scoresheet link");
+        },
+      }, [icon("share", "text-xs"), "Share Sheet"]),
     ])
   );
   container.append(row);
@@ -458,6 +493,15 @@ function renderPicker(container, profile, bodyMount) {
     selection.assessmentId = assessmentSelect.value;
     maybeLoad(profile, bodyMount);
   });
+
+  // Automatically trigger loading if deep linked with class, subject, and assessment
+  if (selection.classKey && selection.subjectCode) {
+    refreshAssessmentOptions();
+    if (selection.assessmentId) {
+      assessmentSelect.value = selection.assessmentId;
+      setTimeout(() => maybeLoad(profile, bodyMount), 80);
+    }
+  }
 }
 
 /**

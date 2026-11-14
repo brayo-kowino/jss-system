@@ -17,6 +17,7 @@ import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/s
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 let classes = [];
 let settings = null;
@@ -51,10 +52,22 @@ function infoTooltip(title, text, align = "center") {
 import { buildFinanceMascotSvg } from "../js/components/mascot.js";
 export { buildFinanceMascotSvg };
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);
-  selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  selection.academicYear = params.academicYear || params.year || selection.academicYear || settings.currentAcademicYear || "";
+  selection.term = params.term || selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  if (params.grade || params.class) {
+    selection.grade = params.grade || params.class;
+  }
+  if (params.stream) {
+    selection.stream = params.stream;
+  }
+  if (params.status && ["all", "pending", "cleared"].includes(params.status)) {
+    statusFilter = params.status;
+  }
+  if (params.q || params.search) {
+    searchQuery = (params.q || params.search).toLowerCase().trim();
+  }
 
   const wrap = el("div", { class: "fees-page" });
 
@@ -82,6 +95,20 @@ export async function render({ profile }) {
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
         el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
+        el("button", {
+          type: "button",
+          class: "fees-pill deep-link-btn",
+          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
+          title: "Copy link to Fees module",
+          onClick: () => {
+            const p = {};
+            if (selection.grade) p.grade = selection.grade;
+            if (selection.stream) p.stream = selection.stream;
+            if (selection.academicYear) p.academicYear = selection.academicYear;
+            if (selection.term) p.term = selection.term;
+            copyDeepLink("/fees", p, "Fees link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
       ]),
     ]),
 
@@ -107,6 +134,36 @@ export async function render({ profile }) {
   wrap.append(receiptMount);
 
   renderPicker(pickerCard, profile, balancesMount, paymentsMount, receiptMount);
+
+  // Auto-action if triggered via deep link
+  if (params.action === "new-structure") {
+    setTimeout(() => {
+      openStructureModal(profile, null, structuresCard);
+    }, 150);
+  } else if (selection.grade) {
+    const validStreams = streamOptions(selection.grade);
+    if (!selection.stream && validStreams.length > 0) {
+      if (params.stream && validStreams.includes(params.stream)) {
+        selection.stream = params.stream;
+      } else {
+        selection.stream = validStreams[0];
+      }
+    }
+    setTimeout(async () => {
+      await loadBalances(profile, balancesMount, paymentsMount, receiptMount);
+      const targetStudentId = params.studentId || params.id || params.admNo;
+      if (targetStudentId && balanceRows.length) {
+        const found = balanceRows.find((r) =>
+          r.student.id === targetStudentId ||
+          r.student.admissionNumber === targetStudentId
+        );
+        if (found) {
+          openPaymentModal(profile, found, balancesMount, paymentsMount, receiptMount);
+        }
+      }
+    }, 120);
+  }
+
   return wrap;
 }
 
@@ -128,6 +185,12 @@ function renderStructures(container, profile) {
       el("p", { class: "text-muted text-sm", style: "margin:4px 0 0 0;" }, "Baseline tuition amounts per grade and academic term."),
     ]),
     el("div", { style: "display:flex; gap:8px; align-items:center; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy link to Fee Structures",
+        onClick: () => copyDeepLink("/fees", { tab: "structures" }, "Fee structures link"),
+      }, [icon("share", "text-xs"), "Share Structures"]),
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
@@ -353,6 +416,19 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   const actions = el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end; gap:8px;" }, [
     el("button", {
       type: "button",
+      class: "btn btn--ghost btn--sm deep-link-btn",
+      title: "Share a link with these class & term filters",
+      onClick: () => {
+        const p = {};
+        if (gradeSelect.value) p.grade = gradeSelect.value;
+        if (streamSelect.value) p.stream = streamSelect.value;
+        if (yearInput.value.trim()) p.academicYear = yearInput.value.trim();
+        if (termSelect.value) p.term = termSelect.value;
+        copyDeepLink("/fees", p, "Fee filter link");
+      },
+    }, [icon("share", "text-xs"), "Share Filter"]),
+    el("button", {
+      type: "button",
       class: "btn btn--primary btn--sm",
       onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
     }, [icon("search"), "Load Balances & Records"]),
@@ -525,11 +601,24 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
       ]),
       el("p", { class: "text-muted text-sm", style: "margin:4px 0 0 0;" }, `${totalStudents} active student records in this class roster.`),
     ]),
-    el("button", {
-      type: "button",
-      class: "btn btn--ghost btn--sm",
-      onClick: () => exportClassFeeSheetCsv(),
-    }, [icon("download"), "Export Sheet (CSV)"]),
+    el("div", { style: "display:flex; gap:8px; align-items:center; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Share direct link to this class fee roster",
+        onClick: () => {
+          const p = { grade, stream, academicYear, term };
+          if (statusFilter !== "all") p.status = statusFilter;
+          if (searchQuery) p.q = searchQuery;
+          copyDeepLink("/fees", p, `${grade} ${stream} fee roster link`);
+        },
+      }, [icon("share", "text-xs"), "Share Balances"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        onClick: () => exportClassFeeSheetCsv(),
+      }, [icon("download"), "Export Sheet (CSV)"]),
+    ]),
   ]);
   rosterCard.append(rosterHeader);
 
@@ -686,17 +775,36 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
   const body = el("form", {});
 
   // Context card with balance indicator
-  const contextCard = el("div", { class: "modal-student-context" }, [
+  const contextCard = el("div", {
+    class: "modal-student-context",
+    style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;",
+  }, [
     el("div", {}, [
       el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm); display:block;" }, student.fullName),
       el("span", { class: "text-muted text-xs" }, `Adm No: ${student.admissionNumber || "—"} · ${grade} ${stream} · ${term} ${academicYear}`),
     ]),
-    el("div", { style: "text-align:right;" }, [
-      el("span", { class: "text-muted text-xs", style: "display:block;" }, "Outstanding Balance"),
-      el("span", {
-        class: `badge badge--${(balance || 0) > 0 ? "danger" : "success"}`,
-        style: "font-weight:700; font-family:var(--font-mono, monospace);",
-      }, formatKES(balance)),
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      el("div", { style: "text-align:right;" }, [
+        el("span", { class: "text-muted text-xs", style: "display:block;" }, "Outstanding Balance"),
+        el("span", {
+          class: `badge badge--${(balance || 0) > 0 ? "danger" : "success"}`,
+          style: "font-weight:700; font-family:var(--font-mono, monospace);",
+        }, formatKES(balance)),
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--xs deep-link-btn",
+        title: "Copy link to this learner's fee ledger",
+        onClick: () => {
+          copyDeepLink("/fees", {
+            grade,
+            stream,
+            academicYear,
+            term,
+            studentId: student.id,
+          }, `Fee link for ${student.fullName}`);
+        },
+      }, [icon("share", "text-xs"), "Share Link"]),
     ]),
   ]);
 

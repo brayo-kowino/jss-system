@@ -18,6 +18,7 @@ import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
+import { parseDeepLink, renderAlienNotFound, buildDeepLink } from "./services/deep-link.service.js";
 
 // These three are the only views that can be reached *before* we know a
 // visitor is on an active subscription (login, forced password change, and
@@ -107,21 +108,24 @@ export function getDefaultRoute(profile) {
   return "/dashboard";
 }
 
-// Reads location.hash defensively: decodes safely, strips anything that
-// isn't a plausible route path, and caps the length, so a malformed or
-// malicious link can never reach the route table or the DOM as-is.
-function currentPath(profile) {
-  let raw = location.hash.replace(/^#[!/]*/, "/");
-  if (!raw || raw === "/") return profile ? getDefaultRoute(profile) : "/dashboard";
-  try {
-    raw = decodeURIComponent(raw);
-  } catch {
-    return "__invalid__"; // malformed percent-encoding (e.g. a stray "%")
+let lastParsedParams = {};
+
+export function currentParams() {
+  return { ...lastParsedParams };
+}
+
+// Reads location.hash and search query through the deep linking engine.
+// Decodes safely, extracts structured query parameters, and validates the route path.
+function currentRouteState(profile) {
+  const parsed = parseDeepLink(location.hash);
+  lastParsedParams = parsed.params;
+
+  let raw = parsed.path;
+  if (!raw || raw === "/") return { path: profile ? getDefaultRoute(profile) : "/dashboard", params: parsed.params, rawHash: parsed.raw };
+  if (raw.length > MAX_PATH_LENGTH || !SAFE_PATH_RE.test(raw)) {
+    return { path: "__invalid__", params: parsed.params, rawHash: parsed.raw };
   }
-  raw = raw.split("?")[0].split("#")[0].trim();
-  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
-  if (raw.length > MAX_PATH_LENGTH || !SAFE_PATH_RE.test(raw)) return "__invalid__";
-  return raw;
+  return { path: raw, params: parsed.params, rawHash: parsed.raw };
 }
 
 export function navigate(path) {
@@ -133,19 +137,39 @@ export function navigate(path) {
   }
 }
 
-function renderNotFound(app, { authed }) {
-  const actionPath = authed ? "/dashboard" : "/login";
-  const actionLabel = authed ? "Go to dashboard" : "Go to sign in";
-  app.innerHTML = "";
-  app.append(
-    el("div", { class: "not-found-page" }, [
-      el("div", { class: "not-found-page__code" }, "404"),
-      el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "explore_off"),
-      el("h2", {}, "That page doesn't exist"),
-      el("p", { class: "text-muted" }, "The link you followed may be broken, out of date, or mistyped."),
-      el("button", { class: "btn btn--primary", style: "margin-top:16px;", onClick: () => navigate(actionPath) }, [icon("home"), actionLabel]),
-    ])
-  );
+export function navigateWithParams(path, params = {}) {
+  const norm = path.startsWith("/") ? path : `/${path}`;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") {
+      qs.set(k, String(v).trim());
+    }
+  }
+  const qPart = qs.toString() ? `?${qs.toString()}` : "";
+  navigate(`${norm}${qPart}`);
+}
+
+function renderNotFound(app, { authed, badRoute, profile }) {
+  if (authed && profile) {
+    try {
+      const main = renderShell(app, profile, "/dashboard");
+      renderAlienNotFound(main, {
+        badRoute,
+        routes,
+        authed: true,
+        onNavigate: navigate,
+      });
+      return;
+    } catch (e) {
+      console.warn("Could not render in-shell 404, falling back to full container:", e);
+    }
+  }
+  renderAlienNotFound(app, {
+    badRoute,
+    routes,
+    authed: false,
+    onNavigate: navigate,
+  });
 }
 
 // Bumped on every renderRoute() call. Each call captures its own token and
@@ -197,16 +221,19 @@ export async function renderRoute() {
     return;
   }
 
-  let path;
+  let path, params, rawHash;
   try {
-    path = currentPath(profile);
+    const routeState = currentRouteState(profile);
+    path = routeState.path;
+    params = routeState.params;
+    rawHash = routeState.rawHash;
   } catch (err) {
-    showFatalError(err, { where: "router.currentPath" });
+    showFatalError(err, { where: "router.currentRouteState" });
     return;
   }
 
   if (path === "__invalid__" || !routes[path]) {
-    renderNotFound(app, { authed: !!profile });
+    renderNotFound(app, { authed: !!profile, badRoute: rawHash || path, profile });
     return;
   }
 
@@ -366,11 +393,11 @@ export async function renderRoute() {
       const maybeTimeout = (p) => offline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
       const view = await maybeTimeout(loadView(path, route));
       if (isStale()) return;
-      const content = await maybeTimeout(view.render({ profile, title: route.title }));
+      const content = await maybeTimeout(view.render({ profile, title: route.title, params }));
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
-      await view.init?.({ profile });
+      await view.init?.({ profile, params });
     } catch (viewErr) {
       if (isStale()) return;
       renderInlineError(main, viewErr, {
@@ -384,11 +411,11 @@ export async function renderRoute() {
           const retryMaybeTimeout = (p) => retryOffline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
           const view = await retryMaybeTimeout(loadView(path, route));
           if (retryToken !== currentRenderToken) return;
-          const content = await retryMaybeTimeout(view.render({ profile, title: route.title }));
+          const content = await retryMaybeTimeout(view.render({ profile, title: route.title, params }));
           if (retryToken !== currentRenderToken) return;
           main.innerHTML = "";
           main.appendChild(content);
-          await view.init?.({ profile });
+          await view.init?.({ profile, params });
         },
       });
     }

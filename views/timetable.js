@@ -20,6 +20,7 @@ import {
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 const CAN_SEE_ALL_TEACHERS = ["admin", "academic_master", "principal", "deputy_principal"];
@@ -168,7 +169,7 @@ function renderWorkflowGuide() {
 
 // ------------------------------------------------------------- Main Render --
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   const canManage = CAN_MANAGE.includes(profile.role);
   if (canManage) {
     await seedDefaultPeriodsIfEmpty();
@@ -190,6 +191,23 @@ export async function render({ profile }) {
   // Non-admins default to classes or their own teacher tab
   if (!canManage) {
     activeTab = "classes";
+  }
+
+  // Resolve dynamic deep link parameters
+  if (params.tab && ["master", "classes", "teachers", "periods"].includes(params.tab)) {
+    activeTab = params.tab;
+  }
+  if (params.day && ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(params.day)) {
+    masterDayFilter = params.day;
+  }
+  if (params.grade || params.class) {
+    classSelection = {
+      grade: params.grade || params.class,
+      stream: params.stream || "",
+    };
+  }
+  if (params.teacherId) {
+    teacherSelection = { teacherId: params.teacherId };
   }
 
   const wrap = el("div", { class: "timetable-view-wrap" });
@@ -349,6 +367,17 @@ async function renderMasterTab(container, profile) {
           class: "btn btn--primary btn--sm",
           onClick: () => openAutoGenerateModal(profile, card, () => renderMasterTab(container, profile)),
         }, [icon("auto_fix_high", "text-xs"), "Auto-Generate Master"]),
+
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm deep-link-btn",
+          title: "Copy direct link to this timetable view",
+          onClick: () => {
+            const p = { tab: "master" };
+            if (masterDayFilter !== "All") p.day = masterDayFilter;
+            copyDeepLink("/timetable", p, "Master Timetable link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
 
         el("button", {
           type: "button",
@@ -611,6 +640,18 @@ function renderClassPicker(container, profile, gridMount) {
     el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
       el("button", {
         type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy direct link to this class timetable",
+        onClick: () => {
+          const p = { tab: "classes" };
+          if (classSelection.grade) p.grade = classSelection.grade;
+          if (classSelection.stream) p.stream = classSelection.stream;
+          copyDeepLink("/timetable", p, `${classSelection.grade} ${classSelection.stream || ""} timetable link`);
+        },
+      }, [icon("share", "text-xs"), "Share Link"]),
+
+      el("button", {
+        type: "button",
         class: "btn btn--primary btn--sm hide-on-mobile",
         onClick: () => printSingleClassSchedule(classSelection.grade, classSelection.stream),
       }, [icon("print", "text-xs"), "Print This Class"]),
@@ -735,6 +776,17 @@ async function renderTeacherPicker(container, profile, gridMount) {
         ]),
       ]),
       el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm deep-link-btn",
+          title: "Copy direct link to this teacher's schedule",
+          onClick: () => {
+            const p = { tab: "teachers" };
+            if (teacherSelection.teacherId) p.teacherId = teacherSelection.teacherId;
+            copyDeepLink("/timetable", p, "Faculty timetable link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
+
         el("button", {
           type: "button",
           class: "btn btn--primary btn--sm hide-on-mobile",

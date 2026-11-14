@@ -16,6 +16,7 @@ import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
 import { buildAttendanceMascotSvg } from "../js/components/mascot.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 export { buildAttendanceMascotSvg };
 
@@ -35,7 +36,7 @@ let selection = { classKey: "", date: "" };
 let roster = [];
 let currentStatuses = {}; // studentId -> status
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   if (isStarterPlan(getCurrentSchool())) {
     return renderModuleUpgrade({
       profile,
@@ -52,6 +53,15 @@ export async function render({ profile }) {
 
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
   selection.date = selection.date || todayStr();
+
+  // Resolve dynamic deep link parameters
+  if (params.grade || params.class) {
+    const g = params.grade || params.class;
+    selection.classKey = params.stream ? `${g}|${params.stream}` : `${g}|`;
+  }
+  if (params.date) {
+    selection.date = params.date;
+  }
 
   allowedClassKeys = null;
   if (!CAN_MARK_ANY_CLASS.includes(profile.role)) {
@@ -158,6 +168,22 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
       el("h3", { style: "margin:0; font-family:var(--font-display); color:var(--color-primary-900); font-size:1.05rem;" }, "Roll Call Filter"),
     ]),
     el("div", { style: "display:flex; gap:6px; align-items:center;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        style: "font-size:11px; padding:2px 8px;",
+        title: "Copy direct link to this register",
+        onClick: () => {
+          const p = {};
+          if (selection.classKey) {
+            const [g, s] = selection.classKey.split("|");
+            p.grade = g;
+            if (s) p.stream = s;
+          }
+          if (selection.date) p.date = selection.date;
+          copyDeepLink("/attendance", p, "Attendance register link");
+        },
+      }, [icon("share", "text-xs"), "Share Link"]),
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",

@@ -42,6 +42,7 @@ import { datePickerInput, datePickerField } from "../js/components/datepicker.js
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 let students = [];
 let parents = [];
@@ -61,7 +62,7 @@ const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archive
 import { buildStudentsMascotSvg } from "../js/components/mascot.js";
 export { buildStudentsMascotSvg };
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   const [studentsRes, parentsRes, classesRes, settingsRes, openIssuesRes] = await Promise.all([
     listStudents(),
@@ -222,13 +223,25 @@ export async function render({ profile }) {
   // 4. Modern Table Card
   const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
   const tableHeader = el("div", {
-    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line); flex-wrap:wrap; gap:8px;",
   }, [
     el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
       icon("badge", "text-primary"),
       el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Learner Directory"),
       el("span", { class: "badge badge--neutral", id: "students-count-badge", style: "font-size:11px;" }, `${students.length} Learners`),
     ]),
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm deep-link-btn hide-on-mobile",
+      title: "Copy direct link with current filters",
+      onClick: () => {
+        const p = {};
+        if (filterGrade) p.grade = filterGrade;
+        if (filterStatus) p.status = filterStatus;
+        if (filterText) p.q = filterText;
+        copyDeepLink("/students", p, "Learner directory link");
+      },
+    }, [icon("share", "text-xs"), "Share Filtered View"]),
   ]);
   tableCard.append(tableHeader);
 
@@ -253,26 +266,49 @@ export async function render({ profile }) {
     renderTable(tableWrap, profile);
   });
 
-  // Handle URL query filters and actions (e.g. from Command Palette)
-  const hashParts = location.hash.split("?");
-  const hashParams = new URLSearchParams(hashParts[1] || "");
-  const queryParam = hashParams.get("q");
-  const actionParam = hashParams.get("action");
+  // Handle dynamic deep link parameters & URL query actions
+  const queryParam = params.q || params.search;
+  const actionParam = params.action;
+  const studentIdParam = params.id || params.studentId || params.admNo || params.admissionNumber;
+  const gradeParam = params.grade || params.class;
+  const streamParam = params.stream;
+  const statusParam = params.status;
+
+  if (gradeParam) {
+    const targetGrade = streamParam ? `${gradeParam}|${streamParam}` : gradeParam;
+    filterGrade = targetGrade;
+    gradeSelect.value = targetGrade;
+  }
+
+  if (statusParam) {
+    filterStatus = statusParam;
+    statusSelect.value = statusParam;
+  }
 
   if (queryParam) {
     filterText = queryParam.toLowerCase();
     searchInput.value = queryParam;
-    renderTable(tableWrap, profile);
-  } else {
-    filterText = "";
   }
 
-  if (actionParam === "new") {
+  if (gradeParam || statusParam || queryParam) {
+    renderTable(tableWrap, profile);
+  }
+
+  if (actionParam === "new" || actionParam === "admit") {
     setTimeout(() => {
       if (classes.length) {
         openStudentForm(profile);
       }
     }, 120);
+  }
+
+  if (studentIdParam) {
+    setTimeout(() => {
+      const match = students.find((s) => s.id === studentIdParam || s.admissionNumber === studentIdParam);
+      if (match) {
+        openStudentProfile(profile, match, params.tab || "overview");
+      }
+    }, 150);
   }
 
   setTimeout(() => {
@@ -642,6 +678,12 @@ function buildProfileHeader(profile, student, refreshAll) {
       ]),
     ]),
     el("div", { class: "profile-actions" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy direct link to this learner's profile",
+        onClick: () => copyDeepLink("/students", { id: student.id }, `Student link (${student.fullName})`),
+      }, [icon("share", "text-xs"), "Share Link"]),
       ...(["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStudentForm(profile, student, refreshAll) }, [icon("edit"), "Edit Info"]),
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTransferForm(profile, student, refreshAll) }, [icon("swap_horiz"), "Transfer/Promote"]),
