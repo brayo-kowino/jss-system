@@ -24,6 +24,7 @@ import {
   buildDeepLink,
   savePostLoginRedirect,
   resolvePostLoginDestination,
+  clearPostLoginRedirect,
 } from "./services/deep-link.service.js";
 
 // These three are the only views that can be reached *before* we know a
@@ -385,6 +386,7 @@ export async function renderRoute() {
     // the inline skeleton/error card (which keeps the shell intact) instead
     // of falsely triggering a full-screen "Eeskia couldn't start" fatal error.
     window.__jssBootOk?.();
+    clearPostLoginRedirect();
 
     main.innerHTML = "";
     main.appendChild(skeletonPage(route.skeleton || {}));

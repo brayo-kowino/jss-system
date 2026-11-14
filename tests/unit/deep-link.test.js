@@ -10,6 +10,8 @@ import {
   savePostLoginRedirect,
   consumePostLoginRedirect,
   resolvePostLoginDestination,
+  peekPostLoginRedirect,
+  clearPostLoginRedirect,
   POST_LOGIN_REDIRECT_KEY,
 } from "../../js/services/deep-link.service.js";
 
@@ -368,12 +370,30 @@ describe("Deep Linking Engine & Cosmic Alien 404", () => {
       const adminProfile = { role: "admin" };
       const fallbackFn = (p) => p.role === "admin" ? "/dashboard" : "/marks";
 
-      const dest = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
-      expect(dest).toBe("/fees?academicYear=2026&term=Term+3");
+      // Non-destructive read allows multiple listeners during login (onAuthChange + form submit)
+      // to resolve the exact same destination without clobbering each other
+      const dest1 = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
+      expect(dest1).toBe("/fees?academicYear=2026&term=Term+3");
 
-      // Now with no redirect saved, it returns the fallback
+      const dest2 = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
+      expect(dest2).toBe("/fees?academicYear=2026&term=Term+3");
+
+      // Once the target route mounts, clearPostLoginRedirect() clears it
+      clearPostLoginRedirect();
       const normalDest = resolvePostLoginDestination(adminProfile, routes, fallbackFn);
       expect(normalDest).toBe("/dashboard");
+    });
+
+    it("peekPostLoginRedirect inspects destination without removing from storage", () => {
+      savePostLoginRedirect("#/fees?academicYear=2026&term=Term+3");
+      const adminProfile = { role: "admin" };
+
+      const peeked = peekPostLoginRedirect(adminProfile, routes);
+      expect(peeked).toBe("/fees?academicYear=2026&term=Term+3");
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBe("#/fees?academicYear=2026&term=Term+3");
+
+      clearPostLoginRedirect();
+      expect(sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY)).toBeNull();
     });
   });
 });

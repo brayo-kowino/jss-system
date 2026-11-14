@@ -552,6 +552,14 @@ export function init() {
       await setPersistence(auth, rememberCheckbox.checked ? browserLocalPersistence : browserSessionPersistence);
       const result = await login(email, password);
 
+      const safeNavigatePostLogin = (prof) => {
+        const current = typeof location !== "undefined" ? location.hash : "";
+        if (!current || current === "#" || current.startsWith("#/login")) {
+          const dest = resolvePostLoginDestination(prof, routes, getDefaultRoute);
+          navigate(dest);
+        }
+      };
+
       // Admin account protection gates: the login service returns extra flags
       // instead of a plain profile when additional verification is needed.
       // Rendered via the same shared gate screens router.js uses on every
@@ -559,17 +567,17 @@ export function init() {
       // each screen (see js/components/auth-gate.js).
       if (result.needsApproval) {
         restore();
-        renderApprovalGate(result, () => navigate(resolvePostLoginDestination(result, routes, getDefaultRoute)));
+        renderApprovalGate(result, () => safeNavigatePostLogin(result));
         return;
       }
       if (result.needs2FA) {
         restore();
-        renderTwoFactorGate(result, () => navigate(resolvePostLoginDestination(result, routes, getDefaultRoute)));
+        renderTwoFactorGate(result, () => safeNavigatePostLogin(result));
         return;
       }
 
       eyes?.happy();
-      navigate(resolvePostLoginDestination(result, routes, getDefaultRoute));
+      safeNavigatePostLogin(result);
     } catch (err) {
       errorEl.textContent = friendlyError(err);
       restore();

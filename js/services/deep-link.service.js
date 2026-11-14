@@ -458,18 +458,17 @@ export function savePostLoginRedirect(target) {
 }
 
 /**
- * Retrieves and clears the saved post-login redirect, verifying whether the authenticated
- * user's role is authorized to access the destination route.
+ * Reads and validates the saved post-login redirect for the given profile and routes map
+ * WITHOUT clearing it from sessionStorage.
+ * This is safe against concurrent/racing auth transitions (e.g. onAuthChange listener vs.
+ * form submission handler vs. 2FA gate callbacks).
  * Returns null if no valid, authorized destination was stored.
  */
-export function consumePostLoginRedirect(profile, routesMap) {
+export function peekPostLoginRedirect(profile, routesMap) {
   if (typeof sessionStorage === "undefined" || !profile) return null;
   let saved = null;
   try {
     saved = sessionStorage.getItem(POST_LOGIN_REDIRECT_KEY);
-    if (saved) {
-      sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
-    }
   } catch {
     return null;
   }
@@ -494,11 +493,34 @@ export function consumePostLoginRedirect(profile, routesMap) {
 }
 
 /**
+ * Clears the stored post-login redirect from sessionStorage once the user has
+ * successfully navigated to and mounted a protected view.
+ */
+export function clearPostLoginRedirect() {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.removeItem(POST_LOGIN_REDIRECT_KEY);
+  } catch {}
+}
+
+/**
+ * Retrieves and clears the saved post-login redirect, verifying whether the authenticated
+ * user's role is authorized to access the destination route.
+ * Returns null if no valid, authorized destination was stored.
+ */
+export function consumePostLoginRedirect(profile, routesMap) {
+  const dest = peekPostLoginRedirect(profile, routesMap);
+  clearPostLoginRedirect();
+  return dest;
+}
+
+/**
  * Resolves the destination route for an authenticated profile:
- * Either the verified deep link they originally requested, or their default landing page.
+ * Either the verified deep link they originally requested (non-destructive read),
+ * or their default landing page.
  */
 export function resolvePostLoginDestination(profile, routesMap, defaultFallback) {
-  const deepLinkTarget = consumePostLoginRedirect(profile, routesMap);
+  const deepLinkTarget = peekPostLoginRedirect(profile, routesMap);
   if (deepLinkTarget) {
     return deepLinkTarget;
   }
