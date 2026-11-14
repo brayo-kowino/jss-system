@@ -10376,14 +10376,123 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: var(--color-ink-soft);
 }
 
-@media (max-width: 900px) {
-  .topbar__search-text,
+.topbar__install-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.topbar__install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1080px) {
   .topbar__search-kbd {
     display: none;
   }
-  .topbar__search-trigger {
-    padding: 7px;
+}
+
+@media (max-width: 960px) {
+  .topbar__install-btn-text {
+    display: none !important;
+  }
+  .topbar__install-btn {
+    padding: 0 !important;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
     border-radius: var(--radius-lg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 860px) {
+  .topbar__search-text,
+  .topbar__search-kbd {
+    display: none !important;
+  }
+  .topbar__search-trigger {
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .topbar__search-trigger:hover {
+    background: var(--color-primary-50, rgba(0, 0, 0, 0.05)) !important;
+    color: var(--color-primary-900);
+  }
+  [data-theme="dark"] .topbar__search-trigger:hover {
+    background: var(--color-surface-alt) !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .topbar__search-trigger,
+  .topbar__install-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+  }
+  .cmd-palette-backdrop {
+    padding: 10px 8px 8px;
+    align-items: flex-start;
+  }
+  .cmd-palette-dialog {
+    max-height: 94vh;
+    width: 100%;
+    border-radius: var(--radius-md);
+  }
+  .cmd-palette-header {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+  .cmd-palette-item-shortcut {
+    display: none !important;
+  }
+  .cmd-palette-hints {
+    display: none !important;
+  }
+  .cmd-palette-footer {
+    padding: 6px 14px;
+  }
+  .profile-tabs,
+  .page-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .profile-tabs::-webkit-scrollbar,
+  .page-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .profile-tab,
+  .page-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: var(--fs-xs);
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar__search-trigger,
+  .topbar__install-btn {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
   }
 }
 

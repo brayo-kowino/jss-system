@@ -157,7 +157,7 @@ function roleLabel(roleValue) {
 let installUnsubscribe = null;
 
 function installButton() {
-  const wrap = el("span", {});
+  const wrap = el("span", { class: "topbar__install-wrap" });
 
   function render() {
     wrap.innerHTML = "";
@@ -166,11 +166,16 @@ function installButton() {
     const btn = el(
       "button",
       {
-        class: "btn btn--ghost btn--sm",
+        type: "button",
+        class: "btn btn--ghost btn--sm topbar__install-btn",
         title: "Install Eeskia as an app on this device",
+        "aria-label": "Install Eeskia as an app on this device",
         onClick: () => (method === "prompt" ? handleNativeInstall() : showIosInstallHint()),
       },
-      [icon("install_desktop"), "Install app"]
+      [
+        icon("install_desktop"),
+        el("span", { class: "topbar__install-btn-text" }, "Install app"),
+      ]
     );
     wrap.append(btn);
   }
@@ -1049,6 +1054,23 @@ export function renderShell(app, profile, activePath) {
         ]),
       ]),
       el("div", { class: "topbar__profile-divider" }),
+      ...(isInstallable() && !isRunningInstalled()
+        ? [
+            el(
+              "button",
+              {
+                type: "button",
+                class: "topbar__profile-item",
+                onClick: () => {
+                  dropdown.classList.remove("open");
+                  const method = installMethod();
+                  method === "prompt" ? handleNativeInstall() : showIosInstallHint();
+                },
+              },
+              [icon("install_desktop"), "Install app"]
+            ),
+          ]
+        : []),
       el(
         "button",
         {

@@ -223,7 +223,7 @@ function showMarksInstructionsModal(forceOpen = false) {
 
   // 4 Core Action Cards Grid
   const grid = el("div", {
-    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(290px, 1fr)); gap:12px; margin-bottom:16px;",
+    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap:12px; margin-bottom:16px;",
   });
 
   const cards = [
