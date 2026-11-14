@@ -1033,6 +1033,28 @@
   overflow-x: hidden;
 }
 
+/* Polished view/route transition */
+.main > * {
+  animation: viewTransitionIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes viewTransitionIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main > * {
+    animation: none !important;
+  }
+}
+
 .page-header {
   display: flex;
   align-items: flex-start;

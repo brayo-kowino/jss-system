@@ -115,4 +115,23 @@ describe("Modal Component (js/components/modal.js)", () => {
     backdrop.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(document.querySelector(".modal-backdrop")).toBeNull();
   });
+
+  it("closes modal when pressing the Escape key", () => {
+    const body = el("p", {}, "Escape key test");
+    openModal("Escape Modal", body);
+
+    expect(document.querySelector(".modal-backdrop")).not.toBeNull();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".modal-backdrop")).toBeNull();
+  });
+
+  it("locks document.body scroll while open and restores it upon closing", () => {
+    document.body.style.overflow = "auto";
+    const body = el("p", {}, "Scroll lock test");
+    const close = openModal("Scroll Modal", body);
+
+    expect(document.body.style.overflow).toBe("hidden");
+    close();
+    expect(document.body.style.overflow).toBe("auto");
+  });
 });

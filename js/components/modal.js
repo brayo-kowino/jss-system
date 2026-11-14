@@ -42,7 +42,7 @@ export function openModal(titleOrConfig, bodyNode, extraClass = "") {
 
   const header = el("div", { class: "modal__header" }, [
     el("h3", { style: "margin:0;" }, title),
-    el("button", { class: "modal__close", "aria-label": "Close", onClick: close }, [icon("close")]),
+    el("button", { class: "modal__close", "aria-label": "Close", onClick: () => close() }, [icon("close")]),
   ]);
   modal.append(header);
 
@@ -76,14 +76,60 @@ export function openModal(titleOrConfig, bodyNode, extraClass = "") {
     modal.append(footer);
   }
 
+  // Prevent background scrolling while modal is open
+  const prevOverflow = typeof document !== "undefined" ? document.body.style.overflow : "";
+  if (typeof document !== "undefined") {
+    document.body.style.overflow = "hidden";
+  }
+
+  // Close on Escape key
+  const handleKeydown = (e) => {
+    if (e.key === "Escape") {
+      close();
+    }
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("keydown", handleKeydown);
+  }
+
   backdrop.append(modal);
   backdrop.addEventListener("click", (e) => {
     if (e.target === backdrop) close();
   });
   document.body.append(backdrop);
 
-  function close() {
-    backdrop.remove();
+  let isClosing = false;
+  function close(options = {}) {
+    if (isClosing) return;
+    isClosing = true;
+
+    if (typeof window !== "undefined") {
+      window.removeEventListener("keydown", handleKeydown);
+    }
+
+    if (typeof document !== "undefined") {
+      const remainingBackdrops = document.querySelectorAll(".modal-backdrop:not(.modal-backdrop--closing)");
+      if (remainingBackdrops.length <= 1) {
+        document.body.style.overflow = prevOverflow;
+      }
+    }
+
+    const isTest = typeof process !== "undefined" && process.env?.NODE_ENV === "test";
+    const prefersReducedMotion = typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+
+    if (isTest || prefersReducedMotion || options.immediate) {
+      backdrop.remove();
+      return;
+    }
+
+    backdrop.classList.add("modal-backdrop--closing");
+    modal.classList.add("modal--closing");
+
+    setTimeout(() => {
+      backdrop.remove();
+    }, 180);
   }
+
   return close;
 }

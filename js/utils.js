@@ -12,7 +12,20 @@ export function toast(message, type = "info", ms = 4000) {
   el.className = `toast${type !== "info" ? ` toast--${type}` : ""}`;
   el.textContent = message;
   root.appendChild(el);
-  setTimeout(() => el.remove(), ms);
+
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    el.classList.add("toast--hiding");
+    setTimeout(() => el.remove(), 200);
+  };
+
+  const timer = setTimeout(dismiss, ms);
+  el.addEventListener("click", () => {
+    clearTimeout(timer);
+    dismiss();
+  });
 }
 
 // Swaps the browser tab icon to a school's logo (or back to the default

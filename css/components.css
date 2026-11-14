@@ -602,8 +602,9 @@
   font-weight: 600;
   font-size: var(--fs-sm);
   cursor: pointer;
-  transition: background var(--transition), border-color var(--transition), opacity var(--transition);
+  transition: background var(--transition), border-color var(--transition), opacity var(--transition), transform 0.12s ease;
 }
+.btn:active:not(:disabled) { transform: scale(0.975); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn--primary { background: var(--color-primary-700); color: var(--color-white); }
 .btn--primary:hover:not(:disabled) { background: var(--color-primary-900); }
@@ -797,6 +798,11 @@ input[type="checkbox"]:disabled {
   padding: var(--sp-4) var(--sp-4);
   min-width: 0;
   overflow: hidden;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 .stat-card__label {
   font-size: var(--fs-xs);
@@ -1094,20 +1100,68 @@ tbody tr:hover { background: var(--color-primary-100); }
 /* Modal */
 .modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(43, 33, 30, 0.5);
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: grid; place-items: center;
   z-index: 100;
+  animation: modalBackdropFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+.modal-backdrop--closing {
+  animation: modalBackdropFadeOut 0.18s ease forwards;
+  pointer-events: none;
+}
+
+@keyframes modalBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalBackdropFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 .modal {
   background: var(--color-white);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-lg, 14px);
   padding: var(--sp-6);
   width: min(94vw, 560px);
   max-width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  animation: modalScaleIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: center center;
 }
+
+.modal--closing {
+  animation: modalScaleOut 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes modalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalScaleOut {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(6px);
+  }
+}
+
 .modal--wide { width: min(94vw, 1080px); max-width: 100%; }
 .modal--instructions { width: min(94vw, 780px); max-width: 100%; }
 .modal--reading { width: min(92vw, 580px); max-width: 100%; padding: 24px 28px; }
@@ -1134,6 +1188,14 @@ tbody tr:hover { background: var(--color-primary-100); }
   flex-shrink: 0;
   background: none; border: none; cursor: pointer;
   font-size: var(--fs-lg); color: var(--color-ink-soft);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--radius-seal, 50%);
+  transition: background var(--transition), color var(--transition), transform 0.15s ease;
+}
+.modal__close:hover {
+  background: var(--color-line-subtle, rgba(0, 0, 0, 0.06));
+  color: var(--color-primary-900);
+  transform: scale(1.08);
 }
 
 @media (max-width: 640px) {
@@ -1148,8 +1210,41 @@ tbody tr:hover { background: var(--color-primary-100); }
     max-height: 88vh;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     padding: var(--sp-4);
+    animation: modalSheetSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: bottom center;
   }
-  .modal__header h3 { font-size: var(--fs-base); }
+  .modal--closing {
+    animation: modalSheetSlideDown 0.18s cubic-bezier(0.4, 0, 1, 1) forwards !important;
+  }
+}
+
+@keyframes modalSheetSlideUp {
+  from {
+    opacity: 0.6;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalSheetSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop, .modal, .modal--closing, .modal-backdrop--closing {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 
@@ -1407,18 +1502,46 @@ tbody tr:hover { background: var(--color-primary-100); }
   position: fixed; bottom: var(--sp-5); right: var(--sp-5);
   display: flex; flex-direction: column; gap: var(--sp-2);
   z-index: 200;
+  pointer-events: none;
 }
 .toast {
+  pointer-events: auto;
   background: var(--color-ink);
   color: var(--color-white);
   padding: var(--sp-3) var(--sp-5);
   border-radius: var(--radius-sm);
   font-size: var(--fs-sm);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.08);
   border-left: 4px solid var(--color-gold);
+  animation: toastSlideIn 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+.toast--hiding {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+  pointer-events: none;
 }
 .toast--error { border-left-color: var(--color-red); }
 .toast--success { border-left-color: var(--color-green); }
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none !important;
+    transition: none !important;
+  }
+}
 
 /* Empty state */
 .empty-state {
