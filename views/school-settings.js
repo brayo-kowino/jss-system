@@ -1838,7 +1838,7 @@ function buildSecurityPanel(profile) {
     ]),
     el("p", { class: "settings-card__sub" }, "Recent sign-in attempts and authorization outcomes.")
   );
-  const activityTable = el("div", { id: "login-activity" });
+  const activityTable = el("div", { id: "login-activity", class: "table-wrap table-wrap--responsive", style: "border:none;" });
   activityCard.append(activityTable);
   devicesCol.append(activityCard);
 
