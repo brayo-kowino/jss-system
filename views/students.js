@@ -1528,7 +1528,7 @@ function openStudentForm(profile, existing = null, onDone) {
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "New Admission", body);
-  trackForm(body);
+  trackForm(body, { name: isEdit ? `Edit Student (${existing.fullName})` : "Student Admission Form" });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

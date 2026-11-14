@@ -305,8 +305,9 @@ function openStructureModal(profile, existing, structuresContainer) {
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "price_change"), isEdit ? "Save Changes" : "Set Fee Structure"])
   );
 
-  const close = openModal(isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure", body);
-  trackForm(body);
+  const structTitle = isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure";
+  const close = openModal(structTitle, body);
+  trackForm(body, { name: structTitle });
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
@@ -879,8 +880,9 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
     ])
   );
 
-  const close = openModal(`Record Payment: ${student.fullName}`, body);
-  trackForm(body);
+  const paymentModalTitle = `Record Payment: ${student.fullName}`;
+  const close = openModal(paymentModalTitle, body);
+  trackForm(body, { name: paymentModalTitle });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

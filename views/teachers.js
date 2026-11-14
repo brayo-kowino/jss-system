@@ -376,8 +376,9 @@ function openCreateLoginModal(profile, presetTeacher = null) {
   body.append(fieldsMount);
   body.append(el("button", { type: "submit", class: "btn btn--primary btn--block", style: "margin-top:8px;" }, [icon("person_add"), "Create Login"]));
 
-  const close = openModal(presetTeacher ? `Create Login: ${presetTeacher.fullName}` : "Create Staff Login", body);
-  trackForm(body);
+  const modalTitle = presetTeacher ? `Create Login: ${presetTeacher.fullName}` : "Create Staff Login";
+  const close = openModal(modalTitle, body);
+  trackForm(body, { name: modalTitle });
 
   // state for the dynamic middle section of the form
   let selectedRole = presetTeacher
@@ -1056,8 +1057,9 @@ function openTeacherForm(profile, existing = null) {
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
   );
 
-  const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
-  trackForm(body);
+  const teacherModalTitle = isEdit ? `Edit Teacher: ${existing.fullName}` : "Add Teacher";
+  const close = openModal(teacherModalTitle, body);
+  trackForm(body, { name: teacherModalTitle });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

@@ -1166,7 +1166,7 @@ function renderRoster(container, profile) {
 
       input.classList.remove("marks-score-input--invalid");
       dirty.add(student.id);
-      setDirty(true, "You have unsaved assessment marks. Leaving now will discard them.");
+      setDirty(true, `Marks Entry (${dirty.size} unsaved student score${dirty.size === 1 ? "" : "s"})`);
       pendingValues[student.id] = rawVal;
       statusCell.className = "badge badge--gold";
       statusCell.textContent = "Unsaved";
@@ -1309,7 +1309,7 @@ async function flushDirtyMarks() {
       delete pendingValues[id];
       markBadge(id, "badge--success", "Saved");
     }
-    setDirty(dirty.size > 0, "You have unsaved assessment marks.");
+    setDirty(dirty.size > 0, `Marks Entry (${dirty.size} unsaved student score${dirty.size === 1 ? "" : "s"})`);
     autoSaveToastShown = false;
   } catch (err) {
     for (const id of validIds) markBadge(id, "badge--danger", "Retry pending");
