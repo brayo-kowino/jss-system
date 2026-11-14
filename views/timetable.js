@@ -1012,6 +1012,11 @@ async function loadClassGrid(profile, gridMount) {
     getSlot: (day, periodId) => classSlots[`${day}_${periodId}`],
     onCellClick: (day, period) => openAssignModal(profile, day, period, gridMount),
     emptyLabel: "+ Assign",
+    contextType: "class",
+    metaInfo: {
+      grade: classSelection.grade,
+      stream: classSelection.stream,
+    },
     pillRenderer: (slot) => [
       el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
       el("span", { class: "tt-teacher-name" }, slot.teacherName || "Unassigned"),
@@ -1158,11 +1163,16 @@ async function loadTeacherGrid(gridMount) {
     skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
   ]));
   teacherSlots = await getTeacherTimetable(teacherSelection.teacherId);
+  const teacherObj = teachers.find((t) => t.id === teacherSelection.teacherId);
   renderGrid(gridMount, {
     canManage: false,
     getSlot: (day, periodId) => teacherSlots[`${day}_${periodId}`],
     onCellClick: () => {},
     emptyLabel: "Free / Prep",
+    contextType: "teacher",
+    metaInfo: {
+      teacher: teacherObj,
+    },
     pillRenderer: (slot) => [
       el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
       el("span", { class: "tt-teacher-name" }, `${slot.grade} ${slot.stream}`),
@@ -1378,15 +1388,16 @@ function buildOfficialHeader(docTitle, metaSubtitle) {
   `;
 }
 
-function buildClassTimetablePage(grade, stream, slotsMap) {
+export function buildClassTimetablePage(grade, stream, slotsMap) {
   const ct = getClassTeacher(teachers, grade, stream);
   const classLabel = `${grade}${stream ? " " + stream : ""}`;
-  const ctText = ct ? `Class Teacher: ${ct.fullName}${ct.tscNumber ? ` (TSC No: ${ct.tscNumber})` : ""}` : "Class Teacher: Unassigned";
+  const ctText = ct ? `Class Teacher: ${ct.fullName}${ct.tscNumber ? ` (TSC No: ${ct.tscNumber})` : ""}${ct.phone ? ` · Phone: ${ct.phone}` : ""}` : "Class Teacher: Unassigned";
 
   // Build subject summary legend
   const classSlotsList = [];
   for (const day of DAYS) {
     for (const p of periods) {
+      if (p.isBreak) continue;
       const slot = slotsMap[`${grade}_${stream}_${day}_${p.id}`];
       if (slot) classSlotsList.push(slot);
     }
@@ -1395,97 +1406,186 @@ function buildClassTimetablePage(grade, stream, slotsMap) {
   const subjectCounts = new Map();
   for (const s of classSlotsList) {
     if (!subjectCounts.has(s.subjectCode)) {
-      subjectCounts.set(s.subjectCode, { code: s.subjectCode, name: s.subjectName, teacher: s.teacherName, count: 0 });
+      subjectCounts.set(s.subjectCode, {
+        code: s.subjectCode,
+        name: s.subjectName || s.subjectCode,
+        teacher: s.teacherName || "Unassigned",
+        room: s.room || "Classroom",
+        count: 0,
+      });
     }
     subjectCounts.get(s.subjectCode).count++;
   }
 
-  let tableHtml = `
-    <table class="timetable-print-table">
-      <thead>
-        <tr>
-          <th style="width:80px;">Period</th>
-          ${DAYS.map((d) => `<th>${d}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
-  `;
-
-  for (const p of periods) {
-    if (p.isBreak) {
-      tableHtml += `
-        <tr class="print-break-row">
-          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-          <td colspan="${DAYS.length}">${p.name}</td>
-        </tr>
-      `;
-      continue;
-    }
-    tableHtml += `
+  // Thead with JKUAT Horizontal Time Axis
+  let theadHtml = `
+    <thead>
       <tr>
-        <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-        ${DAYS.map((day) => {
-          const slot = slotsMap[`${grade}_${stream}_${day}_${p.id}`];
-          if (slot) {
-            return `
-              <td>
-                <div class="timetable-print-cell-subj">${slot.subjectName || slot.subjectCode}</div>
-                <div class="timetable-print-cell-teacher">${slot.teacherName || "—"}</div>
-                ${slot.room ? `<div class="timetable-print-cell-room">${slot.room}</div>` : ""}
-              </td>
-            `;
+        <th style="width:45px;">DAY</th>
+        ${periods.map((p) => {
+          if (p.isBreak) {
+            return `<th class="print-wall-th-break" style="width:34px;">${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
           }
-          return `<td><span style="color:#94a3b8; font-size:7pt;">—</span></td>`;
+          return `<th>${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
         }).join("")}
       </tr>
+    </thead>
+  `;
+
+  // Tbody with Day rows, Break pillars, and Double lesson merging
+  let tbodyHtml = "<tbody>";
+  for (let dIdx = 0; dIdx < DAYS.length; dIdx++) {
+    const day = DAYS[dIdx];
+    const isFirst = dIdx === 0;
+    const isLast = dIdx === DAYS.length - 1;
+
+    tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2pt solid #0f172a;' : ''}">`;
+
+    tbodyHtml += `
+      <td class="print-wall-day-cell" style="width:45px;">
+        <div style="font-weight:900; letter-spacing:0.06em;">${day.substring(0, 4).toUpperCase()}</div>
+      </td>
     `;
+
+    for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+      const p = periods[pIdx];
+
+      if (p.isBreak) {
+        if (isFirst) {
+          tbodyHtml += `
+            <td rowspan="${DAYS.length}" class="print-wall-break-cell">
+              <div class="print-vertical-label">${escapeHtml(p.name)} (${p.startTime}–${p.endTime})</div>
+            </td>
+          `;
+        }
+        continue;
+      }
+
+      const slot = slotsMap[`${grade}_${stream}_${day}_${p.id}`];
+
+      // Consecutive double lesson check
+      let isMerged = false;
+      if (slot && pIdx + 1 < periods.length) {
+        const nextP = periods[pIdx + 1];
+        if (!nextP.isBreak) {
+          const nextSlot = slotsMap[`${grade}_${stream}_${day}_${nextP.id}`];
+          if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+            isMerged = true;
+          }
+        }
+      }
+
+      if (isMerged) {
+        tbodyHtml += `
+          <td colspan="2" class="print-wall-slot-cell print-wall-slot-cell--merged">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="print-wall-subj">${escapeHtml(slot.subjectName || slot.subjectCode)}</span>
+              <span class="print-wall-tag-double">Double</span>
+            </div>
+            <div class="print-wall-meta">${escapeHtml(slot.teacherName || "—")} · ${escapeHtml(slot.room || "Room")}</div>
+          </td>
+        `;
+        pIdx++;
+        continue;
+      }
+
+      if (slot) {
+        tbodyHtml += `
+          <td class="print-wall-slot-cell">
+            <div class="print-wall-subj">${escapeHtml(slot.subjectName || slot.subjectCode)}</div>
+            <div class="print-wall-meta">${escapeHtml(slot.teacherName || "—")} · ${escapeHtml(slot.room || "Room")}</div>
+          </td>
+        `;
+      } else {
+        tbodyHtml += `<td class="print-wall-slot-cell" style="text-align:center; color:#cbd5e1;">—</td>`;
+      }
+    }
+
+    tbodyHtml += "</tr>";
   }
+  tbodyHtml += "</tbody>";
 
-  tableHtml += `</tbody></table>`;
-
+  // Subject Legend Directory for print
   const legendHtml = `
-    <div class="timetable-print-legend">
-      <div class="timetable-print-legend-title">Subject & Teacher Allocations</div>
-      <div class="timetable-print-legend-grid">
-        ${Array.from(subjectCounts.values()).map((s) => `
-          <div><b>${s.code}</b>: ${s.name} (${s.count} lsns) · <i>${s.teacher || "Unassigned"}</i></div>
-        `).join("")}
-      </div>
+    <div class="print-wall-advisors-wrap">
+      <div class="print-wall-footer-title">Subject & Faculty Allocation Directory</div>
+      <table class="print-wall-advisors-table">
+        <thead>
+          <tr>
+            <th>Code</th>
+            <th>Subject Title</th>
+            <th>Assigned Teacher</th>
+            <th style="text-align:center;">Lessons</th>
+            <th>Room / Lab</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Array.from(subjectCounts.values()).map((s) => `
+            <tr>
+              <td><b>${escapeHtml(s.code)}</b></td>
+              <td>${escapeHtml(s.name)}</td>
+              <td>${escapeHtml(s.teacher)}</td>
+              <td style="text-align:center;"><b>${s.count}</b></td>
+              <td>${escapeHtml(s.room)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
     </div>
   `;
 
+  // Signatures for print
   const signaturesHtml = `
-    <div class="timetable-print-signatures">
-      <div class="timetable-print-sig-col">
-        <div class="timetable-print-sig-title">Class Teacher Signature:</div>
-        <div style="margin-top:20px; font-size:8pt; color:#64748b;">${ct ? ct.fullName : "Class Teacher"} · Date: _______________</div>
-      </div>
-      <div class="timetable-print-sig-col">
-        <div class="timetable-print-sig-title">Principal / Academic Master:</div>
-        <div style="margin-top:20px; font-size:8pt; color:#64748b;">Official Stamp & Signature · Date: _______________</div>
+    <div class="print-wall-signatures-wrap">
+      <div class="print-wall-footer-title">Institutional Approval & Certification</div>
+      <div class="print-wall-sig-box">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <div>
+            <div style="font-weight:700;">Class Teacher:</div>
+            <div style="font-size:6.2pt; color:#475569;">${ct ? escapeHtml(ct.fullName) : "Homeroom Advisor"}</div>
+            <div style="margin-top:14px; border-bottom:0.5pt solid #0f172a; width:120px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Signature & Date</div>
+          </div>
+          <div>
+            <div style="font-weight:700;">Principal / Academic Master:</div>
+            <div style="font-size:6.2pt; color:#475569;">Office of the Principal</div>
+            <div style="margin-top:14px; border-bottom:0.5pt solid #0f172a; width:120px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Official Stamp & Date</div>
+          </div>
+        </div>
+        <div class="print-wall-motto-statement">
+          "${escapeHtml(schoolSettings.motto || "Excellence in Quality Competency-Based Education")}" · Kenya JSS Official Timetable
+        </div>
       </div>
     </div>
   `;
 
   return `
-    <div class="timetable-print-page">
+    <div class="timetable-print-page timetable-print-page--landscape">
       <div>
-        ${buildOfficialHeader(`Official Class Timetable · ${classLabel}`, ctText)}
-        ${tableHtml}
-        ${legendHtml}
+        ${buildOfficialHeader(`OFFICIAL CLASS TIMETABLE · ${escapeHtml(classLabel.toUpperCase())}`, ctText)}
+        <table class="timetable-print-wall-chart">
+          ${theadHtml}
+          ${tbodyHtml}
+        </table>
       </div>
-      ${signaturesHtml}
+      <div class="print-wall-footer-grid">
+        ${legendHtml}
+        ${signaturesHtml}
+      </div>
     </div>
   `;
 }
 
-function buildTeacherTimetablePage(teacher, slotsMap) {
+export function buildTeacherTimetablePage(teacher, slotsMap) {
   const homeroom = teacher.homeroom ? teacher.homeroom.replace("|", " ").trim() : "None";
   const teacherSlotsList = [];
+  const cohorts = getAllCohorts();
+
   for (const day of DAYS) {
     for (const p of periods) {
       if (p.isBreak) continue;
-      for (const c of getAllCohorts()) {
+      for (const c of cohorts) {
         const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
         if (slot && slot.teacherId === teacher.id) {
           teacherSlotsList.push(slot);
@@ -1500,76 +1600,197 @@ function buildTeacherTimetablePage(teacher, slotsMap) {
 
   const subTitle = `TSC No: ${teacher.tscNumber || "N/A"} · Homeroom: ${homeroom} · Teaching Load: ${teachingLessons} Lessons/Wk (Free: ${freePeriods} Periods)`;
 
-  let tableHtml = `
-    <table class="timetable-print-table">
-      <thead>
-        <tr>
-          <th style="width:80px;">Period</th>
-          ${DAYS.map((d) => `<th>${d}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
+  // Breakdown by cohort + subject
+  const loadMap = new Map();
+  for (const s of teacherSlotsList) {
+    const key = `${s.grade}_${s.stream}_${s.subjectCode}`;
+    if (!loadMap.has(key)) {
+      loadMap.set(key, {
+        cohort: `${s.grade} ${s.stream || ""}`.trim(),
+        subject: s.subjectName || s.subjectCode,
+        room: s.room || "Classroom",
+        count: 0,
+      });
+    }
+    loadMap.get(key).count++;
+  }
+
+  // Thead with JKUAT Horizontal Time Axis
+  let theadHtml = `
+    <thead>
+      <tr>
+        <th style="width:45px;">DAY</th>
+        ${periods.map((p) => {
+          if (p.isBreak) {
+            return `<th class="print-wall-th-break" style="width:34px;">${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+          }
+          return `<th>${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+        }).join("")}
+      </tr>
+    </thead>
   `;
 
-  for (const p of periods) {
-    if (p.isBreak) {
-      tableHtml += `
-        <tr class="print-break-row">
-          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-          <td colspan="${DAYS.length}">${p.name}</td>
-        </tr>
-      `;
-      continue;
-    }
-    tableHtml += `
-      <tr>
-        <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-        ${DAYS.map((day) => {
-          let found = null;
-          for (const c of getAllCohorts()) {
-            const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
-            if (slot && slot.teacherId === teacher.id) {
-              found = slot;
+  // Tbody with Day rows, Break pillars, and Double lesson merging
+  let tbodyHtml = "<tbody>";
+  for (let dIdx = 0; dIdx < DAYS.length; dIdx++) {
+    const day = DAYS[dIdx];
+    const isFirst = dIdx === 0;
+    const isLast = dIdx === DAYS.length - 1;
+
+    tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2pt solid #0f172a;' : ''}">`;
+
+    tbodyHtml += `
+      <td class="print-wall-day-cell" style="width:45px;">
+        <div style="font-weight:900; letter-spacing:0.06em;">${day.substring(0, 4).toUpperCase()}</div>
+      </td>
+    `;
+
+    for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+      const p = periods[pIdx];
+
+      if (p.isBreak) {
+        if (isFirst) {
+          tbodyHtml += `
+            <td rowspan="${DAYS.length}" class="print-wall-break-cell">
+              <div class="print-vertical-label">${escapeHtml(p.name)} (${p.startTime}–${p.endTime})</div>
+            </td>
+          `;
+        }
+        continue;
+      }
+
+      // Find slot for this teacher
+      let slot = null;
+      for (const c of cohorts) {
+        const s = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+        if (s && s.teacherId === teacher.id) {
+          slot = s;
+          break;
+        }
+      }
+
+      // Consecutive double lesson check
+      let isMerged = false;
+      if (slot && pIdx + 1 < periods.length) {
+        const nextP = periods[pIdx + 1];
+        if (!nextP.isBreak) {
+          let nextSlot = null;
+          for (const c of cohorts) {
+            const s = slotsMap[`${c.grade}_${c.stream}_${day}_${nextP.id}`];
+            if (s && s.teacherId === teacher.id) {
+              nextSlot = s;
               break;
             }
           }
-          if (found) {
-            return `
-              <td style="background:#f0fdf4;">
-                <div class="timetable-print-cell-subj">${found.grade} ${found.stream}</div>
-                <div class="timetable-print-cell-teacher">${found.subjectName || found.subjectCode}</div>
-                ${found.room ? `<div class="timetable-print-cell-room">${found.room}</div>` : ""}
-              </td>
-            `;
+          if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.grade === slot.grade && nextSlot.stream === slot.stream) {
+            isMerged = true;
           }
-          return `<td><span style="color:#94a3b8; font-size:7.5pt; font-style:italic;">FREE / PREP</span></td>`;
-        }).join("")}
-      </tr>
-    `;
+        }
+      }
+
+      if (isMerged) {
+        tbodyHtml += `
+          <td colspan="2" class="print-wall-slot-cell print-wall-slot-cell--merged" style="background:#f0fdf4;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="print-wall-subj">${escapeHtml(slot.grade)} ${escapeHtml(slot.stream)}</span>
+              <span class="print-wall-tag-double">Double</span>
+            </div>
+            <div class="print-wall-meta">${escapeHtml(slot.subjectName || slot.subjectCode)} · ${escapeHtml(slot.room || "Room")}</div>
+          </td>
+        `;
+        pIdx++;
+        continue;
+      }
+
+      if (slot) {
+        tbodyHtml += `
+          <td class="print-wall-slot-cell" style="background:#f0fdf4;">
+            <div class="print-wall-subj">${escapeHtml(slot.grade)} ${escapeHtml(slot.stream)}</div>
+            <div class="print-wall-meta">${escapeHtml(slot.subjectName || slot.subjectCode)} · ${escapeHtml(slot.room || "Room")}</div>
+          </td>
+        `;
+      } else {
+        tbodyHtml += `<td class="print-wall-slot-cell" style="text-align:center; color:#94a3b8; font-style:italic;">FREE / PREP</td>`;
+      }
+    }
+
+    tbodyHtml += "</tr>";
   }
+  tbodyHtml += "</tbody>";
 
-  tableHtml += `</tbody></table>`;
+  // Workload table for print
+  const workloadHtml = `
+    <div class="print-wall-advisors-wrap">
+      <div class="print-wall-footer-title">Faculty Workload Distribution & Allocations</div>
+      <table class="print-wall-advisors-table">
+        <thead>
+          <tr>
+            <th>Cohort / Class</th>
+            <th>Subject</th>
+            <th style="text-align:center;">Weekly Lessons</th>
+            <th>Room</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${Array.from(loadMap.values()).map((l) => `
+            <tr>
+              <td><b>${escapeHtml(l.cohort)}</b></td>
+              <td>${escapeHtml(l.subject)}</td>
+              <td style="text-align:center;"><b>${l.count}</b></td>
+              <td>${escapeHtml(l.room)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+        <tfoot>
+          <tr style="background:#f1f5f9; font-weight:700;">
+            <td colspan="2">Total Teaching Load:</td>
+            <td style="text-align:center;">${teachingLessons} / ${instructionalPeriodsCount}</td>
+            <td>${freePeriods} Free Periods</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
 
+  // Signatures for print
   const signaturesHtml = `
-    <div class="timetable-print-signatures">
-      <div class="timetable-print-sig-col">
-        <div class="timetable-print-sig-title">Teacher Signature:</div>
-        <div style="margin-top:20px; font-size:8pt; color:#64748b;">${teacher.fullName} · Date: _______________</div>
-      </div>
-      <div class="timetable-print-sig-col">
-        <div class="timetable-print-sig-title">Dean of Studies / Academic Master:</div>
-        <div style="margin-top:20px; font-size:8pt; color:#64748b;">Official Approval & Stamp · Date: _______________</div>
+    <div class="print-wall-signatures-wrap">
+      <div class="print-wall-footer-title">Institutional Approval & Certification</div>
+      <div class="print-wall-sig-box">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <div>
+            <div style="font-weight:700;">Faculty Member:</div>
+            <div style="font-size:6.2pt; color:#475569;">${escapeHtml(teacher.fullName)}</div>
+            <div style="margin-top:14px; border-bottom:0.5pt solid #0f172a; width:120px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Signature & Date</div>
+          </div>
+          <div>
+            <div style="font-weight:700;">Dean of Studies / Principal:</div>
+            <div style="font-size:6.2pt; color:#475569;">Academic Quality Office</div>
+            <div style="margin-top:14px; border-bottom:0.5pt solid #0f172a; width:120px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Official Stamp & Date</div>
+          </div>
+        </div>
+        <div class="print-wall-motto-statement">
+          "${escapeHtml(schoolSettings.motto || "Excellence in Quality Competency-Based Education")}" · Kenya JSS Faculty Timetable
+        </div>
       </div>
     </div>
   `;
 
   return `
-    <div class="timetable-print-page">
+    <div class="timetable-print-page timetable-print-page--landscape">
       <div>
-        ${buildOfficialHeader(`Teacher's Instructional Schedule · ${teacher.fullName}`, subTitle)}
-        ${tableHtml}
+        ${buildOfficialHeader(`FACULTY INSTRUCTIONAL SCHEDULE · ${escapeHtml(teacher.fullName.toUpperCase())}`, subTitle)}
+        <table class="timetable-print-wall-chart">
+          ${theadHtml}
+          ${tbodyHtml}
+        </table>
       </div>
-      ${signaturesHtml}
+      <div class="print-wall-footer-grid">
+        ${workloadHtml}
+        ${signaturesHtml}
+      </div>
     </div>
   `;
 }
@@ -2276,7 +2497,7 @@ async function handleDeletePeriod(profile, period, container) {
 
 // ----------------------------------------------------------- Shared Grid UI --
 
-function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pillRenderer }) {
+export function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pillRenderer, contextType = "class", metaInfo = {} }) {
   container.innerHTML = "";
   if (!periods.length) {
     container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
@@ -2287,69 +2508,398 @@ function renderGrid(container, { canManage, getSlot, onCellClick, emptyLabel, pi
     return;
   }
 
-  const tableWrap = el("div", {
-    class: "tt-scroll",
-    style: "background:var(--color-white); border:1px solid var(--color-line); border-radius:var(--radius-lg); overflow-x:auto; box-shadow:var(--shadow-sm);"
-  });
-  const table = el("table", { class: "timetable" }, [
-    el("thead", {}, el("tr", {}, [
-      el("th", { style: "width:130px;" }, "Period"),
-      ...DAYS.map((d) => el("th", {}, d))
-    ])),
-  ]);
+  const wrap = el("div", { class: "tt-wall-chart-wrap" });
+  const table = el("table", { class: "tt-wall-chart" });
+
+  // 1. thead with Horizontal Time Axis
+  const thead = el("thead", {});
+  const headRow = el("tr", {});
+  headRow.append(
+    el("th", { class: "tt-wall-th-day", style: "width:65px;" }, "DAY")
+  );
+
+  for (const p of periods) {
+    if (p.isBreak) {
+      headRow.append(
+        el("th", { class: "tt-wall-th-break" }, [
+          el("div", { class: "tt-wall-p-name" }, p.name),
+          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
+        ])
+      );
+    } else {
+      headRow.append(
+        el("th", { class: "tt-wall-th-period" }, [
+          el("div", { class: "tt-wall-p-name" }, p.name),
+          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
+        ])
+      );
+    }
+  }
+  thead.append(headRow);
+  table.append(thead);
+
+  // 2. tbody with Days, Break Pillars, and Merged Double Lessons
   const tbody = el("tbody", {});
 
-  for (const period of periods) {
-    if (period.isBreak) {
-      const row = el("tr", { class: "tt-break" });
-      row.append(el("td", { class: "tt-period-col" }, [
-        el("b", {}, period.name),
-        el("span", { style: "font-family:var(--font-mono, monospace); font-size:11px;" }, `${period.startTime}–${period.endTime}`),
-      ]));
-      row.append(el("td", {
-        colspan: String(DAYS.length),
-        style: "text-align:center; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;"
-      }, [
-        icon(period.name.toLowerCase().includes("lunch") ? "restaurant" : "coffee", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
-        period.name
-      ]));
-      tbody.append(row);
-      continue;
+  for (let dIdx = 0; dIdx < DAYS.length; dIdx++) {
+    const day = DAYS[dIdx];
+    const isFirstDay = dIdx === 0;
+    const isLastDay = dIdx === DAYS.length - 1;
+
+    const row = el("tr", {
+      class: `tt-wall-row ${isLastDay ? "tt-wall-row--last-in-day" : ""}`,
+    });
+
+    // Day column
+    const dayCell = el("td", { class: "tt-wall-day-cell", style: "width:65px;" }, [
+      el("div", { class: "tt-wall-day-label" }, [
+        el("span", {}, day.substring(0, 4).toUpperCase()),
+      ]),
+    ]);
+    row.append(dayCell);
+
+    // Period columns
+    for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+      const period = periods[pIdx];
+
+      if (period.isBreak) {
+        if (isFirstDay) {
+          const breakCell = el("td", {
+            rowspan: String(DAYS.length),
+            class: "tt-wall-break-cell",
+          }, [
+            el("div", { class: "tt-wall-break-text" }, [
+              icon(period.name.toLowerCase().includes("lunch") ? "restaurant" : "coffee", "text-xs"),
+              `${period.name} (${period.startTime}–${period.endTime})`,
+            ]),
+          ]);
+          row.append(breakCell);
+        }
+        continue;
+      }
+
+      const slot = getSlot(day, period.id);
+
+      // Check for consecutive double lesson
+      let isMergedDouble = false;
+      if (slot && pIdx + 1 < periods.length) {
+        const nextPeriod = periods[pIdx + 1];
+        if (!nextPeriod.isBreak) {
+          const nextSlot = getSlot(day, nextPeriod.id);
+          if (nextSlot) {
+            if (contextType === "teacher") {
+              if (nextSlot.subjectCode === slot.subjectCode && nextSlot.grade === slot.grade && nextSlot.stream === slot.stream) {
+                isMergedDouble = true;
+              }
+            } else {
+              if (nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+                isMergedDouble = true;
+              }
+            }
+          }
+        }
+      }
+
+      if (isMergedDouble) {
+        const td = el("td", {
+          colspan: "2",
+          class: "tt-wall-slot-cell tt-wall-slot-cell--merged",
+        });
+
+        const titleText = contextType === "teacher"
+          ? `${slot.grade} ${slot.stream}`
+          : (slot.subjectName || slot.subjectCode);
+        const subText = contextType === "teacher"
+          ? (slot.subjectName || slot.subjectCode)
+          : (slot.teacherName || "Unassigned");
+
+        const slotBtn = el("button", {
+          type: "button",
+          class: "tt-wall-slot-btn",
+          title: `${titleText} (Double Lesson) · ${subText} · ${slot.room || "Room"}`,
+          onClick: () => {
+            if (canManage) onCellClick(day, period, slot);
+          },
+        }, [
+          el("div", { class: "tt-wall-subj-line" }, [
+            el("span", { class: "tt-wall-subj" }, titleText),
+            el("span", { class: "tt-wall-tag-double" }, "Double"),
+          ]),
+          el("div", { class: "tt-wall-teacher" }, subText),
+          el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+        ]);
+
+        td.append(slotBtn);
+        row.append(td);
+
+        pIdx++; // Skip next period
+        continue;
+      }
+
+      // Single Lesson or Empty
+      const td = el("td", { class: "tt-wall-slot-cell" });
+
+      if (slot) {
+        const titleText = contextType === "teacher"
+          ? `${slot.grade} ${slot.stream}`
+          : (slot.subjectName || slot.subjectCode);
+        const subText = contextType === "teacher"
+          ? (slot.subjectName || slot.subjectCode)
+          : (slot.teacherName || "Unassigned");
+
+        const slotBtn = el("button", {
+          type: "button",
+          class: "tt-wall-slot-btn",
+          title: `${titleText} · ${subText} · ${slot.room || "Room"}`,
+          onClick: () => {
+            if (canManage) onCellClick(day, period, slot);
+          },
+        }, [
+          el("div", { class: "tt-wall-subj-line" }, [
+            el("span", { class: "tt-wall-subj" }, titleText),
+          ]),
+          el("div", { class: "tt-wall-teacher" }, subText),
+          el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+        ]);
+        td.append(slotBtn);
+      } else if (canManage) {
+        const emptyBtn = el("button", {
+          type: "button",
+          class: "tt-wall-empty-btn",
+          title: `Assign ${day} ${period.name}`,
+          onClick: () => onCellClick(day, period, null),
+        }, [icon("add", "text-xs"), emptyLabel]);
+        td.append(emptyBtn);
+      } else {
+        td.append(el("div", {
+          style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:4px; border:1px solid #e2e8f0; color:#94a3b8; font-size:10px; font-weight:600; font-style:italic;"
+        }, "FREE / PREP"));
+      }
+
+      row.append(td);
     }
 
-    const row = el("tr", {});
-    row.append(el("td", { class: "tt-period-col" }, [
-      el("b", {}, period.name),
-      el("span", { style: "font-family:var(--font-mono, monospace); font-size:11px; color:var(--color-ink-soft);" }, `${period.startTime}–${period.endTime}`),
-    ]));
-    for (const day of DAYS) {
-      const slot = getSlot(day, period.id);
-      const cellWrap = el("td", { class: "tt-cell" });
-      if (slot) {
-        const deptClass = getSubjectDepartmentClass(slot.subjectCode);
-        const pill = el("button", {
-          type: "button",
-          class: `tt-pill ${deptClass}${canManage ? "" : " tt-pill--readonly"}`.trim()
-        }, pillRenderer(slot));
-        if (canManage) pill.addEventListener("click", () => onCellClick(day, period));
-        cellWrap.append(pill);
-      } else if (canManage) {
-        cellWrap.append(el("button", {
-          type: "button",
-          class: "tt-cell__empty",
-          onClick: () => onCellClick(day, period)
-        }, [icon("add", "text-xs"), emptyLabel]));
-      } else {
-        cellWrap.append(el("span", { class: "tt-free" }, emptyLabel));
-      }
-      row.append(cellWrap);
-    }
     tbody.append(row);
   }
 
   table.append(tbody);
-  tableWrap.append(table);
-  container.append(tableWrap);
+  wrap.append(table);
+  container.append(wrap);
+
+  // 3. Render Footer Directory & Signatures
+  if (contextType === "class") {
+    renderClassScheduleFooter(container, metaInfo, getSlot);
+  } else if (contextType === "teacher") {
+    renderTeacherScheduleFooter(container, metaInfo, getSlot);
+  }
+}
+
+function renderClassScheduleFooter(container, metaInfo, getSlot) {
+  const grade = metaInfo.grade || "";
+  const stream = metaInfo.stream || "";
+  const ct = getClassTeacher(teachers, grade, stream);
+
+  // Collect all assigned lessons
+  const assignedSlots = [];
+  for (const day of DAYS) {
+    for (const p of periods) {
+      if (p.isBreak) continue;
+      const s = getSlot(day, p.id);
+      if (s) assignedSlots.push(s);
+    }
+  }
+
+  const subjectCounts = new Map();
+  for (const s of assignedSlots) {
+    if (!subjectCounts.has(s.subjectCode)) {
+      subjectCounts.set(s.subjectCode, {
+        code: s.subjectCode,
+        name: s.subjectName || s.subjectCode,
+        teacher: s.teacherName || "Unassigned",
+        room: s.room || "Classroom",
+        count: 0,
+      });
+    }
+    subjectCounts.get(s.subjectCode).count++;
+  }
+
+  const footerWrap = el("div", { class: "tt-wall-footer no-print" });
+  const grid = el("div", { class: "tt-wall-footer__grid" });
+
+  // Left: Subject & Faculty Allocation Directory Table
+  const leftCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("menu_book", "text-xs"),
+      "Subject & Faculty Allocation Directory",
+    ]),
+    el("table", { class: "tt-wall-advisors-table" }, [
+      el("thead", {}, el("tr", {}, [
+        el("th", {}, "Code"),
+        el("th", {}, "Subject Title"),
+        el("th", {}, "Assigned Teacher"),
+        el("th", { style: "text-align:center;" }, "Lessons/Wk"),
+        el("th", {}, "Room / Lab"),
+      ])),
+      el("tbody", {}, subjectCounts.size === 0
+        ? [el("tr", {}, [el("td", { colspan: "5", class: "text-muted text-center", style: "padding:12px;" }, "No subjects assigned yet")])]
+        : Array.from(subjectCounts.values()).map((s) => el("tr", {}, [
+            el("td", {}, el("strong", {}, s.code)),
+            el("td", {}, s.name),
+            el("td", {}, s.teacher),
+            el("td", { style: "text-align:center;" }, el("b", {}, s.count)),
+            el("td", {}, el("span", { class: "text-muted" }, s.room)),
+          ]))
+      ),
+    ]),
+  ]);
+
+  // Right: Class Teacher & Executive Sign-off
+  const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
+  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.term || "Term 1";
+
+  const rightCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("verified_user", "text-xs"),
+      "Class Teacher & Executive Verification",
+    ]),
+    el("div", { class: "tt-wall-signoff-card" }, [
+      el("div", { style: "margin-bottom:10px; font-size:12px;" }, [
+        el("span", { class: "text-muted" }, "Homeroom Advisor: "),
+        ct ? el("strong", {}, `${ct.fullName} (${ct.tscNumber ? "TSC: " + ct.tscNumber : (ct.phone || "Faculty")})`) : el("span", { class: "text-muted" }, "Unassigned"),
+      ]),
+      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;" }, [
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Class Teacher:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, ct ? ct.fullName : "Class Teacher"),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Signature & Date"),
+        ]),
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Principal / Dean:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, "Academic Quality Office"),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Official Stamp & Date"),
+        ]),
+      ]),
+      el("div", { style: "font-size:10.5px; color:var(--color-ink-soft); border-top:1px dashed var(--color-line); padding-top:8px;" }, [
+        el("strong", {}, `${schoolName} · ${currentYear} ${currentTerm} · `),
+        `Cohort: ${grade} ${stream || ""}. Certified in accordance with MOE CBC standards.`,
+      ]),
+    ]),
+  ]);
+
+  grid.append(leftCol, rightCol);
+  footerWrap.append(grid);
+  container.append(footerWrap);
+}
+
+function renderTeacherScheduleFooter(container, metaInfo, getSlot) {
+  const teacher = metaInfo.teacher || (teacherSelection.teacherId ? teachers.find((t) => t.id === teacherSelection.teacherId) : null);
+  const teacherName = teacher ? teacher.fullName : "Faculty Member";
+
+  // Collect all assigned lessons for this teacher
+  const assignedSlots = [];
+  for (const day of DAYS) {
+    for (const p of periods) {
+      if (p.isBreak) continue;
+      const s = getSlot(day, p.id);
+      if (s) assignedSlots.push(s);
+    }
+  }
+
+  const instructionalPeriodsCount = periods.filter((p) => !p.isBreak).length * DAYS.length;
+  const teachingLessons = assignedSlots.length;
+  const freePeriods = instructionalPeriodsCount - teachingLessons;
+
+  // Breakdown by cohort + subject
+  const loadMap = new Map();
+  for (const s of assignedSlots) {
+    const key = `${s.grade}_${s.stream}_${s.subjectCode}`;
+    if (!loadMap.has(key)) {
+      loadMap.set(key, {
+        cohort: `${s.grade} ${s.stream || ""}`.trim(),
+        subject: s.subjectName || s.subjectCode,
+        room: s.room || "Classroom",
+        count: 0,
+      });
+    }
+    loadMap.get(key).count++;
+  }
+
+  const footerWrap = el("div", { class: "tt-wall-footer no-print" });
+  const grid = el("div", { class: "tt-wall-footer__grid" });
+
+  // Left: Faculty Workload Distribution Table
+  const leftCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("work_history", "text-xs"),
+      "Faculty Teaching Load Distribution",
+    ]),
+    el("table", { class: "tt-wall-advisors-table" }, [
+      el("thead", {}, el("tr", {}, [
+        el("th", {}, "Cohort / Class"),
+        el("th", {}, "Subject"),
+        el("th", { style: "text-align:center;" }, "Weekly Lessons"),
+        el("th", {}, "Assigned Room"),
+      ])),
+      el("tbody", {}, loadMap.size === 0
+        ? [el("tr", {}, [el("td", { colspan: "4", class: "text-muted text-center", style: "padding:12px;" }, "No lessons assigned yet")])]
+        : Array.from(loadMap.values()).map((l) => el("tr", {}, [
+            el("td", {}, el("strong", {}, l.cohort)),
+            el("td", {}, l.subject),
+            el("td", { style: "text-align:center;" }, el("b", {}, l.count)),
+            el("td", {}, el("span", { class: "text-muted" }, l.room)),
+          ]))
+      ),
+      el("tfoot", {}, el("tr", { style: "background:#f1f5f9; font-weight:700;" }, [
+        el("td", { colspan: "2" }, "Total Teaching Load:"),
+        el("td", { style: "text-align:center;" }, `${teachingLessons} / ${instructionalPeriodsCount}`),
+        el("td", {}, `${freePeriods} Free Periods`),
+      ])),
+    ]),
+  ]);
+
+  // Right: Faculty Sign-off & Quality Assurance Blocks
+  const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
+  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.term || "Term 1";
+
+  const rightCol = el("div", {}, [
+    el("div", { class: "tt-wall-section-heading" }, [
+      icon("verified_user", "text-xs"),
+      "Faculty Compliance & Executive Verification",
+    ]),
+    el("div", { class: "tt-wall-signoff-card" }, [
+      el("div", { style: "margin-bottom:10px; font-size:12px;" }, [
+        el("span", { class: "text-muted" }, "Faculty Member: "),
+        el("strong", {}, teacherName),
+        teacher?.tscNumber ? el("span", { class: "text-muted text-xs", style: "margin-left:6px;" }, `(TSC: ${teacher.tscNumber})`) : null,
+      ]),
+      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;" }, [
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Teacher Signature:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, teacherName),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Signature & Date"),
+        ]),
+        el("div", {}, [
+          el("div", { style: "font-weight:700; font-size:11px; text-transform:uppercase; color:var(--color-primary-900);" }, "Dean of Studies / Principal:"),
+          el("div", { style: "font-size:12px; margin-top:2px;" }, "Academic Affairs Office"),
+          el("div", { style: "margin-top:24px; border-bottom:1px solid #94a3b8; width:80%;" }),
+          el("div", { style: "font-size:10px; color:var(--color-ink-soft); margin-top:3px;" }, "Official Stamp & Date"),
+        ]),
+      ]),
+      el("div", { style: "font-size:10.5px; color:var(--color-ink-soft); border-top:1px dashed var(--color-line); padding-top:8px;" }, [
+        el("strong", {}, `${schoolName} · ${currentYear} ${currentTerm} · `),
+        `Teaching Load: ${teachingLessons} Lessons/Wk (${freePeriods} Free Periods). Verified against TSC guidelines.`,
+      ]),
+    ]),
+  ]);
+
+  grid.append(leftCol, rightCol);
+  footerWrap.append(grid);
+  container.append(footerWrap);
 }
 
 function renderWelcomeDisclaimers(container, mode = "class") {
