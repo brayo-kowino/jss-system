@@ -2323,6 +2323,79 @@ tbody tr:hover { background: var(--color-primary-100); }
   transform: translateY(-1px);
 }
 
+/* In-App Inline Deep Link & Shortcut Links */
+.deep-link-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 600;
+  color: var(--color-primary-700);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(20, 83, 138, 0.45);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: inherit;
+}
+
+.deep-link-inline:hover {
+  color: var(--color-primary-900);
+  text-decoration-color: var(--color-gold);
+  transform: translateY(-0.5px);
+}
+
+.deep-link-inline__arrow {
+  font-size: 0.82em;
+  opacity: 0.85;
+  font-weight: 700;
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.deep-link-inline:hover .deep-link-inline__arrow {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+/* Clickable Dashboard Insight Items */
+.md3-insight-item--clickable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin: -2px -4px;
+  transition: background 0.15s ease, transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.md3-insight-item--clickable:hover {
+  background: rgba(20, 83, 138, 0.08);
+  transform: translateX(2px);
+}
+
+.md3-insight-item--clickable:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.md3-insight-arrow {
+  font-size: 0.8em;
+  font-weight: 700;
+  color: var(--color-primary-600);
+  opacity: 0.7;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.md3-insight-item--clickable:hover .md3-insight-arrow {
+  opacity: 1;
+  color: var(--color-primary-800);
+  transform: translate(2px, -2px);
+}
+
 /* Dark Mode Overrides for Alien 404 */
 [data-theme="dark"] .alien-404-container {
   background: rgba(15, 23, 42, 0.75);
@@ -2362,6 +2435,28 @@ tbody tr:hover { background: var(--color-primary-100); }
   background: var(--color-surface-alt);
   border-color: var(--color-primary-500);
   color: var(--color-primary-300);
+}
+
+[data-theme="dark"] .deep-link-inline {
+  color: #38bdf8;
+  text-decoration-color: rgba(56, 189, 248, 0.5);
+}
+
+[data-theme="dark"] .deep-link-inline:hover {
+  color: #7dd3fc;
+  text-decoration-color: #facc15;
+}
+
+[data-theme="dark"] .md3-insight-item--clickable:hover {
+  background: rgba(56, 189, 248, 0.12);
+}
+
+[data-theme="dark"] .md3-insight-arrow {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .md3-insight-item--clickable:hover .md3-insight-arrow {
+  color: #7dd3fc;
 }
 
 /* ==========================================================================

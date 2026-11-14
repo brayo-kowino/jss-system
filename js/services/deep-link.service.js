@@ -90,6 +90,63 @@ export function buildDeepLink(path, params = {}) {
 }
 
 /**
+ * Safely navigates the active browser window to a deep link destination without reloading.
+ */
+export function navigateDeepLink(path, params = {}) {
+  const normPath = path.startsWith("/") ? path : `/${path}`;
+  const qs = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== null && val !== "") {
+      qs.set(key, String(val).trim());
+    }
+  }
+  const queryStr = qs.toString() ? `?${qs.toString()}` : "";
+  const targetHash = `#${normPath}${queryStr}`;
+  if (typeof window !== "undefined") {
+    window.location.hash = targetHash;
+  }
+  return targetHash;
+}
+
+/**
+ * Creates an accessible, interactive inline deep link element for safe in-app cross-module navigation.
+ * Renders with a distinctive underlined accent and subtle jump arrow (↗) so users immediately recognize
+ * it as an actionable shortcut to another module or modal.
+ */
+export function internalLink(path, params = {}, label = "", options = {}) {
+  const normPath = path.startsWith("/") ? path : `/${path}`;
+  const qs = new URLSearchParams();
+  for (const [key, val] of Object.entries(params)) {
+    if (val !== undefined && val !== null && val !== "") {
+      qs.set(key, String(val).trim());
+    }
+  }
+  const queryStr = qs.toString() ? `?${qs.toString()}` : "";
+  const targetHash = `#${normPath}${queryStr}`;
+
+  const linkNode = el("a", {
+    href: targetHash,
+    class: `deep-link-inline ${options.class || ""}`.trim(),
+    role: "link",
+    ...(options.style ? { style: options.style } : {}),
+    title: options.title || `Jump to ${label}`,
+    onClick: (e) => {
+      e.preventDefault();
+      if (typeof options.onClick === "function") {
+        options.onClick(e);
+      }
+      navigateDeepLink(path, params);
+    },
+  }, [
+    options.icon ? icon(options.icon, "text-xs") : null,
+    el("span", { class: "deep-link-inline__text" }, label),
+    options.externalIcon !== false ? el("span", { class: "deep-link-inline__arrow", "aria-hidden": "true" }, "↗") : null,
+  ].filter(Boolean));
+
+  return linkNode;
+}
+
+/**
  * Copies the constructed deep link to the user's clipboard and triggers a toast notification.
  */
 export async function copyDeepLink(path, params = {}, label = "Direct link") {

@@ -18,6 +18,7 @@ import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
 import { navigate } from "../js/router.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
+import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -48,7 +49,7 @@ let sort = { key: "date", dir: "desc" };
 import { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
 export { buildAssessmentsMascotSvg };
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   [assessments, classes, subjects, students, settings] = await Promise.all([
     listAssessments(),
@@ -60,6 +61,20 @@ export async function render({ profile }) {
   expectedById = buildExpectedIndex();
   statsCache = new Map();
   const canManage = CAN_MANAGE.includes(profile.role);
+
+  // Apply deep link filter parameters
+  if (params.type && (params.type === "all" || ASSESSMENT_TYPES.includes(params.type))) {
+    filters.type = params.type;
+  }
+  if (params.status && ["all", "open", "locked"].includes(params.status)) {
+    filters.status = params.status;
+  }
+  if (params.search || params.q) {
+    filters.search = params.search || params.q;
+  }
+  if (params.term) {
+    filters.term = params.term;
+  }
 
   const wrap = el("div", {});
 
@@ -75,6 +90,19 @@ export async function render({ profile }) {
         el("div", { class: "assessments-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "assessments-pill" }, [icon("school"), `${subjects.length} Subjects`]),
         el("div", { class: "assessments-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
+        el("button", {
+          type: "button",
+          class: "assessments-pill deep-link-btn",
+          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
+          title: "Copy link to Assessments module",
+          onClick: () => {
+            const p = {};
+            if (filters.type !== "all") p.type = filters.type;
+            if (filters.status !== "all") p.status = filters.status;
+            if (filters.term !== "all") p.term = filters.term;
+            copyDeepLink("/assessments", p, "Assessments link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
       ]),
     ]),
 
@@ -114,6 +142,20 @@ export async function render({ profile }) {
   wrap.append(tableCard);
 
   renderTable(tableWrap, profile, canManage);
+
+  // Auto-action if triggered via deep link
+  if (canManage && (params.action === "new" || params.action === "add")) {
+    setTimeout(() => {
+      openAssessmentForm(profile);
+    }, 150);
+  } else if (params.id) {
+    setTimeout(() => {
+      const target = assessments.find((a) => a.id === params.id);
+      if (target) {
+        openAssessmentForm(profile, target);
+      }
+    }, 150);
+  }
 
   return wrap;
 }

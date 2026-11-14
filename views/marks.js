@@ -5,7 +5,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listMarks, bulkUpsertMarks, listMarksByAssessment, upsertMark } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
-import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
+import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -127,7 +127,10 @@ export async function render({ profile, params = {} }) {
 
     // Mascot & Speech Bubble
     el("div", { class: "marks-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Make sure to add an assessment or exam first before navigating to this page."),
+      el("div", { class: "support-speech-bubble" }, [
+        "Make sure to add an assessment first before entering marks. ",
+        internalLink("/assessments", { action: "new" }, "Add Assessment"),
+      ]),
       mascotWrap,
     ]),
   ]);
@@ -431,7 +434,11 @@ function renderPicker(container, profile, bodyMount) {
     }, [
       icon("warning", "text-amber"),
       el("span", {}, !allowedClassKeys
-        ? "No classes have been configured yet. Visit Academics > Classes & Streams to add them."
+        ? [
+            "No classes have been configured yet. ",
+            internalLink("/academics", {}, "Visit Academics > Classes & Streams"),
+            " to add them.",
+          ]
         : "You currently have no classes or streams assigned to your teaching account. Contact the school administrator to assign your classes."),
     ]);
     container.append(emptyClassNotice);
@@ -444,7 +451,11 @@ function renderPicker(container, profile, bodyMount) {
     }, [
       icon("warning", "text-amber"),
       el("span", {}, !allowedSubjectCodes
-        ? "No subjects have been configured yet. Visit Academics > Subjects to add them."
+        ? [
+            "No subjects have been configured yet. ",
+            internalLink("/subjects", {}, "Visit Academics > Subjects"),
+            " to add them.",
+          ]
         : "You currently have no subjects assigned to your teaching account. Contact the school administrator to assign your classes and subjects."),
     ]);
     container.append(emptyNotice);

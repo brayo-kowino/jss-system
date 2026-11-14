@@ -5,6 +5,8 @@ import {
   copyDeepLink,
   findBestRouteMatch,
   renderAlienNotFound,
+  navigateDeepLink,
+  internalLink,
 } from "../../js/services/deep-link.service.js";
 
 describe("Deep Linking Engine & Cosmic Alien 404", () => {
@@ -273,6 +275,41 @@ describe("Deep Linking Engine & Cosmic Alien 404", () => {
       // Test Students teleport button
       buttons[1].click();
       expect(onNavigate).toHaveBeenCalledWith("/students");
+    });
+  });
+
+  describe("navigateDeepLink & internalLink", () => {
+    it("navigateDeepLink updates window.location.hash with normalized path and params", () => {
+      navigateDeepLink("/marks", { tab: "review", grade: "Grade 7" });
+      expect(window.location.hash).toContain("#/marks?");
+      expect(window.location.hash).toContain("tab=review");
+      expect(window.location.hash).toContain("grade=Grade+7");
+    });
+
+    it("internalLink creates styled anchor with label and jump arrow", () => {
+      const link = internalLink("/assessments", { action: "new" }, "Add Assessment");
+      expect(link.tagName.toLowerCase()).toBe("a");
+      expect(link.classList.contains("deep-link-inline")).toBe(true);
+      expect(link.textContent).toContain("Add Assessment");
+      expect(link.textContent).toContain("↗");
+      expect(link.getAttribute("href")).toContain("#/assessments?action=new");
+    });
+
+    it("internalLink handles click by navigating to target deep link", () => {
+      const link = internalLink("/fees", { status: "pending" }, "Pending Balances");
+      document.body.appendChild(link);
+
+      link.click();
+      expect(window.location.hash).toContain("#/fees?status=pending");
+      link.remove();
+    });
+
+    it("internalLink supports custom onClick callback", () => {
+      const customClick = vi.fn();
+      const link = internalLink("/students", {}, "Directory", { onClick: customClick });
+
+      link.click();
+      expect(customClick).toHaveBeenCalledTimes(1);
     });
   });
 });

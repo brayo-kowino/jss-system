@@ -17,7 +17,7 @@ import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/s
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
-import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
+import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 let classes = [];
 let settings = null;
@@ -523,7 +523,11 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
       el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
         icon("group_off", "text-muted", "style: font-size:42px;"),
         el("h3", { style: "margin:8px 0 4px; color:var(--color-primary-900);" }, "No active students in this class"),
-        el("p", { class: "text-muted text-sm" }, "Check the active student roster under the Students module."),
+        el("p", { class: "text-muted text-sm", style: "display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center;" }, [
+          "Check the active student roster or admit new learners under the ",
+          internalLink("/students", { grade, stream, action: "admit" }, `Students Directory for ${grade}${stream ? " " + stream : ""}`),
+          ".",
+        ]),
       ])
     ]));
     return;

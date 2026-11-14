@@ -10,6 +10,7 @@ import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
 import { el, formatDate, getBrandColors, hexToRgba } from "../js/utils.js";
+import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
@@ -572,17 +573,34 @@ export async function render({ profile }) {
 
     const insightCandidates = [
       studentsWithBalancesCount > 0
-        ? { icon: "warning", color: "gold", text: `${studentsWithBalancesCount} of ${studentsCount} student(s) have pending fee balances.` }
+        ? {
+            icon: "warning",
+            color: "gold",
+            text: `${studentsWithBalancesCount} of ${studentsCount} student(s) have pending fee balances.`,
+            targetRoute: "/fees",
+            targetParams: { status: "pending" },
+          }
         : studentsCount
-        ? { icon: "check_circle", color: "green", text: "All enrolled students are up to date on fees." }
+        ? {
+            icon: "check_circle",
+            color: "green",
+            text: "All enrolled students are up to date on fees.",
+            targetRoute: "/fees",
+            targetParams: { status: "cleared" },
+          }
         : null,
 
       attendancePct != null
-        ? attendancePct >= 90
-          ? { icon: "how_to_reg", color: "green", text: `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}` }
-          : attendancePct >= 75
-          ? { icon: "how_to_reg", color: "gold", text: `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
-          : { icon: "how_to_reg", color: "red", text: `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
+        ? {
+            icon: "how_to_reg",
+            color: attendancePct >= 90 ? "green" : (attendancePct >= 75 ? "gold" : "red"),
+            text: attendancePct >= 90
+              ? `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}`
+              : (attendancePct >= 75
+                ? `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`
+                : `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`),
+            targetRoute: "/attendance",
+          }
         : null,
 
       settings.openingDate
@@ -590,7 +608,12 @@ export async function render({ profile }) {
         : null,
 
       boysCount + girlsCount > 0
-        ? { icon: "groups", color: "blue", text: `${boysCount} boys and ${girlsCount} girls enrolled (${Math.round((girlsCount / (boysCount + girlsCount)) * 100)}% girls).` }
+        ? {
+            icon: "groups",
+            color: "blue",
+            text: `${boysCount} boys and ${girlsCount} girls enrolled (${Math.round((girlsCount / (boysCount + girlsCount)) * 100)}% girls).`,
+            targetRoute: "/students",
+          }
         : null,
 
       revenueTrend
@@ -598,29 +621,75 @@ export async function render({ profile }) {
             icon: revenueTrend.pct >= 0 ? "trending_up" : "trending_down",
             color: revenueTrend.pct >= 0 ? "green" : "red",
             text: `Revenue in ${revenueTrend.label} is ${revenueTrend.pct >= 0 ? "up" : "down"} ${Math.abs(revenueTrend.pct)}% vs ${revenueTrend.prevLabel}.`,
+            targetRoute: "/fees",
           }
         : null,
 
       newAdmissionsCount > 0
-        ? { icon: "person_add", color: "green", text: `${newAdmissionsCount} new student(s) admitted in the last 30 days.` }
+        ? {
+            icon: "person_add",
+            color: "green",
+            text: `${newAdmissionsCount} new student(s) admitted in the last 30 days.`,
+            targetRoute: "/students",
+            targetParams: { status: "active" },
+          }
         : null,
 
       openAssessmentsCount > 0
-        ? { icon: "assignment", color: "gold", text: `${openAssessmentsCount} assessment(s) open and awaiting marks entry.` }
+        ? {
+            icon: "assignment",
+            color: "gold",
+            text: `${openAssessmentsCount} assessment(s) open and awaiting marks entry.`,
+            targetRoute: "/marks",
+            targetParams: { tab: "entry" },
+          }
         : lockedAssessmentsCount > 0
-        ? { icon: "lock", color: "blue", text: `${lockedAssessmentsCount} assessment(s) are locked.` }
+        ? {
+            icon: "lock",
+            color: "blue",
+            text: `${lockedAssessmentsCount} assessment(s) are locked.`,
+            targetRoute: "/assessments",
+          }
         : null,
 
       topGrade
-        ? { icon: "school", color: "blue", text: `${topGrade.grade} has the largest enrollment (${topGrade.count} students).` }
+        ? {
+            icon: "school",
+            color: "blue",
+            text: `${topGrade.grade} has the largest enrollment (${topGrade.count} students).`,
+            targetRoute: "/students",
+            targetParams: { grade: topGrade.grade },
+          }
         : null,
     ].filter(Boolean).slice(0, 6);
 
     let insightsBody;
     if (insightCandidates.length) {
-      insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) =>
-        el("li", {}, [el("span", { class: `material-symbols-rounded text-${item.color}` }, item.icon), item.text])
-      ));
+      insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) => {
+        if (item.targetRoute) {
+          return el("li", {
+            class: "md3-insight-item--clickable",
+            role: "button",
+            tabindex: "0",
+            title: `Jump to ${item.targetRoute}`,
+            onClick: () => navigateDeepLink(item.targetRoute, item.targetParams || {}),
+            onKeydown: (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigateDeepLink(item.targetRoute, item.targetParams || {});
+              }
+            },
+          }, [
+            el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
+            el("span", { style: "flex:1; line-height:1.4;" }, item.text),
+            el("span", { class: "md3-insight-arrow", "aria-hidden": "true" }, "↗"),
+          ]);
+        }
+        return el("li", {}, [
+          el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
+          el("span", { style: "flex:1; line-height:1.4;" }, item.text),
+        ]);
+      }));
     } else {
       insightsBody = el("div", { class: "card-empty-state" }, [
         el("div", { class: "card-empty-state__halo card-empty-state__halo--blue" }, [
