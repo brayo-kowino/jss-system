@@ -2097,142 +2097,150 @@ tbody tr:hover { background: var(--color-primary-100); }
    Cosmic Alien 404 Experience & Deep Link Engine
    ========================================================================== */
 .alien-404-container {
-  max-width: 680px;
+  max-width: 640px;
   margin: var(--sp-6) auto;
   text-align: center;
-  padding: var(--sp-7) var(--sp-6);
+  padding: 36px 32px 32px;
   background: var(--color-surface);
+  background-image: radial-gradient(ellipse 90% 45% at 50% 0%, rgba(20, 83, 138, 0.05), transparent 70%);
   border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: 0 4px 6px -1px rgba(11, 37, 69, 0.04), 0 20px 25px -5px rgba(11, 37, 69, 0.06);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .alien-404__hero-art {
   display: flex;
   justify-content: center;
+  align-items: center;
   margin-bottom: var(--sp-2);
 }
 
 .alien-404__ufo {
-  width: 220px;
-  height: 165px;
+  width: 190px;
+  height: 145px;
   display: block;
-  animation: ufoFloat 4s ease-in-out infinite;
-  filter: drop-shadow(0 10px 16px rgba(56, 189, 248, 0.2));
+  animation: eeskiaUfoHover 4s ease-in-out infinite alternate;
+  filter: drop-shadow(0 8px 20px rgba(11, 37, 69, 0.08));
 }
 
-@keyframes ufoFloat {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-9px) rotate(1.8deg); }
+@keyframes eeskiaUfoHover {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-7px); }
 }
 
 .alien-beam {
-  animation: beamPulse 3s ease-in-out infinite;
+  animation: eeskiaBeamPulse 3.5s ease-in-out infinite;
 }
 
-@keyframes beamPulse {
-  0%, 100% { opacity: 0.85; }
-  50% { opacity: 0.45; }
+@keyframes eeskiaBeamPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.22; }
 }
 
 .alien-page-abduction {
-  animation: pageWobble 3s ease-in-out infinite;
+  animation: eeskiaPageDrift 3.5s ease-in-out infinite alternate;
   transform-origin: 120px 128px;
 }
 
-@keyframes pageWobble {
-  0%, 100% { transform: translateY(0) rotate(-15deg); }
-  50% { transform: translateY(-7px) rotate(-8deg); }
-}
-
-.alien-antenna-glow {
-  animation: antennaBlink 1.4s ease-in-out infinite alternate;
-}
-
-@keyframes antennaBlink {
-  from { filter: drop-shadow(0 0 2px #FBBF24); }
-  to { filter: drop-shadow(0 0 7px #F59E0B); }
+@keyframes eeskiaPageDrift {
+  0% { transform: translateY(0) rotate(-8deg); }
+  100% { transform: translateY(-4px) rotate(-4deg); }
 }
 
 .alien-light {
-  animation: lightsSequencer 1.2s infinite alternate;
+  animation: eeskiaLightGlow 2s ease-in-out infinite alternate;
 }
-.alien-light--1 { animation-delay: 0s; }
-.alien-light--2 { animation-delay: 0.25s; }
-.alien-light--3 { animation-delay: 0.5s; }
-.alien-light--4 { animation-delay: 0.75s; }
-.alien-light--5 { animation-delay: 1s; }
 
-@keyframes lightsSequencer {
-  from { opacity: 0.4; }
-  to { opacity: 1; filter: drop-shadow(0 0 3px currentColor); }
+@keyframes eeskiaLightGlow {
+  0% { opacity: 0.55; }
+  100% { opacity: 1; filter: drop-shadow(0 0 3px var(--color-gold)); }
 }
 
 .alien-404__badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  color: #0284c7;
-  font-size: var(--fs-xs);
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  color: var(--color-primary-800);
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin-bottom: var(--sp-3);
 }
 
+.alien-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  box-shadow: 0 0 5px var(--color-gold);
+}
+
 .alien-404__title {
-  font-size: clamp(20px, 3.2vw, 28px);
-  font-weight: 800;
-  color: var(--color-ink);
+  font-family: var(--font-body) !important;
+  font-size: clamp(20px, 2.6vw, 24px);
+  font-weight: 700;
+  color: var(--color-primary-900);
   margin-bottom: var(--sp-2);
-  line-height: 1.25;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
 }
 
 .alien-404__subtitle {
   font-size: var(--fs-sm);
   color: var(--color-ink-soft);
   line-height: 1.55;
-  max-width: 520px;
+  max-width: 480px;
   margin: 0 auto var(--sp-5);
 }
 
 .alien-bad-path {
-  background: var(--color-cream-dim, #f1f5f9);
-  color: #e11d48;
+  background: rgba(179, 38, 30, 0.08);
+  color: var(--color-red);
   padding: 2px 7px;
-  border-radius: 4px;
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
   word-break: break-all;
-  border: 1px solid rgba(225, 29, 72, 0.2);
+  border: 1px solid rgba(179, 38, 30, 0.2);
 }
 
 .alien-404__suggestion {
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
+  background: var(--color-cream);
+  border: 1px solid var(--color-gold-soft);
+  border-left: 3px solid var(--color-gold);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   margin: 0 auto var(--sp-4);
-  max-width: 520px;
+  max-width: 500px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   text-align: left;
   font-size: var(--fs-xs);
-  color: #0369a1;
+  color: var(--color-ink);
 }
 
 .alien-404__search-wrap {
-  max-width: 520px;
+  max-width: 500px;
   margin: 0 auto var(--sp-5);
   text-align: left;
+  position: relative;
+}
+
+.alien-search-box-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .alien-search-icon {
@@ -2246,20 +2254,53 @@ tbody tr:hover { background: var(--color-primary-100); }
 }
 
 .alien-404__search-input {
+  height: 42px;
   padding-left: 38px !important;
+  padding-right: 64px !important;
   width: 100%;
   border-radius: var(--radius-md);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  border: 1px solid var(--color-line);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font-size: 13.5px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.alien-404__search-input:focus {
+  border-color: var(--color-primary-700);
+  box-shadow: 0 0 0 3px rgba(20, 83, 138, 0.12);
+  outline: none;
+}
+
+.alien-search-kbd {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink-soft);
+  pointer-events: none;
+  line-height: 1.2;
 }
 
 .alien-404__search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);
-  margin-top: 6px;
   max-height: 220px;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  box-shadow: var(--shadow-md);
 }
 
 .alien-search-item {
@@ -2284,6 +2325,7 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 .alien-search-item:hover {
   background: var(--color-cream-dim);
+  color: var(--color-primary-900);
 }
 
 .alien-search-empty {
@@ -2398,27 +2440,34 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 /* Dark Mode Overrides for Alien 404 */
 [data-theme="dark"] .alien-404-container {
-  background: rgba(15, 23, 42, 0.75);
-  border-color: rgba(56, 189, 248, 0.28);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 35px rgba(56, 189, 248, 0.08);
+  background: var(--color-surface);
+  background-image: radial-gradient(ellipse 90% 45% at 50% 0%, rgba(56, 189, 248, 0.08), transparent 70%);
+  border-color: var(--color-line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
 [data-theme="dark"] .alien-404__badge {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.45);
-  color: #38BDF8;
+  background: var(--color-cream-dim);
+  border-color: var(--color-line);
+  color: var(--color-primary-700);
 }
 
 [data-theme="dark"] .alien-bad-path {
-  background: rgba(225, 29, 72, 0.2);
-  border-color: rgba(225, 29, 72, 0.4);
-  color: #FB7185;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #FCA5A5;
 }
 
 [data-theme="dark"] .alien-404__suggestion {
-  background: rgba(14, 165, 233, 0.14);
-  border-color: rgba(56, 189, 248, 0.35);
-  color: #7DD3FC;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: var(--color-gold-soft);
+}
+
+[data-theme="dark"] .alien-404__search-input {
+  background: var(--color-surface);
+  border-color: var(--color-line);
+  color: var(--color-ink);
 }
 
 [data-theme="dark"] .alien-search-item:hover {
