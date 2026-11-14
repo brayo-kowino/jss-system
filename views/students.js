@@ -57,6 +57,9 @@ let currentPage = 1;
 let pageSize = 50;
 let sortColumn = "admissionNumber";
 let sortDirection = "asc";
+let activeSearchInput = null;
+let activeGradeSelect = null;
+let activeStatusSelect = null;
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
@@ -167,17 +170,20 @@ export async function render({ profile, params = {} }) {
 
   // 3. Filter Toolbar & Action Buttons (Consolidated Card)
   const searchInput = el("input", {
+    id: "students-search-input",
     placeholder: "Search by name, adm no., phone, or parent…",
     style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
   attachSearchClear(searchInput);
   const gradeSelect = el("select", {
+    id: "students-grade-filter",
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
     el("option", { value: "" }, "All Grades"),
     ...classes.map((c) => el("option", { value: c.grade }, c.grade)),
   ]);
   const statusSelect = el("select", {
+    id: "students-status-filter",
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
     el("option", { value: "" }, "All Statuses"),
@@ -187,6 +193,10 @@ export async function render({ profile, params = {} }) {
     el("option", { value: "suspended" }, "Suspended"),
     el("option", { value: "archived" }, "Archived"),
   ]);
+
+  activeSearchInput = searchInput;
+  activeGradeSelect = gradeSelect;
+  activeStatusSelect = statusSelect;
 
   const filterToolbar = el("div", {
     class: "card",
@@ -370,14 +380,21 @@ function renderTable(container, profile) {
         message: "No student records match the active query or filter criteria. Clear your filters to see the full student directory.",
         resetText: "Clear filters & search",
         onReset: () => {
-          searchInput.value = "";
-          gradeSelect.value = "";
-          statusSelect.value = "";
           filterText = "";
           filterGrade = "";
           filterStatus = "";
-          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-          drawTable();
+          currentPage = 1;
+          const searchInp = activeSearchInput || document.getElementById("students-search-input");
+          const gradeSel = activeGradeSelect || document.getElementById("students-grade-filter");
+          const statusSel = activeStatusSelect || document.getElementById("students-status-filter");
+          if (gradeSel) gradeSel.value = "";
+          if (statusSel) statusSel.value = "";
+          if (searchInp) {
+            searchInp.value = "";
+            searchInp.dispatchEvent(new Event("input", { bubbles: true }));
+          } else {
+            renderTable(container, profile);
+          }
         },
       }));
     } else {

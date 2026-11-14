@@ -233,6 +233,34 @@ describe("UX Features: Search Clear, Password Toggle & Currency Input", () => {
 
       expect(card.querySelector(".custom-action-btn")).not.toBeNull();
     });
+
+    it("handles filter reset handler safely when clearing search input and selects", () => {
+      const searchInput = document.createElement("input");
+      searchInput.value = "klk";
+      const select = document.createElement("select");
+      select.value = "Grade 7";
+      document.body.appendChild(searchInput);
+      document.body.appendChild(select);
+
+      const inputHandler = vi.fn();
+      searchInput.addEventListener("input", inputHandler);
+
+      const card = renderEmptyState({
+        title: "No results",
+        onReset: () => {
+          searchInput.value = "";
+          select.value = "";
+          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+        },
+      });
+
+      const btn = card.querySelector("button");
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+      expect(searchInput.value).toBe("");
+      expect(select.value).toBe("");
+      expect(inputHandler).toHaveBeenCalled();
+    });
   });
 
   describe("animateNumber", () => {
