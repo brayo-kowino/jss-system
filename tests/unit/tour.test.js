@@ -28,7 +28,6 @@ describe("Guided System Tour", () => {
         <button class="topbar__collapse-btn" data-tour="sidebar-collapse"></button>
         <button class="topbar__search-trigger" data-tour="topbar-search"></button>
         <div data-tour="topbar-sync"></div>
-        <button data-tour="topbar-theme"></button>
         <div data-tour="topbar-user"></div>
         <button data-tour="tour-trigger"></button>
       </header>

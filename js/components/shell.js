@@ -145,46 +145,8 @@ function roleLabel(roleValue) {
   return ROLES.find((r) => r.value === roleValue)?.label || roleValue;
 }
 
+// PWA App Installation handlers
 // ---------------------------------------------------------------------------
-// Install button - shown in the topbar whenever the browser has something
-// useful to offer (a real one-tap Chrome/Edge/Android prompt, or iOS's
-// manual "Add to Home Screen" steps), hidden the moment the app is already
-// running installed. renderShell() rebuilds the whole topbar on every
-// navigation, so the previous button's live-update subscription is torn
-// down first (see installUnsubscribe below) rather than piling up a new
-// listener on every route change for the life of the session.
-// ---------------------------------------------------------------------------
-let installUnsubscribe = null;
-
-function installButton() {
-  const wrap = el("span", { class: "topbar__install-wrap" });
-
-  function render() {
-    wrap.innerHTML = "";
-    if (!isInstallable() || isRunningInstalled()) return;
-    const method = installMethod();
-    const btn = el(
-      "button",
-      {
-        type: "button",
-        class: "btn btn--ghost btn--sm topbar__install-btn",
-        title: "Install Eeskia as an app on this device",
-        "aria-label": "Install Eeskia as an app on this device",
-        onClick: () => (method === "prompt" ? handleNativeInstall() : showIosInstallHint()),
-      },
-      [
-        icon("install_desktop"),
-        el("span", { class: "topbar__install-btn-text" }, "Install app"),
-      ]
-    );
-    wrap.append(btn);
-  }
-
-  if (installUnsubscribe) installUnsubscribe();
-  installUnsubscribe = onInstallabilityChange(render);
-  render();
-  return wrap;
-}
 
 async function handleNativeInstall() {
   try {
@@ -1001,7 +963,7 @@ export function renderShell(app, profile, activePath) {
   const tourButton = el(
     "button",
     {
-      class: "topbar__icon-btn",
+      class: "topbar__icon-btn hide-on-mobile",
       "data-tour": "tour-trigger",
       title: "Guided system tour",
       "aria-label": "Guided system tour",
@@ -1044,6 +1006,26 @@ export function renderShell(app, profile, activePath) {
       ]
     );
 
+    const themeIcon = icon(getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode");
+    const themeLabel = el("span", {}, getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme");
+    const themeBtn = el(
+      "button",
+      {
+        type: "button",
+        class: "topbar__profile-item",
+        onClick: () => {
+          dropdown.classList.remove("open");
+          toggleTheme();
+        },
+      },
+      [themeIcon, themeLabel]
+    );
+
+    window.addEventListener("themechange", () => {
+      themeIcon.textContent = getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode";
+      themeLabel.textContent = getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme";
+    });
+
     const dropdown = el("div", { class: "topbar__profile-dropdown" }, [
       el("div", { class: "topbar__profile-header" }, [
         el("div", { class: "topbar__avatar topbar__avatar--lg" }, initials),
@@ -1071,20 +1053,25 @@ export function renderShell(app, profile, activePath) {
             ),
           ]
         : []),
+      themeBtn,
       el(
         "button",
         {
           type: "button",
-          class: "topbar__profile-item",
+          class: "topbar__profile-item hide-on-mobile",
+          title: "Guided system tour",
           onClick: () => {
             dropdown.classList.remove("open");
-            toggleTheme();
+            if (sidebar.classList.contains("sidebar--collapsed")) {
+              saveSidebarCollapsed(false);
+              applyCollapsedState(false);
+              setTimeout(() => startTour(TOUR_STEPS), 200);
+            } else {
+              startTour(TOUR_STEPS);
+            }
           },
         },
-        [
-          icon(getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode"),
-          getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme",
-        ]
+        [icon("smart_toy"), "Guided Tour"]
       ),
       el(
         "button",
@@ -1155,44 +1142,9 @@ export function renderShell(app, profile, activePath) {
     return wrap;
   }
 
-  function themeToggleButton() {
-    const getIconName = () => (getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode");
-    const getTitle = () => (getEffectiveTheme() === "dark" ? "Switch to light theme" : "Switch to dark theme");
-
-    const btn = el(
-      "button",
-      {
-        type: "button",
-        class: "topbar__icon-btn",
-        "data-tour": "topbar-theme",
-        title: getTitle(),
-        "aria-label": getTitle(),
-        onClick: () => {
-          toggleTheme();
-          const iconSpan = btn.querySelector(".icon");
-          if (iconSpan) iconSpan.textContent = getIconName();
-          btn.title = getTitle();
-          btn.setAttribute("aria-label", getTitle());
-        },
-      },
-      [icon(getIconName())]
-    );
-
-    window.addEventListener("themechange", () => {
-      const iconSpan = btn.querySelector(".icon");
-      if (iconSpan) iconSpan.textContent = getIconName();
-      btn.title = getTitle();
-      btn.setAttribute("aria-label", getTitle());
-    });
-
-    return btn;
-  }
-
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     offlineStatusPill(),
-    installButton(),
     tourButton,
-    themeToggleButton(),
     renderUserProfileMenu(),
   ]);
   topbar.append(userBox);

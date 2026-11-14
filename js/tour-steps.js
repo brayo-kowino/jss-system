@@ -38,19 +38,12 @@ export const TOUR_STEPS = [
     body: "Shows real-time cloud connectivity. When offline, all your changes queue safely in local storage and synchronize automatically once reconnected.",
   },
   {
-    target: '[data-tour="topbar-theme"]',
-    title: "Atmospheric Dark Mode",
-    category: "Appearance",
-    icon: "dark_mode",
-    body: "Switch smoothly between vibrant light mode and luminous dark mode. The dark engine derives cohesive contrast palettes directly from your school's official brand colors.",
-  },
-  {
     target: '[data-tour="topbar-user"]',
-    title: "User Profile & Shortcuts Guide",
+    title: "User Profile, Themes & Preferences",
     category: "Account",
     shortcut: "?",
     icon: "account_circle",
-    body: "View your user role, switch themes, open the interactive Keyboard Shortcuts Guide, manage 2FA security, update your password, and sign out securely.",
+    body: "Your central preferences menu: switch between Light and Atmospheric Dark mode, install the Eeskia app, open the Keyboard Shortcuts Guide (Ctrl+K or ?), update your password, and sign out securely.",
   },
   {
     target: '[data-tour="nav-dashboard"]',
