@@ -16,7 +16,10 @@ import {
   clearAllTimetableSlots,
   clearClassTimetableSlots,
   assignSlot,
+  assignDoubleSlot,
   clearSlot,
+  clearDoubleSlot,
+  checkSlotConflict,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
@@ -75,6 +78,13 @@ export function getAssignedClassSubjectTeacher(allTeachers, grade, stream, subje
 
 export function getSubjectDepartmentClass(subjectCode) {
   if (!subjectCode) return "";
+  const code = subjectCode.toUpperCase();
+  if (["MATH", "SCI", "AGR", "BIO", "CHEM", "PHY", "LIB"].includes(code)) return "tt-pill--sciences";
+  if (["ENG", "KIS", "FREN", "GER", "ARAB"].includes(code)) return "tt-pill--languages";
+  if (["SST", "CRE", "IRE", "HRE", "GEO", "HIST", "PPI"].includes(code)) return "tt-pill--humanities";
+  if (["PTS", "COMP", "HOME", "AV", "CLUBS"].includes(code)) return "tt-pill--technical";
+  if (["CRA", "PE", "PHE", "MUS", "GAMES", "SPORTS", "ASSM", "LIFESKILLS"].includes(code)) return "tt-pill--creative";
+
   const sub = subjects.find((s) => s.code === subjectCode);
   const dept = (sub && sub.department ? sub.department : "").toLowerCase();
   if (dept.includes("science")) return "tt-pill--sciences";
@@ -83,12 +93,6 @@ export function getSubjectDepartmentClass(subjectCode) {
   if (dept.includes("tech") || dept.includes("applied")) return "tt-pill--technical";
   if (dept.includes("creat") || dept.includes("art") || dept.includes("sport")) return "tt-pill--creative";
 
-  const code = subjectCode.toUpperCase();
-  if (["MATH", "SCI", "AGR", "BIO", "CHEM", "PHY"].includes(code)) return "tt-pill--sciences";
-  if (["ENG", "KIS", "FREN", "GER", "ARAB"].includes(code)) return "tt-pill--languages";
-  if (["SST", "CRE", "IRE", "HRE", "GEO", "HIST"].includes(code)) return "tt-pill--humanities";
-  if (["PTS", "COMP", "HOME", "AV"].includes(code)) return "tt-pill--technical";
-  if (["CRA", "PE", "PHE", "MUS"].includes(code)) return "tt-pill--creative";
   return "";
 }
 
@@ -1270,35 +1274,164 @@ async function loadTeacherGrid(gridMount) {
 
 // ----------------------------------------------------------- Slot Assignment --
 
-async function openAssignModal(profile, day, period, gridMount, onSaved = null) {
+export const STANDARD_ACTIVITIES = [
+  { code: "PE", name: "Physical Education & Sports", defaultRoom: "Sports Field / Pitch", icon: "sports_soccer" },
+  { code: "PPI", name: "Pastoral Programme of Instruction (PPI)", defaultRoom: "Classroom / Hall", icon: "church" },
+  { code: "CLUBS", name: "Clubs & Societies", defaultRoom: "Assigned Club Rooms", icon: "groups" },
+  { code: "GAMES", name: "Games & Outdoor Activities", defaultRoom: "Sports Field", icon: "sports_volleyball" },
+  { code: "LIFESKILLS", name: "Guidance & Counselling / Life Skills", defaultRoom: "Classroom", icon: "psychology" },
+  { code: "LIB", name: "Library & Quiet Reading", defaultRoom: "School Library", icon: "local_library" },
+  { code: "ASSM", name: "School Assembly & Devotion", defaultRoom: "Assembly Ground", icon: "flag" },
+  { code: "CUSTOM", name: "Other Custom Activity...", defaultRoom: "", icon: "edit_note" },
+];
+
+async function openAssignModal(profile, day, period, mountOrCallback, onSaved = null) {
   if (!CAN_MANAGE.includes(profile.role)) return;
   if (CAN_SEE_ALL_TEACHERS.includes(profile.role)) {
     try {
       teachers = await listTeachers();
     } catch {}
   }
-  const existing = classSlots[`${day}_${period.id}`] || (masterSlots ? masterSlots.find(s => s.grade === classSelection.grade && (s.stream || "") === (classSelection.stream || "") && s.day === day && s.periodId === period.id) : null);
+
+  // Resolve target mount / callbacks
+  let targetMount = null;
+  let targetCallback = null;
+  if (mountOrCallback && mountOrCallback.nodeType) {
+    targetMount = mountOrCallback;
+  } else if (typeof mountOrCallback === "function") {
+    targetCallback = mountOrCallback;
+  }
+  if (typeof onSaved === "function") {
+    targetCallback = onSaved;
+  }
+
+  const cohortGrade = classSelection.grade;
+  const cohortStream = classSelection.stream || "";
+
+  function getCohortSlot(pId) {
+    if (classSlots && classSlots[`${day}_${pId}`]) return classSlots[`${day}_${pId}`];
+    if (masterSlots) {
+      return masterSlots.find(s => s.grade === cohortGrade && (s.stream || "") === cohortStream && s.day === day && s.periodId === pId) || null;
+    }
+    return null;
+  }
+
+  const existing = getCohortSlot(period.id);
+
+  // Consecutive Period Analysis for Double Lessons
+  const curIdx = periods.findIndex((p) => p.id === period.id);
+  const prevPeriod = curIdx > 0 ? periods[curIdx - 1] : null;
+  const nextPeriod = (curIdx >= 0 && curIdx + 1 < periods.length) ? periods[curIdx + 1] : null;
+
+  const prevSlot = prevPeriod && !prevPeriod.isBreak ? getCohortSlot(prevPeriod.id) : null;
+  const nextSlot = nextPeriod && !nextPeriod.isBreak ? getCohortSlot(nextPeriod.id) : null;
+
+  const isSecondHalfOfDouble = existing && prevSlot &&
+    existing.subjectCode === prevSlot.subjectCode &&
+    (existing.teacherId || "") === (prevSlot.teacherId || "");
+
+  const canDoubleForward = nextPeriod && !nextPeriod.isBreak;
+  const isFirstHalfOfDouble = existing && nextSlot &&
+    existing.subjectCode === nextSlot.subjectCode &&
+    (existing.teacherId || "") === (nextSlot.teacherId || "");
+
+  // Determine Initial Mode (Subject vs Activity)
+  let currentMode = "subject";
+  let initialActivityPreset = "PE";
+  let initialCustomActivity = "";
+
+  if (existing) {
+    const isPreset = STANDARD_ACTIVITIES.some((a) => a.code === existing.subjectCode);
+    const isSubject = subjects.some((s) => s.code === existing.subjectCode);
+    if (existing.isActivity || isPreset || (!isSubject && existing.subjectCode)) {
+      currentMode = "activity";
+      if (isPreset) {
+        initialActivityPreset = existing.subjectCode;
+      } else {
+        initialActivityPreset = "CUSTOM";
+        initialCustomActivity = existing.subjectName || existing.subjectCode || "";
+      }
+    }
+  }
+
   const body = el("form", {});
+
+  // Callout header
+  body.append(
+    el("div", { class: "callout callout--info", style: "margin-bottom:12px; padding:10px 14px; font-size:12.5px; display:flex; align-items:center; justify-content:space-between; gap:10px;" }, [
+      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+        icon("schedule", "text-sm", "style: color:var(--color-primary-800);"),
+        el("div", {}, [
+          el("strong", {}, `${cohortGrade}${cohortStream ? " " + cohortStream : ""}`),
+          el("span", { style: "color:var(--color-ink-soft); margin-left:6px;" }, `· ${day} · ${period.name} (${period.startTime}–${period.endTime})`),
+        ]),
+      ]),
+      existing ? el("span", { class: "badge badge--outline", style: "font-size:10.5px;" }, "Active Slot") : null,
+    ])
+  );
+
+  // If this slot is the second half of an active double lesson
+  if (isSecondHalfOfDouble) {
+    body.append(
+      el("div", {
+        class: "callout callout--warning",
+        style: "margin-bottom:12px; padding:8px 12px; font-size:11.5px; display:flex; align-items:flex-start; gap:8px;"
+      }, [
+        icon("link", "text-xs", "style: margin-top:2px; flex-shrink:0;"),
+        el("div", {}, [
+          `This slot is currently the second period of a `,
+          el("strong", {}, `Double Lesson with ${prevPeriod.name} (${prevPeriod.startTime}–${prevPeriod.endTime})`),
+          `. Editing or clearing this slot will unlink or update it.`,
+        ]),
+      ])
+    );
+  }
+
+  // Segmented Mode Switcher
+  const modeSwitchWrap = el("div", {
+    style: "display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px; background:var(--color-cream-dim, #f1f5f9); padding:4px; border-radius:var(--radius-md); border:1px solid var(--color-line);"
+  });
+
+  const btnModeSubject = el("button", {
+    type: "button",
+    class: `btn btn--sm ${currentMode === "subject" ? "btn--primary" : "btn--ghost"}`,
+    style: "justify-content:center; font-size:12px; font-weight:600;",
+    onClick: () => setMode("subject"),
+  }, [icon("school", "text-xs"), "Academic Subject"]);
+
+  const btnModeActivity = el("button", {
+    type: "button",
+    class: `btn btn--sm ${currentMode === "activity" ? "btn--primary" : "btn--ghost"}`,
+    style: "justify-content:center; font-size:12px; font-weight:600;",
+    onClick: () => setMode("activity"),
+  }, [icon("sports_soccer", "text-xs"), "Activity / Co-Curricular"]);
+
+  modeSwitchWrap.append(btnModeSubject, btnModeActivity);
+  body.append(modeSwitchWrap);
+
+  // --- Subject Mode Fields ---
+  const subjectContainer = el("div", { style: currentMode === "subject" ? "display:block;" : "display:none;" });
+
   const subjectSelect = el("select", {}, [
-    el("option", { value: "" }, "Select subject"),
+    el("option", { value: "" }, "Select academic subject"),
     ...subjects.map((s) => el("option", { value: s.code, ...(s.code === existing?.subjectCode ? { selected: "true" } : {}) }, s.name)),
   ]);
+
   const teacherSelect = el("select", {}, [el("option", { value: "" }, "Select teacher (optional)")]);
-  const roomInput = el("input", { type: "text", value: existing?.room || "", placeholder: "e.g. Room 12, Science Lab, Field" });
+  const roomInput = el("input", { type: "text", value: (currentMode === "subject" ? existing?.room : "") || "", placeholder: "e.g. Room 12, Science Lab, Computer Room" });
 
   function refreshTeachers() {
     const code = subjectSelect.value;
-    const currentVal = teacherSelect.value || existing?.teacherId || "";
+    const currentVal = teacherSelect.value || (currentMode === "subject" ? existing?.teacherId : "") || "";
     teacherSelect.innerHTML = "";
     teacherSelect.append(el("option", { value: "" }, "Select teacher (optional)"));
 
-    // Check specific class-subject assigned teacher first
-    const classAssigned = getAssignedClassSubjectTeacher(teachers, classSelection.grade, classSelection.stream, code);
+    const classAssigned = getAssignedClassSubjectTeacher(teachers, cohortGrade, cohortStream, code);
     const qualified = teachers.filter((t) => code && (t.teachingAssignments || []).some(a => a.subjectCode === code));
     const others = teachers.filter((t) => !code || !(t.teachingAssignments || []).some(a => a.subjectCode === code));
 
     if (classAssigned) {
-      const groupClass = el("optgroup", { label: `★ Assigned for ${classSelection.grade} ${classSelection.stream}` });
+      const groupClass = el("optgroup", { label: `★ Assigned for ${cohortGrade}${cohortStream ? " " + cohortStream : ""}` });
       groupClass.append(el("option", { value: classAssigned.id, selected: "true" }, `★ ${classAssigned.fullName} (Class Subject Teacher)`));
       teacherSelect.append(groupClass);
     }
@@ -1329,60 +1462,362 @@ async function openAssignModal(profile, day, period, gridMount, onSaved = null) 
   refreshTeachers();
   subjectSelect.addEventListener("change", refreshTeachers);
 
-  body.append(
-    el("div", { class: "callout callout--info", style: "margin-bottom:12px; padding:8px 12px; font-size:12px;" }, [
-      icon("schedule", "text-xs"),
-      `${classSelection.grade}${classSelection.stream ? " " + classSelection.stream : ""} · ${day} · ${period.name} (${period.startTime}–${period.endTime})`,
-    ]),
+  subjectContainer.append(
     el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
     el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Room / Location (optional)"), roomInput]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(existing ? "save" : "add_task"), existing ? "Save Changes" : "Assign Slot"])
+    el("div", { class: "field" }, [el("label", {}, "Room / Location (optional)"), roomInput])
   );
+  body.append(subjectContainer);
 
-  const close = openModal("Assign Timetable Slot", body);
+  // --- Activity Mode Fields ---
+  const activityContainer = el("div", { style: currentMode === "activity" ? "display:block;" : "display:none;" });
 
-  if (existing) {
-    body.append(el("button", {
-      type: "button", class: "btn btn--ghost btn--block", style: "margin-top:8px; color:var(--color-red);",
-      onClick: async (e) => {
-        const restore = busyButton(e.currentTarget, "Clearing…");
-        try {
-          await clearSlot(profile.uid, classSelection.grade, classSelection.stream, day, period.id);
-          toast("Slot cleared.", "success");
-          close();
-          if (gridMount) await loadClassGrid(profile, gridMount);
-          if (onSaved) await onSaved();
-        } catch (err) {
-          toast(err.message || "Could not clear slot.", "error");
-          restore();
-        }
-      },
-    }, [icon("backspace", "text-xs"), "Clear this slot"]));
+  const activityPresetSelect = el("select", {}, [
+    ...STANDARD_ACTIVITIES.map((act) => el("option", {
+      value: act.code,
+      ...(act.code === initialActivityPreset ? { selected: "true" } : {})
+    }, `${act.name} (${act.code})`)),
+  ]);
+
+  const customActivityInput = el("input", {
+    type: "text",
+    value: initialCustomActivity,
+    placeholder: "e.g. Choir Practice, Scouts, Debate Club...",
+    style: "font-size:13px;"
+  });
+  const customActivityWrap = el("div", {
+    class: "field",
+    style: initialActivityPreset === "CUSTOM" ? "display:block;" : "display:none;"
+  }, [
+    el("label", {}, "Custom Activity Name"),
+    customActivityInput
+  ]);
+
+  const activityTeacherSelect = el("select", {}, [
+    el("option", { value: "" }, "No specific supervisor / Shared supervision"),
+    ...teachers.map((t) => el("option", {
+      value: t.id,
+      ...(t.id === (currentMode === "activity" ? existing?.teacherId : "") ? { selected: "true" } : {})
+    }, `${t.fullName} (Patron / Facilitator)`))
+  ]);
+
+  const initialRoom = (currentMode === "activity" ? existing?.room : "") ||
+    STANDARD_ACTIVITIES.find(a => a.code === initialActivityPreset)?.defaultRoom || "";
+  const activityRoomInput = el("input", {
+    type: "text",
+    value: initialRoom,
+    placeholder: "e.g. Sports Field, School Library, Assembly Ground"
+  });
+
+  activityPresetSelect.addEventListener("change", () => {
+    const val = activityPresetSelect.value;
+    if (val === "CUSTOM") {
+      customActivityWrap.style.display = "block";
+      customActivityInput.focus();
+    } else {
+      customActivityWrap.style.display = "none";
+      const preset = STANDARD_ACTIVITIES.find(a => a.code === val);
+      if (preset && (!activityRoomInput.value || STANDARD_ACTIVITIES.some(a => a.defaultRoom === activityRoomInput.value))) {
+        activityRoomInput.value = preset.defaultRoom;
+      }
+    }
+  });
+
+  activityContainer.append(
+    el("div", { class: "field" }, [el("label", {}, "Activity / Co-Curricular Program"), activityPresetSelect]),
+    customActivityWrap,
+    el("div", { class: "field" }, [el("label", {}, "Patron / Supervising Teacher (optional)"), activityTeacherSelect]),
+    el("div", { class: "field" }, [el("label", {}, "Venue / Location (optional)"), activityRoomInput])
+  );
+  body.append(activityContainer);
+
+  function setMode(mode) {
+    currentMode = mode;
+    if (mode === "subject") {
+      btnModeSubject.className = "btn btn--sm btn--primary";
+      btnModeActivity.className = "btn btn--sm btn--ghost";
+      subjectContainer.style.display = "block";
+      activityContainer.style.display = "none";
+    } else {
+      btnModeSubject.className = "btn btn--sm btn--ghost";
+      btnModeActivity.className = "btn btn--sm btn--primary";
+      subjectContainer.style.display = "none";
+      activityContainer.style.display = "block";
+      if (!activityRoomInput.value) {
+        const preset = STANDARD_ACTIVITIES.find(a => a.code === activityPresetSelect.value);
+        if (preset) activityRoomInput.value = preset.defaultRoom;
+      }
+    }
   }
 
+  // --- Double Lesson Toggle Container ---
+  let doubleCheckbox = null;
+  if (canDoubleForward) {
+    doubleCheckbox = el("input", {
+      type: "checkbox",
+      id: "tt-double-lesson-check",
+      ...(isFirstHalfOfDouble ? { checked: "true" } : {}),
+      style: "width:16px; height:16px; margin-top:2px; cursor:pointer;"
+    });
+
+    const doubleBox = el("div", {
+      class: "tt-double-box",
+      style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:10px 14px; margin:14px 0;"
+    }, [
+      el("label", {
+        style: "display:flex; align-items:flex-start; gap:10px; cursor:pointer; margin:0;"
+      }, [
+        doubleCheckbox,
+        el("div", {}, [
+          el("div", { style: "font-weight:700; color:var(--color-primary-900); font-size:12.5px; display:flex; align-items:center; gap:6px;" }, [
+            icon("view_column", "text-xs"),
+            `Assign as Double Lesson (${period.name} & ${nextPeriod.name})`,
+          ]),
+          el("div", { style: "font-size:11.5px; color:var(--color-ink-soft); margin-top:2px; line-height:1.4;" },
+            `Combines both periods into an 80-minute block (${period.startTime}–${nextPeriod.endTime}). Validates teacher and room availability across both slots.`
+          ),
+          nextSlot && !isFirstHalfOfDouble ? el("div", {
+            style: "color:var(--color-amber-800, #b45309); font-size:11px; margin-top:4px; font-weight:600;"
+          }, `⚠️ Note: ${nextPeriod.name} currently has "${nextSlot.subjectName || nextSlot.subjectCode}" assigned, which will be overwritten.`) : null,
+        ].filter(Boolean)),
+      ]),
+    ]);
+    body.append(doubleBox);
+  } else if (nextPeriod && nextPeriod.isBreak) {
+    body.append(el("div", {
+      style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:8px 12px; margin:12px 0; font-size:11.5px; color:var(--color-ink-soft); display:flex; align-items:center; gap:8px;"
+    }, [
+      icon("coffee", "text-xs"),
+      el("span", {}, `Followed by ${nextPeriod.name} (${nextPeriod.startTime}–${nextPeriod.endTime}) · Double lessons cannot cross break intervals.`),
+    ]));
+  } else {
+    body.append(el("div", {
+      style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:8px 12px; margin:12px 0; font-size:11.5px; color:var(--color-ink-soft); display:flex; align-items:center; gap:8px;"
+    }, [
+      icon("info", "text-xs"),
+      el("span", {}, "Final period of the day · Single lesson slot."),
+    ]));
+  }
+
+  // Submit button
+  body.append(
+    el("button", {
+      type: "submit",
+      class: "btn btn--primary btn--block",
+      style: "margin-top:6px;"
+    }, [
+      icon(existing ? "save" : "add_task"),
+      existing ? "Save Changes" : "Assign Slot"
+    ])
+  );
+
+  const close = openModal(existing ? "Edit Timetable Slot" : "Assign Timetable Slot", body);
+
+  // Clear Slot Actions
+  if (existing) {
+    const clearActionsWrap = el("div", { style: "margin-top:12px; display:flex; flex-direction:column; gap:6px;" });
+
+    if (isFirstHalfOfDouble) {
+      clearActionsWrap.append(
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--block",
+          style: "color:var(--color-red); font-size:12px;",
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Clearing double lesson…");
+            try {
+              await clearDoubleSlot(profile.uid, cohortGrade, cohortStream, day, period.id, nextPeriod.id);
+              toast(`Double lesson cleared (${period.name} & ${nextPeriod.name}).`, "success");
+              close();
+              if (targetMount) await loadClassGrid(profile, targetMount);
+              if (targetCallback) await targetCallback();
+            } catch (err) {
+              toast(err.message || "Could not clear double lesson.", "error");
+              restore();
+            }
+          },
+        }, [icon("delete_sweep", "text-xs"), `Clear Double Lesson (${period.name} & ${nextPeriod.name})`]),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--block",
+          style: "color:var(--color-ink-soft); font-size:11.5px;",
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Clearing…");
+            try {
+              await clearSlot(profile.uid, cohortGrade, cohortStream, day, period.id);
+              toast(`Cleared ${period.name} only.`, "success");
+              close();
+              if (targetMount) await loadClassGrid(profile, targetMount);
+              if (targetCallback) await targetCallback();
+            } catch (err) {
+              toast(err.message || "Could not clear slot.", "error");
+              restore();
+            }
+          },
+        }, [icon("backspace", "text-xs"), `Clear ${period.name} only`])
+      );
+    } else if (isSecondHalfOfDouble) {
+      clearActionsWrap.append(
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--block",
+          style: "color:var(--color-red); font-size:12px;",
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Clearing…");
+            try {
+              await clearSlot(profile.uid, cohortGrade, cohortStream, day, period.id);
+              toast(`Cleared ${period.name}.`, "success");
+              close();
+              if (targetMount) await loadClassGrid(profile, targetMount);
+              if (targetCallback) await targetCallback();
+            } catch (err) {
+              toast(err.message || "Could not clear slot.", "error");
+              restore();
+            }
+          },
+        }, [icon("backspace", "text-xs"), `Clear this slot (${period.name})`]),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--block",
+          style: "color:var(--color-red); font-size:11.5px;",
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Clearing full double lesson…");
+            try {
+              await clearDoubleSlot(profile.uid, cohortGrade, cohortStream, day, prevPeriod.id, period.id);
+              toast(`Double lesson cleared (${prevPeriod.name} & ${period.name}).`, "success");
+              close();
+              if (targetMount) await loadClassGrid(profile, targetMount);
+              if (targetCallback) await targetCallback();
+            } catch (err) {
+              toast(err.message || "Could not clear double lesson.", "error");
+              restore();
+            }
+          },
+        }, [icon("delete_sweep", "text-xs"), `Clear Full Double Lesson (${prevPeriod.name} & ${period.name})`])
+      );
+    } else {
+      clearActionsWrap.append(
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--block",
+          style: "color:var(--color-red); font-size:12px;",
+          onClick: async (e) => {
+            const restore = busyButton(e.currentTarget, "Clearing…");
+            try {
+              await clearSlot(profile.uid, cohortGrade, cohortStream, day, period.id);
+              toast("Slot cleared.", "success");
+              close();
+              if (targetMount) await loadClassGrid(profile, targetMount);
+              if (targetCallback) await targetCallback();
+            } catch (err) {
+              toast(err.message || "Could not clear slot.", "error");
+              restore();
+            }
+          },
+        }, [icon("backspace", "text-xs"), "Clear this slot"])
+      );
+    }
+
+    body.append(clearActionsWrap);
+  }
+
+  // Form submission handler
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
-    const subject = subjects.find((s) => s.code === subjectSelect.value);
-    const teacher = teachers.find((t) => t.id === teacherSelect.value);
-    if (!subject) { restore(); return toast("Select a subject.", "error"); }
+
+    let subjectCode = "";
+    let subjectName = "";
+    let teacherId = "";
+    let teacherName = "";
+    let room = "";
+    let isActivity = false;
+    let activityType = "";
+
+    if (currentMode === "subject") {
+      const subj = subjects.find((s) => s.code === subjectSelect.value);
+      if (!subj) {
+        restore();
+        return toast("Please select an academic subject.", "error");
+      }
+      subjectCode = subj.code;
+      subjectName = subj.name;
+      const t = teachers.find((x) => x.id === teacherSelect.value);
+      teacherId = t?.id || "";
+      teacherName = t?.fullName || "";
+      room = roomInput.value.trim();
+      isActivity = false;
+      activityType = "";
+    } else {
+      const presetCode = activityPresetSelect.value;
+      if (presetCode === "CUSTOM") {
+        const customName = customActivityInput.value.trim();
+        if (!customName) {
+          restore();
+          return toast("Please enter a custom activity name.", "error");
+        }
+        subjectCode = customName.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "ACT";
+        subjectName = customName;
+        activityType = "custom";
+      } else {
+        const preset = STANDARD_ACTIVITIES.find((a) => a.code === presetCode);
+        subjectCode = preset.code;
+        subjectName = preset.name;
+        activityType = preset.code.toLowerCase();
+      }
+      const t = teachers.find((x) => x.id === activityTeacherSelect.value);
+      teacherId = t?.id || "";
+      teacherName = t?.fullName || "";
+      room = activityRoomInput.value.trim();
+      isActivity = true;
+    }
+
+    const isDoubleChecked = canDoubleForward && doubleCheckbox && doubleCheckbox.checked;
+
     try {
-      await assignSlot(profile.uid, {
-        grade: classSelection.grade,
-        stream: classSelection.stream,
-        day,
-        periodId: period.id,
-        subjectCode: subject.code,
-        subjectName: subject.name,
-        teacherId: teacher?.id || "",
-        teacherName: teacher?.fullName || "",
-        room: roomInput.value,
-      });
-      toast("Timetable slot saved.", "success");
+      if (isDoubleChecked) {
+        await assignDoubleSlot(profile.uid, {
+          grade: cohortGrade,
+          stream: cohortStream,
+          day,
+          period1Id: period.id,
+          period2Id: nextPeriod.id,
+          subjectCode,
+          subjectName,
+          teacherId,
+          teacherName,
+          room,
+          isActivity,
+          activityType,
+        });
+        toast(`Double lesson saved (${period.name} & ${nextPeriod.name}).`, "success");
+      } else {
+        await assignSlot(profile.uid, {
+          grade: cohortGrade,
+          stream: cohortStream,
+          day,
+          periodId: period.id,
+          subjectCode,
+          subjectName,
+          teacherId,
+          teacherName,
+          room,
+          isActivity,
+          activityType,
+        });
+
+        // If previously a double lesson and now unchecked, clear period 2
+        if (isFirstHalfOfDouble && nextPeriod) {
+          await clearSlot(profile.uid, cohortGrade, cohortStream, day, nextPeriod.id);
+          toast(`Updated to single lesson (${period.name}). ${nextPeriod.name} cleared.`, "success");
+        } else {
+          toast("Timetable slot saved.", "success");
+        }
+      }
+
       close();
-      if (gridMount) await loadClassGrid(profile, gridMount);
-      if (onSaved) await onSaved();
+      if (targetMount) await loadClassGrid(profile, targetMount);
+      if (targetCallback) await targetCallback();
     } catch (err) {
       toast(err.message || "Could not save slot - check for a conflict.", "error");
       restore();

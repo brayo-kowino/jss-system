@@ -193,6 +193,18 @@ export async function getMasterTimetable(forceRefresh = false) {
   });
 }
 
+export const SHARED_VENUES = [
+  "field",
+  "sports field",
+  "pitch",
+  "playground",
+  "assembly ground",
+  "school grounds",
+  "school hall",
+  "hall",
+  "dining hall",
+];
+
 /**
  * Scans a list of slots and identifies any teacher or room double-bookings.
  * Returns an array of detected conflict descriptors.
@@ -215,9 +227,10 @@ export function detectTimetableConflicts(slots) {
       byDayPeriodTeacher.get(key).push({ ...slot, classLabel });
     }
 
-    // Check room collision (only if room is specified)
+    // Check room collision (only if room is specified and not a shared outdoor/assembly venue)
     const room = (slot.room || "").trim().toLowerCase();
-    if (room) {
+    const isSharedVenue = room && SHARED_VENUES.some((v) => room.includes(v));
+    if (room && !isSharedVenue) {
       const key = `${slot.day}_${slot.periodId}_${room}`;
       if (!byDayPeriodRoom.has(key)) {
         byDayPeriodRoom.set(key, []);
@@ -789,11 +802,9 @@ export async function getTeacherTimetable(teacherId, forceRefresh = false) {
 }
 
 /**
- * Assigns (or reassigns) a class/day/period slot, blocking the save if the
- * chosen teacher - or, if given, the room - is already booked elsewhere at
- * that exact day+period.
+ * Validates whether a slot can be assigned without teacher or room collisions.
  */
-export async function assignSlot(userId, { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room }) {
+export async function checkSlotConflict({ grade, stream, day, periodId, teacherId, teacherName, room }) {
   const schoolId = getCurrentSchoolId();
   const id = slotId(schoolId, grade, stream, day, periodId);
 
@@ -805,15 +816,47 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
       where("periodId", "==", periodId)
     )
   );
+
+  const cleanRoom = (room || "").trim().toLowerCase();
+  const isSharedVenue = cleanRoom && SHARED_VENUES.some((v) => cleanRoom.includes(v));
+
   for (const d of sameSlotElsewhere.docs) {
     if (d.id === id) continue;
     const other = d.data();
     if (teacherId && other.teacherId === teacherId) {
-      throw new Error(`${teacherName || "This teacher"} is already teaching ${other.grade} ${other.stream} at that time.`);
+      const otherClass = `${other.grade || ""}${other.stream ? " " + other.stream : ""}`.trim();
+      return {
+        hasConflict: true,
+        reason: `${teacherName || "This teacher"} is already teaching ${otherClass} at that time.`,
+      };
     }
-    if (room && other.room && other.room.trim().toLowerCase() === room.trim().toLowerCase()) {
-      throw new Error(`Room "${room}" is already booked by ${other.grade} ${other.stream} at that time.`);
+    if (!isSharedVenue && cleanRoom && other.room && other.room.trim().toLowerCase() === cleanRoom) {
+      const otherClass = `${other.grade || ""}${other.stream ? " " + other.stream : ""}`.trim();
+      return {
+        hasConflict: true,
+        reason: `Room "${room}" is already booked by ${otherClass} at that time.`,
+      };
     }
+  }
+
+  return { hasConflict: false };
+}
+
+/**
+ * Assigns (or reassigns) a class/day/period slot, blocking the save if the
+ * chosen teacher - or, if given, the room - is already booked elsewhere at
+ * that exact day+period.
+ */
+export async function assignSlot(
+  userId,
+  { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "" }
+) {
+  const schoolId = getCurrentSchoolId();
+  const id = slotId(schoolId, grade, stream, day, periodId);
+
+  const conflict = await checkSlotConflict({ grade, stream, day, periodId, teacherId, teacherName, room });
+  if (conflict.hasConflict) {
+    throw new Error(conflict.reason);
   }
 
   await setDoc(doc(db, "timetable_slots", id), {
@@ -827,19 +870,36 @@ export async function assignSlot(userId, { grade, stream, day, periodId, subject
     teacherId: teacherId || "",
     teacherName: teacherName || "",
     room: room?.trim() || "",
+    isActivity: !!isActivity,
+    activityType: activityType || "",
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   });
   invalidate(classTimetableCacheKey(grade, stream));
   invalidate(masterTimetableCacheKey());
-  // A reassignment can also change (or clear) a *different* teacher's prior
-  // booking of this exact slot, which we don't have loaded here without an
-  // extra read - invalidate every cached teacher timetable for the school
-  // rather than risk showing a stale grid to whichever teacher lost/gained
-  // a slot. Cheap: this only runs on an explicit admin save, not on render.
   invalidatePrefix(`timetable_teacher:${schoolId}`);
   await logAction(userId, "assign_timetable_slot", "timetable_slots", id);
   return id;
+}
+
+/**
+ * Assigns a 2-period Double Lesson atomically, verifying both periods for collisions first.
+ */
+export async function assignDoubleSlot(
+  userId,
+  { grade, stream, day, period1Id, period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "" }
+) {
+  // Validate Period 1
+  const c1 = await checkSlotConflict({ grade, stream, day, periodId: period1Id, teacherId, teacherName, room });
+  if (c1.hasConflict) throw new Error(c1.reason);
+
+  // Validate Period 2
+  const c2 = await checkSlotConflict({ grade, stream, day, periodId: period2Id, teacherId, teacherName, room });
+  if (c2.hasConflict) throw new Error(`Period 2 conflict: ${c2.reason}`);
+
+  // Save both periods
+  await assignSlot(userId, { grade, stream, day, periodId: period1Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType });
+  await assignSlot(userId, { grade, stream, day, periodId: period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType });
 }
 
 export async function clearSlot(userId, grade, stream, day, periodId) {
@@ -850,4 +910,14 @@ export async function clearSlot(userId, grade, stream, day, periodId) {
   invalidate(masterTimetableCacheKey());
   invalidatePrefix(`timetable_teacher:${schoolId}`);
   await logAction(userId, "clear_timetable_slot", "timetable_slots", id);
+}
+
+/**
+ * Clears both slots of a Double Lesson.
+ */
+export async function clearDoubleSlot(userId, grade, stream, day, period1Id, period2Id) {
+  await clearSlot(userId, grade, stream, day, period1Id);
+  if (period2Id) {
+    await clearSlot(userId, grade, stream, day, period2Id);
+  }
 }

@@ -130,6 +130,32 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       const conflicts = detectTimetableConflicts(slots);
       expect(conflicts).toHaveLength(0);
     });
+
+    it("allows multiple classes to share outdoor venues like Sports Field or Pitch without room collisions", () => {
+      const slots = [
+        {
+          id: "slot1",
+          grade: "Grade 7",
+          stream: "Blue",
+          day: "Thursday",
+          periodId: "p6",
+          teacherId: "tr1",
+          room: "Sports Field",
+        },
+        {
+          id: "slot2",
+          grade: "Grade 8",
+          stream: "Red",
+          day: "Thursday",
+          periodId: "p6",
+          teacherId: "tr2",
+          room: "Sports Field",
+        },
+      ];
+
+      const conflicts = detectTimetableConflicts(slots);
+      expect(conflicts).toHaveLength(0);
+    });
   });
 
   describe("buildCollisionFreeSchedule()", () => {
