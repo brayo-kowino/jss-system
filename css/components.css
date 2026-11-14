@@ -645,11 +645,12 @@
   border-radius: var(--radius-sm);
   background: var(--color-white);
   color: var(--color-ink);
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
 .field input:focus, .field select:focus, .field textarea:focus {
   border-color: var(--color-primary-600);
   outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 111, 181, 0.16);
 }
 .field-error {
   color: var(--color-red);
@@ -854,6 +855,7 @@ tbody td {
   font-size: var(--fs-sm);
   white-space: nowrap;
 }
+tbody tr { transition: background-color 0.12s ease; }
 tbody tr:nth-child(even) { background: var(--color-cream-dim); }
 tbody tr:hover { background: var(--color-primary-100); }
 
