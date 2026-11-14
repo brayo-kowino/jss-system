@@ -1036,9 +1036,10 @@ async function handleBulkReceiptDownload(button, payments) {
 
 function buildReceiptCard(payment) {
   const card = el("div", { class: "receipt" });
+  const schoolSettings = settings || {};
 
-  const logoNode = settings.logoUrl
-    ? el("img", { class: "receipt__logo", src: settings.logoUrl, alt: "School Crest" })
+  const logoNode = schoolSettings.logoUrl
+    ? el("img", { class: "receipt__logo", src: schoolSettings.logoUrl, alt: "School Crest" })
     : el("div", {
         class: "receipt__logo",
         style: "display:flex; align-items:center; justify-content:center; background:var(--color-primary-100); color:var(--color-primary-700); font-weight:700; border-radius:50%; width:44px; height:44px;",
@@ -1048,17 +1049,17 @@ function buildReceiptCard(payment) {
     el("div", { class: "receipt__header" }, [
       logoNode,
       el("div", {}, [
-        el("h3", { class: "receipt__school-name" }, settings.schoolName || "Institution Name"),
-        settings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold);" }, `“${settings.motto}”`) : null,
-        el("p", { class: "receipt__address" }, settings.address || ""),
+        el("h3", { class: "receipt__school-name" }, schoolSettings.schoolName || "Institution Name"),
+        schoolSettings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold);" }, `“${schoolSettings.motto}”`) : null,
+        el("p", { class: "receipt__address" }, schoolSettings.address || ""),
       ]),
     ]),
     el("div", { class: "receipt__banner" }, "OFFICIAL FEE PAYMENT RECEIPT"),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", { style: "font-family:var(--font-mono, monospace);" }, payment.id.slice(0, 10).toUpperCase())]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", { style: "font-family:var(--font-mono, monospace);" }, (payment.id || "").slice(0, 10).toUpperCase() || "N/A")]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Date"), el("b", {}, formatDate(payment.date))]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Learner Name"), el("b", {}, payment.studentName || "N/A")]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Class & Stream"), el("b", {}, `${payment.grade} ${payment.stream || ""}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Term & Year"), el("b", {}, `${payment.term} ${payment.academicYear}`)]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Class & Stream"), el("b", {}, `${payment.grade || ""} ${payment.stream || ""}`.trim() || "N/A")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Term & Year"), el("b", {}, `${payment.term || ""} ${payment.academicYear || ""}`.trim() || "N/A")]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Payment Method"), el("b", {}, payment.method || "N/A")]),
     ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Ref / Transaction ID"), el("b", { style: "font-family:var(--font-mono, monospace);" }, payment.reference)])] : []),
     el("div", { class: "receipt__amount" }, formatKES(payment.amount)),
@@ -1085,7 +1086,7 @@ function showReceiptModal(payment) {
   openModal({
     title: `Payment Receipt: ${payment.studentName || "Learner"}`,
     body,
-    maxWidth: "460px",
+    maxWidth: "480px",
   });
 }
 
