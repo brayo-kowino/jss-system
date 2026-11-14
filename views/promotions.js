@@ -530,7 +530,7 @@ function buildReviewStep() {
         style: "display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(245, 158, 11, 0.08); border-top:1px solid rgba(245, 158, 11, 0.2); font-size:var(--fs-xs); color:#B45309;",
       }, [
         icon("info"),
-        el("span", {}, `${warnings.length} learner(s) had their stream auto-assigned because their previous stream is not offered in the destination grade. Click the edit icon (✎) on any row to change it.`),
+        el("span", {}, `${warnings.length} learner(s) had their stream auto-assigned because their previous stream is not offered in the destination grade. Click the edit icon on any row to change it.`),
       ])
     );
   }

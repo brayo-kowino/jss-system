@@ -267,7 +267,7 @@ function showMarksInstructionsModal(forceOpen = false) {
       title: "2. Reviewing the Whole Grade",
       items: [
         "Switch to the 'Marks Review' tab to inspect all subjects and students together.",
-        "Missing marks are clearly flagged with a red ⚠ indicator so you spot gaps quickly.",
+        "Missing marks are clearly flagged with a red indicator so you spot gaps quickly.",
         "Check overall grade completion percentages and subject-by-subject submission counts.",
       ],
     },
@@ -279,7 +279,7 @@ function showMarksInstructionsModal(forceOpen = false) {
       title: "3. Quick Edits & Navigation",
       items: [
         "Click any mark or missing flag in the review matrix to edit the score in a quick modal without leaving the board.",
-        "Click the 📝 icon on any subject column header to jump directly into the full class roster for that subject.",
+        "Click the edit icon on any subject column header to jump directly into the full class roster for that subject.",
         "When jumping to the entry tab, the selected student's row is automatically highlighted for you.",
       ],
     },
@@ -1856,7 +1856,7 @@ function renderReviewMatrix(container, students, subjects, marksMap, assessment,
         ? `${missingCells} missing mark(s) detected across ${subjects.length} learning area(s). Review flagged cells below.`
         : `All marks recorded — ${filledCells} of ${totalCells} cells complete.`),
       el("span", { class: "text-muted", style: "font-size:11px;" },
-        "💡 Click any cell to quickly enter/edit that mark, or click the 📝 icon on any subject header to open it in Marks Entry."),
+        "Click any cell to quickly enter or edit that mark, or click the edit icon on any subject header to open it in Marks Entry."),
     ]),
     el("span", { style: "margin-left:auto; font-weight:700; color:var(--color-primary-900); font-size:var(--fs-sm);" }, `${completionPct}% Complete`),
   ]);

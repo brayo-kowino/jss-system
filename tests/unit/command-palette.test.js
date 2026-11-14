@@ -4,6 +4,7 @@ import { openCommandPalette, closeCommandPalette, toggleCommandPalette, initComm
 // Mock router
 vi.mock("../../js/router.js", () => ({
   navigate: vi.fn(),
+  navigateWithParams: vi.fn(),
 }));
 
 // Mock theme
@@ -231,5 +232,98 @@ describe("Global Command Palette", () => {
     const hintsView = document.querySelector(".cmd-palette-view--hints");
     expect(hintsView).not.toBeNull();
     expect(hintsView.style.display).not.toBe("none");
+  });
+
+  describe("Deep Link Shortcuts in Command Palette", () => {
+    it("suggests Admit New Student deep link on 'admit' query", async () => {
+      const { navigateWithParams } = await import("../../js/router.js");
+      openCommandPalette({ profile: adminProfile });
+      const input = document.querySelector(".cmd-palette-input");
+
+      input.value = "admit";
+      input.dispatchEvent(new Event("input"));
+
+      const items = document.querySelectorAll(".cmd-palette-item");
+      const admitItem = Array.from(items).find((el) =>
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Admit New Student")
+      );
+      expect(admitItem).toBeDefined();
+
+      admitItem.click();
+      expect(navigateWithParams).toHaveBeenCalledWith("/students", { action: "admit" });
+    });
+
+    it("suggests Pending Fee Balances on 'pending fee' query", async () => {
+      const { navigateWithParams } = await import("../../js/router.js");
+      openCommandPalette({ profile: adminProfile });
+      const input = document.querySelector(".cmd-palette-input");
+
+      input.value = "pending fee";
+      input.dispatchEvent(new Event("input"));
+
+      const items = document.querySelectorAll(".cmd-palette-item");
+      const feeItem = Array.from(items).find((el) =>
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Pending Fee Balances")
+      );
+      expect(feeItem).toBeDefined();
+
+      feeItem.click();
+      expect(navigateWithParams).toHaveBeenCalledWith("/fees", { status: "pending" });
+    });
+
+    it("surfaces class-specific contextual deep links for fees and marks", async () => {
+      const { navigateWithParams } = await import("../../js/router.js");
+      openCommandPalette({ profile: adminProfile });
+      const input = document.querySelector(".cmd-palette-input");
+
+      input.value = "Grade 7 Alpha fees";
+      input.dispatchEvent(new Event("input"));
+
+      const items = document.querySelectorAll(".cmd-palette-item");
+      const classFeeItem = Array.from(items).find((el) =>
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Grade 7") &&
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Fee Balances")
+      );
+      expect(classFeeItem).toBeDefined();
+
+      classFeeItem.click();
+      expect(navigateWithParams).toHaveBeenCalledWith("/fees", { grade: "Grade 7", stream: "Alpha" });
+    });
+
+    it("surfaces day-specific Master Timetable shortcuts", async () => {
+      const { navigateWithParams } = await import("../../js/router.js");
+      openCommandPalette({ profile: adminProfile });
+      const input = document.querySelector(".cmd-palette-input");
+
+      input.value = "Monday timetable";
+      input.dispatchEvent(new Event("input"));
+
+      const items = document.querySelectorAll(".cmd-palette-item");
+      const mondayItem = Array.from(items).find((el) =>
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Monday Master Timetable")
+      );
+      expect(mondayItem).toBeDefined();
+
+      mondayItem.click();
+      expect(navigateWithParams).toHaveBeenCalledWith("/timetable", { tab: "master", day: "Monday" });
+    });
+
+    it("direct deep links to student profile modal on student click", async () => {
+      const { navigateWithParams } = await import("../../js/router.js");
+      openCommandPalette({ profile: adminProfile });
+      const input = document.querySelector(".cmd-palette-input");
+
+      input.value = "Jane Doe";
+      input.dispatchEvent(new Event("input"));
+
+      const items = document.querySelectorAll(".cmd-palette-item");
+      const studentItem = Array.from(items).find((el) =>
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Jane Doe")
+      );
+      expect(studentItem).toBeDefined();
+
+      studentItem.click();
+      expect(navigateWithParams).toHaveBeenCalledWith("/students", { id: "s1" });
+    });
   });
 });

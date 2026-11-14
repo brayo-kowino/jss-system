@@ -1953,7 +1953,7 @@ function renderSetup2FA(container, profile) {
             ]),
             el("p", { class: "text-sm" }, "Save these one-time backup codes in a safe location:"),
             el("div", { class: "backup-codes" }, backupCodes.map(c => el("div", { class: "backup-codes__code" }, c))),
-            el("p", { class: "backup-codes__warning" }, "⚠ Keep these codes secure. They will not be displayed again."),
+            el("p", { class: "backup-codes__warning" }, "Keep these backup codes secure. They will not be displayed again."),
           );
           toast("Two-factor authentication enabled.", "success");
         } catch (err) {

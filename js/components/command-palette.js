@@ -4,7 +4,7 @@
 // ==========================================================================
 
 import { el, icon, toast } from "../utils.js";
-import { navigate } from "../router.js";
+import { navigate, navigateWithParams } from "../router.js";
 import { toggleTheme, getEffectiveTheme } from "../theme.js";
 import { listStudents } from "../services/student.service.js";
 import { listClasses } from "../services/academic.service.js";
@@ -238,11 +238,158 @@ async function prefetchEntities(profile) {
 }
 
 /**
+ * Builds dynamic deep link shortcuts based on contextual user intent
+ */
+function getDeepLinkActions(cleanQ, profile) {
+  const actions = [];
+  if (!cleanQ) return actions;
+
+  const role = profile?.role || "";
+  const isAdmin = ["admin", "principal", "deputy_principal"].includes(role);
+  const isTeacher = ["admin", "academic_master", "class_teacher", "subject_teacher"].includes(role);
+  const isFinance = ["admin", "deputy_principal", "bursar", "principal"].includes(role);
+
+  // 1. New Student Admission Direct Link
+  if (isAdmin || role === "registrar") {
+    if ("admit student new admission register learner".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-admit",
+        title: "Admit New Student",
+        subtitle: "Direct modal to register new learner biodata & NEMIS",
+        icon: "person_add",
+        category: "Deep Links",
+        badge: "Action",
+        action: () => navigateWithParams("/students", { action: "admit" }),
+        score: 115,
+      });
+    }
+  }
+
+  // 2. Assessment creation Direct Link
+  if (isTeacher || isAdmin) {
+    if ("exam assessment test cat create new".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-new-assessment",
+        title: "Create Assessment / Exam",
+        subtitle: "Direct modal to configure CAT, midterm or term exam",
+        icon: "quiz",
+        category: "Deep Links",
+        badge: "Action",
+        action: () => navigateWithParams("/assessments", { action: "new" }),
+        score: 110,
+      });
+    }
+  }
+
+  // 3. Fee status filter Direct Links
+  if (isFinance) {
+    if ("pending balance unpaid defaulter fee".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-fees-pending",
+        title: "Filter Pending Fee Balances",
+        subtitle: "View learners with pending tuition balances across cohorts",
+        icon: "receipt_long",
+        category: "Deep Links",
+        badge: "Finance",
+        action: () => navigateWithParams("/fees", { status: "pending" }),
+        score: 108,
+      });
+    }
+    if ("cleared paid full zero balance".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-fees-cleared",
+        title: "Filter Cleared Fee Balances",
+        subtitle: "View learners with zero balance or fully settled tuition",
+        icon: "check_circle",
+        category: "Deep Links",
+        badge: "Finance",
+        action: () => navigateWithParams("/fees", { status: "cleared" }),
+        score: 106,
+      });
+    }
+    if ("structure baseline fee tuition".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-fees-structures",
+        title: "Fee Structures Setup",
+        subtitle: "Inspect baseline tuition fees per grade and term",
+        icon: "price_change",
+        category: "Deep Links",
+        badge: "Finance",
+        action: () => navigateWithParams("/fees", { tab: "structures" }),
+        score: 104,
+      });
+    }
+  }
+
+  // 4. Marks review Direct Link
+  if (isTeacher || isAdmin) {
+    if ("review audit matrix completion marks".split(" ").some((k) => cleanQ.includes(k))) {
+      actions.push({
+        id: "deep-marks-review",
+        title: "Marks Review Matrix",
+        subtitle: "Inspect grade completeness and missing scores audit",
+        icon: "fact_check",
+        category: "Deep Links",
+        badge: "Review",
+        action: () => navigateWithParams("/marks", { tab: "review" }),
+        score: 108,
+      });
+    }
+  }
+
+  // 5. Timetable views & Day shortcuts
+  if ("timetable master schedule clash".split(" ").some((k) => cleanQ.includes(k))) {
+    actions.push({
+      id: "deep-tt-master",
+      title: "Master Timetable Grid",
+      subtitle: "Full school schedule with automated collision solver",
+      icon: "calendar_month",
+      category: "Deep Links",
+      badge: "Timetable",
+      action: () => navigateWithParams("/timetable", { tab: "master" }),
+      score: 106,
+    });
+    actions.push({
+      id: "deep-tt-teachers",
+      title: "Faculty Schedule & Workload",
+      subtitle: "Individual teacher timetables and lesson periods",
+      icon: "person",
+      category: "Deep Links",
+      badge: "Timetable",
+      action: () => navigateWithParams("/timetable", { tab: "teachers" }),
+      score: 104,
+    });
+  }
+
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  for (const day of days) {
+    if (cleanQ.includes(day.toLowerCase())) {
+      actions.push({
+        id: `deep-tt-day-${day.toLowerCase()}`,
+        title: `${day} Master Timetable`,
+        subtitle: `Jump directly to ${day}'s instructional periods`,
+        icon: "calendar_today",
+        category: "Deep Links",
+        badge: day,
+        action: () => navigateWithParams("/timetable", { tab: "master", day }),
+        score: 118,
+      });
+    }
+  }
+
+  return actions;
+}
+
+/**
  * Filters items based on query string
  */
 function searchItems(query, profile) {
   const cleanQ = (query || "").trim().toLowerCase();
   const results = [];
+
+  const role = profile?.role || "";
+  const isFinance = ["admin", "deputy_principal", "bursar", "principal", "super_admin"].includes(role);
+  const isTeacher = ["admin", "academic_master", "class_teacher", "subject_teacher", "principal", "deputy_principal", "super_admin"].includes(role);
 
   // Filter Navigation items
   const allowedNav = NAV_CATALOG.filter((item) => {
@@ -253,18 +400,55 @@ function searchItems(query, profile) {
   const quickActions = getQuickActions(profile);
 
   if (!cleanQ) {
-    // Show Top Suggested Items when query is empty
-    return [
-      ...allowedNav.slice(0, 6).map((n) => ({
+    // Show Top Suggested Items when query is empty, including dynamic shortcuts
+    const emptySuggestions = [
+      ...allowedNav.slice(0, 5).map((n) => ({
         ...n,
         action: () => navigate(n.path),
         badge: n.letter ? `${MODIFIER_LABEL}+${n.letter}` : "Jump",
       })),
-      ...quickActions.slice(0, 3),
+      {
+        id: "sug-admit",
+        title: "Admit New Student",
+        subtitle: "Direct registration modal for new learners",
+        icon: "person_add",
+        category: "Deep Links",
+        badge: "Action",
+        action: () => navigateWithParams("/students", { action: "admit" }),
+      },
+      {
+        id: "sug-marks-review",
+        title: "Marks Review Matrix",
+        subtitle: "Audit missing marks & grade completeness",
+        icon: "fact_check",
+        category: "Deep Links",
+        badge: "Review",
+        action: () => navigateWithParams("/marks", { tab: "review" }),
+      },
     ];
+
+    if (isFinance) {
+      emptySuggestions.push({
+        id: "sug-fees-pending",
+        title: "Pending Fee Balances",
+        subtitle: "Filter learners with outstanding tuition balances",
+        icon: "receipt_long",
+        category: "Deep Links",
+        badge: "Finance",
+        action: () => navigateWithParams("/fees", { status: "pending" }),
+      });
+    }
+
+    return [...emptySuggestions, ...quickActions.slice(0, 2)];
   }
 
-  // 1. Match Navigation Items (by title, subtitle, category, or predefined shortcut letter)
+  // 1. Dynamic Deep Link Actions matching intent
+  const deepLinkActions = getDeepLinkActions(cleanQ, profile);
+  for (const d of deepLinkActions) {
+    results.push(d);
+  }
+
+  // 2. Match Navigation Items (by title, subtitle, category, or predefined shortcut letter)
   for (const item of allowedNav) {
     const itemLetter = (item.letter || "").toLowerCase();
     const haystack = `${item.title} ${item.subtitle} ${item.category} ${itemLetter} ctrl+${itemLetter} cmd+${itemLetter}`.toLowerCase();
@@ -275,17 +459,17 @@ function searchItems(query, profile) {
         badge: item.letter ? `${MODIFIER_LABEL}+${item.letter}` : "Navigation",
         action: () => navigate(item.path),
         score: isExactLetter
-          ? 120
+          ? 130
           : item.title.toLowerCase().startsWith(cleanQ)
-            ? 100
+            ? 115
             : item.title.toLowerCase().includes(cleanQ)
-              ? 80
+              ? 85
               : 50,
       });
     }
   }
 
-  // 2. Match Quick Actions
+  // 3. Match Quick Actions
   for (const item of quickActions) {
     const haystack = `${item.title} ${item.subtitle} ${item.category}`.toLowerCase();
     if (haystack.includes(cleanQ)) {
@@ -296,28 +480,88 @@ function searchItems(query, profile) {
     }
   }
 
-  // 3. Match Classes
+  // 4. Match Classes with Contextual Deep Links
   if (cachedClasses && cachedClasses.length) {
     for (const c of cachedClasses) {
-      const classText = `${c.grade || ""} ${c.stream || ""} Class`.toLowerCase();
-      if (classText.includes(cleanQ)) {
+      const g = c.grade || "";
+      const s = c.stream || "";
+      const classText = `${g} ${s} class cohort`.toLowerCase();
+      const isClassMatch = cleanQ.split(" ").some((word) => word.length >= 2 && classText.includes(word));
+
+      if (isClassMatch || classText.includes(cleanQ)) {
+        const wantsFees = "fee fees balance money pay paid".split(" ").some((k) => cleanQ.includes(k));
+        const wantsMarks = "mark marks score exam test grade".split(" ").some((k) => cleanQ.includes(k));
+        const wantsAtt = "attend attendance roll call abs pres".split(" ").some((k) => cleanQ.includes(k));
+        const wantsTt = "time timetable sched lesson period".split(" ").some((k) => cleanQ.includes(k));
+
+        if (wantsFees && isFinance) {
+          results.push({
+            id: `class-fees-${c.id}`,
+            title: `${g} ${s ? `• ${s}` : ""} Fee Balances`,
+            subtitle: `Direct fee ledger & student collection for ${g} ${s}`,
+            icon: "payments",
+            category: "Deep Links",
+            badge: "Fees",
+            action: () => navigateWithParams("/fees", { grade: g, stream: s }),
+            score: 125,
+          });
+        }
+        if (wantsMarks && isTeacher) {
+          results.push({
+            id: `class-marks-${c.id}`,
+            title: `${g} ${s ? `• ${s}` : ""} Marks Entry Sheet`,
+            subtitle: `Direct score recording & rubrics for ${g} ${s}`,
+            icon: "score",
+            category: "Deep Links",
+            badge: "Marks",
+            action: () => navigateWithParams("/marks", { grade: g, stream: s }),
+            score: 125,
+          });
+        }
+        if (wantsAtt) {
+          results.push({
+            id: `class-att-${c.id}`,
+            title: `${g} ${s ? `• ${s}` : ""} Daily Roll Call`,
+            subtitle: `Mark morning & afternoon attendance for ${g} ${s}`,
+            icon: "fact_check",
+            category: "Deep Links",
+            badge: "Attendance",
+            action: () => navigateWithParams("/attendance", { grade: g, stream: s }),
+            score: 125,
+          });
+        }
+        if (wantsTt) {
+          results.push({
+            id: `class-tt-${c.id}`,
+            title: `${g} ${s ? `• ${s}` : ""} Class Timetable`,
+            subtitle: `Weekly instructional timetable for ${g} ${s}`,
+            icon: "calendar_month",
+            category: "Deep Links",
+            badge: "Timetable",
+            action: () => navigateWithParams("/timetable", { tab: "classes", grade: g, stream: s }),
+            score: 125,
+          });
+        }
+
+        // Base class item
         results.push({
           id: `class-${c.id}`,
-          title: `${c.grade || "Grade"} ${c.stream ? `• ${c.stream}` : ""}`,
+          title: `${g} ${s ? `• ${s}` : ""}`,
           subtitle: `Class Cohort • ${c.room || "Room"}`,
           icon: "meeting_room",
           category: "Classes & Streams",
           badge: "Class",
-          action: () => navigate(`/academics`),
+          action: () => navigateWithParams("/academics", { grade: g, stream: s }),
           score: 85,
         });
       }
     }
   }
 
-  // 4. Match Students (Live Search)
+  // 5. Match Students (Live Search & Direct Profile Deep Link)
   if (cachedStudents && cachedStudents.length) {
     let studentMatches = 0;
+    const wantsFeeForStudent = "fee pay balance receipt".split(" ").some((k) => cleanQ.includes(k));
     for (const s of cachedStudents) {
       if (studentMatches >= 8) break; // Limit student matches to keep list snappy
       const name = (s.fullName || "").toLowerCase();
@@ -327,21 +571,34 @@ function searchItems(query, profile) {
 
       if (name.includes(cleanQ) || adm.includes(cleanQ) || upi.includes(cleanQ) || grade.includes(cleanQ)) {
         studentMatches++;
-        results.push({
-          id: `student-${s.id}`,
-          title: s.fullName || "Unnamed Student",
-          subtitle: `${s.admissionNumber ? `Adm: ${s.admissionNumber} • ` : ""}${s.grade || ""} ${s.stream || ""} • Status: ${s.status || "active"}`,
-          icon: "school",
-          category: "Learners",
-          badge: s.admissionNumber ? `#${s.admissionNumber}` : "Student",
-          action: () => navigate(`/students?q=${encodeURIComponent(s.admissionNumber || s.fullName)}`),
-          score: adm === cleanQ ? 150 : (name.startsWith(cleanQ) ? 90 : 60),
-        });
+        if (wantsFeeForStudent && isFinance) {
+          results.push({
+            id: `student-fee-${s.id}`,
+            title: `Record Fee: ${s.fullName || "Student"}`,
+            subtitle: `Adm: ${s.admissionNumber || "—"} • ${s.grade || ""} ${s.stream || ""} • Jump to Payment`,
+            icon: "payments",
+            category: "Deep Links",
+            badge: "Pay Fee",
+            action: () => navigateWithParams("/fees", { studentId: s.id }),
+            score: 135,
+          });
+        } else {
+          results.push({
+            id: `student-${s.id}`,
+            title: s.fullName || "Unnamed Student",
+            subtitle: `${s.admissionNumber ? `Adm: ${s.admissionNumber} • ` : ""}${s.grade || ""} ${s.stream || ""} • Status: ${s.status || "active"}`,
+            icon: "school",
+            category: "Learners",
+            badge: s.admissionNumber ? `#${s.admissionNumber}` : "Student",
+            action: () => navigateWithParams("/students", { id: s.id }),
+            score: adm === cleanQ ? 150 : (name.startsWith(cleanQ) ? 90 : 60),
+          });
+        }
       }
     }
   }
 
-  // 5. Match Staff (if available)
+  // 6. Match Staff (if available)
   if (cachedTeachers && cachedTeachers.length) {
     let staffMatches = 0;
     for (const t of cachedTeachers) {

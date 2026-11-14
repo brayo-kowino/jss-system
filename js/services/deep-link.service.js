@@ -4,7 +4,7 @@
  * Provides safe parsing, building, and clipboard sharing of dynamic deep links
  * across all modules (Students, Marks, Timetable, Fees, Attendance, Settings, etc.),
  * plus smart fuzzy route resolution and the playful cosmic Alien 404 page:
- * "Oops! Aliens might have eaten that page... let's find it 🛸"
+ * "Oops! Aliens might have eaten that page... let's find it"
  */
 import { el, icon, toast } from "../utils.js";
 
@@ -228,7 +228,7 @@ export function findBestRouteMatch(badPath, routesTable = {}) {
 
 /**
  * Renders the playful, cosmic Alien 404 screen:
- * "Oops! Aliens might have eaten that page... let's find it 🛸"
+ * "Oops! Aliens might have eaten that page... let's find it"
  */
 export function renderAlienNotFound(container, { badRoute = "", routes = {}, authed = true, onNavigate }) {
   container.innerHTML = "";
