@@ -110,62 +110,145 @@ import { buildTimetableMascotSvg } from "../js/components/mascot.js";
 export { buildTimetableMascotSvg };
 
 /**
- * 6-Step Visual Workflow Guide
+ * Complete Timetable Implementation Workflow Guide Modal
  */
-function renderWorkflowGuide() {
-  return el("div", { class: "timetable-workflow-guide no-print" }, [
-    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;" }, [
-      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
-        icon("alt_route", "text-sm", "style: color:var(--color-primary-800);"),
-        el("b", { style: "color:var(--color-primary-900); font-size:13px;" }, "Complete Timetable Implementation Workflow"),
-      ]),
-      el("span", { class: "badge badge--outline", style: "font-size:11px;" }, "CBC Scheduling Protocol"),
-    ]),
-    el("div", { class: "tt-workflow-steps" }, [
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "1"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Classes & Streams"),
-          el("div", { class: "tt-step-desc" }, "Configure Grade 7, 8, 9 cohorts and streams under Academics."),
-        ]),
-      ]),
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "2"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Teacher Allocations"),
-          el("div", { class: "tt-step-desc" }, "Assign teachers to subjects they teach in each class under Faculty."),
-        ]),
-      ]),
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "3"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Class Teachers"),
-          el("div", { class: "tt-step-desc" }, "Designate each homeroom class teacher for signature blocks and tracking."),
-        ]),
-      ]),
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "4"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Collision-Free Master"),
-          el("div", { class: "tt-step-desc" }, "Auto-generate or assemble Master Timetable with zero teacher collisions."),
-        ]),
-      ]),
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "5"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Print Class Schedules"),
-          el("div", { class: "tt-step-desc" }, "Print clean weekly schedules per class or batch-print all classroom sheets."),
-        ]),
-      ]),
-      el("div", { class: "tt-workflow-step" }, [
-        el("span", { class: "tt-step-num" }, "6"),
-        el("div", {}, [
-          el("div", { class: "tt-step-title" }, "Print Teacher Schedules"),
-          el("div", { class: "tt-step-desc" }, "Print personalized weekly teaching and free/prep periods for staff room."),
-        ]),
-      ]),
+export function openWorkflowGuideModal() {
+  const body = el("div", { class: "tt-workflow-modal-body" });
+
+  const intro = el("div", {
+    class: "callout callout--info",
+    style: "margin-bottom:18px; font-size:12.5px; display:flex; align-items:flex-start; gap:10px;"
+  }, [
+    icon("alt_route", "text-sm", "style: color:var(--color-primary-800); margin-top:2px; flex-shrink:0;"),
+    el("div", {}, [
+      el("strong", {}, "Kenya Junior School · CBC Timetable Implementation Protocol: "),
+      "Follow this sequential 6-step roadmap to establish, balance, and distribute verified collision-free timetables across all cohorts and faculty.",
     ]),
   ]);
+
+  const stepsGrid = el("div", {
+    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:14px; margin-bottom:20px;"
+  });
+
+  const steps = [
+    {
+      num: "1",
+      icon: "school",
+      title: "Classes & Streams",
+      desc: "Configure Grade 7, 8, 9 cohorts and streams under Academics.",
+      link: "#/academics",
+      linkLabel: "Go to Academics",
+    },
+    {
+      num: "2",
+      icon: "person_add",
+      title: "Teacher Allocations",
+      desc: "Assign teachers to the subjects they teach in each class under Faculty.",
+      link: "#/teachers",
+      linkLabel: "Go to Faculty",
+    },
+    {
+      num: "3",
+      icon: "badge",
+      title: "Class Teachers",
+      desc: "Designate each homeroom class teacher for signature blocks, tracking, and parent communication.",
+      link: "#/teachers",
+      linkLabel: "Assign Class Teachers",
+    },
+    {
+      num: "4",
+      icon: "table_chart",
+      title: "Collision-Free Master",
+      desc: "Auto-generate or manually assemble Master Timetable with zero teacher collisions.",
+      actionTab: "master",
+      linkLabel: "Open Master Timetable",
+    },
+    {
+      num: "5",
+      icon: "print",
+      title: "Print Class Schedules",
+      desc: "Print clean weekly schedules per class cohort or batch-print all classroom sheets.",
+      actionTab: "classes",
+      linkLabel: "View Class Schedules",
+    },
+    {
+      num: "6",
+      icon: "person",
+      title: "Print Teacher Schedules",
+      desc: "Print personalized weekly teaching and free/prep periods for staff room and lesson monitoring.",
+      actionTab: "teachers",
+      linkLabel: "View Teacher Schedules",
+    },
+  ];
+
+  let closeFn = null;
+
+  steps.forEach((s) => {
+    const stepCard = el("div", {
+      style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:14px; display:flex; flex-direction:column; justify-content:space-between; gap:10px;"
+    }, [
+      el("div", { style: "display:flex; align-items:flex-start; gap:12px;" }, [
+        el("div", {
+          style: "width:28px; height:28px; border-radius:50%; background:var(--color-primary-800); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; flex-shrink:0;"
+        }, s.num),
+        el("div", {}, [
+          el("div", { style: "display:flex; align-items:center; gap:6px; font-weight:700; color:var(--color-primary-900); font-size:13px;" }, [
+            icon(s.icon, "text-xs"),
+            s.title,
+          ]),
+          el("p", { style: "margin:4px 0 0; font-size:11.5px; color:var(--color-ink-soft); line-height:1.4;" }, s.desc),
+        ]),
+      ]),
+      el("div", { style: "align-self:flex-end; margin-top:4px;" }, [
+        s.link ? el("a", {
+          href: s.link,
+          class: "btn btn--ghost btn--sm",
+          style: "font-size:11px; padding:3px 10px;",
+          onClick: () => { if (closeFn) closeFn(); }
+        }, [icon("arrow_forward", "text-xs"), s.linkLabel]) : el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          style: "font-size:11px; padding:3px 10px;",
+          onClick: () => {
+            if (closeFn) closeFn();
+            const tabBtn = document.querySelector(`.timetable-tab[data-tab="${s.actionTab}"]`);
+            if (tabBtn) tabBtn.click();
+            else location.hash = `#/timetable?tab=${s.actionTab}`;
+          }
+        }, [icon("arrow_forward", "text-xs"), s.linkLabel]),
+      ]),
+    ]);
+    stepsGrid.append(stepCard);
+  });
+
+  const safeguardBox = el("div", {
+    style: "background:#fff; border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px 16px; margin-bottom:18px; font-size:11.5px; color:var(--color-ink-soft);"
+  }, [
+    el("div", { style: "font-weight:700; color:var(--color-primary-900); margin-bottom:4px; display:flex; align-items:center; gap:6px;" }, [
+      icon("verified_user", "text-xs"),
+      "Scheduling Safeguards & Quality Protocols",
+    ]),
+    el("ul", { style: "margin:0; padding-left:18px; line-height:1.5;" }, [
+      el("li", {}, "Strict Collision Safeguard: Teachers cannot be double-booked across streams or subjects at the same time."),
+      el("li", {}, "School-Wide Break Periods: Short Break, Lunch, and Games & Clubs span all classes with zero lesson overlaps."),
+      el("li", {}, "Workload Distribution: Subject assignments adhere to TSC curriculum standards and balanced faculty loads."),
+    ]),
+  ]);
+
+  const footerActions = el("div", {
+    style: "display:flex; justify-content:flex-end; gap:8px; border-top:1px solid var(--color-line); padding-top:12px;"
+  }, [
+    el("button", {
+      type: "button",
+      class: "btn btn--primary",
+      onClick: () => { if (closeFn) closeFn(); }
+    }, "Close Guide"),
+  ]);
+
+  body.append(intro, stepsGrid, safeguardBox, footerActions);
+
+  closeFn = openModal("Complete Timetable Implementation Workflow", body, "modal--wide");
+  return closeFn;
 }
 
 // ------------------------------------------------------------- Main Render --
@@ -226,22 +309,25 @@ export async function render({ profile, params = {} }) {
       el("div", { class: "timetable-hero__status-row" }, [
         el("h1", { class: "timetable-hero__title" }, "School Timetable & Master Scheduling"),
         el("p", { class: "timetable-hero__desc" }, "Collision-free master scheduling, class allocations, teacher workloads, and printable official timetables"),
-        el("div", { class: "timetable-hero__pills" }, [
+        el("div", { class: "timetable-hero__pills", style: "display:flex; align-items:center; flex-wrap:wrap; gap:8px;" }, [
           el("div", { class: "timetable-pill" }, [icon("schedule"), `${periods.length} Daily Periods`]),
           el("div", { class: "timetable-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
           teachers.length ? el("div", { class: "timetable-pill" }, [icon("person"), `${teachers.length} Faculty Members`]) : null,
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--sm timetable-workflow-modal-btn",
+            style: "gap:6px; font-weight:600; padding:4px 12px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:999px; font-size:12px; cursor:pointer;",
+            title: "View Timetable Implementation Workflow & CBC Protocols",
+            onClick: () => openWorkflowGuideModal(),
+          }, [icon("alt_route", "text-xs"), "Workflow Guide"]),
         ].filter(Boolean)),
       ]),
     ]),
     el("div", { class: "timetable-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Build a collision-free master schedule, print classroom timetables, and organize faculty workloads."),
       mascotWrap,
     ]),
   ]);
   wrap.append(heroBanner);
-
-  // Workflow Guide banner
-  wrap.append(renderWorkflowGuide());
 
   // Mobile scroll note
   wrap.append(mobileOnlyNotice("The weekly schedule is easier to read and edit on a tablet or laptop - on a phone you'll need to scroll sideways through the days."));
@@ -264,6 +350,7 @@ export async function render({ profile, params = {} }) {
         "button",
         {
           type: "button",
+          "data-tab": tab.id,
           class: `timetable-tab ${activeTab === tab.id ? "timetable-tab--active" : ""}`,
           onClick: () => {
             activeTab = tab.id;
@@ -2904,60 +2991,27 @@ function renderTeacherScheduleFooter(container, metaInfo, getSlot) {
 
 function renderWelcomeDisclaimers(container, mode = "class") {
   container.innerHTML = "";
-  const welcomeCard = el("div", { class: "timetable-welcome-card" }, [
-    el("div", { class: "timetable-welcome-header" }, [
-      el("div", { class: "marks-welcome-icon-halo" }, [icon("schedule")]),
-      el("h3", {}, mode === "teacher" ? "Select a Faculty Member to View Schedule" : "Select a Class to View Schedule"),
-      el("p", {}, mode === "teacher"
+  const welcomeCard = el("div", {
+    class: "timetable-welcome-card",
+    style: "text-align:center; padding:36px 20px; max-width:580px; margin:24px auto; background:var(--color-surface); border:1px solid var(--color-line); border-radius:var(--radius-lg); box-shadow:0 1px 3px rgba(0,0,0,0.04);"
+  }, [
+    el("div", {
+      style: "width:48px; height:48px; border-radius:50%; background:var(--color-primary-50, #f0f7ff); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; margin:0 auto 14px;"
+    }, [icon(mode === "teacher" ? "person" : "school", "text-lg")]),
+    el("h3", { style: "font-family:var(--font-heading); font-size:18px; margin:0 0 6px; color:var(--color-ink);" },
+      mode === "teacher" ? "Select a Faculty Member" : "Select a Class Cohort"
+    ),
+    el("p", { style: "font-size:13px; color:var(--color-ink-soft); margin:0 0 18px; line-height:1.5;" },
+      mode === "teacher"
         ? "Choose a teacher above to inspect their assigned instructional periods, subject rooms, and free slots."
-        : "Choose a Grade and Stream above to view or assign weekly lessons, teachers, and break periods."),
-    ]),
-    el("div", { class: "guidance-section-header" }, [
-      icon("verified_user"),
-      el("span", {}, "Scheduling Protocols & Conflict Safeguards"),
-    ]),
-    el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("lock")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Intelligence"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Automated Conflict Prevention"),
-          el("p", { class: "guidance-card__body" }, "Timetable actively monitors teacher allocations. If a teacher is already assigned in the same period and day, double-booking is blocked automatically."),
-        ]),
-      ]),
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("free_breakfast")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Schedule"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "School-Wide Break Periods"),
-          el("p", { class: "guidance-card__body" }, "Periods configured as 'Break' automatically span all streams and grades school-wide. Instructional subject lessons cannot be booked during break intervals."),
-        ]),
-      ]),
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Staff"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Qualified Subject Teachers"),
-          el("p", { class: "guidance-card__body" }, "The slot assignment dialog groups and highlights teachers assigned to the chosen subject first, ensuring CBC subject specialization."),
-        ]),
-      ]),
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("warning")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Integrity"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Period Modifications & Deletion"),
-          el("p", { class: "guidance-card__body" }, "Altering period start or end times updates all class schedules school-wide. Deleting an active period permanently unlinks all assigned lesson slots."),
-        ]),
-      ]),
-    ]),
+        : "Choose a Grade and Stream above to view weekly lessons, room assignments, and break periods."
+    ),
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm",
+      style: "gap:6px; font-weight:600; padding:6px 14px; border:1px solid var(--color-line); border-radius:var(--radius-md);",
+      onClick: () => openWorkflowGuideModal(),
+    }, [icon("alt_route", "text-xs"), "View Timetable Workflow & Protocols"]),
   ]);
   container.append(welcomeCard);
 }
