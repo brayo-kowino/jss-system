@@ -306,41 +306,65 @@ function generateSingleScheduleAttempt({
 
   const generatedSlots = [];
   const cohortPools = new Map();
+  const MAX_TEACHER_WEEKLY_LESSONS = 35; // Maximum weekly teaching load cap to prevent pigeonhole trap
+
+  // Track global lesson assignments across teachers during pool construction
+  const teacherAssignedLessons = new Map();
 
   for (const cohort of cohorts) {
     const cohortKey = `${cohort.grade}_${cohort.stream}`;
     const pool = [];
 
     for (const subj of subjects) {
-      // Find teacher assigned to this cohort and subject
+      const count = defaultLessonDistribution[subj.code] || 3;
+
+      // 1. Exact match for this cohort (grade + stream + subject)
       let assignedTeacher = teachers.find((t) =>
         (t.teachingAssignments || []).some(
           (a) =>
             a.subjectCode === subj.code &&
             a.grade === cohort.grade &&
-            (!a.stream || a.stream === cohort.stream)
+            a.stream &&
+            a.stream === cohort.stream
         )
       );
+
+      // 2. Grade-level match (same grade, no stream specified = applies to all streams in grade)
       if (!assignedTeacher) {
         assignedTeacher = teachers.find((t) =>
           (t.teachingAssignments || []).some(
-            (a) => a.subjectCode === subj.code && a.grade === cohort.grade
+            (a) =>
+              a.subjectCode === subj.code &&
+              a.grade === cohort.grade &&
+              !a.stream
           )
         );
       }
+
+      // 3. Fallback: Qualified teacher for this subject who is NOT already over weekly capacity
       if (!assignedTeacher) {
-        assignedTeacher = teachers.find((t) =>
-          (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code)
-        );
+        const eligible = teachers.filter((t) => {
+          const teachesSubj = (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code);
+          const currentLoad = teacherAssignedLessons.get(t.id) || 0;
+          return teachesSubj && currentLoad + count <= MAX_TEACHER_WEEKLY_LESSONS;
+        });
+        // Prioritize teacher with lowest workload
+        eligible.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
+        assignedTeacher = eligible[0] || null;
       }
 
-      const count = defaultLessonDistribution[subj.code] || 3;
+      const tid = assignedTeacher?.id || "";
+      const tname = assignedTeacher?.fullName || "";
+      if (tid) {
+        teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + count);
+      }
+
       for (let i = 0; i < count; i++) {
         pool.push({
           subjectCode: subj.code,
           subjectName: subj.name,
-          teacherId: assignedTeacher?.id || "",
-          teacherName: assignedTeacher?.fullName || "",
+          teacherId: tid,
+          teacherName: tname,
         });
       }
     }
@@ -357,13 +381,22 @@ function generateSingleScheduleAttempt({
               a.grade === cohort.grade &&
               (!a.stream || a.stream === cohort.stream)
           )
-        ) || teachers.find((t) => (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code));
+        ) || teachers.find((t) =>
+          (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code) &&
+          (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
+        );
+
+        const tid = assignedTeacher?.id || "";
+        const tname = assignedTeacher?.fullName || "";
+        if (tid) {
+          teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + 1);
+        }
 
         pool.push({
           subjectCode: subj.code,
           subjectName: subj.name,
-          teacherId: assignedTeacher?.id || "",
-          teacherName: assignedTeacher?.fullName || "",
+          teacherId: tid,
+          teacherName: tname,
         });
         subjIdx++;
       }
@@ -503,6 +536,15 @@ function generateSingleScheduleAttempt({
           }
         }
 
+        // Failsafe: if every card in the pool has a busy teacher in this period,
+        // place the card but unassign the teacher for this specific slot so the students
+        // still receive their lesson and zero slots are dropped, while strictly preventing collisions!
+        if (bestIndex === -1 && pool.length > 0) {
+          bestIndex = 0;
+          pool[bestIndex].teacherId = "";
+          pool[bestIndex].teacherName = "";
+        }
+
         if (bestIndex !== -1) {
           const [selectedCard] = pool.splice(bestIndex, 1);
           if (selectedCard.teacherId) {
@@ -629,6 +671,10 @@ export async function generateCollisionFreeTimetable(userId, { classes, subjects
 
   const conflicts = detectTimetableConflicts(generated);
 
+  // CRITICAL: Cleanly wipe all existing timetable slots for the school first
+  // so stale, incomplete, or legacy slots CANNOT bleed through or collide with fresh schedule
+  await clearAllTimetableSlots(userId);
+
   // Commit in chunks of 450 to respect Firestore batch limits
   const BATCH_SIZE = 450;
   for (let i = 0; i < generated.length; i += BATCH_SIZE) {
@@ -643,8 +689,7 @@ export async function generateCollisionFreeTimetable(userId, { classes, subjects
           schoolId,
           updatedBy: userId,
           updatedAt: serverTimestamp(),
-        },
-        { merge: true }
+        }
       );
     }
     await batch.commit();

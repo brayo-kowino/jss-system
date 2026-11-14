@@ -290,5 +290,111 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       // Either teacher has different subjects/classes or free time at P1
       expect(p1TeacherSlots.length).toBeLessThan(5);
     });
+
+    it("handles realistic multi-stream school with 8 cohorts and shared teachers without collisions or dropped slots", () => {
+      const cohorts = [
+        { grade: "Grade 5", stream: "" },
+        { grade: "Grade 6", stream: "Blue" },
+        { grade: "Grade 6", stream: "Green" },
+        { grade: "Grade 7", stream: "Blue" },
+        { grade: "Grade 7", stream: "Green" },
+        { grade: "Grade 7", stream: "Red" },
+        { grade: "Grade 8", stream: "Blue" },
+        { grade: "Grade 9", stream: "Green" },
+      ];
+      const instructionalPeriods = [
+        { id: "p1", name: "Period 1", startTime: "08:00", endTime: "08:40" },
+        { id: "p2", name: "Period 2", startTime: "08:40", endTime: "09:20" },
+        { id: "p3", name: "Period 3", startTime: "09:20", endTime: "10:00" },
+        { id: "p4", name: "Period 4", startTime: "10:20", endTime: "11:00" },
+        { id: "p5", name: "Period 5", startTime: "11:00", endTime: "11:40" },
+        { id: "p6", name: "Period 6", startTime: "11:40", endTime: "12:20" },
+        { id: "p7", name: "Period 7", startTime: "13:10", endTime: "13:50" },
+        { id: "p8", name: "Period 8", startTime: "13:50", endTime: "14:30" },
+      ];
+      const subjects = [
+        { code: "MATH", name: "Mathematics" },
+        { code: "ENG", name: "English" },
+        { code: "KIS", name: "Kiswahili" },
+        { code: "SCI", name: "Integrated Science" },
+        { code: "AGR", name: "Agriculture" },
+        { code: "PTS", name: "Pre-Technical Studies" },
+        { code: "SST", name: "Social Studies" },
+        { code: "CRE", name: "CRE" },
+        { code: "CRA", name: "Creative Arts" },
+      ];
+      const teachers = [
+        {
+          id: "t_purity",
+          fullName: "Purity Atieno",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "ENG" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "ENG" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "SCI" },
+            { grade: "Grade 9", stream: "Green", subjectCode: "SCI" },
+          ],
+        },
+        {
+          id: "t_allan",
+          fullName: "Allan Owino",
+          teachingAssignments: [
+            { grade: "Grade 5", stream: "", subjectCode: "MATH" },
+            { grade: "Grade 6", stream: "Blue", subjectCode: "MATH" },
+            { grade: "Grade 6", stream: "Green", subjectCode: "MATH" },
+          ],
+        },
+        {
+          id: "t_benard",
+          fullName: "Benard Owino",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "AGR" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "AGR" },
+            { grade: "Grade 7", stream: "Red", subjectCode: "AGR" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "CRE" },
+          ],
+        },
+        {
+          id: "t_mercy",
+          fullName: "Mercy Akeyo",
+          teachingAssignments: [
+            { grade: "Grade 5", stream: "", subjectCode: "KIS" },
+            { grade: "Grade 6", stream: "Blue", subjectCode: "KIS" },
+            { grade: "Grade 6", stream: "Green", subjectCode: "KIS" },
+          ],
+        },
+        {
+          id: "t_finley",
+          fullName: "Finley Owino",
+          teachingAssignments: [
+            { grade: "Grade 6", stream: "Blue", subjectCode: "CRA" },
+            { grade: "Grade 6", stream: "Green", subjectCode: "CRA" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "SST" },
+          ],
+        },
+        {
+          id: "t_john",
+          fullName: "John Ochieng",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Red", subjectCode: "MATH" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "MATH" },
+            { grade: "Grade 9", stream: "Green", subjectCode: "MATH" },
+          ],
+        },
+      ];
+
+      const generated = buildCollisionFreeSchedule({
+        cohorts,
+        instructionalPeriods,
+        days: DAYS,
+        subjects,
+        teachers,
+      });
+
+      console.log("Realistic test - slots generated:", generated.length, "expected:", 8 * 40);
+      const conflicts = detectTimetableConflicts(generated);
+      console.log("Realistic test - conflicts:", conflicts.length);
+      expect(conflicts).toHaveLength(0);
+      expect(generated).toHaveLength(8 * 40);
+    });
   });
 });

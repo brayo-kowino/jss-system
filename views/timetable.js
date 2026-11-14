@@ -968,7 +968,7 @@ function openAutoGenerateModal(profile, container, onComplete) {
         periods,
         days: DAYS,
       });
-      toast(`Successfully generated ${res.totalSlots} timetable slots with 0 collisions!`, "success");
+      toast(`Fresh master timetable generated (${res.totalSlots} slots) with 0 collisions!`, "success");
       close();
       if (onComplete) await onComplete();
     } catch (err) {
