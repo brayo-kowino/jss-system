@@ -39,7 +39,8 @@ import {
 } from "../js/services/student-import.service.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput, datePickerField } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
+import { el, icon, toast, formatDate, busyButton, spinner, attachSearchClear } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
@@ -163,8 +164,9 @@ export async function render({ profile, params = {} }) {
   // 3. Filter Toolbar & Action Buttons (Consolidated Card)
   const searchInput = el("input", {
     placeholder: "Search by name, adm no., phone, or parent…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const gradeSelect = el("select", {
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
@@ -1526,6 +1528,7 @@ function openStudentForm(profile, existing = null, onDone) {
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "New Admission", body);
+  trackForm(body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

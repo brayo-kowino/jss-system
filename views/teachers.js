@@ -2,7 +2,8 @@ import { listTeachers, createTeacher, updateTeacher, setTeacherStatus } from "..
 import { listSubjects, listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { createUserAccount, listSchoolUsers, setUserStatus, ROLES } from "../js/services/auth.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, busyButton } from "../js/utils.js";
+import { el, icon, toast, busyButton, attachSearchClear, createPasswordField } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
 
 // Roles that can hold a system login at all, in the order they're offered.
 // Anyone not in this list (parent/student/admin/super_admin) isn't managed
@@ -218,8 +219,9 @@ function renderLoginsTab(container, profile) {
   // 1. Filter Toolbar Card
   const searchInput = el("input", {
     placeholder: "Search logins by name or email…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const roleSelect = el("select", {
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
@@ -375,6 +377,7 @@ function openCreateLoginModal(profile, presetTeacher = null) {
   body.append(el("button", { type: "submit", class: "btn btn--primary btn--block", style: "margin-top:8px;" }, [icon("person_add"), "Create Login"]));
 
   const close = openModal(presetTeacher ? `Create Login: ${presetTeacher.fullName}` : "Create Staff Login", body);
+  trackForm(body);
 
   // state for the dynamic middle section of the form
   let selectedRole = presetTeacher
@@ -510,10 +513,15 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       el("label", {}, "Email (used to sign in)"),
       el("input", { id: "cl-email", type: "email", value: presetLinkedTeacher?.email || "" }),
     ]));
-    fieldsMount.append(el("div", { class: "field" }, [
-      el("label", {}, "Temporary Password"),
-      el("input", { id: "cl-temppass", type: "text", placeholder: "Given to the person to sign in with the first time" }),
-    ]));
+    const pwField = createPasswordField({
+      id: "cl-temppass",
+      label: "Temporary Password",
+      placeholder: "Given to the person to sign in with the first time",
+      required: true,
+      initialVisible: true,
+      helpText: "Click the eye to toggle visibility. Staff member rotates this upon first sign-in.",
+    });
+    fieldsMount.append(pwField.field);
   }
 
   body.addEventListener("submit", async (e) => {
@@ -663,8 +671,9 @@ function renderRosterTab(container, profile) {
   // 1. Filter Toolbar Card
   const searchInput = el("input", {
     placeholder: "Search teachers by name, TSC no., phone…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const linkSelect = el("select", {
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
@@ -1048,6 +1057,7 @@ function openTeacherForm(profile, existing = null) {
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
+  trackForm(body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

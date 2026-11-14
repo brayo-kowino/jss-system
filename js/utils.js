@@ -287,3 +287,281 @@ export function hexToRgba(hex, alpha = 0.1) {
   }
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+// --------------------------------------------------------------------------
+// attachSearchClear: Adds an inline clear ('✕') button to search fields
+// --------------------------------------------------------------------------
+export function attachSearchClear(input, options = {}) {
+  if (!input || input.__hasSearchClear) return input;
+  input.__hasSearchClear = true;
+
+  const onClear = typeof options === "function" ? options : options.onClear;
+  const parent = input.parentElement;
+  if (parent && typeof window !== "undefined" && window.getComputedStyle) {
+    const pos = window.getComputedStyle(parent).position;
+    if (pos === "static" || !pos) {
+      parent.style.position = "relative";
+    }
+  }
+
+  // Ensure right padding so input text doesn't flow under the clear icon
+  const currentPad = parseInt(input.style.paddingRight || "0", 10);
+  if (!currentPad || currentPad < 32) {
+    input.style.paddingRight = "34px";
+  }
+
+  const clearBtn = document.createElement("button");
+  clearBtn.type = "button";
+  clearBtn.className = "search-clear-btn";
+  clearBtn.setAttribute("aria-label", "Clear search");
+  clearBtn.setAttribute("title", "Clear search");
+  clearBtn.tabIndex = -1;
+  clearBtn.innerHTML = `
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
+  `;
+
+  function update() {
+    const val = input.value || "";
+    if (val.length > 0) {
+      clearBtn.classList.add("is-visible");
+      clearBtn.style.display = "flex";
+    } else {
+      clearBtn.classList.remove("is-visible");
+      clearBtn.style.display = "none";
+    }
+  }
+
+  clearBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    input.value = "";
+    update();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    if (typeof onClear === "function") {
+      onClear();
+    }
+    input.focus();
+  });
+
+  input.addEventListener("input", update);
+  input.addEventListener("change", update);
+  input.addEventListener("focus", update);
+
+  update();
+
+  if (parent) {
+    parent.appendChild(clearBtn);
+  } else if (typeof setTimeout === "function") {
+    setTimeout(() => {
+      if (input.parentElement && !clearBtn.parentElement) {
+        if (window.getComputedStyle && window.getComputedStyle(input.parentElement).position === "static") {
+          input.parentElement.style.position = "relative";
+        }
+        input.parentElement.appendChild(clearBtn);
+      }
+      update();
+    }, 0);
+  }
+
+  return { clearBtn, update };
+}
+
+// --------------------------------------------------------------------------
+// createPasswordField: Reusable password input with show/hide eye toggle
+// --------------------------------------------------------------------------
+export function createPasswordField({
+  id = "password",
+  name,
+  label = "Password",
+  placeholder = "Enter password",
+  required = false,
+  value = "",
+  autocomplete = "current-password",
+  initialVisible = false,
+  helpText = "",
+} = {}) {
+  const input = el("input", {
+    id,
+    ...(name ? { name } : {}),
+    type: initialVisible ? "text" : "password",
+    placeholder,
+    ...(required ? { required: "true" } : {}),
+    ...(autocomplete ? { autocomplete } : {}),
+    value,
+  });
+
+  const toggle = el(
+    "button",
+    {
+      type: "button",
+      class: "field__toggle",
+      "aria-label": initialVisible ? "Hide password" : "Show password",
+      tabindex: "-1",
+    },
+    [icon(initialVisible ? "visibility_off" : "visibility")]
+  );
+
+  toggle.addEventListener("click", () => {
+    const isVisible = input.type === "text";
+    input.type = isVisible ? "password" : "text";
+    toggle.innerHTML = "";
+    toggle.append(icon(isVisible ? "visibility" : "visibility_off"));
+    toggle.setAttribute("aria-label", isVisible ? "Show password" : "Hide password");
+    input.focus();
+  });
+
+  const pwWrap = el("div", { class: "field--password" }, [input, toggle]);
+  const children = [];
+  if (label) {
+    children.push(el("label", { for: id }, label));
+  }
+  children.push(pwWrap);
+  if (helpText) {
+    children.push(el("div", { class: "field-hint text-xs text-muted", style: "margin-top:4px;" }, helpText));
+  }
+
+  const field = el("div", { class: "field" }, children);
+
+  return { field, input, toggle };
+}
+
+// --------------------------------------------------------------------------
+// attachCurrencyInput: Auto-formats currency/numbers on blur with live preview
+// --------------------------------------------------------------------------
+export function attachCurrencyInput(input, options = {}) {
+  if (!input || input.__hasCurrencyFormatting) return input;
+  input.__hasCurrencyFormatting = true;
+
+  const prefix = options.prefix !== undefined ? options.prefix : "KES ";
+  const decimals = options.decimals !== undefined ? options.decimals : 2;
+  const showLivePreview = options.showLivePreview !== undefined ? options.showLivePreview : true;
+
+  input.inputMode = "decimal";
+
+  const cleanNumeric = (val) => {
+    if (val === null || val === undefined) return "";
+    return String(val).replace(/[^0-9.]/g, "");
+  };
+
+  const normalizeRaw = (val) => {
+    const clean = cleanNumeric(val);
+    if (!clean) return "";
+    const n = Number(clean);
+    if (Number.isNaN(n)) return clean;
+    if (clean.includes(".") && !clean.endsWith(".00") && !clean.endsWith(".0")) {
+      return clean;
+    }
+    return n % 1 === 0 ? String(Math.round(n)) : String(n);
+  };
+
+  const formatNumber = (numStr) => {
+    const clean = cleanNumeric(numStr);
+    if (!clean) return "";
+    const n = Number(clean);
+    if (Number.isNaN(n)) return "";
+    return `${prefix}${n.toLocaleString("en-KE", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    })}`;
+  };
+
+  // Preview element
+  let previewEl = null;
+  if (showLivePreview && typeof document !== "undefined") {
+    previewEl = document.createElement("div");
+    previewEl.className = "currency-live-preview is-empty";
+    const updatePreview = () => {
+      const formatted = formatNumber(input.value);
+      if (formatted) {
+        previewEl.textContent = `Formatted: ${formatted}`;
+        previewEl.classList.remove("is-empty");
+      } else {
+        previewEl.textContent = "";
+        previewEl.classList.add("is-empty");
+      }
+    };
+    input.addEventListener("input", updatePreview);
+
+    const attachPreview = () => {
+      if (input.parentElement && !previewEl.parentElement) {
+        input.parentElement.appendChild(previewEl);
+      }
+      updatePreview();
+    };
+    if (input.parentElement) {
+      attachPreview();
+    } else if (typeof setTimeout === "function") {
+      setTimeout(attachPreview, 0);
+    }
+  }
+
+  // Initialize data-raw-value if input already has a value
+  if (input.value) {
+    const raw = normalizeRaw(input.value);
+    input.dataset.rawValue = raw;
+    input.value = formatNumber(raw);
+  }
+
+  // Focus: show clean digits for straightforward editing
+  input.addEventListener("focus", () => {
+    const raw = input.dataset.rawValue || normalizeRaw(input.value);
+    if (raw) {
+      input.value = raw;
+    }
+  });
+
+  // Blur: format nicely
+  input.addEventListener("blur", () => {
+    const raw = normalizeRaw(input.value);
+    input.dataset.rawValue = raw;
+    if (raw) {
+      input.value = formatNumber(raw);
+    } else {
+      input.value = "";
+    }
+  });
+
+  // Input event: track raw value
+  input.addEventListener("input", () => {
+    input.dataset.rawValue = normalizeRaw(input.value);
+  });
+
+  // Intercept form submit to ensure raw numeric string is read
+  const attachFormHandler = () => {
+    const form = input.form || input.closest?.("form");
+    if (form && !form.__hasCurrencySubmitInterceptors) {
+      form.__hasCurrencySubmitInterceptors = true;
+      form.addEventListener("submit", () => {
+        const allCurr = form.querySelectorAll("[data-raw-value]");
+        allCurr.forEach((el) => {
+          if (el.dataset.rawValue !== undefined) {
+            el.value = el.dataset.rawValue;
+          }
+        });
+      }, true);
+    }
+  };
+
+  if (input.form || input.closest?.("form")) {
+    attachFormHandler();
+  } else if (typeof setTimeout === "function") {
+    setTimeout(attachFormHandler, 0);
+  }
+
+  Object.defineProperty(input, "numericValue", {
+    get: () => {
+      const raw = input.dataset.rawValue || cleanNumeric(input.value);
+      return raw ? Number(raw) || 0 : 0;
+    },
+    configurable: true,
+  });
+
+  return {
+    previewEl,
+    getCleanValue: () => input.dataset.rawValue || cleanNumeric(input.value),
+  };
+}

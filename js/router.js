@@ -26,6 +26,11 @@ import {
   resolvePostLoginDestination,
   clearPostLoginRedirect,
 } from "./services/deep-link.service.js";
+import {
+  isFormDirty,
+  confirmNavigationIfDirty,
+  clearDirtyTrackers,
+} from "./services/unsaved-changes.service.js";
 
 // These three are the only views that can be reached *before* we know a
 // visitor is on an active subscription (login, forced password change, and
@@ -136,6 +141,10 @@ function currentRouteState(profile) {
 }
 
 export function navigate(path) {
+  if (isFormDirty() && !confirmNavigationIfDirty()) {
+    return;
+  }
+  clearDirtyTrackers();
   const targetHash = path.startsWith("#") ? path : `#${path}`;
   if (location.hash === targetHash) {
     renderRoute().catch((err) => showFatalError(err, { where: "router.navigate" }));
@@ -409,6 +418,8 @@ export async function renderRoute() {
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
+      lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+      clearDirtyTrackers();
       await view.init?.({ profile, params });
     } catch (viewErr) {
       if (isStale()) return;
@@ -427,6 +438,8 @@ export async function renderRoute() {
           if (retryToken !== currentRenderToken) return;
           main.innerHTML = "";
           main.appendChild(content);
+          lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+          clearDirtyTrackers();
           await view.init?.({ profile, params });
         },
       });
@@ -439,8 +452,25 @@ export async function renderRoute() {
   }
 }
 
+let lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+let isRevertingHash = false;
+
 export function startRouter() {
+  lastSafeHash = typeof location !== "undefined" ? location.hash : "";
   window.addEventListener("hashchange", () => {
+    if (isRevertingHash) {
+      isRevertingHash = false;
+      return;
+    }
+    if (isFormDirty()) {
+      if (!confirmNavigationIfDirty()) {
+        isRevertingHash = true;
+        location.hash = lastSafeHash;
+        return;
+      }
+      clearDirtyTrackers();
+    }
+    lastSafeHash = location.hash;
     renderRoute().catch((err) => showFatalError(err, { where: "router.hashchange" }));
   });
 }

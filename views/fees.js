@@ -16,7 +16,8 @@ import {
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 let classes = [];
@@ -288,7 +289,13 @@ function openStructureModal(profile, existing, structuresContainer) {
     { ...(isEdit ? { disabled: "true" } : {}) },
     (settings.terms || []).map((t) => el("option", { value: t, ...(t === (existing?.term || settings.currentTerm) ? { selected: "true" } : {}) }, t))
   );
-  const amountInput = el("input", { type: "number", min: "0", step: "1", value: existing?.amount ?? "", placeholder: "e.g. 15000" });
+  const amountInput = el("input", {
+    type: "text",
+    value: existing?.amount != null ? String(existing.amount) : "",
+    placeholder: "e.g. 15,000",
+    autocomplete: "off",
+  });
+  attachCurrencyInput(amountInput, { prefix: "KES " });
 
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
@@ -299,6 +306,7 @@ function openStructureModal(profile, existing, structuresContainer) {
   );
 
   const close = openModal(isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure", body);
+  trackForm(body);
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
@@ -307,7 +315,7 @@ function openStructureModal(profile, existing, structuresContainer) {
         grade: isEdit ? existing.grade : gradeSelect.value,
         academicYear: isEdit ? existing.academicYear : yearInput.value.trim(),
         term: isEdit ? existing.term : termSelect.value,
-        amount: amountInput.value,
+        amount: (amountInput.dataset.rawValue || amountInput.value).replace(/[^0-9.]/g, ""),
       });
       structures = await listFeeStructures();
       renderStructures(structuresContainer, profile);
@@ -632,6 +640,12 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
     placeholder: "Search by student name or admission no…",
     value: searchQuery,
   });
+  attachSearchClear(searchInput, {
+    onClear: () => {
+      searchQuery = "";
+      renderRosterRows(tbody);
+    },
+  });
 
   const filterTabsContainer = el("div", { class: "fees-status-filter" });
   const filterOptions = [
@@ -813,12 +827,12 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
   ]);
 
   const amountInput = el("input", {
-    type: "number",
-    min: "1",
-    step: "1",
-    placeholder: "e.g. 5000",
+    type: "text",
+    placeholder: "e.g. 5,000",
     required: "true",
+    autocomplete: "off",
   });
+  attachCurrencyInput(amountInput, { prefix: "KES " });
 
   const methodSelect = el("select", {}, PAYMENT_METHODS.map((m) => el("option", { value: m }, m)));
   const referenceInput = el("input", { type: "text", placeholder: "e.g. QKH782GH19 / Receipt ref" });
@@ -842,6 +856,8 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
       style: "font-size:11px; padding:2px 8px;",
       onClick: () => {
         amountInput.value = balance;
+        amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+        amountInput.dispatchEvent(new Event("blur", { bubbles: true }));
       },
     }, [icon("paid", "text-xs"), `Fill Remaining: ${formatKES(balance)}`]);
     quickFillRow.append(fillBtn);
@@ -864,6 +880,7 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
   );
 
   const close = openModal(`Record Payment: ${student.fullName}`, body);
+  trackForm(body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -877,7 +894,7 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
         stream,
         academicYear,
         term,
-        amount: amountInput.value,
+        amount: (amountInput.dataset.rawValue || amountInput.value).replace(/[^0-9.]/g, ""),
         method: methodSelect.value,
         reference: referenceInput.value.trim(),
         date: paymentDate,

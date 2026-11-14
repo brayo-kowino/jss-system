@@ -5,6 +5,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { listMarks, bulkUpsertMarks, listMarksByAssessment, upsertMark } from "../js/services/marks.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
+import { setDirty } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
@@ -953,6 +954,8 @@ function openBulkActionsModal(container) {
               }
             }
           }
+          dirty.clear();
+          setDirty(false);
           updateDistributionUI(container, maxScore, isDirect);
           toast("Discarded unsaved edits.", "info");
           close();
@@ -1163,6 +1166,7 @@ function renderRoster(container, profile) {
 
       input.classList.remove("marks-score-input--invalid");
       dirty.add(student.id);
+      setDirty(true, "You have unsaved assessment marks. Leaving now will discard them.");
       pendingValues[student.id] = rawVal;
       statusCell.className = "badge badge--gold";
       statusCell.textContent = "Unsaved";
@@ -1305,6 +1309,7 @@ async function flushDirtyMarks() {
       delete pendingValues[id];
       markBadge(id, "badge--success", "Saved");
     }
+    setDirty(dirty.size > 0, "You have unsaved assessment marks.");
     autoSaveToastShown = false;
   } catch (err) {
     for (const id of validIds) markBadge(id, "badge--danger", "Retry pending");
