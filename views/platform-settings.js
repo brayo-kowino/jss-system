@@ -299,10 +299,10 @@ async function openEnable2FAModal(profile) {
       el("p", { class: "text-sm text-muted", style: "margin:0;" },
         "Scan this QR code in your Authenticator app and enter the 6-digit code:"
       ),
-      el("div", { style: "text-align:center; padding:12px; background:#fff; border:1px solid var(--color-line); border-radius:8px; margin:0 auto;" }, [
+      el("div", { style: "text-align:center; padding:12px; background:var(--color-surface); border:1px solid var(--color-line); border-radius:8px; margin:0 auto;" }, [
         setup.qrCodeUrl
-          ? el("img", { src: setup.qrCodeUrl, style: "width:160px; height:160px; display:block; margin:0 auto;" })
-          : el("code", {}, setup.secret),
+          ? el("img", { src: setup.qrCodeUrl, style: "width:160px; height:160px; display:block; margin:0 auto; background:#fff; padding:6px; border-radius:6px;" })
+          : el("code", { style: "color:var(--color-primary-700); font-weight:700;" }, setup.secret),
       ]),
       el("div", { style: "background:var(--color-surface-soft); padding:8px 12px; border-radius:6px; text-align:center;" }, [
         el("div", { class: "text-xs text-muted" }, "Manual key:"),

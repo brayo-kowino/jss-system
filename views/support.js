@@ -208,7 +208,7 @@ function showTicketDetailsModal(ticket, profile) {
     el("label", { style: "font-size:var(--fs-xs); text-transform:uppercase; color:var(--color-ink-soft); font-weight:700;" }, "Platform Support Resolution"),
     ticket.resolutionNote
       ? el("div", {
-          style: "background:#ecfdf5; border-left:4px solid #10b981; padding:12px; border-radius:0 var(--radius-md) var(--radius-md) 0; margin-top:4px; font-size:var(--fs-sm); line-height:1.5; color:#065f46;",
+          style: "background:var(--color-surface-alt, var(--color-cream-dim)); border-left:4px solid var(--color-green); padding:12px; border-radius:0 var(--radius-md) var(--radius-md) 0; margin-top:4px; font-size:var(--fs-sm); line-height:1.5; color:var(--color-ink);",
         }, ticket.resolutionNote)
       : el("div", { style: "color:var(--color-ink-soft); font-size:var(--fs-sm); font-style:italic; margin-top:4px;" }, "Our support team is reviewing your ticket and will update you shortly."),
   ]);

@@ -85,15 +85,15 @@ export async function render({ profile }) {
   const canManageSettings = profile.role === "admin" || profile.role === "super_admin";
   const gradingScaleNotice = el("div", {
     class: "notice-banner notice-banner--caution",
-    style: "display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-4); border:1px solid #f0d989; background:#fffbe6;"
+    style: "display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-4);"
   }, [
     el("div", { style: "display:flex; align-items:flex-start; gap:12px; flex:1; min-width:260px;" }, [
-      el("span", { class: "material-symbols-rounded", style: "font-size:24px; color:#b45309; flex-shrink:0; margin-top:2px;" }, "priority_high"),
+      el("span", { class: "material-symbols-rounded", style: "font-size:24px; flex-shrink:0; margin-top:2px;" }, "priority_high"),
       el("div", {}, [
-        el("strong", { style: "display:block; color:#92400e; font-size:var(--fs-sm); font-weight:700; margin-bottom:3px;" },
+        el("strong", { class: "notice-banner__headline", style: "display:block; font-size:var(--fs-sm); font-weight:700; margin-bottom:3px;" },
           "Important: Please Check the Grading Scale in Settings"
         ),
-        el("p", { style: "margin:0; font-size:var(--fs-xs); color:#78350f; line-height:1.5;" },
+        el("p", { class: "notice-banner__body", style: "margin:0; font-size:var(--fs-xs); line-height:1.5;" },
           "All calculated subject grades, mean grades, and student points are strictly derived from your school's Grading Scale. It is very important to verify that your grade boundaries and point weights in Settings are correct before computing or saving results."
         ),
       ]),
@@ -101,8 +101,8 @@ export async function render({ profile }) {
     ...(canManageSettings ? [
       el("a", {
         href: "#/settings?tab=grading",
-        class: "btn btn--sm",
-        style: "background:#fff; border:1px solid #d97706; color:#92400e; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; margin-top:2px;",
+        class: "btn btn--sm notice-banner__action",
+        style: "display:inline-flex; align-items:center; gap:6px; white-space:nowrap; margin-top:2px;",
       }, [
         icon("tune", "text-xs"),
         "Check Grading Scale in Settings",
@@ -206,7 +206,7 @@ function renderWelcomeDisclaimers(container) {
 
     // Modern Guidance Cards Grid (Zero left borders)
     el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card", style: "border: 1px solid rgba(217, 119, 6, 0.4); background: #fffcf4;" }, [
+      el("div", { class: "guidance-card guidance-card--amber" }, [
         el("div", { class: "guidance-card__header" }, [
           el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("grading")]),
           el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Very Important"),
@@ -277,7 +277,7 @@ function renderArrearsNotice(amountOwed) {
   
   return el("div", { 
     class: "card", 
-    style: "max-width: 540px; margin: 40px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: #ffffff;" 
+    style: "max-width: 540px; margin: 40px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: var(--color-surface);" 
   }, [
     
     // Icon Container
@@ -326,7 +326,7 @@ function renderArrearsNotice(amountOwed) {
       el("a", { 
         href: "mailto:iskify360.tech@gmail.com", 
         class: "btn btn--sm",
-        style: "background: #fff; border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
+        style: "background: var(--color-surface-soft, var(--color-cream-dim)); border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
       }, [
         icon("mail", "", "style: font-size: 16px;"), "Email Us"
       ])

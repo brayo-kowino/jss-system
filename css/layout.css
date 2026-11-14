@@ -548,7 +548,7 @@
   background: none;
   border: none;
   outline: none;
-  color: var(--color-white);
+  color: #FFFFFF;
   font-size: var(--fs-sm);
   font-family: inherit;
 }
@@ -611,10 +611,10 @@
   background: var(--color-gold);
   transition: height var(--transition);
 }
-.nav-link:hover { background: rgba(255, 255, 255, 0.06); color: var(--color-white); transform: translateX(2px); }
+.nav-link:hover { background: rgba(255, 255, 255, 0.06); color: #FFFFFF; transform: translateX(2px); }
 .nav-link.active {
   background: rgba(255, 255, 255, 0.09);
-  color: var(--color-white);
+  color: #FFFFFF;
   font-weight: 700;
 }
 .nav-link.active::before { height: 18px; }
@@ -1758,4 +1758,50 @@
 [data-theme="dark"] .auth-brand {
   background: var(--color-sidebar-bg, #080D1A);
 }
+
+/* 2FA, Device Approval & Security Modals Dark Mode Refinements */
+[data-theme="dark"] .approval-wait__device-card,
+[data-theme="dark"] .twofa-gate__card,
+[data-theme="dark"] .approval-modal,
+[data-theme="dark"] .device-card,
+[data-theme="dark"] .totp-setup__qr,
+[data-theme="dark"] .backup-codes__code {
+  background: var(--color-surface);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+[data-theme="dark"] .twofa-gate__input,
+[data-theme="dark"] .totp-setup__verify input {
+  background: var(--color-surface-alt);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+[data-theme="dark"] .twofa-gate__input:focus,
+[data-theme="dark"] .totp-setup__verify input:focus {
+  border-color: var(--color-primary-600);
+}
+[data-theme="dark"] .approval-modal__device-info,
+[data-theme="dark"] .totp-setup__secret,
+[data-theme="dark"] .backup-codes {
+  background: var(--color-surface-alt);
+  border-color: var(--color-line);
+  color: var(--color-ink);
+}
+[data-theme="dark"] .status-badge--approved {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34D399;
+}
+[data-theme="dark"] .status-badge--denied {
+  background: rgba(239, 68, 68, 0.18);
+  color: #F87171;
+}
+[data-theme="dark"] .status-badge--pending {
+  background: rgba(245, 158, 11, 0.18);
+  color: #FBBF24;
+}
+[data-theme="dark"] .device-card__badge {
+  background: rgba(56, 189, 248, 0.15);
+  color: #7DD3FC;
+}
+
 

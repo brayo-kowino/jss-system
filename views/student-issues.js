@@ -847,18 +847,18 @@ function showDetailsModal(issue, profile) {
   if (!isOpen && issue.resolutionNote) {
     content.append(
       el("div", {}, [
-        el("div", { style: "font-size:12px; font-weight:700; color:#15803d; margin-bottom:4px;" }, "Resolution Audit Trail:"),
+        el("div", { style: "font-size:12px; font-weight:700; color:var(--color-green); margin-bottom:4px;" }, "Resolution Audit Trail:"),
         el(
           "div",
           {
             style:
-              "padding:12px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-md); font-size:13px; color:#166534; line-height:1.5;",
+              "padding:12px 14px; background:var(--color-surface-alt, var(--color-cream-dim)); border:1px solid var(--color-line); border-left:4px solid var(--color-green); border-radius:var(--radius-md); font-size:13px; color:var(--color-ink); line-height:1.5;",
           },
           [
             el("div", { style: "font-weight:600; margin-bottom:4px;" }, issue.resolutionNote),
             el(
               "div",
-              { style: "font-size:11px; color:#15803d; opacity:0.85;" },
+              { style: "font-size:11px; color:var(--color-ink-soft); opacity:0.85;" },
               `Action logged on ${resolvedDate ? formatDateTime(resolvedDate) : "N/A"}`
             ),
           ]

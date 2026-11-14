@@ -228,11 +228,10 @@ function showMarksInstructionsModal(forceOpen = false) {
 
   const cards = [
     {
+      key: "entry",
       num: "1",
       iconName: "edit_note",
       tag: "Marks Entry Tab",
-      color: "var(--color-primary-700, #14538a)",
-      bgColor: "rgba(20, 83, 138, 0.08)",
       title: "1. Entering Subject Marks",
       items: [
         "Select your Class & Stream, Subject, and Assessment from the top dropdowns.",
@@ -242,11 +241,10 @@ function showMarksInstructionsModal(forceOpen = false) {
       ],
     },
     {
+      key: "review",
       num: "2",
       iconName: "fact_check",
       tag: "Marks Review Tab",
-      color: "#b45309",
-      bgColor: "rgba(201, 162, 39, 0.12)",
       title: "2. Reviewing the Whole Grade",
       items: [
         "Switch to the 'Marks Review' tab to inspect all subjects and students together.",
@@ -255,11 +253,10 @@ function showMarksInstructionsModal(forceOpen = false) {
       ],
     },
     {
+      key: "interactive",
       num: "3",
       iconName: "touch_app",
       tag: "Interactive Editing",
-      color: "#047857",
-      bgColor: "rgba(5, 150, 105, 0.1)",
       title: "3. Quick Edits & Navigation",
       items: [
         "Click any mark or missing flag in the review matrix to edit the score in a quick modal without leaving the board.",
@@ -268,11 +265,10 @@ function showMarksInstructionsModal(forceOpen = false) {
       ],
     },
     {
+      key: "rules",
       num: "4",
       iconName: "verified_user",
       tag: "Rules & Limits",
-      color: "#b91c1c",
-      bgColor: "rgba(220, 38, 38, 0.08)",
       title: "4. Validation & Security",
       items: [
         "All entered marks must be between 0 and the assessment Max Score.",
@@ -284,20 +280,16 @@ function showMarksInstructionsModal(forceOpen = false) {
 
   for (const c of cards) {
     const cardEl = el("div", {
-      style: "border:1px solid var(--color-line); border-radius:var(--radius-md); padding:14px; background:#fff; display:flex; flex-direction:column; gap:8px;",
+      class: `marks-guide-card marks-guide-card--${c.key}`,
     }, [
-      el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:8px;" }, [
-        el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
-          el("span", {
-            style: `display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:6px; background:${c.bgColor}; color:${c.color}; font-weight:700; font-size:12px;`,
-          }, icon(c.iconName, "text-xs")),
-          el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm);" }, c.title),
+      el("div", { class: "marks-guide-card__header" }, [
+        el("div", { class: "marks-guide-card__title-wrap" }, [
+          el("span", { class: "marks-guide-card__icon" }, icon(c.iconName, "text-xs")),
+          el("strong", { class: "marks-guide-card__title" }, c.title),
         ]),
-        el("span", {
-          style: `font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:${c.color}; background:${c.bgColor}; padding:2px 8px; border-radius:999px;`,
-        }, c.tag),
+        el("span", { class: "marks-guide-card__tag" }, c.tag),
       ]),
-      el("ul", { style: "margin:0; padding-left:18px; font-size:var(--fs-xs); color:var(--color-ink-soft); line-height:1.5; display:flex; flex-direction:column; gap:4px;" },
+      el("ul", { class: "marks-guide-card__list" },
         c.items.map((it) => el("li", {}, it))
       ),
     ]);

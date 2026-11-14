@@ -351,7 +351,7 @@ function renderArrearsNotice(amountOwed) {
   
   return el("div", { 
     class: "card", 
-    style: "max-width: 540px; margin: 40px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: #ffffff;" 
+    style: "max-width: 540px; margin: 40px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: var(--color-surface);" 
   }, [
     
     // Icon Container
@@ -400,7 +400,7 @@ function renderArrearsNotice(amountOwed) {
       el("a", { 
         href: "mailto:iskify360.tech@gmail.com", 
         class: "btn btn--sm",
-        style: "background: #fff; border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
+        style: "background: var(--color-surface-soft, var(--color-cream-dim)); border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
       }, [
         icon("mail", "", "style: font-size: 16px;"), "Email Us"
       ])
@@ -981,7 +981,7 @@ function buildCard(result, priorHistory, profile) {
       const ghostBarWrap = el("div", {
         style: `height: ${avgScore}%; width: 100%; border-top: 1.5px dashed var(--color-primary-600); position: relative;`
       }, [
-        el("span", { style: "position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: bold; color: var(--color-primary-600); background: #fff; padding: 0 4px;" }, `MEAN: ${avgScore.toFixed(0)}`)
+        el("span", { style: "position: absolute; top: -14px; right: 0; font-size: 10px; font-weight: bold; color: var(--color-primary-600); background: var(--color-surface); padding: 0 4px; border-radius: 2px;" }, `MEAN: ${avgScore.toFixed(0)}`)
       ]);
       const ghostLbl = el("div", { class: "report-card__chart-lbl" });
       ghostCol.append(ghostGain, ghostVal, ghostBarWrap, ghostLbl);

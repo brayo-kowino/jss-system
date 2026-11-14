@@ -492,9 +492,9 @@ async function renderMasterTab(container, profile) {
                 });
               },
             }, [
-              el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
-              el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, slot.teacherName || "Unassigned"),
-              ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+              el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
+              el("span", { class: "tt-teacher-name" }, slot.teacherName || "Unassigned"),
+              ...(slot.room ? [el("span", { class: "tt-room-tag" }, slot.room)] : []),
               hasConflict ? el("span", { class: "tt-conflict-tag" }, [icon("warning", "text-xs"), "Collision"]) : null,
             ].filter(Boolean));
             td.append(pill);
@@ -662,9 +662,9 @@ async function loadClassGrid(profile, gridMount) {
     onCellClick: (day, period) => openAssignModal(profile, day, period, gridMount),
     emptyLabel: "+ Assign",
     pillRenderer: (slot) => [
-      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
-      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, slot.teacherName || "Unassigned"),
-      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+      el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
+      el("span", { class: "tt-teacher-name" }, slot.teacherName || "Unassigned"),
+      ...(slot.room ? [el("span", { class: "tt-room-tag" }, slot.room)] : []),
     ],
   });
 }
@@ -703,7 +703,7 @@ async function renderTeacherPicker(container, profile, gridMount) {
       const t = teachers.find((x) => x.id === teacherSelection.teacherId);
       if (!t) return;
       const homeroom = t.homeroom ? t.homeroom.replace("|", " ").trim() : "None";
-      teacherMetaMount.append(el("div", { class: "class-teacher-banner", style: "background:#f0f9ff; border-color:#bae6fd; color:#0369a1;" }, [
+      teacherMetaMount.append(el("div", { class: "class-teacher-banner class-teacher-banner--info" }, [
         icon("person", "text-xs"),
         el("span", {}, [
           el("strong", {}, `${t.fullName}: `),
@@ -802,9 +802,9 @@ async function loadTeacherGrid(gridMount) {
     onCellClick: () => {},
     emptyLabel: "Free / Prep",
     pillRenderer: (slot) => [
-      el("b", { style: "color:var(--color-primary-900); font-weight:700;" }, slot.subjectName || slot.subjectCode),
-      el("span", { style: "color:var(--color-ink-soft); font-size:11px;" }, `${slot.grade} ${slot.stream}`),
-      ...(slot.room ? [el("span", { style: "font-family:var(--font-mono, monospace); font-size:10px; background:var(--color-cream-dim, #f8fafc); padding:1px 4px; border-radius:3px; border:1px solid var(--color-line); display:inline-block; margin-top:2px;" }, slot.room)] : []),
+      el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
+      el("span", { class: "tt-teacher-name" }, `${slot.grade} ${slot.stream}`),
+      ...(slot.room ? [el("span", { class: "tt-room-tag" }, slot.room)] : []),
     ],
   });
 }
@@ -1377,21 +1377,13 @@ function openFacultyWorkloadModal() {
 
       let statusBadge = null;
       if (count === 0) {
-        statusBadge = el("span", {
-          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1;"
-        }, "0 Lessons · Unassigned");
+        statusBadge = el("span", { class: "badge badge--muted" }, "0 Lessons · Unassigned");
       } else if (count < 18) {
-        statusBadge = el("span", {
-          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe;"
-        }, `${count} Lessons · Light Load`);
+        statusBadge = el("span", { class: "badge badge--info" }, `${count} Lessons · Light Load`);
       } else if (count <= 27) {
-        statusBadge = el("span", {
-          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#f0fdf4; color:#166534; border:1px solid #bbf7d0;"
-        }, `${count} Lessons · Optimal TSC Load`);
+        statusBadge = el("span", { class: "badge badge--success" }, `${count} Lessons · Optimal TSC Load`);
       } else {
-        statusBadge = el("span", {
-          style: "font-size:11px; font-weight:600; padding:2px 8px; border-radius:12px; background:#fef2f2; color:#991b1b; border:1px solid #fecaca;"
-        }, `${count} Lessons · Heavy Load`);
+        statusBadge = el("span", { class: "badge badge--danger" }, `${count} Lessons · Heavy Load`);
       }
 
       const dayDistribution = DAYS.map((d) => {
@@ -1411,7 +1403,7 @@ function openFacultyWorkloadModal() {
             el("div", { style: "display:flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
               el("b", { style: "font-size:14px; color:var(--color-primary-900);" }, t.fullName || t.name),
               t.tscNumber ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:11px; color:var(--color-ink-soft);" }, `TSC: ${t.tscNumber}`) : null,
-              homeroom ? el("span", { style: "background:var(--color-accent-subtle, #fef3c7); color:#92400e; font-size:10px; font-weight:600; padding:1px 6px; border-radius:10px; border:1px solid #fde68a;" }, `Class Teacher: ${homeroom}`) : null,
+              homeroom ? el("span", { class: "badge badge--warning", style: "font-size:10px;" }, `Class Teacher: ${homeroom}`) : null,
             ].filter(Boolean)),
             el("div", { style: "font-size:11px; color:var(--color-ink-soft); margin-top:4px;" }, [
               `Daily Breakdown: ${dayDistribution}`,
@@ -1451,9 +1443,9 @@ function openFacultyWorkloadModal() {
       el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, `${avgLoad}`),
       el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Avg Lessons/Wk"),
     ]),
-    el("div", { style: "background:#f0fdf4; border:1px solid #bbf7d0; border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
-      el("div", { style: "font-size:20px; font-weight:800; color:#166534;" }, "20–27"),
-      el("div", { style: "font-size:10px; color:#15803d; text-transform:uppercase; font-weight:600;" }, "TSC Standard"),
+    el("div", { class: "timetable-metric-box timetable-metric-box--tsc" }, [
+      el("div", { class: "timetable-metric-val" }, "20–27"),
+      el("div", { class: "timetable-metric-label" }, "TSC Standard"),
     ]),
   ]);
 

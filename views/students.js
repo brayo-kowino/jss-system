@@ -116,14 +116,14 @@ export async function render({ profile }) {
   if (!classes.length) {
     wrap.append(
       el("div", {
-        class: "callout callout--danger",
-        style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:16px 20px; background:#FDF2F2; border:1px solid #F8B4B4; border-radius:8px; flex-wrap:wrap; gap:12px;",
+        class: "alert alert--danger",
+        style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:16px 20px; flex-wrap:wrap; gap:12px;",
       }, [
         el("div", { style: "display:flex; align-items:center; gap:12px;" }, [
-          icon("warning", "text-danger", { style: "font-size:28px;" }),
+          icon("warning", "", { style: "font-size:28px;" }),
           el("div", {}, [
-            el("h4", { style: "margin:0 0 4px; color:#9B1C1C; font-weight:600;" }, "Classes & Streams Setup Required"),
-            el("p", { style: "margin:0; color:#771D1D; font-size:14px;" }, "You must create your school's classes and streams under Academics before you can enroll or import any students."),
+            el("h4", { style: "margin:0 0 4px; font-weight:600; color:inherit;" }, "Classes & Streams Setup Required"),
+            el("p", { style: "margin:0; font-size:14px; opacity:0.9; color:inherit;" }, "You must create your school's classes and streams under Academics before you can enroll or import any students."),
           ]),
         ]),
         el("a", {
