@@ -9,7 +9,7 @@ import { listStudents } from "../js/services/student.service.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
-import { el, formatDate, getBrandColors, hexToRgba } from "../js/utils.js";
+import { el, formatDate, getBrandColors, hexToRgba, animateNumber } from "../js/utils.js";
 import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
 
 import { Chart, registerables } from "chart.js";
@@ -421,12 +421,14 @@ export async function render({ profile }) {
   const kpis = [
     {
       label: "Active Students",
+      rawNumber: studentsCount || 0,
       displayValue: String(studentsCount),
       icon: "school",
       color: "blue",
     },
     {
       label: "Active Staff",
+      rawNumber: teachers || 0,
       displayValue: String(teachers || 0),
       icon: "badge",
       color: "gold",
@@ -440,6 +442,8 @@ export async function render({ profile }) {
     {
       label: "Term Revenue",
       currency: "KES",
+      rawNumber: Number(feesCollected || 0),
+      decimals: 2,
       displayValue: Number(feesCollected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       icon: "account_balance_wallet",
       color: "gold",
@@ -447,12 +451,17 @@ export async function render({ profile }) {
   ];
 
   for (const kpi of kpis) {
+    const valueSpan = el("span", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue);
+    if (kpi.rawNumber !== undefined) {
+      animateNumber(valueSpan, kpi.rawNumber, { decimals: kpi.decimals || 0 });
+    }
+
     const valContent = kpi.currency
       ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
           el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
-          el("span", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue),
+          valueSpan,
         ])
-      : el("div", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue);
+      : valueSpan;
 
     kpiGrid.append(
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${kpi.color}` }, [

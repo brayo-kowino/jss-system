@@ -326,4 +326,41 @@ describe("Global Command Palette", () => {
       expect(navigateWithParams).toHaveBeenCalledWith("/students", { id: "s1" });
     });
   });
+
+  describe("On-Screen Search Hotkeys ('/' and Esc)", () => {
+    it("focuses on-screen search when '/' is pressed outside inputs", () => {
+      initCommandPalette(adminProfile);
+
+      const main = document.createElement("main");
+      const searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.placeholder = "Search students...";
+      main.appendChild(searchInput);
+      document.body.appendChild(main);
+
+      const focusSpy = vi.spyOn(searchInput, "focus");
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true }));
+
+      expect(focusSpy).toHaveBeenCalled();
+    });
+
+    it("clears and blurs active search input on Escape", () => {
+      initCommandPalette(adminProfile);
+
+      const searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.value = "Form 3 Alpha";
+      document.body.appendChild(searchInput);
+      searchInput.focus();
+
+      const inputHandler = vi.fn();
+      searchInput.addEventListener("input", inputHandler);
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+      expect(searchInput.value).toBe("");
+      expect(inputHandler).toHaveBeenCalled();
+    });
+  });
 });

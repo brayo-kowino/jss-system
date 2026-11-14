@@ -1267,6 +1267,30 @@ export function initCommandPalette(profile) {
       return;
     }
 
+    // 3b. Quick focus on-screen search on '/' (when outside input fields and palette)
+    if (!isTextInput && !paletteBackdrop && !isCmdOrCtrl && !isAlt && e.key === "/") {
+      const pageSearch = document.querySelector(
+        'main input[type="search"], main input[placeholder*="search" i], .fees-search-wrap input, .search-wrap input'
+      );
+      if (pageSearch) {
+        e.preventDefault();
+        pageSearch.focus();
+        pageSearch.select?.();
+        return;
+      }
+    }
+
+    // 3c. Clear & blur search on Escape
+    if (e.key === "Escape" && isTextInput && activeEl && (activeEl.type === "search" || activeEl.placeholder?.toLowerCase().includes("search"))) {
+      if (activeEl.value) {
+        activeEl.value = "";
+        activeEl.dispatchEvent(new Event("input", { bubbles: true }));
+        activeEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      activeEl.blur();
+      return;
+    }
+
     // 4. Predefined Module Jump Shortcuts (Ctrl + Letter or Alt + Letter)
     // Example: Ctrl + L jumps directly to School Settings!
     if ((isCmdOrCtrl || isAlt) && !e.shiftKey) {

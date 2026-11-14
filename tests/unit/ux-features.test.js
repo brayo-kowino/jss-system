@@ -3,6 +3,9 @@ import {
   attachSearchClear,
   createPasswordField,
   attachCurrencyInput,
+  makeCopyable,
+  renderEmptyState,
+  animateNumber,
 } from "../../js/utils.js";
 
 describe("UX Features: Search Clear, Password Toggle & Currency Input", () => {
@@ -124,6 +127,151 @@ describe("UX Features: Search Clear, Password Toggle & Currency Input", () => {
       form.dispatchEvent(new Event("submit", { cancelable: true }));
       expect(receivedOnSubmit).toBe("15000");
       expect(input.numericValue).toBe(15000);
+    });
+  });
+
+  describe("makeCopyable", () => {
+    it("attaches copyable styling, icon, and role attribute", () => {
+      const el = document.createElement("span");
+      el.textContent = "ADM-2024-001";
+      document.body.appendChild(el);
+
+      makeCopyable(el, "ADM-2024-001", { title: "Click to copy admission" });
+
+      expect(el.classList.contains("copyable-text")).toBe(true);
+      expect(el.getAttribute("role")).toBe("button");
+      expect(el.getAttribute("title")).toBe("Click to copy admission");
+      expect(el.tabIndex).toBe(0);
+      expect(el.querySelector(".copyable-text__icon")).not.toBeNull();
+    });
+
+    it("copies text using navigator.clipboard.writeText and shows micro-tooltip", async () => {
+      const el = document.createElement("span");
+      el.textContent = "0712345678";
+      document.body.appendChild(el);
+
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: writeTextMock },
+        configurable: true,
+      });
+
+      const onCopied = vi.fn();
+      makeCopyable(el, "0712345678", { onCopied, successText: "Phone copied!" });
+
+      el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(writeTextMock).toHaveBeenCalledWith("0712345678");
+      expect(onCopied).toHaveBeenCalledWith("0712345678");
+
+      const tooltip = el.querySelector(".copied-tooltip");
+      expect(tooltip).not.toBeNull();
+      expect(tooltip.textContent).toContain("Phone copied!");
+    });
+
+    it("triggers copy on Enter or Space keydown", async () => {
+      const el = document.createElement("span");
+      el.textContent = "QWE89123XZ";
+      document.body.appendChild(el);
+
+      const writeTextMock = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: writeTextMock },
+        configurable: true,
+      });
+
+      makeCopyable(el, "QWE89123XZ");
+
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(writeTextMock).toHaveBeenCalledWith("QWE89123XZ");
+    });
+  });
+
+  describe("renderEmptyState", () => {
+    it("renders smart empty state with icon, title, and message", () => {
+      const card = renderEmptyState({
+        iconName: "search_off",
+        title: "No learners match your search",
+        message: "Try searching for a different name.",
+      });
+
+      expect(card.classList.contains("empty-state--smart")).toBe(true);
+      expect(card.querySelector(".empty-state--smart__title").textContent).toBe("No learners match your search");
+      expect(card.querySelector(".empty-state--smart__msg").textContent).toBe("Try searching for a different name.");
+      expect(card.querySelector(".empty-state--smart__halo")).not.toBeNull();
+    });
+
+    it("renders reset button and fires onReset when clicked", () => {
+      const onReset = vi.fn();
+      const card = renderEmptyState({
+        title: "Zero records",
+        message: "No results found",
+        resetText: "Clear filters & search",
+        onReset,
+      });
+
+      const btn = card.querySelector("button");
+      expect(btn).not.toBeNull();
+      expect(btn.textContent).toContain("Clear filters & search");
+
+      btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      expect(onReset).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders custom actionBtn when provided", () => {
+      const customBtn = document.createElement("button");
+      customBtn.className = "custom-action-btn";
+      customBtn.textContent = "Add Record";
+
+      const card = renderEmptyState({
+        title: "No records",
+        actionBtn: customBtn,
+      });
+
+      expect(card.querySelector(".custom-action-btn")).not.toBeNull();
+    });
+  });
+
+  describe("animateNumber", () => {
+    it("immediately formats number if prefers-reduced-motion is enabled", () => {
+      window.matchMedia = vi.fn().mockImplementation((query) => ({
+        matches: query.includes("prefers-reduced-motion"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }));
+
+      const el = document.createElement("span");
+      animateNumber(el, 1500);
+
+      expect(el.textContent).toBe("1,500");
+    });
+
+    it("formats number with decimals, prefix, and suffix", () => {
+      window.matchMedia = vi.fn().mockImplementation(() => ({
+        matches: true, // test synchronous formatting path
+        media: "",
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      }));
+
+      const el = document.createElement("span");
+      animateNumber(el, 84500.5, {
+        decimals: 2,
+        prefix: "KES ",
+      });
+
+      expect(el.textContent).toContain("KES 84,500.50");
+    });
+
+    it("handles non-numeric target gracefully", () => {
+      const el = document.createElement("span");
+      animateNumber(el, "N/A");
+      expect(el.textContent).toBe("N/A");
     });
   });
 });

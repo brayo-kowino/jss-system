@@ -16,7 +16,7 @@ import {
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput, makeCopyable, renderEmptyState } from "../js/utils.js";
 import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
@@ -718,11 +718,26 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
     });
 
     if (!filtered.length) {
+      const resetBtn = el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--xs",
+        style: "margin-left:8px; display:inline-flex; align-items:center; gap:4px;",
+        onClick: () => {
+          searchQuery = "";
+          statusFilter = "all";
+          searchInput.value = "";
+          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+          updateStatusButtons();
+          renderRosterRows(targetTbody);
+        },
+      }, [icon("restart_alt", "text-xs"), "Reset Filters"]);
+
       targetTbody.append(
         el("tr", {}, [
           el("td", { colspan: "7", style: "text-align:center; padding:var(--sp-5); color:var(--color-ink-soft);" }, [
             icon("search_off", "", "style: vertical-align:middle; margin-right:4px;"),
-            "No students match the active search or filter criteria.",
+            "No students match the active search or filter criteria. ",
+            resetBtn,
           ]),
         ])
       );
@@ -1000,7 +1015,7 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
       el("td", { "data-label": "Channel" }, renderPaymentMethodBadge(p.method)),
       el("td", { "data-label": "Reference" }, [
         p.reference
-          ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); background:var(--color-cream-dim); padding:2px 6px; border-radius:var(--radius-sm);" }, p.reference)
+          ? makeCopyable(el("span", { style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); background:var(--color-cream-dim); padding:2px 6px; border-radius:var(--radius-sm);" }, p.reference), p.reference, { title: "Click to copy reference" })
           : el("span", { class: "text-muted text-xs" }, "—"),
       ]),
       el("td", { class: "col-action", "data-label": "Action" }, [

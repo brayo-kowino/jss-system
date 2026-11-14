@@ -39,7 +39,7 @@ import {
 } from "../js/services/student-import.service.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput, datePickerField } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, busyButton, spinner, attachSearchClear } from "../js/utils.js";
+import { el, icon, toast, formatDate, busyButton, spinner, attachSearchClear, makeCopyable, renderEmptyState, animateNumber } from "../js/utils.js";
 import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
@@ -143,18 +143,22 @@ export async function render({ profile, params = {} }) {
 
   // 2. Executive KPI Metrics Strip (using .md3-kpi-grid & .md3-kpi-chip)
   const kpis = [
-    { label: "Total Registered", value: students.length, icon: "groups", color: "blue" },
-    { label: "Active Learners", value: activeCount, icon: "how_to_reg", color: "green" },
+    { label: "Total Registered", value: students.length, isNum: true, icon: "groups", color: "blue" },
+    { label: "Active Learners", value: activeCount, isNum: true, icon: "how_to_reg", color: "green" },
     { label: "Boys / Girls", value: `${boysCount}B / ${girlsCount}G`, icon: "wc", color: "gold" },
-    { label: "Welfare Alerts", value: totalOpenIssues, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
+    { label: "Welfare Alerts", value: totalOpenIssues, isNum: true, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
   ];
   const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
+    const valEl = el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value));
+    if (k.isNum) {
+      animateNumber(valEl, k.value);
+    }
     const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
       el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
       el("div", { class: "md3-kpi-chip__data" }, [
         el("div", { class: "md3-kpi-chip__label" }, k.label),
-        el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
+        valEl,
       ]),
     ]);
     kpiGrid.append(chip);
@@ -359,11 +363,30 @@ function renderTable(container, profile) {
 
   if (!filtered.length) {
     container.innerHTML = "";
-    container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-      icon("school", "empty-state__icon"),
-      el("h3", {}, "No learners found"),
-      el("p", {}, students.length ? "Try adjusting your search query or filters." : "Click '+ New Admission' to register your first student."),
-    ]));
+    if (students.length > 0) {
+      container.append(renderEmptyState({
+        iconName: "search_off",
+        title: "No learners match your search or filters",
+        message: "No student records match the active query or filter criteria. Clear your filters to see the full student directory.",
+        resetText: "Clear filters & search",
+        onReset: () => {
+          searchInput.value = "";
+          gradeSelect.value = "";
+          statusSelect.value = "";
+          filterText = "";
+          filterGrade = "";
+          filterStatus = "";
+          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+          drawTable();
+        },
+      }));
+    } else {
+      container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("school", "empty-state__icon"),
+        el("h3", {}, "No learners found"),
+        el("p", {}, "Click '+ New Admission' to register your first student."),
+      ]));
+    }
     return;
   }
 
@@ -444,7 +467,11 @@ function renderTable(container, profile) {
       }, s.fullName),
     ]);
     tbody.append(el("tr", {}, [
-      el("td", { class: "numeric", "data-label": "Adm. No." }, el("span", { style: "font-family:var(--font-mono); font-weight:600; font-size:var(--fs-xs);" }, s.admissionNumber || "—")),
+      el("td", { class: "numeric", "data-label": "Adm. No." }, [
+        s.admissionNumber
+          ? makeCopyable(el("span", { style: "font-family:var(--font-mono); font-weight:600; font-size:var(--fs-xs);" }, s.admissionNumber), s.admissionNumber, { title: "Click to copy admission number" })
+          : el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
+      ]),
       nameCell,
       el("td", { "data-label": "Class / Stream" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, `${s.grade || "N/A"}${s.stream ? " · " + s.stream : ""}`)),
       el("td", { "data-label": "Gender" }, s.gender || "—"),

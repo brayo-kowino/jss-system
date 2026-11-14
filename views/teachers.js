@@ -2,7 +2,7 @@ import { listTeachers, createTeacher, updateTeacher, setTeacherStatus } from "..
 import { listSubjects, listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { createUserAccount, listSchoolUsers, setUserStatus, ROLES } from "../js/services/auth.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, busyButton, attachSearchClear, createPasswordField } from "../js/utils.js";
+import { el, icon, toast, busyButton, attachSearchClear, createPasswordField, makeCopyable, renderEmptyState } from "../js/utils.js";
 import { trackForm } from "../js/services/unsaved-changes.service.js";
 
 // Roles that can hold a system login at all, in the order they're offered.
@@ -290,11 +290,30 @@ function renderLoginsTab(container, profile) {
     countBadge.textContent = `${filtered.length} Users`;
 
     if (!filtered.length) {
-      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-        icon("badge", "empty-state__icon"),
-        el("h3", {}, "No staff logins found"),
-        el("p", {}, logins.length ? "Try adjusting your search query or filters." : "Create a login for a class teacher, principal, bursar, or any other staff role."),
-      ]));
+      if (logins.length > 0) {
+        tableWrap.append(renderEmptyState({
+          iconName: "search_off",
+          title: "No staff logins match your search or filters",
+          message: "No staff accounts match your current query or role filter. Clear your filters to see all staff logins.",
+          resetText: "Clear filters & search",
+          onReset: () => {
+            searchInput.value = "";
+            filterText = "";
+            roleSelect.value = "";
+            filterRole = "";
+            statusSelect.value = "";
+            filterStatus = "";
+            searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+            drawTable();
+          },
+        }));
+      } else {
+        tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+          icon("badge", "empty-state__icon"),
+          el("h3", {}, "No staff logins found"),
+          el("p", {}, "Create a login for a class teacher, principal, bursar, or any other staff role."),
+        ]));
+      }
       return;
     }
 
@@ -321,7 +340,9 @@ function renderLoginsTab(container, profile) {
           ]),
         ]),
         el("td", { "data-label": "Email / Login ID" }, [
-          el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink);" }, u.email || "—"),
+          u.email
+            ? makeCopyable(el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink);" }, u.email), u.email, { title: "Click to copy email" })
+            : el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
         ]),
         el("td", { "data-label": "Assigned Role" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, roleLabel(u.role))),
         el("td", { "data-label": "Teaching Profile" }, linkedTeacher
@@ -752,11 +773,30 @@ function renderRosterTab(container, profile) {
     countBadge.textContent = `${filtered.length} Teachers`;
 
     if (!filtered.length) {
-      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-        icon("groups", "empty-state__icon"),
-        el("h3", {}, "No teacher records found"),
-        el("p", {}, teachers.length ? "Try adjusting your search query or filters." : "Add a teacher record to assign subjects and classes."),
-      ]));
+      if (teachers.length > 0) {
+        tableWrap.append(renderEmptyState({
+          iconName: "search_off",
+          title: "No teacher records match your search or filters",
+          message: "No faculty records match your search or filter criteria. Clear your filters to view all teachers.",
+          resetText: "Clear filters & search",
+          onReset: () => {
+            searchInput.value = "";
+            filterText = "";
+            linkSelect.value = "";
+            filterLink = "";
+            statusSelect.value = "";
+            filterStatus = "";
+            searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+            drawTable();
+          },
+        }));
+      } else {
+        tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+          icon("groups", "empty-state__icon"),
+          el("h3", {}, "No teacher records found"),
+          el("p", {}, "Add a teacher record to assign subjects and classes."),
+        ]));
+      }
       return;
     }
 
@@ -789,12 +829,16 @@ function renderRosterTab(container, profile) {
             }, (t.fullName || "T").charAt(0).toUpperCase()),
             el("div", {}, [
               el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, t.fullName || "—"),
-              t.phone ? el("div", { style: "font-size:11px; color:var(--color-ink-soft);" }, t.phone) : null,
+              t.phone
+                ? makeCopyable(el("div", { style: "font-size:11px; color:var(--color-ink-soft);" }, t.phone), t.phone, { title: "Click to copy phone number" })
+                : null,
             ].filter(Boolean)),
           ]),
         ]),
         el("td", { "data-label": "TSC No." }, [
-          el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber || "—"),
+          t.tscNumber
+            ? makeCopyable(el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber), t.tscNumber, { title: "Click to copy TSC number" })
+            : el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
         ]),
         el("td", { "data-label": "Assignments", colspan: "2" }, [
           Object.keys(grouped).length > 0
