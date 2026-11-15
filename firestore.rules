@@ -514,9 +514,10 @@ service cloud.firestore {
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
-    // Shared Timetables - unguessable shareId token allows public read without login; staff can create/manage
+    // Shared Timetables - unguessable shareId token allows direct single-doc get only; no public listing or scraping
     match /shared_timetables/{docId} {
-      allow read: if true;
+      allow get: if true;
+      allow list: if isStaff() && ownsExisting();
       allow create: if isStaff() && ownsIncoming();
       allow update, delete: if canManageAcademicStructure() && ownsExisting();
     }
