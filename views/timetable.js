@@ -49,6 +49,7 @@ let masterConflicts = [];
 let masterDayFilter = "All"; // "All" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday"
 let activeTab = "master"; // "master" | "classes" | "teachers" | "periods"
 let masterViewMode = "wall"; // "wall" (Institutional Master Wall Chart - JKUAT Format) | "cards" (Day Cards)
+let globalGoToTab = null;
 
 // ---------------------------------------------------------------- Helpers --
 
@@ -571,6 +572,12 @@ export async function render({ profile, params = {} }) {
     });
   }
 
+  globalGoToTab = (tabId) => {
+    activeTab = tabId;
+    renderTabs();
+    switchTab(activeTab);
+  };
+
   async function switchTab(tabId) {
     tabContentMount.innerHTML = "";
 
@@ -640,6 +647,48 @@ async function renderMasterTab(container, profile) {
         ]),
       ]);
       mount.append(cleanBox);
+    } else {
+      // Empty schedule: show Setup Guide & Readiness Check
+      const breakPeriods = periods.filter((p) => isBreakPeriod(p));
+      const instructionalPeriods = periods.filter((p) => !isBreakPeriod(p));
+      const setupBanner = el("div", {
+        class: "card no-print",
+        style: "padding:18px 22px; margin-bottom:18px; border-left:4px solid var(--color-primary-600); background:var(--color-cream-dim, #f8fafc); border-radius:var(--radius-lg);",
+      }, [
+        el("div", { style: "display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;" }, [
+          el("div", { style: "max-width:680px;" }, [
+            el("h3", { style: "margin:0 0 6px; font-family:var(--font-heading); color:var(--color-primary-900); display:flex; align-items:center; gap:8px; font-size:15px;" }, [
+              icon("tune", "text-sm"),
+              "Master Timetable Setup & Readiness Check",
+            ]),
+            el("p", { style: "margin:0 0 10px; font-size:12.5px; color:var(--color-ink-soft); line-height:1.5;" },
+              "Before generating your master schedule, verify your school's daily bell times, morning breaks, and lunch duration under Period Configuration so lessons are scheduled conflict-free around your official school hours."
+            ),
+            el("div", { style: "display:flex; gap:14px; flex-wrap:wrap; font-size:12px;" }, [
+              el("span", {}, [el("b", {}, "Teaching Periods: "), `${instructionalPeriods.length} per day`]),
+              el("span", {}, [
+                el("b", {}, "Configured Breaks: "),
+                breakPeriods.length
+                  ? breakPeriods.map((p) => `${p.name} (${p.startTime}–${p.endTime})`).join(", ")
+                  : el("span", { style: "color:var(--color-red); font-weight:700;" }, "⚠️ None Configured"),
+              ]),
+            ]),
+          ]),
+          el("div", { style: "display:flex; gap:8px; flex-wrap:wrap; align-items:center;" }, [
+            el("button", {
+              type: "button",
+              class: "btn btn--ghost btn--sm",
+              onClick: () => globalGoToTab?.("periods"),
+            }, [icon("schedule", "text-xs"), "Configure Periods & Breaks"]),
+            el("button", {
+              type: "button",
+              class: "btn btn--primary btn--sm",
+              onClick: () => openAutoGenerateModal(profile, card, () => renderMasterTab(container, profile)),
+            }, [icon("auto_fix_high", "text-xs"), "Auto-Generate Master"]),
+          ]),
+        ]),
+      ]);
+      mount.append(setupBanner);
     }
 
     // 2. Controls Toolbar
@@ -2091,25 +2140,71 @@ async function openAssignModal(profile, day, period, mountOrCallback, onSaved = 
 // ---------------------------------------------------- Auto-Generate Modal --
 
 function openAutoGenerateModal(profile, container, onComplete) {
+  if (!classes.length) {
+    return toast("Please add your school's classes and streams first under Academics.", "error");
+  }
+  if (!teachers.length) {
+    return toast("Please add your faculty members first under Staff & Faculty.", "error");
+  }
+  if (!periods.length) {
+    return toast("Please configure your daily periods under Period Configuration first.", "error");
+  }
+
   const cohorts = getAllCohorts();
-  const instructionalPeriods = periods.filter((p) => !p.isBreak);
+  const instructionalPeriods = periods.filter((p) => !isBreakPeriod(p));
+  const breakPeriods = periods.filter((p) => isBreakPeriod(p));
+  const hasBreaks = breakPeriods.length > 0;
 
   const body = el("form", {});
+
+  const breakAlert = hasBreaks
+    ? el("div", { class: "callout callout--info", style: "margin-bottom:14px; font-size:12px;" }, [
+        icon("check_circle", "text-sm"),
+        el("div", {}, [
+          el("b", {}, "Bell Schedule & Break Protection: "),
+          `The automated engine will assign lessons only into instructional periods (${instructionalPeriods.length} daily periods). Configured breaks (${breakPeriods.map((p) => `<b>${escapeHtml(p.name)}</b>`).join(", ")}) will remain completely free.`,
+        ]),
+      ])
+    : el("div", { class: "callout callout--warning", style: "margin-bottom:14px; font-size:12px;" }, [
+        icon("warning", "text-sm"),
+        el("div", {}, [
+          el("b", {}, "⚠️ Zero Breaks Configured: "),
+          "You currently have no break or lunch periods configured. Lessons will be scheduled continuously through all periods. We strongly recommend configuring your Short Break and Lunch under Period Configuration first.",
+        ]),
+      ]);
+
   body.append(
-    el("div", { class: "callout callout--info", style: "margin-bottom:14px; font-size:12px;" }, [
-      icon("auto_awesome"),
-      el("p", {}, "The automated scheduler calculates an optimized weekly timetable using your configured classes, instructional periods, and teacher subject assignments guaranteeing ZERO teacher double-bookings."),
-    ]),
-    el("div", { class: "table-wrap", style: "margin-bottom:14px; border:1px solid var(--color-line); border-radius:var(--radius-md); padding:10px;" }, [
-      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px;" }, [
+    breakAlert,
+    el("div", { class: "table-wrap", style: "margin-bottom:14px; border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px; background:var(--color-surface);" }, [
+      el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:12px;" }, [
         el("div", {}, [el("b", {}, "Classes: "), `${cohorts.length} cohorts`]),
-        el("div", {}, [el("b", {}, "Daily Periods: "), `${instructionalPeriods.length} instructional`]),
-        el("div", {}, [el("b", {}, "Subjects: "), `${subjects.length} active`]),
-        el("div", {}, [el("b", {}, "Faculty: "), `${teachers.length} members`]),
+        el("div", {}, [el("b", {}, "Instructional Periods: "), `${instructionalPeriods.length} daily periods`]),
+        el("div", {}, [el("b", {}, "Subjects: "), `${subjects.length} active CBC subjects`]),
+        el("div", {}, [el("b", {}, "Faculty: "), `${teachers.length} teachers assigned`]),
+      ]),
+      el("div", { style: "margin-top:10px; padding-top:8px; border-top:1px dashed var(--color-line); font-size:11.5px; color:var(--color-ink-soft);" }, [
+        el("b", { style: "color:var(--color-ink);" }, "Configured Breaks: "),
+        hasBreaks
+          ? breakPeriods.map((p) => `${p.name} (${p.startTime}–${p.endTime})`).join(", ")
+          : el("span", { style: "color:var(--color-red); font-weight:700;" }, "None configured (Click below to configure)"),
       ]),
     ]),
-    el("p", { class: "text-muted text-xs", style: "margin-bottom:16px;" }, "Existing slots will be overwritten with the fresh collision-free timetable. You can manually adjust any slot afterwards."),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("play_arrow"), "Generate Collision-Free Master Timetable"])
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;" }, [
+      el("p", { class: "text-muted text-xs", style: "margin:0;" }, "Existing slots will be overwritten with the fresh collision-free timetable."),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--xs",
+        style: "gap:4px;",
+        onClick: () => {
+          close();
+          globalGoToTab?.("periods");
+        },
+      }, [icon("schedule", "text-xs"), "Review / Edit Periods First"]),
+    ]),
+    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [
+      icon("play_arrow"),
+      `Generate Collision-Free Master Timetable (${cohorts.length * instructionalPeriods.length * DAYS.length} Lessons)`,
+    ])
   );
 
   const close = openModal("Automated Master Timetable Generator", body);
@@ -3377,6 +3472,16 @@ function renderPeriods(container, profile) {
         class: "btn btn--primary btn--sm",
         onClick: () => openPeriodModal(profile, null, container)
       }, [icon("add", "text-xs"), "Add Period"]),
+    ]),
+    el("div", {
+      class: "callout callout--info",
+      style: "margin-bottom:16px; font-size:12px; display:flex; align-items:flex-start; gap:10px;",
+    }, [
+      icon("info", "text-sm", "style: flex-shrink:0; margin-top:2px;"),
+      el("div", {}, [
+        el("b", {}, "How Bell Times & Breaks Work in the Scheduler: "),
+        "The automated timetable generator assigns lessons exclusively into 'Lesson' periods. Mark your Short Break, Second Break, and Lunch as 'Break' so the scheduler protects those slots and leaves them completely free of teaching assignments.",
+      ]),
     ])
   );
 
