@@ -393,6 +393,31 @@ function generateSingleScheduleAttempt({
         assignedTeacher = eligible[0] || null;
       }
 
+      // 4. Practical staffing fallback: If all qualified teachers exceed the ideal 28 cap (e.g. understaffed school),
+      // assign the admin's explicitly designated teacher rather than dropping the teacher and leaving slots unassigned
+      if (!assignedTeacher) {
+        const designated = teachers.filter((t) =>
+          (t.teachingAssignments || []).some(
+            (a) =>
+              a.subjectCode === subj.code &&
+              a.grade === cohort.grade &&
+              (!a.stream || a.stream === cohort.stream)
+          )
+        );
+        if (designated.length > 0) {
+          designated.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
+          assignedTeacher = designated[0];
+        } else {
+          const anyQualified = teachers.filter((t) =>
+            (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code)
+          );
+          if (anyQualified.length > 0) {
+            anyQualified.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
+            assignedTeacher = anyQualified[0];
+          }
+        }
+      }
+
       const tid = assignedTeacher?.id || "";
       const tname = assignedTeacher?.fullName || "";
       if (tid) {
