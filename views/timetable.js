@@ -8,6 +8,12 @@ import {
   addPeriod,
   updatePeriod,
   deletePeriod,
+  batchUpdatePeriods,
+  resetToStandardPeriods,
+  timeToMinutes,
+  minutesToTime,
+  addMinutesToTime,
+  calculateDurationMinutes,
   getClassTimetable,
   getTeacherTimetable,
   getMasterTimetable,
@@ -3457,21 +3463,63 @@ async function exportMasterToExcel(e) {
 
 // ------------------------------------------------------------------ Periods --
 
+// ------------------------------------------------------------------ Periods --
+
+function getPeriodIcon(name, isBreak) {
+  if (!isBreak) return "school";
+  const lower = (name || "").toLowerCase();
+  if (lower.includes("lunch")) return "restaurant";
+  if (lower.includes("game") || lower.includes("club") || lower.includes("sport") || lower.includes("pe")) return "sports_soccer";
+  if (lower.includes("devotion") || lower.includes("assembly")) return "groups";
+  return "coffee";
+}
+
 function renderPeriods(container, profile) {
   container.innerHTML = "";
+
+  const breakCount = periods.filter((p) => isBreakPeriod(p)).length;
+  const lessonCount = periods.length - breakCount;
+
+  let lessonTotalMins = 0;
+  let breakTotalMins = 0;
+  for (const p of periods) {
+    const dur = calculateDurationMinutes(p.startTime, p.endTime);
+    if (isBreakPeriod(p)) breakTotalMins += dur;
+    else lessonTotalMins += dur;
+  }
+  const totalDayMins = lessonTotalMins + breakTotalMins;
+  const totalDayHours = `${Math.floor(totalDayMins / 60)}h ${totalDayMins % 60}m`;
+  const daySpan = periods.length ? `${periods[0].startTime} to ${periods[periods.length - 1].endTime} (${totalDayHours})` : "None";
+
   container.append(
     el("div", {
       style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;"
     }, [
       el("div", {}, [
         el("h3", { style: "margin:0 0 2px; color:var(--color-primary-900); font-family:var(--font-display);" }, "Instructional Periods & Bell Times"),
-        el("p", { class: "text-muted text-xs", style: "margin:0;" }, `${periods.length} periods configured school-wide. Changes apply to all grade levels.`),
+        el("p", { class: "text-muted text-xs", style: "margin:0;" },
+          `${lessonCount} Lessons (${lessonTotalMins} min) · ${breakCount} Breaks (${breakTotalMins} min) · School Day: ${daySpan}`
+        ),
       ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--primary btn--sm",
-        onClick: () => openPeriodModal(profile, null, container)
-      }, [icon("add", "text-xs"), "Add Period"]),
+      el("div", { style: "display:flex; gap:8px; flex-wrap:wrap; align-items:center;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          onClick: () => openPeriodModal(profile, null, container)
+        }, [icon("add", "text-xs"), "Add Period"]),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          title: "Automatically renumber all instructional periods in chronological order as Period 1, Period 2, Period 3... (breaks keep their custom names)",
+          onClick: () => handleRenumberPeriods(profile, container)
+        }, [icon("format_list_numbered", "text-xs"), "Re-number Lessons"]),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          title: "Reset all periods to the official standard Kenya CBC JSS schedule (8 lessons, Short Break, Lunch, Games & Clubs)",
+          onClick: () => handleResetStandardSchedule(profile, container)
+        }, [icon("restore", "text-xs"), "Reset to CBC Standard"]),
+      ]),
     ]),
     el("div", {
       class: "callout callout--info",
@@ -3480,92 +3528,555 @@ function renderPeriods(container, profile) {
       icon("info", "text-sm", "style: flex-shrink:0; margin-top:2px;"),
       el("div", {}, [
         el("b", {}, "How Bell Times & Breaks Work in the Scheduler: "),
-        "The automated timetable generator assigns lessons exclusively into 'Lesson' periods. Mark your Short Break, Second Break, and Lunch as 'Break' so the scheduler protects those slots and leaves them completely free of teaching assignments.",
+        "The automated scheduler assigns lessons exclusively into 'Lesson' periods. Mark your Short Break, Second Break, and Lunch as 'Break' so the scheduler protects those slots and leaves them completely free. Use the ▲ / ▼ arrows to move periods, or '+ Insert Before' to add lessons before any break.",
       ]),
     ])
   );
 
+  if (!periods.length) {
+    container.append(
+      el("div", { class: "card", style: "text-align:center; padding:36px 20px; max-width:540px; margin:20px auto;" }, [
+        icon("schedule", "text-lg", "style: font-size:40px; color:var(--color-ink-soft); margin-bottom:12px;"),
+        el("h4", { style: "margin:0 0 8px; color:var(--color-primary-900);" }, "No Periods Configured"),
+        el("p", { class: "text-muted text-xs", style: "margin-bottom:18px;" }, "Configure your school's daily lesson periods and break times, or load the official Kenya CBC 8-period template in one click."),
+        el("div", { style: "display:flex; justify-content:center; gap:8px;" }, [
+          el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: () => handleResetStandardSchedule(profile, container) }, [icon("restore", "text-xs"), "Load Standard Kenya CBC Schedule"]),
+          el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => openPeriodModal(profile, null, container) }, [icon("add", "text-xs"), "Add Custom Period"]),
+        ]),
+      ])
+    );
+    return;
+  }
+
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "border:1px solid var(--color-line); border-radius:var(--radius-md); overflow:hidden;" });
   const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", { style: "width:180px;" }, "Period Name"),
-      el("th", { style: "width:140px;" }, "Start Time"),
-      el("th", { style: "width:140px;" }, "End Time"),
-      el("th", { class: "col-center", style: "width:130px;" }, "Type"),
-      el("th", { class: "col-right", style: "width:160px;" }, "Actions"),
+      el("th", { style: "width:85px; text-align:center;" }, "Order"),
+      el("th", { style: "width:210px;" }, "Period Name"),
+      el("th", { style: "width:110px;" }, "Start Time"),
+      el("th", { style: "width:110px;" }, "End Time"),
+      el("th", { style: "width:110px; text-align:center;" }, "Duration"),
+      el("th", { class: "col-center", style: "width:110px;" }, "Type"),
+      el("th", { class: "col-right", style: "width:220px;" }, "Actions"),
     ])),
   ]);
   const tbody = el("tbody", {});
-  for (const p of periods) {
+
+  for (let idx = 0; idx < periods.length; idx++) {
+    const p = periods[idx];
+    const isFirst = idx === 0;
+    const isLast = idx === periods.length - 1;
+    const duration = calculateDurationMinutes(p.startTime, p.endTime);
+    const isBreak = isBreakPeriod(p);
+    const pIcon = getPeriodIcon(p.name, isBreak);
+
+    // Check gap with previous period
+    if (idx > 0) {
+      const prevP = periods[idx - 1];
+      const prevEndMins = timeToMinutes(prevP.endTime);
+      const currStartMins = timeToMinutes(p.startTime);
+      const gapMins = currStartMins - prevEndMins;
+
+      if (gapMins > 0) {
+        tbody.append(el("tr", { style: "background:#fffbeb; font-size:11px; color:#92400e;" }, [
+          el("td", { colspan: "7", style: "padding:5px 14px;" }, [
+            el("div", { style: "display:flex; justify-content:space-between; align-items:center;" }, [
+              el("span", {}, [
+                icon("coffee", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
+                `Unassigned Gap: ${gapMins} minutes (${prevP.endTime} to ${p.startTime})`,
+              ]),
+              el("button", {
+                type: "button",
+                class: "btn btn--ghost btn--xs",
+                style: "color:#92400e; font-size:10.5px; padding:2px 8px; border:1px solid #fde68a; background:#fff;",
+                onClick: () => openPeriodModal(profile, null, container, {
+                  mode: "before",
+                  targetPeriod: p,
+                  targetIndex: idx,
+                  customStart: prevP.endTime,
+                  customEnd: p.startTime,
+                  defaultType: "break",
+                }),
+              }, [icon("add", "text-xs"), `Fill with Break (${gapMins} min)`]),
+            ]),
+          ]),
+        ]));
+      } else if (gapMins < 0) {
+        tbody.append(el("tr", { style: "background:#fef2f2; font-size:11px; color:#b91c1c;" }, [
+          el("td", { colspan: "7", style: "padding:5px 14px;" }, [
+            icon("warning", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
+            `Time Overlap (${Math.abs(gapMins)} min collision): "${prevP.name}" ends at ${prevP.endTime} but "${p.name}" starts at ${p.startTime}.`,
+          ]),
+        ]));
+      }
+    }
+
     tbody.append(el("tr", {}, [
+      // 1. Move Controls (Up / Down)
+      el("td", { "data-label": "Order", style: "text-align:center;" }, [
+        el("div", { style: "display:inline-flex; gap:2px;" }, [
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--xs",
+            style: "padding:3px 5px;",
+            title: isFirst ? "Already the earliest period" : `Move "${p.name}" earlier`,
+            disabled: isFirst,
+            onClick: () => handleMovePeriod(profile, idx, "up", container),
+          }, [icon("arrow_upward", "text-xs")]),
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--xs",
+            style: "padding:3px 5px;",
+            title: isLast ? "Already the latest period" : `Move "${p.name}" later`,
+            disabled: isLast,
+            onClick: () => handleMovePeriod(profile, idx, "down", container),
+          }, [icon("arrow_downward", "text-xs")]),
+        ]),
+      ]),
+
+      // 2. Period Name + Icon
       el("td", { "data-label": "Period Name" }, [
-        el("span", { style: "font-weight:600; color:var(--color-ink);" }, p.name),
+        el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+          el("span", {
+            style: `width:26px; height:26px; border-radius:6px; background:${isBreak ? "#fef3c7" : "var(--color-primary-50, #f0f7ff)"}; color:${isBreak ? "#92400e" : "var(--color-primary-800)"}; display:flex; align-items:center; justify-content:center; flex-shrink:0;`,
+          }, [icon(pIcon, "text-xs")]),
+          el("span", { style: "font-weight:700; color:var(--color-ink);" }, p.name),
+        ]),
       ]),
+
+      // 3. Start Time
       el("td", { "data-label": "Start Time" }, [
-        el("span", { style: "font-family:var(--font-mono, monospace); font-weight:600;" }, p.startTime),
+        el("span", { style: "font-family:var(--font-mono, monospace); font-weight:600; font-size:12.5px;" }, p.startTime),
       ]),
+
+      // 4. End Time
       el("td", { "data-label": "End Time" }, [
-        el("span", { style: "font-family:var(--font-mono, monospace); font-weight:600;" }, p.endTime),
+        el("span", { style: "font-family:var(--font-mono, monospace); font-weight:600; font-size:12.5px;" }, p.endTime),
       ]),
+
+      // 5. Duration
+      el("td", { "data-label": "Duration", style: "text-align:center;" }, [
+        el("span", {
+          class: "badge",
+          style: `font-size:11px; padding:2px 8px; font-weight:600; background:${isBreak ? "#fffbeb" : "#f1f5f9"}; color:${isBreak ? "#b45309" : "#334155"}; border:1px solid ${isBreak ? "#fde68a" : "#cbd5e1"};`,
+        }, `${duration} min`),
+      ]),
+
+      // 6. Type Badge
       el("td", { class: "col-center", "data-label": "Type" }, [
-        el("span", { class: `badge badge--${p.isBreak ? "gold" : "success"}` }, p.isBreak ? "Break" : "Lesson"),
+        el("span", { class: `badge badge--${isBreak ? "gold" : "success"}` }, isBreak ? "Break" : "Lesson"),
       ]),
+
+      // 7. Actions: Insert Before, Edit, Delete
       el("td", { class: "col-right", "data-label": "Actions" }, [
-        el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end;" }, [
-          el("button", { class: "btn btn--ghost btn--xs", onClick: () => openPeriodModal(profile, p, container) }, [icon("edit", "text-xs"), "Edit"]),
-          el("button", { class: "btn btn--ghost btn--xs", style: "color:var(--color-red);", onClick: () => handleDeletePeriod(profile, p, container) }, [icon("delete", "text-xs"), "Delete"]),
+        el("div", { style: "display:inline-flex; gap:6px; justify-content:flex-end; align-items:center;" }, [
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--xs",
+            style: "color:var(--color-primary-800); font-weight:600; border:1px solid var(--color-line);",
+            title: `Insert a new period or break immediately before "${p.name}"`,
+            onClick: () => openPeriodModal(profile, null, container, { mode: "before", targetPeriod: p, targetIndex: idx }),
+          }, [icon("add", "text-xs"), "Insert Before"]),
+
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--xs",
+            title: `Edit "${p.name}" details or timings`,
+            onClick: () => openPeriodModal(profile, p, container),
+          }, [icon("edit", "text-xs"), "Edit"]),
+
+          el("button", {
+            type: "button",
+            class: "btn btn--ghost btn--xs",
+            style: "color:var(--color-red);",
+            title: `Delete "${p.name}"`,
+            onClick: () => handleDeletePeriod(profile, p, container),
+          }, [icon("delete", "text-xs"), "Delete"]),
         ]),
       ]),
     ]));
   }
+
   table.append(tbody);
   tableWrap.append(table);
   container.append(tableWrap);
 }
 
-function openPeriodModal(profile, existing, container) {
+// ------------------------------------------------ Moving & Retiming Periods --
+
+async function handleMovePeriod(profile, index, direction, container) {
+  if (direction === "up" && index <= 0) return;
+  if (direction === "down" && index >= periods.length - 1) return;
+
+  const targetIdx = direction === "up" ? index - 1 : index + 1;
+  const p1 = direction === "up" ? periods[targetIdx] : periods[index];
+  const p2 = direction === "up" ? periods[index] : periods[targetIdx];
+
+  const d1 = calculateDurationMinutes(p1.startTime, p1.endTime);
+  const d2 = calculateDurationMinutes(p2.startTime, p2.endTime);
+
+  // Swap positions while maintaining contiguous time flow:
+  // p2 now takes p1's original start time
+  const updatedP2 = {
+    ...p2,
+    startTime: p1.startTime,
+    endTime: addMinutesToTime(p1.startTime, d2),
+  };
+  // p1 now comes after p2
+  const updatedP1 = {
+    ...p1,
+    startTime: updatedP2.endTime,
+    endTime: addMinutesToTime(updatedP2.endTime, d1),
+  };
+
+  try {
+    await batchUpdatePeriods(profile.uid, [updatedP1, updatedP2]);
+    periods = await listPeriods(true);
+    renderPeriods(container, profile);
+    toast(`"${periods[targetIdx].name}" moved ${direction === "up" ? "earlier" : "later"} and timings updated.`, "success");
+  } catch (err) {
+    console.error("Move period error:", err);
+    toast("Could not move period: " + (err.message || err), "error");
+  }
+}
+
+async function handleRenumberPeriods(profile, container) {
+  const lessonPeriods = periods.filter((p) => !isBreakPeriod(p));
+  if (!lessonPeriods.length) return toast("No lesson periods to renumber.", "error");
+
+  if (!confirm(`Renumber ${lessonPeriods.length} instructional periods sequentially as "Period 1", "Period 2"... in chronological order? (Breaks will keep their custom names).`)) {
+    return;
+  }
+
+  let counter = 1;
+  const updated = [];
+  for (const p of periods) {
+    if (!isBreakPeriod(p)) {
+      updated.push({
+        ...p,
+        name: `Period ${counter}`,
+      });
+      counter++;
+    }
+  }
+
+  try {
+    await batchUpdatePeriods(profile.uid, updated);
+    periods = await listPeriods(true);
+    renderPeriods(container, profile);
+    toast(`Lessons successfully renumbered Period 1 through Period ${counter - 1}!`, "success");
+  } catch (err) {
+    toast("Could not renumber periods: " + (err.message || err), "error");
+  }
+}
+
+async function handleResetStandardSchedule(profile, container) {
+  if (!confirm("Reset this school's periods to the official standard Kenya CBC JSS schedule (8 lessons: Periods 1-8, Short Break, Lunch, and Games & Clubs)? Existing period records will be replaced.")) {
+    return;
+  }
+  try {
+    await resetToStandardPeriods(profile.uid);
+    periods = await listPeriods(true);
+    renderPeriods(container, profile);
+    toast("Reset to standard Kenya CBC JSS bell schedule.", "success");
+  } catch (err) {
+    toast("Could not reset periods: " + (err.message || err), "error");
+  }
+}
+
+// ---------------------------------------------------- Add/Insert/Edit Modal --
+
+function openPeriodModal(profile, existing, container, insertContext = null) {
   const isEdit = !!existing;
   const body = el("form", {});
-  const nameInput = el("input", { type: "text", value: existing?.name || "", placeholder: "e.g. Period 1, Lunch Break" });
-  const startInput = el("input", { type: "time", value: existing?.startTime || "" });
-  const endInput = el("input", { type: "time", value: existing?.endTime || "" });
-  const initialIsBreak = existing ? isBreakPeriod(existing) : false;
-  const breakCheck = el("input", { type: "checkbox", ...(initialIsBreak ? { checked: "true" } : {}) });
+
+  // Determine initial state based on context
+  let initialName = existing?.name || "";
+  let initialType = existing ? (isBreakPeriod(existing) ? "break" : "lesson") : (insertContext?.defaultType || "lesson");
+  let initialStart = "";
+  let initialEnd = "";
+  let initialDuration = 40;
+
+  if (isEdit) {
+    initialStart = existing.startTime || "";
+    initialEnd = existing.endTime || "";
+    initialDuration = calculateDurationMinutes(initialStart, initialEnd);
+  } else if (insertContext?.customStart && insertContext?.customEnd) {
+    initialStart = insertContext.customStart;
+    initialEnd = insertContext.customEnd;
+    initialDuration = calculateDurationMinutes(initialStart, initialEnd);
+    initialName = insertContext.defaultType === "break" ? "Break" : "Period";
+  } else if (insertContext?.mode === "before") {
+    const targetIdx = insertContext.targetIndex;
+    const prevP = targetIdx > 0 ? periods[targetIdx - 1] : null;
+    initialStart = prevP ? prevP.endTime : insertContext.targetPeriod.startTime;
+    initialDuration = 40;
+    initialEnd = addMinutesToTime(initialStart, initialDuration);
+    // Suggest next lesson number if adding a lesson before a break
+    const lessonsBefore = periods.slice(0, targetIdx).filter((p) => !isBreakPeriod(p)).length;
+    initialName = `Period ${lessonsBefore + 1}`;
+  } else {
+    // Add at end of day
+    initialStart = periods.length ? periods[periods.length - 1].endTime : "08:00";
+    initialDuration = 40;
+    initialEnd = addMinutesToTime(initialStart, initialDuration);
+    const existingLessons = periods.filter((p) => !isBreakPeriod(p)).length;
+    initialName = `Period ${existingLessons + 1}`;
+  }
+
+  // Type Selector (Lesson vs Break)
+  let currentType = initialType;
+
+  const typeLessonBtn = el("button", {
+    type: "button",
+    class: `btn ${currentType === "lesson" ? "btn--primary" : "btn--ghost"} btn--sm`,
+    style: "flex:1; gap:6px; font-weight:700;",
+  }, [icon("school", "text-xs"), "Teaching Lesson"]);
+
+  const typeBreakBtn = el("button", {
+    type: "button",
+    class: `btn ${currentType === "break" ? "btn--primary" : "btn--ghost"} btn--sm`,
+    style: "flex:1; gap:6px; font-weight:700;",
+  }, [icon("coffee", "text-xs"), "Break / Lunch"]);
+
+  const typeToggleWrap = el("div", {
+    style: "display:flex; gap:8px; margin-bottom:14px; background:var(--color-cream-dim, #f8fafc); padding:6px; border-radius:var(--radius-md); border:1px solid var(--color-line);",
+  }, [typeLessonBtn, typeBreakBtn]);
+
+  const nameInput = el("input", {
+    type: "text",
+    value: initialName,
+    placeholder: "e.g. Period 3, Short Break, Lunch",
+    style: "font-weight:600;",
+  });
+
+  const startInput = el("input", {
+    type: "time",
+    value: initialStart,
+    style: "font-family:var(--font-mono, monospace); font-weight:600;",
+  });
+
+  const endInput = el("input", {
+    type: "time",
+    value: initialEnd,
+    style: "font-family:var(--font-mono, monospace); font-weight:600;",
+  });
+
+  const breakCheck = el("input", {
+    type: "checkbox",
+    ...(currentType === "break" ? { checked: "true" } : {}),
+  });
+
+  // Duration Presets Chips
+  const lessonPresets = [35, 40, 45];
+  const breakPresets = [10, 15, 20, 30, 50, 60];
+  const durationMount = el("div", { style: "display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" });
+
+  function renderDurationPresets() {
+    durationMount.innerHTML = "";
+    const activePresets = currentType === "lesson" ? lessonPresets : breakPresets;
+    activePresets.forEach((mins) => {
+      const isCur = calculateDurationMinutes(startInput.value, endInput.value) === mins;
+      const chip = el("button", {
+        type: "button",
+        class: `btn btn--xs ${isCur ? "btn--primary" : "btn--ghost"}`,
+        style: "padding:2px 8px; font-size:11px; border-radius:12px;",
+        onClick: () => {
+          if (startInput.value) {
+            endInput.value = addMinutesToTime(startInput.value, mins);
+            renderDurationPresets();
+          }
+        },
+      }, `${mins} min`);
+      durationMount.append(chip);
+    });
+  }
+
+  // Name suggestions for breaks
+  const breakSuggestions = ["Short Break", "Second Break", "Lunch", "Tea Break", "Games & Clubs"];
+  const nameSuggestionsMount = el("div", { style: "display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;" });
+
+  function renderNameSuggestions() {
+    nameSuggestionsMount.innerHTML = "";
+    if (currentType === "break") {
+      breakSuggestions.forEach((sugg) => {
+        const chip = el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--xs",
+          style: "padding:2px 8px; font-size:11px; border:1px solid var(--color-line);",
+          onClick: () => {
+            nameInput.value = sugg;
+            if (sugg.toLowerCase().includes("lunch")) {
+              endInput.value = addMinutesToTime(startInput.value, 50);
+            } else if (sugg.toLowerCase().includes("short")) {
+              endInput.value = addMinutesToTime(startInput.value, 15);
+            }
+            renderDurationPresets();
+          },
+        }, sugg);
+        nameSuggestionsMount.append(chip);
+      });
+    }
+  }
+
+  function setType(newType) {
+    currentType = newType;
+    typeLessonBtn.className = `btn ${currentType === "lesson" ? "btn--primary" : "btn--ghost"} btn--sm`;
+    typeBreakBtn.className = `btn ${currentType === "break" ? "btn--primary" : "btn--ghost"} btn--sm`;
+    breakCheck.checked = currentType === "break";
+
+    if (currentType === "lesson") {
+      if (!isEdit && isBreakPeriod({ name: nameInput.value })) {
+        const lessonsCount = periods.filter((p) => !isBreakPeriod(p)).length;
+        nameInput.value = `Period ${lessonsCount + 1}`;
+      }
+      if (startInput.value) endInput.value = addMinutesToTime(startInput.value, 40);
+    } else {
+      if (!isEdit && !isBreakPeriod({ name: nameInput.value })) {
+        nameInput.value = "Short Break";
+      }
+      if (startInput.value) endInput.value = addMinutesToTime(startInput.value, 20);
+    }
+    renderDurationPresets();
+    renderNameSuggestions();
+  }
+
+  typeLessonBtn.onclick = () => setType("lesson");
+  typeBreakBtn.onclick = () => setType("break");
 
   nameInput.addEventListener("input", () => {
-    if (isBreakPeriod({ name: nameInput.value })) {
-      breakCheck.checked = true;
+    if (isBreakPeriod({ name: nameInput.value }) && currentType !== "break") {
+      setType("break");
     }
   });
 
+  startInput.addEventListener("change", () => {
+    if (startInput.value && initialDuration > 0) {
+      endInput.value = addMinutesToTime(startInput.value, initialDuration);
+      renderDurationPresets();
+    }
+  });
+
+  endInput.addEventListener("change", () => {
+    renderDurationPresets();
+  });
+
+  renderDurationPresets();
+  renderNameSuggestions();
+
+  // Auto-shift checkbox (automatically enabled when inserting before existing periods)
+  const canShift = !isEdit && periods.length > 0;
+  const shiftCheck = el("input", {
+    type: "checkbox",
+    ...(canShift ? { checked: "true" } : {}),
+  });
+
+  const modalTitle = isEdit
+    ? `Edit "${existing.name}"`
+    : insertContext?.mode === "before"
+    ? `Insert Period Before "${insertContext.targetPeriod.name}"`
+    : "Add New Period";
+
   body.append(
-    el("div", { class: "field" }, [el("label", {}, "Period Name"), nameInput]),
-    el("div", { class: "field" }, [el("label", {}, "Start Time"), startInput]),
-    el("div", { class: "field" }, [el("label", {}, "End Time"), endInput]),
+    typeToggleWrap,
     el("div", { class: "field" }, [
-      el("label", { class: "checklist-item" }, [breakCheck, "This is a break / lunch period (blocks lesson assignments)"]),
+      el("label", {}, "Period Name"),
+      nameInput,
+      nameSuggestionsMount,
     ]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "add"), isEdit ? "Save Changes" : "Add Period"])
+    el("div", { style: "display:grid; grid-template-columns:1fr 1fr; gap:12px;" }, [
+      el("div", { class: "field" }, [
+        el("label", {}, "Start Time"),
+        startInput,
+      ]),
+      el("div", { class: "field" }, [
+        el("label", {}, "End Time"),
+        endInput,
+      ]),
+    ]),
+    el("div", { class: "field", style: "margin-top:-4px;" }, [
+      el("label", { style: "font-size:11px; color:var(--color-ink-soft);" }, "Quick Duration Presets:"),
+      durationMount,
+    ]),
+    el("div", { class: "field", style: "margin-top:12px;" }, [
+      el("label", { class: "checklist-item", style: "font-size:12px;" }, [
+        breakCheck,
+        "This is a non-instructional break / lunch period (protected from lessons)",
+      ]),
+    ]),
+    canShift ? el("div", {
+      class: "field",
+      style: "background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:var(--radius-md); margin-top:8px;",
+    }, [
+      el("label", { class: "checklist-item", style: "font-size:12px; font-weight:600; color:#166534;" }, [
+        shiftCheck,
+        "Automatically shift subsequent periods forward to prevent time collisions",
+      ]),
+      el("p", { style: "margin:4px 0 0 22px; font-size:11px; color:#15803d; line-height:1.4;" },
+        "When checked, all periods starting after this time will shift forward by the new period's duration, keeping the school schedule contiguous."
+      ),
+    ]) : null,
+    el("div", { style: "margin-top:16px;" }, [
+      el("button", {
+        type: "submit",
+        class: "btn btn--primary btn--block",
+      }, [icon(isEdit ? "save" : "add"), isEdit ? "Save Changes" : (insertContext ? "Insert Period & Shift Schedule" : "Add Period")]),
+    ])
   );
 
-  const close = openModal(isEdit ? `Edit ${existing.name}` : "Add Period", body);
+  const close = openModal(modalTitle, body);
+
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (!nameInput.value.trim()) return toast("Please enter a period name.", "error");
+    if (!startInput.value || !endInput.value) return toast("Start and end time are required.", "error");
+
+    const newStart = startInput.value;
+    const newEnd = endInput.value;
+    const newDur = calculateDurationMinutes(newStart, newEnd);
+    if (newDur <= 0) return toast("End time must be after start time.", "error");
+
     const restore = busyButton(e.submitter, "Saving…");
+
     try {
+      // 1. Shift subsequent periods forward if enabled
+      if (canShift && shiftCheck.checked) {
+        const startMins = timeToMinutes(newStart);
+        const periodsToShift = periods.filter((p) => {
+          if (existing && p.id === existing.id) return false;
+          return timeToMinutes(p.startTime) >= startMins;
+        });
+
+        if (periodsToShift.length > 0) {
+          const shiftedPeriods = periodsToShift.map((p) => ({
+            ...p,
+            startTime: addMinutesToTime(p.startTime, newDur),
+            endTime: addMinutesToTime(p.endTime, newDur),
+          }));
+          await batchUpdatePeriods(profile.uid, shiftedPeriods);
+        }
+      }
+
+      // 2. Add or update target period
       const payload = {
-        name: nameInput.value,
-        startTime: startInput.value,
-        endTime: endInput.value,
+        name: nameInput.value.trim(),
+        startTime: newStart,
+        endTime: newEnd,
         isBreak: breakCheck.checked || isBreakPeriod({ name: nameInput.value }),
       };
-      if (isEdit) await updatePeriod(profile.uid, existing.id, payload);
-      else await addPeriod(profile.uid, payload);
-      periods = await listPeriods();
+
+      if (isEdit) {
+        await updatePeriod(profile.uid, existing.id, payload);
+      } else {
+        await addPeriod(profile.uid, payload);
+      }
+
+      periods = await listPeriods(true);
       renderPeriods(container, profile);
-      toast(`Period ${isEdit ? "updated" : "added"}.`, "success");
+      toast(`Period "${payload.name}" saved successfully!`, "success");
       close();
     } catch (err) {
+      console.error("Save period error:", err);
       toast(err.message || "Could not save period.", "error");
       restore();
     }
@@ -3573,12 +4084,12 @@ function openPeriodModal(profile, existing, container) {
 }
 
 async function handleDeletePeriod(profile, period, container) {
-  if (!confirm(`Delete "${period.name}"? Active lessons assigned to this period will be unlinked.`)) return;
+  if (!confirm(`Delete "${period.name}" (${period.startTime}–${period.endTime})? Active lessons assigned to this period will be unlinked.`)) return;
   try {
     await deletePeriod(profile.uid, period.id);
-    periods = await listPeriods();
+    periods = await listPeriods(true);
     renderPeriods(container, profile);
-    toast("Period deleted.", "success");
+    toast(`Period "${period.name}" deleted.`, "success");
   } catch (err) {
     toast(err.message || "Could not delete period.", "error");
   }

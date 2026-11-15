@@ -168,6 +168,31 @@ export async function seedDefaultPeriodsIfEmpty() {
   invalidate(periodsCacheKey());
 }
 
+export function timeToMinutes(timeStr) {
+  if (!timeStr || typeof timeStr !== "string") return 0;
+  const parts = timeStr.trim().split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return h * 60 + m;
+}
+
+export function minutesToTime(totalMins) {
+  const normalized = ((totalMins % 1440) + 1440) % 1440;
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export function addMinutesToTime(timeStr, mins) {
+  return minutesToTime(timeToMinutes(timeStr) + (mins || 0));
+}
+
+export function calculateDurationMinutes(startTime, endTime) {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  return end >= start ? end - start : (1440 - start + end);
+}
+
 export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
   if (!name?.trim()) throw new Error("Period name is required.");
   if (!startTime || !endTime) throw new Error("Start and end time are required.");
@@ -196,6 +221,44 @@ export async function updatePeriod(userId, id, { name, startTime, endTime, isBre
   });
   invalidate(periodsCacheKey());
   await logAction(userId, "update_period", "periods", id);
+}
+
+export async function batchUpdatePeriods(userId, updatedPeriods) {
+  if (!updatedPeriods || !updatedPeriods.length) return;
+  const schoolId = getCurrentSchoolId();
+  const batch = writeBatch(db);
+  for (const p of updatedPeriods) {
+    if (!p.id) continue;
+    const ref_ = doc(db, "periods", p.id);
+    const resolvedBreak = isBreakPeriod(p);
+    batch.update(ref_, {
+      name: (p.name || "").trim(),
+      startTime: p.startTime,
+      endTime: p.endTime,
+      isBreak: resolvedBreak,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  await batch.commit();
+  invalidate(periodsCacheKey());
+  await logAction(userId, "batch_update_periods", "periods", schoolId);
+}
+
+export async function resetToStandardPeriods(userId) {
+  const schoolId = getCurrentSchoolId();
+  if (!schoolId) return;
+  const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", schoolId)));
+  const batch = writeBatch(db);
+  for (const d of snap.docs) {
+    batch.delete(doc(db, "periods", d.id));
+  }
+  for (const p of DEFAULT_PERIODS) {
+    const periodId = scopedId(schoolId, slugify(p.name), slugify(p.startTime));
+    batch.set(doc(db, "periods", periodId), { ...p, schoolId, createdAt: serverTimestamp() }, { merge: true });
+  }
+  await batch.commit();
+  invalidate(periodsCacheKey());
+  await logAction(userId, "reset_periods", "periods", schoolId);
 }
 
 export async function deletePeriod(userId, id) {

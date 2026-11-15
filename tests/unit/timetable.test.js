@@ -9,6 +9,10 @@ import {
   isDoubleEligibleSubject,
   isDoubleAllowed,
   isBreakPeriod,
+  timeToMinutes,
+  minutesToTime,
+  addMinutesToTime,
+  calculateDurationMinutes,
   MAX_TEACHER_WEEKLY_LESSONS,
   MAX_TEACHER_DAILY_LESSONS,
 } from "../../js/services/timetable.service.js";
@@ -495,6 +499,22 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(isBreakPeriod({ name: "Period 6", isBreak: false })).toBe(false);
       expect(isBreakPeriod({ name: "Mathematics", isBreak: false })).toBe(false);
       expect(isBreakPeriod({ name: "Lesson 3" })).toBe(false);
+    });
+
+    it("timeToMinutes, minutesToTime, addMinutesToTime, calculateDurationMinutes calculate period durations correctly", () => {
+      expect(timeToMinutes("08:20")).toBe(500);
+      expect(timeToMinutes("09:00")).toBe(540);
+      expect(minutesToTime(500)).toBe("08:20");
+      expect(minutesToTime(540)).toBe("09:00");
+
+      expect(addMinutesToTime("08:20", 40)).toBe("09:00");
+      expect(addMinutesToTime("09:40", 10)).toBe("09:50");
+      expect(addMinutesToTime("13:00", 60)).toBe("14:00");
+
+      expect(calculateDurationMinutes("08:20", "09:00")).toBe(40);
+      expect(calculateDurationMinutes("09:40", "09:50")).toBe(10);
+      expect(calculateDurationMinutes("11:10", "11:40")).toBe(30);
+      expect(calculateDurationMinutes("13:00", "14:00")).toBe(60);
     });
   });
 
