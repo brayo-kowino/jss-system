@@ -1,5 +1,5 @@
 import { el, icon, toast, skeleton, busyButton, escapeHtml } from "../js/utils.js";
-import { DAYS, getSharedTimetable, downloadStandaloneTimetableHtml } from "../js/services/timetable.service.js";
+import { DAYS, getSharedTimetable, downloadStandaloneTimetableHtml, isDoubleAllowed } from "../js/services/timetable.service.js";
 
 /**
  * Public standalone shared timetable view.
@@ -310,7 +310,7 @@ function renderTimetableContent(container, data) {
 
           // Double lesson check
           let isMerged = false;
-          if (slot && pIdx + 1 < periods.length) {
+          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
             const nextP = periods[pIdx + 1];
             if (!nextP.isBreak) {
               const nextSlot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${nextP.id}`);
@@ -396,7 +396,7 @@ function renderTimetableContent(container, data) {
 
         // Check for double lesson
         let isMerged = false;
-        if (slot && pIdx + 1 < periods.length) {
+        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
           const nextP = periods[pIdx + 1];
           if (!nextP.isBreak) {
             const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;

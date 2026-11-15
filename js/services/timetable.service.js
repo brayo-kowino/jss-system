@@ -31,6 +31,30 @@ import { buildDeepLink } from "./deep-link.service.js";
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
+export const DOUBLE_ELIGIBLE_SUBJECTS = new Set([
+  "SCI", "INT_SCI", "INTEGRATED_SCIENCE", "SCIENCE",
+  "AGR", "AGRICULTURE",
+  "PTS", "PRE_TECH", "PRE_TECHNICAL", "PRE_TECHNICAL_STUDIES",
+  "COMP", "COMPUTER", "COMPUTER_SCIENCE",
+  "HOM", "HOME_SCIENCE",
+  "CRA", "CREATIVE_ARTS", "PA", "PERFORMING_ARTS", "VA", "VISUAL_ARTS",
+  "PE", "PHE", "PHYSICAL_EDUCATION",
+]);
+
+export function isDoubleEligibleSubject(code) {
+  if (!code) return false;
+  return DOUBLE_ELIGIBLE_SUBJECTS.has(String(code).toUpperCase().trim());
+}
+
+export function isDoubleAllowed(slot) {
+  if (!slot) return false;
+  if (slot.isDouble) return true;
+  return isDoubleEligibleSubject(slot.subjectCode);
+}
+
+export const MAX_TEACHER_WEEKLY_LESSONS = 28; // Kenya TSC maximum weekly workload
+export const MAX_TEACHER_DAILY_LESSONS = 6;    // Guarantees at least 2 free/prep periods per day
+
 export const DEFAULT_PERIODS = [
   { name: "Period 1", startTime: "08:00", endTime: "08:40", isBreak: false },
   { name: "Period 2", startTime: "08:40", endTime: "09:20", isBreak: false },
@@ -298,6 +322,7 @@ function shuffleArray(arr) {
 function generateSingleScheduleAttempt({
   cohorts,
   instructionalPeriods,
+  allPeriods = [],
   days,
   subjects,
   teachers,
@@ -322,7 +347,6 @@ function generateSingleScheduleAttempt({
 
   const generatedSlots = [];
   const cohortPools = new Map();
-  const MAX_TEACHER_WEEKLY_LESSONS = 35; // Maximum weekly teaching load cap to prevent pigeonhole trap
 
   // Track global lesson assignments across teachers during pool construction
   const teacherAssignedLessons = new Map();
@@ -334,7 +358,7 @@ function generateSingleScheduleAttempt({
     for (const subj of subjects) {
       const count = defaultLessonDistribution[subj.code] || 3;
 
-      // 1. Exact match for this cohort (grade + stream + subject)
+      // 1. Exact match for this cohort (grade + stream + subject) respecting weekly cap
       let assignedTeacher = teachers.find((t) =>
         (t.teachingAssignments || []).some(
           (a) =>
@@ -342,10 +366,10 @@ function generateSingleScheduleAttempt({
             a.grade === cohort.grade &&
             a.stream &&
             a.stream === cohort.stream
-        )
+        ) && (teacherAssignedLessons.get(t.id) || 0) + count <= MAX_TEACHER_WEEKLY_LESSONS
       );
 
-      // 2. Grade-level match (same grade, no stream specified = applies to all streams in grade)
+      // 2. Grade-level match (same grade, no stream specified) respecting weekly cap
       if (!assignedTeacher) {
         assignedTeacher = teachers.find((t) =>
           (t.teachingAssignments || []).some(
@@ -353,7 +377,7 @@ function generateSingleScheduleAttempt({
               a.subjectCode === subj.code &&
               a.grade === cohort.grade &&
               !a.stream
-          )
+          ) && (teacherAssignedLessons.get(t.id) || 0) + count <= MAX_TEACHER_WEEKLY_LESSONS
         );
       }
 
@@ -385,39 +409,82 @@ function generateSingleScheduleAttempt({
       }
     }
 
-    // Pad or trim pool to match total weekly slots exactly
+    // Pad pool to match total weekly slots exactly without violating subject caps
     if (pool.length < totalSlotsPerWeek && subjects.length > 0) {
-      let subjIdx = 0;
+      const eligibleForPadding = subjects.filter((s) => {
+        const curCount = pool.filter((c) => c.subjectCode === s.code).length;
+        const maxWeekly = isDoubleEligibleSubject(s.code) ? 5 : Math.min(5, days.length);
+        return curCount < maxWeekly;
+      });
+
+      let padIdx = 0;
       while (pool.length < totalSlotsPerWeek) {
-        const subj = subjects[subjIdx % subjects.length];
-        const assignedTeacher = teachers.find((t) =>
-          (t.teachingAssignments || []).some(
-            (a) =>
-              a.subjectCode === subj.code &&
-              a.grade === cohort.grade &&
-              (!a.stream || a.stream === cohort.stream)
-          )
-        ) || teachers.find((t) =>
-          (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code) &&
-          (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
-        );
+        if (eligibleForPadding.length > 0 && padIdx < eligibleForPadding.length * 3) {
+          const subj = eligibleForPadding[padIdx % eligibleForPadding.length];
+          const curCount = pool.filter((c) => c.subjectCode === subj.code).length;
+          const maxWeekly = isDoubleEligibleSubject(subj.code) ? 5 : Math.min(5, days.length);
 
-        const tid = assignedTeacher?.id || "";
-        const tname = assignedTeacher?.fullName || "";
-        if (tid) {
-          teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + 1);
+          if (curCount < maxWeekly) {
+            const assignedTeacher = teachers.find((t) =>
+              (t.teachingAssignments || []).some(
+                (a) =>
+                  a.subjectCode === subj.code &&
+                  a.grade === cohort.grade &&
+                  (!a.stream || a.stream === cohort.stream)
+              ) && (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
+            ) || teachers.find((t) =>
+              (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code) &&
+              (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
+            );
+
+            const tid = assignedTeacher?.id || "";
+            const tname = assignedTeacher?.fullName || "";
+            if (tid) {
+              teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + 1);
+            }
+
+            pool.push({
+              subjectCode: subj.code,
+              subjectName: subj.name,
+              teacherId: tid,
+              teacherName: tname,
+            });
+            padIdx++;
+            continue;
+          }
+          padIdx++;
+        } else {
+          // All subjects have reached weekly limit; fill remainder with Library / Study session
+          pool.push({
+            subjectCode: "STUDY",
+            subjectName: "Library / Private Study",
+            teacherId: "",
+            teacherName: "",
+          });
         }
-
-        pool.push({
-          subjectCode: subj.code,
-          subjectName: subj.name,
-          teacherId: tid,
-          teacherName: tname,
-        });
-        subjIdx++;
       }
     } else if (pool.length > totalSlotsPerWeek) {
-      pool.length = totalSlotsPerWeek;
+      // Equitable trim: reduce from subjects with the highest count first
+      while (pool.length > totalSlotsPerWeek) {
+        const counts = new Map();
+        for (const card of pool) {
+          counts.set(card.subjectCode, (counts.get(card.subjectCode) || 0) + 1);
+        }
+        let maxCount = 0;
+        let highestSubjCode = "";
+        for (const [code, count] of counts.entries()) {
+          if (count > maxCount) {
+            maxCount = count;
+            highestSubjCode = code;
+          }
+        }
+        const idxToRemove = pool.findLastIndex((c) => c.subjectCode === highestSubjCode);
+        if (idxToRemove !== -1) {
+          pool.splice(idxToRemove, 1);
+        } else {
+          pool.pop();
+        }
+      }
     }
 
     // Shuffle each cohort's card pool so subjects aren't processed in rigid initial array order
@@ -434,15 +501,18 @@ function generateSingleScheduleAttempt({
     }
   }
 
-  // Tracking maps for diversity
+  // Tracking maps for diversity, teacher workload, and subject daily limits
   const cohortDaySubjectCount = new Map();       // `${cohortKey}_${day}_${subjectCode}` -> count
   const cohortPeriodSubjectCount = new Map();    // `${cohortKey}_${periodId}_${subjectCode}` -> count
   const teacherPeriodCohortCount = new Map();    // `${teacherId}_${periodId}_${cohortKey}` -> count
+  const teacherDayCount = new Map();             // `${teacherId}_${day}` -> count (guarantees daily free periods)
+  const cohortDoubleDone = new Set();            // `${cohortKey}_${subjectCode}` -> boolean (max 1 double/week)
+  const cohortLastPlacedPeriod = new Map();      // `${cohortKey}_${day}` -> { chronoIdx, subjectCode, teacherId }
 
   // Iterate over days and instructional periods
-  // We rotate the period processing order across different days so morning vs afternoon slots are naturally varied
   for (let dIdx = 0; dIdx < days.length; dIdx++) {
     const day = days[dIdx];
+    const remainingDays = days.length - dIdx;
 
     // Period rotation shift: e.g. Day 0: 0, Day 1: 3, Day 2: 6...
     const periodShift = (dIdx * 3) % totalPeriodsPerDay;
@@ -472,15 +542,53 @@ function generateSingleScheduleAttempt({
 
         for (let i = 0; i < pool.length; i++) {
           const card = pool[i];
-          // STRICT COLLISION PREVENTION: Skip if this teacher is already teaching in this slot
+
+          // 1. STRICT COLLISION PREVENTION: Skip if this teacher is already teaching in this slot
           if (card.teacherId && busyTeachersInSlot.has(card.teacherId)) {
             continue;
           }
 
+          // 2. TEACHER DAILY WORKLOAD CAP: Guarantee teacher gets at least 2 free/prep periods every day!
+          if (card.teacherId) {
+            const tDaily = teacherDayCount.get(`${card.teacherId}_${day}`) || 0;
+            if (tDaily >= MAX_TEACHER_DAILY_LESSONS) {
+              continue;
+            }
+          }
+
           const dailyCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
-          // Prefer not exceeding 2 lessons of the same subject on the same day
-          if (dailyCount >= 2 && pool.some((c) => (cohortDaySubjectCount.get(`${cohortKey}_${day}_${c.subjectCode}`) || 0) < 2 && (!c.teacherId || !busyTeachersInSlot.has(c.teacherId)))) {
+          const isDoubleEligible = isDoubleEligibleSubject(card.subjectCode);
+
+          // 3. HARD CONSTRAINT: Theory subjects (MATH, ENG, KIS, SST, CRE) CANNOT exceed 1 lesson/day!
+          if (!isDoubleEligible && dailyCount >= 1) {
             continue;
+          }
+
+          // 4. For double-eligible practical sciences (SCI, AGR, PTS, CRA):
+          // Max 2 lessons per day, and ONLY if consecutive (forming a double lesson) and not already doubled this week!
+          if (isDoubleEligible) {
+            if (dailyCount >= 2) {
+              continue;
+            }
+            if (dailyCount === 1) {
+              const lastPlaced = cohortLastPlacedPeriod.get(`${cohortKey}_${day}`);
+              const alreadyDoubled = cohortDoubleDone.has(`${cohortKey}_${card.subjectCode}`);
+              let isConsecutive = false;
+              if (lastPlaced && lastPlaced.subjectCode === card.subjectCode && card.teacherId === lastPlaced.teacherId) {
+                if (allPeriods && allPeriods.length) {
+                  const p1Idx = allPeriods.findIndex((p) => p.id === lastPlaced.periodId);
+                  const p2Idx = allPeriods.findIndex((p) => p.id === period.id);
+                  isConsecutive = p1Idx !== -1 && p2Idx !== -1 && Math.abs(p2Idx - p1Idx) === 1;
+                } else {
+                  const p1Idx = instructionalPeriods.findIndex((p) => p.id === lastPlaced.periodId);
+                  const p2Idx = instructionalPeriods.findIndex((p) => p.id === period.id);
+                  isConsecutive = p1Idx !== -1 && p2Idx !== -1 && Math.abs(p2Idx - p1Idx) === 1;
+                }
+              }
+              if (!isConsecutive || alreadyDoubled) {
+                continue;
+              }
+            }
           }
 
           const periodCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
@@ -488,27 +596,31 @@ function generateSingleScheduleAttempt({
 
           let score = 0;
 
-          // 1. Heavy penalty if this subject was already placed at this exact period on another day!
-          // This directly ensures subjects appear at DIFFERENT times of day throughout the week.
+          // Remaining cards urgency for subjects with >= remainingDays (e.g. 5-lesson MATH/ENG):
+          // Ensures MATH is scheduled on Monday, Tuesday, Wednesday, Thursday, Friday (1 per day)!
+          const remainingCards = pool.filter((c) => c.subjectCode === card.subjectCode).length;
+          if (dailyCount === 0 && remainingCards >= remainingDays) {
+            score += 300;
+          }
+
+          // Heavy penalty if this subject was already placed at this exact period on another day
           if (periodCount > 0) {
-            score -= periodCount * 70;
+            score -= periodCount * 80;
           } else {
-            score += 25; // Reward placing subject at a fresh period
+            score += 35; // Reward placing subject at a fresh period
           }
 
-          // 2. Penalty if this subject was already taught today (spread across days)
-          if (dailyCount === 0) {
-            score += 30;
-          } else if (dailyCount === 1) {
-            score -= 40;
+          // Consecutive double lesson completion bonus for practical sciences
+          if (isDoubleEligible && dailyCount === 1) {
+            score += 180;
           }
 
-          // 3. Penalty if teacher already taught this cohort at this period on other days
+          // Penalty if teacher already taught this cohort at this period on other days
           if (teacherPeriodCount > 0) {
             score -= teacherPeriodCount * 30;
           }
 
-          // 4. Cognitive load balance (morning focus vs afternoon practical/creative)
+          // Cognitive load balance (morning focus vs afternoon practical/creative)
           const pNum = parseInt((period.name || "").replace(/\D/g, ""), 10) || 1;
           const isMorning = pNum <= 4;
           const isAfternoon = pNum >= 5;
@@ -516,17 +628,17 @@ function generateSingleScheduleAttempt({
           const afternoonPreferred = ["CRA", "AGR", "PTS", "PE", "PHE", "CRE", "IRE", "HRE", "SST"];
 
           if (isMorning && morningPreferred.includes(card.subjectCode)) {
-            score += 16;
+            score += 20;
           } else if (isAfternoon && afternoonPreferred.includes(card.subjectCode)) {
-            score += 16;
+            score += 20;
           }
 
-          // 5. Heavily loaded teacher prioritization
+          // Heavily loaded teacher prioritization
           if (card.teacherId) {
             score += (teacherFrequency.get(card.teacherId) || 0) * 8;
           }
 
-          // 6. Random jitter for rich, dynamic shuffling
+          // Random jitter for rich, dynamic shuffling
           score += Math.random() * 15;
 
           if (score > bestScore) {
@@ -535,36 +647,76 @@ function generateSingleScheduleAttempt({
           }
         }
 
-        // Fallback: any card that does not cause a teacher collision
+        // Fallback: any card that strictly respects daily subject limit and teacher collision
         if (bestIndex === -1) {
           let fallbackScore = -Infinity;
           for (let i = 0; i < pool.length; i++) {
             const card = pool[i];
-            if (!card.teacherId || !busyTeachersInSlot.has(card.teacherId)) {
-              const pCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
-              const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
-              const s = -(pCount * 20) - (dCount * 10) + Math.random() * 5;
-              if (s > fallbackScore) {
-                fallbackScore = s;
-                bestIndex = i;
-              }
+            if (card.teacherId && busyTeachersInSlot.has(card.teacherId)) continue;
+            if (card.teacherId && (teacherDayCount.get(`${card.teacherId}_${day}`) || 0) >= MAX_TEACHER_DAILY_LESSONS) continue;
+            const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
+            const isDouble = isDoubleEligibleSubject(card.subjectCode);
+            if (!isDouble && dCount >= 1) continue;
+            if (dCount >= 2) continue;
+
+            const pCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
+            const s = -(pCount * 25) + Math.random() * 5;
+            if (s > fallbackScore) {
+              fallbackScore = s;
+              bestIndex = i;
             }
           }
         }
 
-        // Failsafe: if every card in the pool has a busy teacher in this period,
-        // place the card but unassign the teacher for this specific slot so the students
-        // still receive their lesson and zero slots are dropped, while strictly preventing collisions!
-        // IMPORTANT: clone the card before mutating so the original pool entry is not poisoned
-        // for future scheduling iterations (fix: previously mutated in-place).
+        // Failsafe: if every card has a busy teacher in this period,
+        // unassign the teacher for this specific slot so students still receive their lesson,
+        // but STILL STRICTLY RESPECT the daily subject limit (never 2 Maths on same day)!
         let unassignedFallbackCard = null;
         if (bestIndex === -1 && pool.length > 0) {
-          bestIndex = 0;
-          unassignedFallbackCard = { ...pool[bestIndex], teacherId: "", teacherName: "" };
-          pool.splice(0, 1);
+          let candidateIdx = pool.findIndex((c) => {
+            const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${c.subjectCode}`) || 0;
+            const isDouble = isDoubleEligibleSubject(c.subjectCode);
+            return isDouble ? dCount < 2 : dCount === 0;
+          });
+          if (candidateIdx !== -1) {
+            bestIndex = candidateIdx;
+            unassignedFallbackCard = { ...pool[bestIndex], teacherId: "", teacherName: "" };
+            pool.splice(bestIndex, 1);
+          } else {
+            // All remaining pool cards have already reached their daily cap today.
+            // Insert designated Study / Library period rather than repeating a subject!
+            generatedSlots.push({
+              grade: cohort.grade,
+              stream: cohort.stream,
+              day,
+              periodId: period.id,
+              subjectCode: "STUDY",
+              subjectName: "Library / Private Study",
+              teacherId: "",
+              teacherName: "",
+              room: "",
+            });
+            continue;
+          }
         }
 
         if (unassignedFallbackCard !== null) {
+          const dKey = `${cohortKey}_${day}_${unassignedFallbackCard.subjectCode}`;
+          const newDCount = (cohortDaySubjectCount.get(dKey) || 0) + 1;
+          cohortDaySubjectCount.set(dKey, newDCount);
+
+          if (isDoubleEligibleSubject(unassignedFallbackCard.subjectCode) && newDCount === 2) {
+            cohortDoubleDone.add(`${cohortKey}_${unassignedFallbackCard.subjectCode}`);
+          }
+
+          const currChronoIdx = instructionalPeriods.findIndex((p) => p.id === period.id);
+          cohortLastPlacedPeriod.set(`${cohortKey}_${day}`, {
+            periodId: period.id,
+            chronoIdx: currChronoIdx,
+            subjectCode: unassignedFallbackCard.subjectCode,
+            teacherId: "",
+          });
+
           generatedSlots.push({
             grade: cohort.grade,
             stream: cohort.stream,
@@ -583,10 +735,25 @@ function generateSingleScheduleAttempt({
           const [selectedCard] = pool.splice(bestIndex, 1);
           if (selectedCard.teacherId) {
             busyTeachersInSlot.add(selectedCard.teacherId);
+            const tdKey = `${selectedCard.teacherId}_${day}`;
+            teacherDayCount.set(tdKey, (teacherDayCount.get(tdKey) || 0) + 1);
           }
 
           const dailyKey = `${cohortKey}_${day}_${selectedCard.subjectCode}`;
-          cohortDaySubjectCount.set(dailyKey, (cohortDaySubjectCount.get(dailyKey) || 0) + 1);
+          const newDailyCount = (cohortDaySubjectCount.get(dailyKey) || 0) + 1;
+          cohortDaySubjectCount.set(dailyKey, newDailyCount);
+
+          if (isDoubleEligibleSubject(selectedCard.subjectCode) && newDailyCount === 2) {
+            cohortDoubleDone.add(`${cohortKey}_${selectedCard.subjectCode}`);
+          }
+
+          const currChronoIdx = instructionalPeriods.findIndex((p) => p.id === period.id);
+          cohortLastPlacedPeriod.set(`${cohortKey}_${day}`, {
+            periodId: period.id,
+            chronoIdx: currChronoIdx,
+            subjectCode: selectedCard.subjectCode,
+            teacherId: selectedCard.teacherId,
+          });
 
           const periodKey = `${cohortKey}_${period.id}_${selectedCard.subjectCode}`;
           cohortPeriodSubjectCount.set(periodKey, (cohortPeriodSubjectCount.get(periodKey) || 0) + 1);
@@ -623,10 +790,11 @@ function generateSingleScheduleAttempt({
 export function buildCollisionFreeSchedule({
   cohorts, // [{ grade, stream }]
   instructionalPeriods, // [{ id, name, startTime, endTime }]
+  periods, // full list of periods including breaks (optional)
   days = DAYS,
   subjects = [],
   teachers = [],
-  attempts = 8,
+  attempts = 12,
 }) {
   if (!cohorts || !cohorts.length) throw new Error("No classes found to generate timetable for.");
   if (!instructionalPeriods || !instructionalPeriods.length) throw new Error("No instructional periods found.");
@@ -640,6 +808,7 @@ export function buildCollisionFreeSchedule({
     const candidate = generateSingleScheduleAttempt({
       cohorts,
       instructionalPeriods,
+      allPeriods: periods || instructionalPeriods,
       days,
       subjects,
       teachers,
@@ -698,6 +867,7 @@ export async function generateCollisionFreeTimetable(userId, { classes, subjects
   const generated = buildCollisionFreeSchedule({
     cohorts,
     instructionalPeriods,
+    periods,
     days,
     subjects,
     teachers,
@@ -870,7 +1040,7 @@ export async function checkSlotConflict({ grade, stream, day, periodId, teacherI
  */
 export async function assignSlot(
   userId,
-  { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "" }
+  { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "", isDouble = false }
 ) {
   const schoolId = getCurrentSchoolId();
   const id = slotId(schoolId, grade, stream, day, periodId);
@@ -893,6 +1063,7 @@ export async function assignSlot(
     room: room?.trim() || "",
     isActivity: !!isActivity,
     activityType: activityType || "",
+    isDouble: !!isDouble,
     updatedBy: userId,
     updatedAt: serverTimestamp(),
   });
@@ -918,9 +1089,9 @@ export async function assignDoubleSlot(
   const c2 = await checkSlotConflict({ grade, stream, day, periodId: period2Id, teacherId, teacherName, room });
   if (c2.hasConflict) throw new Error(`Period 2 conflict: ${c2.reason}`);
 
-  // Save both periods
-  await assignSlot(userId, { grade, stream, day, periodId: period1Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType });
-  await assignSlot(userId, { grade, stream, day, periodId: period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType });
+  // Save both periods with isDouble: true
+  await assignSlot(userId, { grade, stream, day, periodId: period1Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType, isDouble: true });
+  await assignSlot(userId, { grade, stream, day, periodId: period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType, isDouble: true });
 }
 
 export async function clearSlot(userId, grade, stream, day, periodId) {
@@ -1175,7 +1346,7 @@ export function generateStandaloneHtml(data) {
           const slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
 
           let isMerged = false;
-          if (slot && pIdx + 1 < periods.length) {
+          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
             const nextP = periods[pIdx + 1];
             if (!nextP.isBreak) {
               const nextSlot = slotMap.get(`${c.grade}_${c.stream}_${day}_${nextP.id}`);
@@ -1246,7 +1417,7 @@ export function generateStandaloneHtml(data) {
         const slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
 
         let isMerged = false;
-        if (slot && pIdx + 1 < periods.length) {
+        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
           const nextP = periods[pIdx + 1];
           if (!nextP.isBreak) {
             const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;

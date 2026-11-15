@@ -6,6 +6,10 @@ import {
   DEFAULT_PERIODS,
   generateSecureShareToken,
   generateStandaloneHtml,
+  isDoubleEligibleSubject,
+  isDoubleAllowed,
+  MAX_TEACHER_WEEKLY_LESSONS,
+  MAX_TEACHER_DAILY_LESSONS,
 } from "../../js/services/timetable.service.js";
 
 describe("Timetable Conflict Detection & Scheduling Engine", () => {
@@ -563,6 +567,239 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(html).toContain("Grade 7 A");
       expect(html).toContain("FREE / PREP");
       expect(html).not.toContain('<th style="width:110px;">CLASS</th>');
+    });
+  });
+
+  describe("CBC Timetable Quality Standards: Daily Subject Distribution & Teacher Free Periods", () => {
+    it("isDoubleAllowed() allows practical sciences and explicit double flags, but rejects theory subjects", () => {
+      // Practical sciences & arts are double-eligible
+      expect(isDoubleAllowed({ subjectCode: "SCI" })).toBe(true);
+      expect(isDoubleAllowed({ subjectCode: "AGR" })).toBe(true);
+      expect(isDoubleAllowed({ subjectCode: "PTS" })).toBe(true);
+      expect(isDoubleAllowed({ subjectCode: "CRA" })).toBe(true);
+      expect(isDoubleAllowed({ subjectCode: "PE" })).toBe(true);
+
+      // Theory subjects are NOT double-eligible by default
+      expect(isDoubleAllowed({ subjectCode: "MATH" })).toBe(false);
+      expect(isDoubleAllowed({ subjectCode: "ENG" })).toBe(false);
+      expect(isDoubleAllowed({ subjectCode: "KIS" })).toBe(false);
+      expect(isDoubleAllowed({ subjectCode: "SST" })).toBe(false);
+      expect(isDoubleAllowed({ subjectCode: "CRE" })).toBe(false);
+
+      // Explicit manual admin override with isDouble: true is honored
+      expect(isDoubleAllowed({ subjectCode: "MATH", isDouble: true })).toBe(true);
+    });
+
+    it("guarantees Mathematics is scheduled strictly 1 period per day (Mon-Fri) for all classes, with 0 repeats in a day", () => {
+      const cohorts = [
+        { grade: "Grade 7", stream: "Blue" },
+        { grade: "Grade 7", stream: "Green" },
+        { grade: "Grade 8", stream: "Blue" },
+      ];
+      const periods = DEFAULT_PERIODS.map((p, idx) => ({ ...p, id: `p${idx + 1}` }));
+      const instructionalPeriods = periods.filter((p) => !p.isBreak);
+
+      const subjects = [
+        { code: "MATH", name: "Mathematics" },
+        { code: "ENG", name: "English" },
+        { code: "KIS", name: "Kiswahili" },
+        { code: "SCI", name: "Integrated Science" },
+        { code: "AGR", name: "Agriculture" },
+        { code: "PTS", name: "Pre-Technical Studies" },
+        { code: "SST", name: "Social Studies" },
+        { code: "CRE", name: "CRE" },
+        { code: "CRA", name: "Creative Arts" },
+      ];
+
+      const teachers = [
+        {
+          id: "t_allan",
+          fullName: "Allan Owino",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "MATH" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "MATH" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "MATH" },
+          ],
+        },
+        {
+          id: "t_purity",
+          fullName: "Purity Atieno",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "ENG" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "ENG" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "ENG" },
+          ],
+        },
+        {
+          id: "t_mercy",
+          fullName: "Mercy Akeyo",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "KIS" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "KIS" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "KIS" },
+          ],
+        },
+        {
+          id: "t_science",
+          fullName: "Finley Owino",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "SCI" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "SCI" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "SCI" },
+          ],
+        },
+      ];
+
+      const generated = buildCollisionFreeSchedule({
+        cohorts,
+        instructionalPeriods,
+        periods,
+        days: DAYS,
+        subjects,
+        teachers,
+      });
+
+      expect(generated.length).toBe(cohorts.length * DAYS.length * instructionalPeriods.length);
+
+      // Check daily distribution for every cohort
+      for (const cohort of cohorts) {
+        for (const day of DAYS) {
+          const daySlots = generated.filter(
+            (s) => s.grade === cohort.grade && s.stream === cohort.stream && s.day === day
+          );
+
+          // Mathematics must be EXACTLY 1 lesson per day (never 0, never >= 2)
+          const mathCount = daySlots.filter((s) => s.subjectCode === "MATH").length;
+          expect(mathCount).toBe(1);
+
+          // English must be EXACTLY 1 lesson per day (never 0, never >= 2)
+          const engCount = daySlots.filter((s) => s.subjectCode === "ENG").length;
+          expect(engCount).toBe(1);
+
+          // Kiswahili must be at most 1 lesson per day
+          const kisCount = daySlots.filter((s) => s.subjectCode === "KIS").length;
+          expect(kisCount).toBeLessThanOrEqual(1);
+
+          // Social Studies and CRE must be at most 1 lesson per day
+          const sstCount = daySlots.filter((s) => s.subjectCode === "SST").length;
+          expect(sstCount).toBeLessThanOrEqual(1);
+          const creCount = daySlots.filter((s) => s.subjectCode === "CRE").length;
+          expect(creCount).toBeLessThanOrEqual(1);
+        }
+      }
+    });
+
+    it("guarantees every teacher has free periods daily with daily load <= 6 and weekly load <= 28", () => {
+      const cohorts = [
+        { grade: "Grade 7", stream: "Blue" },
+        { grade: "Grade 7", stream: "Green" },
+        { grade: "Grade 8", stream: "Blue" },
+      ];
+      const periods = DEFAULT_PERIODS.map((p, idx) => ({ ...p, id: `p${idx + 1}` }));
+      const instructionalPeriods = periods.filter((p) => !p.isBreak);
+
+      const subjects = [
+        { code: "MATH", name: "Mathematics" },
+        { code: "ENG", name: "English" },
+        { code: "KIS", name: "Kiswahili" },
+        { code: "SCI", name: "Integrated Science" },
+        { code: "AGR", name: "Agriculture" },
+        { code: "PTS", name: "Pre-Technical Studies" },
+        { code: "SST", name: "Social Studies" },
+        { code: "CRE", name: "CRE" },
+        { code: "CRA", name: "Creative Arts" },
+      ];
+
+      const teachers = [
+        {
+          id: "t_allan",
+          fullName: "Allan Owino",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "MATH" },
+            { grade: "Grade 7", stream: "Green", subjectCode: "MATH" },
+            { grade: "Grade 8", stream: "Blue", subjectCode: "MATH" },
+          ],
+        },
+      ];
+
+      const generated = buildCollisionFreeSchedule({
+        cohorts,
+        instructionalPeriods,
+        periods,
+        days: DAYS,
+        subjects,
+        teachers,
+      });
+
+      // Allan teaches 3 cohorts x 5 days = 15 lessons total
+      const allanSlots = generated.filter((s) => s.teacherId === "t_allan");
+      expect(allanSlots.length).toBeLessThanOrEqual(MAX_TEACHER_WEEKLY_LESSONS); // <= 28
+
+      // On each day, Allan teaches <= 6 lessons, leaving at least 2 free periods out of 8
+      for (const day of DAYS) {
+        const allanDaySlots = allanSlots.filter((s) => s.day === day);
+        expect(allanDaySlots.length).toBeLessThanOrEqual(MAX_TEACHER_DAILY_LESSONS); // <= 6
+        const freePeriods = instructionalPeriods.length - allanDaySlots.length;
+        expect(freePeriods).toBeGreaterThanOrEqual(2); // Guaranteed at least 2 free periods daily
+      }
+    });
+
+    it("verifies practical sciences double lessons are consecutive and never cross break intervals", () => {
+      const cohorts = [{ grade: "Grade 7", stream: "Blue" }];
+      const periods = DEFAULT_PERIODS.map((p, idx) => ({ ...p, id: `p${idx + 1}` }));
+      const instructionalPeriods = periods.filter((p) => !p.isBreak);
+
+      const subjects = [
+        { code: "MATH", name: "Mathematics" },
+        { code: "ENG", name: "English" },
+        { code: "KIS", name: "Kiswahili" },
+        { code: "SCI", name: "Integrated Science" },
+        { code: "AGR", name: "Agriculture" },
+        { code: "PTS", name: "Pre-Technical Studies" },
+        { code: "SST", name: "Social Studies" },
+        { code: "CRE", name: "CRE" },
+        { code: "CRA", name: "Creative Arts" },
+      ];
+
+      const teachers = [
+        {
+          id: "t_mwangi",
+          fullName: "Mr. Mwangi",
+          teachingAssignments: [
+            { grade: "Grade 7", stream: "Blue", subjectCode: "SCI" },
+            { grade: "Grade 7", stream: "Blue", subjectCode: "AGR" },
+          ],
+        },
+      ];
+
+      const generated = buildCollisionFreeSchedule({
+        cohorts,
+        instructionalPeriods,
+        periods,
+        days: DAYS,
+        subjects,
+        teachers,
+      });
+
+      // Check if any double lessons exist
+      for (const day of DAYS) {
+        for (const subj of subjects) {
+          const slots = generated.filter((s) => s.day === day && s.subjectCode === subj.code);
+          if (slots.length === 2) {
+            // Must be double-eligible
+            expect(isDoubleEligibleSubject(subj.code)).toBe(true);
+
+            // Must be consecutive without a break in between
+            const p1 = slots[0];
+            const p2 = slots[1];
+            const idx1 = periods.findIndex((p) => p.id === p1.periodId);
+            const idx2 = periods.findIndex((p) => p.id === p2.periodId);
+            expect(Math.abs(idx2 - idx1)).toBe(1);
+            expect(periods[idx1].isBreak).toBe(false);
+            expect(periods[idx2].isBreak).toBe(false);
+          }
+        }
+      }
     });
   });
 });

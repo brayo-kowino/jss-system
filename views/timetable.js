@@ -22,6 +22,8 @@ import {
   checkSlotConflict,
   createSharedTimetable,
   downloadStandaloneTimetableHtml,
+  isDoubleAllowed,
+  isDoubleEligibleSubject,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
@@ -982,7 +984,7 @@ function renderInstitutionalWallChart(container, profile, { cohorts, daysToRende
 
         // Check for consecutive double lesson with identical subject & teacher
         let isMergedDouble = false;
-        if (slot && pIdx + 1 < periods.length) {
+        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
           const nextPeriod = periods[pIdx + 1];
           if (!nextPeriod.isBreak) {
             const nextKey = `${cohort.grade}_${cohort.stream || ""}_${day}_${nextPeriod.id}`;
@@ -1826,6 +1828,9 @@ async function openAssignModal(profile, day, period, mountOrCallback, onSaved = 
           el("div", { style: "font-size:11.5px; color:var(--color-ink-soft); margin-top:2px; line-height:1.4;" },
             `Combines both periods into an 80-minute block (${period.startTime}–${nextPeriod.endTime}). Validates teacher and room availability across both slots.`
           ),
+          el("div", { style: "font-size:11px; color:var(--color-ink-soft); margin-top:3px;" },
+            "💡 Kenya CBC standard: Double lessons are reserved for practical sciences & arts (Integrated Science, Agriculture, Pre-Technical, Creative Arts). Theory subjects (Maths, English, Kiswahili) are standard single sessions."
+          ),
           nextSlot && !isFirstHalfOfDouble ? el("div", {
             style: "color:var(--color-amber-800, #b45309); font-size:11px; margin-top:4px; font-weight:600;"
           }, `⚠️ Note: ${nextPeriod.name} currently has "${nextSlot.subjectName || nextSlot.subjectCode}" assigned, which will be overwritten.`) : null,
@@ -2239,7 +2244,7 @@ export function buildClassTimetablePage(grade, stream, slotsMap) {
 
       // Consecutive double lesson check
       let isMerged = false;
-      if (slot && pIdx + 1 < periods.length) {
+      if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
         const nextP = periods[pIdx + 1];
         if (!nextP.isBreak) {
           const nextSlot = slotsMap[`${grade}_${stream}_${day}_${nextP.id}`];
@@ -2445,7 +2450,7 @@ export function buildTeacherTimetablePage(teacher, slotsMap) {
 
       // Consecutive double lesson check
       let isMerged = false;
-      if (slot && pIdx + 1 < periods.length) {
+      if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
         const nextP = periods[pIdx + 1];
         if (!nextP.isBreak) {
           let nextSlot = null;
@@ -2688,7 +2693,7 @@ async function printMasterSchedule() {
 
           // Check for consecutive double lesson
           let isMerged = false;
-          if (slot && pIdx + 1 < periods.length) {
+          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
             const nextP = periods[pIdx + 1];
             if (!nextP.isBreak) {
               const nextSlot = slotsMap[`${c.grade}_${c.stream}_${day}_${nextP.id}`];
@@ -3358,7 +3363,7 @@ export function renderGrid(container, { canManage, getSlot, onCellClick, emptyLa
 
       // Check for consecutive double lesson
       let isMergedDouble = false;
-      if (slot && pIdx + 1 < periods.length) {
+      if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
         const nextPeriod = periods[pIdx + 1];
         if (!nextPeriod.isBreak) {
           const nextSlot = getSlot(day, nextPeriod.id);
