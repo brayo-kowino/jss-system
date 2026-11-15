@@ -7867,10 +7867,181 @@ tbody tr:hover { background: var(--color-primary-100); }
   color: #A7F3D0;
 }
 
-/* Printable Timetable Styles */
+/* Printable & PDF Timetable Styles */
 .timetable-print-sheet {
   display: none;
 }
+
+.timetable-print-page {
+  page-break-after: always;
+  break-after: page;
+  padding: 10mm 12mm;
+  box-sizing: border-box;
+  min-height: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: #ffffff;
+  color: #111827;
+}
+.timetable-print-page:last-child {
+  page-break-after: avoid;
+  break-after: avoid;
+}
+.timetable-print-header {
+  text-align: center;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+.timetable-print-logo {
+  max-height: 48px;
+  max-width: 90px;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+.timetable-print-school {
+  font-size: 16pt;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 2px;
+}
+.timetable-print-motto {
+  font-size: 9pt;
+  font-style: italic;
+  color: #475569;
+  margin: 0 0 3px;
+}
+.timetable-print-contacts {
+  font-size: 8pt;
+  color: #475569;
+  margin: 0;
+}
+.timetable-print-title-box {
+  margin: 8px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+.timetable-print-title {
+  font-size: 11pt;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  margin: 0;
+}
+.timetable-print-meta {
+  font-size: 8.5pt;
+  font-weight: 600;
+  color: #334155;
+}
+.timetable-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  background: #ffffff;
+}
+.timetable-print-table th,
+.timetable-print-table td {
+  border: 1px solid #334155;
+  padding: 5px 6px;
+  font-size: 8pt;
+  vertical-align: top;
+}
+.timetable-print-table thead th {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 8pt;
+  padding: 5px 4px;
+}
+.timetable-print-table .print-period-col {
+  background: #f8fafc !important;
+  width: 80px;
+  text-align: center;
+  white-space: nowrap;
+}
+.timetable-print-table .print-period-col b {
+  display: block;
+  color: #0f172a;
+  font-size: 8pt;
+}
+.timetable-print-table .print-period-col span {
+  font-size: 7pt;
+  color: #64748b;
+}
+.timetable-print-table .print-break-row td {
+  background: #fef3c7 !important;
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 7.5pt;
+  letter-spacing: 0.05em;
+  color: #78350f !important;
+  padding: 3px;
+}
+.timetable-print-cell-subj {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 8.5pt;
+  margin-bottom: 2px;
+}
+.timetable-print-cell-teacher {
+  font-size: 7.5pt;
+  color: #334155;
+}
+.timetable-print-cell-room {
+  font-size: 7pt;
+  color: #64748b;
+  font-family: monospace;
+}
+.timetable-print-legend {
+  margin-top: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 6px 10px;
+  background: #f8fafc;
+}
+.timetable-print-legend-title {
+  font-size: 8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  color: #0f172a;
+}
+.timetable-print-legend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px 10px;
+  font-size: 7.5pt;
+  color: #334155;
+}
+.timetable-print-signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 8px;
+}
+.timetable-print-sig-col {
+  width: 44%;
+  border-top: 1px dotted #334155;
+  padding-top: 4px;
+  font-size: 8pt;
+  color: #334155;
+}
+.timetable-print-sig-title {
+  font-weight: 700;
+  color: #0f172a;
+}
+
 @media print {
   html, body {
     color-scheme: light !important;
@@ -7895,172 +8066,6 @@ tbody tr:hover { background: var(--color-primary-100); }
     background: #ffffff !important;
     color: #111827 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  }
-  .timetable-print-page {
-    page-break-after: always;
-    break-after: page;
-    padding: 10mm 12mm;
-    box-sizing: border-box;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-  .timetable-print-page:last-child {
-    page-break-after: avoid;
-    break-after: avoid;
-  }
-  .timetable-print-header {
-    text-align: center;
-    border-bottom: 2px solid #0f172a;
-    padding-bottom: 8px;
-    margin-bottom: 10px;
-  }
-  .timetable-print-logo {
-    max-height: 48px;
-    max-width: 90px;
-    object-fit: contain;
-    margin-bottom: 4px;
-  }
-  .timetable-print-school {
-    font-size: 16pt;
-    font-weight: 800;
-    color: #0f172a;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin: 0 0 2px;
-  }
-  .timetable-print-motto {
-    font-size: 9pt;
-    font-style: italic;
-    color: #475569;
-    margin: 0 0 3px;
-  }
-  .timetable-print-contacts {
-    font-size: 8pt;
-    color: #475569;
-    margin: 0;
-  }
-  .timetable-print-title-box {
-    margin: 8px 0;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: #f8fafc;
-    border: 1px solid #cbd5e1;
-    padding: 6px 12px;
-    border-radius: 4px;
-  }
-  .timetable-print-title {
-    font-size: 11pt;
-    font-weight: 800;
-    color: #0f172a;
-    text-transform: uppercase;
-    margin: 0;
-  }
-  .timetable-print-meta {
-    font-size: 8.5pt;
-    font-weight: 600;
-    color: #334155;
-  }
-  .timetable-print-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 10px;
-  }
-  .timetable-print-table th,
-  .timetable-print-table td {
-    border: 1px solid #334155;
-    padding: 5px 6px;
-    font-size: 8pt;
-    vertical-align: top;
-  }
-  .timetable-print-table thead th {
-    background: #f1f5f9 !important;
-    color: #0f172a !important;
-    text-align: center;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 8pt;
-    padding: 5px 4px;
-  }
-  .timetable-print-table .print-period-col {
-    background: #f8fafc !important;
-    width: 80px;
-    text-align: center;
-    white-space: nowrap;
-  }
-  .timetable-print-table .print-period-col b {
-    display: block;
-    color: #0f172a;
-    font-size: 8pt;
-  }
-  .timetable-print-table .print-period-col span {
-    font-size: 7pt;
-    color: #64748b;
-  }
-  .timetable-print-table .print-break-row td {
-    background: #fef3c7 !important;
-    text-align: center;
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 7.5pt;
-    letter-spacing: 0.05em;
-    color: #78350f !important;
-    padding: 3px;
-  }
-  .timetable-print-cell-subj {
-    font-weight: 700;
-    color: #0f172a;
-    font-size: 8.5pt;
-    margin-bottom: 2px;
-  }
-  .timetable-print-cell-teacher {
-    font-size: 7.5pt;
-    color: #334155;
-  }
-  .timetable-print-cell-room {
-    font-size: 7pt;
-    color: #64748b;
-    font-family: monospace;
-  }
-  .timetable-print-legend {
-    margin-top: 6px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-    padding: 6px 10px;
-    background: #f8fafc;
-  }
-  .timetable-print-legend-title {
-    font-size: 8pt;
-    font-weight: 700;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-    color: #0f172a;
-  }
-  .timetable-print-legend-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 3px 10px;
-    font-size: 7.5pt;
-    color: #334155;
-  }
-  .timetable-print-signatures {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 12px;
-    padding-top: 8px;
-  }
-  .timetable-print-sig-col {
-    width: 44%;
-    border-top: 1px dotted #334155;
-    padding-top: 4px;
-    font-size: 8pt;
-    color: #334155;
-  }
-  .timetable-print-sig-title {
-    font-weight: 700;
-    color: #0f172a;
   }
 }
 
@@ -11444,167 +11449,196 @@ tbody tr:hover { background: var(--color-primary-100); }
   margin-top: 2px;
 }
 
-/* Landscape Print Overrides for Master Wall Chart */
+/* Landscape Print & Vector PDF Styles for Master Wall Chart & Faculty Schedules */
+.timetable-pdf-sheet,
+.timetable-print-sheet {
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  width: 1120px !important;
+  box-sizing: border-box !important;
+}
+
+.timetable-print-page--landscape,
+.timetable-pdf-page--landscape {
+  min-height: auto !important;
+  page-break-after: always;
+  break-after: page;
+  padding: 6mm 8mm !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  box-sizing: border-box !important;
+}
+
+.timetable-print-wall-chart {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin-bottom: 8px !important;
+  font-size: 7pt !important;
+  background: #ffffff !important;
+}
+
+.timetable-print-wall-chart th,
+.timetable-print-wall-chart td {
+  border: 1px solid #0f172a !important;
+  padding: 3px 4px !important;
+  vertical-align: middle !important;
+}
+
+.timetable-print-wall-chart thead th {
+  background: #0f2744 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-size: 7pt !important;
+  padding: 4px 3px !important;
+  text-align: center !important;
+}
+
+.timetable-print-wall-chart thead th.print-wall-th-break {
+  background: #92400e !important;
+  color: #ffffff !important;
+  width: 32px !important;
+}
+
+.print-wall-day-cell {
+  background: #f1f5f9 !important;
+  font-weight: 800 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  font-size: 8pt !important;
+  color: #0f172a !important;
+}
+
+.print-wall-class-cell {
+  background: #f8fafc !important;
+  font-weight: 700 !important;
+  font-size: 7pt !important;
+  white-space: nowrap !important;
+  color: #0f172a !important;
+}
+
+.print-wall-break-cell {
+  background: #fef3c7 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  padding: 2px !important;
+  min-height: 80px !important;
+}
+
+.print-vertical-label {
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  font-size: 6.5pt !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  white-space: nowrap !important;
+  color: #78350f !important;
+}
+
+.print-wall-slot-cell {
+  font-size: 6.8pt !important;
+  vertical-align: top !important;
+  padding: 3px !important;
+  color: #0f172a !important;
+}
+
+.print-wall-slot-cell--merged {
+  background: #f1f5f9 !important;
+  border-left: 2px solid #0f172a !important;
+}
+
+.print-wall-subj {
+  font-weight: 700 !important;
+  font-size: 7.2pt !important;
+  color: #0f172a !important;
+  line-height: 1.2 !important;
+}
+
+.print-wall-tag-double {
+  font-size: 5.5pt !important;
+  font-weight: 800 !important;
+  border: 1px solid #0284c7 !important;
+  color: #0284c7 !important;
+  padding: 0 2px !important;
+  text-transform: uppercase !important;
+}
+
+.print-wall-meta {
+  font-size: 6pt !important;
+  color: #334155 !important;
+  margin-top: 1px !important;
+}
+
+.print-wall-footer-grid {
+  display: grid !important;
+  grid-template-columns: 58% 39% !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  margin-top: 6px !important;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+.print-wall-advisors-wrap {
+  width: 100% !important;
+}
+
+.print-wall-signatures-wrap {
+  width: 100% !important;
+}
+
+.print-wall-footer-title {
+  font-size: 7pt !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  color: #0f172a !important;
+  margin-bottom: 3px !important;
+  border-bottom: 1px solid #0f172a !important;
+  padding-bottom: 2px !important;
+}
+
+.print-wall-advisors-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 6.5pt !important;
+}
+
+.print-wall-advisors-table th,
+.print-wall-advisors-table td {
+  border: 0.5pt solid #334155 !important;
+  padding: 2px 4px !important;
+}
+
+.print-wall-advisors-table th {
+  background: #f1f5f9 !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+}
+
+.print-wall-sig-box {
+  border: 0.5pt solid #334155 !important;
+  padding: 6px 8px !important;
+  background: #f8fafc !important;
+  font-size: 6.8pt !important;
+  box-sizing: border-box !important;
+  color: #0f172a !important;
+}
+
+.print-wall-motto-statement {
+  font-size: 6.5pt !important;
+  font-style: italic !important;
+  text-align: center !important;
+  margin-top: 6px !important;
+  color: #334155 !important;
+}
+
 @media print {
-  .timetable-print-page--landscape {
-    min-height: auto !important;
-    page-break-after: always;
-    break-after: page;
-    padding: 6mm 8mm !important;
-  }
-
-  .timetable-print-wall-chart {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    margin-bottom: 8px !important;
-    font-size: 7pt !important;
-  }
-
-  .timetable-print-wall-chart th,
-  .timetable-print-wall-chart td {
-    border: 1px solid #0f172a !important;
-    padding: 3px 4px !important;
-    vertical-align: middle !important;
-  }
-
-  .timetable-print-wall-chart thead th {
-    background: #0f2744 !important;
-    color: #ffffff !important;
-    font-weight: 700 !important;
-    text-transform: uppercase !important;
-    font-size: 7pt !important;
-    padding: 4px 3px !important;
-    text-align: center !important;
-  }
-
-  .timetable-print-wall-chart thead th.print-wall-th-break {
-    background: #92400e !important;
-    color: #ffffff !important;
-    width: 32px !important;
-  }
-
-  .print-wall-day-cell {
-    background: #f1f5f9 !important;
-    font-weight: 800 !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-    font-size: 8pt !important;
-  }
-
-  .print-wall-class-cell {
-    background: #f8fafc !important;
-    font-weight: 700 !important;
-    font-size: 7pt !important;
-    white-space: nowrap !important;
-  }
-
-  .print-wall-break-cell {
-    background: #fef3c7 !important;
-    text-align: center !important;
-    vertical-align: middle !important;
-    padding: 2px !important;
-    min-height: 80px !important;
-  }
-
-  .print-vertical-label {
-    writing-mode: vertical-lr;
-    transform: rotate(180deg);
-    font-size: 6.5pt !important;
-    font-weight: 800 !important;
-    letter-spacing: 0.08em !important;
-    white-space: nowrap !important;
-    color: #78350f !important;
-  }
-
-  .print-wall-slot-cell {
-    font-size: 6.8pt !important;
-    vertical-align: top !important;
-    padding: 3px !important;
-  }
-
-  .print-wall-slot-cell--merged {
-    background: #f1f5f9 !important;
-    border-left: 2px solid #0f172a !important;
-  }
-
-  .print-wall-subj {
-    font-weight: 700 !important;
-    font-size: 7.2pt !important;
-    color: #0f172a !important;
-    line-height: 1.2 !important;
-  }
-
-  .print-wall-tag-double {
-    font-size: 5.5pt !important;
-    font-weight: 800 !important;
-    border: 1px solid #0284c7 !important;
-    padding: 0 2px !important;
-    text-transform: uppercase !important;
-  }
-
-  .print-wall-meta {
-    font-size: 6pt !important;
-    color: #334155 !important;
-    margin-top: 1px !important;
-  }
-
-  .print-wall-footer-grid {
-    display: flex !important;
-    justify-content: space-between !important;
-    gap: 16px !important;
-    margin-top: 6px !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .print-wall-advisors-wrap {
-    width: 58% !important;
-  }
-
-  .print-wall-signatures-wrap {
-    width: 40% !important;
-  }
-
-  .print-wall-footer-title {
-    font-size: 7pt !important;
-    font-weight: 800 !important;
-    text-transform: uppercase !important;
-    color: #0f172a !important;
-    margin-bottom: 3px !important;
-    border-bottom: 1px solid #0f172a !important;
-    padding-bottom: 2px !important;
-  }
-
-  .print-wall-advisors-table {
-    width: 100% !important;
-    border-collapse: collapse !important;
-    font-size: 6.5pt !important;
-  }
-
-  .print-wall-advisors-table th,
-  .print-wall-advisors-table td {
-    border: 0.5pt solid #334155 !important;
-    padding: 2px 4px !important;
-  }
-
-  .print-wall-advisors-table th {
-    background: #f1f5f9 !important;
-    font-weight: 700 !important;
-  }
-
-  .print-wall-sig-box {
-    border: 0.5pt solid #334155 !important;
-    padding: 6px 8px !important;
-    background: #f8fafc !important;
-    font-size: 6.8pt !important;
-  }
-
-  .print-wall-motto-statement {
-    font-size: 6.5pt !important;
-    font-style: italic !important;
-    text-align: center !important;
-    margin-top: 6px !important;
-    color: #334155 !important;
+  @page {
+    size: landscape;
+    margin: 6mm;
   }
 }
 

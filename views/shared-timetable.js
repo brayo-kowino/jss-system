@@ -1,5 +1,6 @@
 import { el, icon, toast, skeleton, busyButton, escapeHtml } from "../js/utils.js";
 import { DAYS, getSharedTimetable, downloadStandaloneTimetableHtml, isDoubleAllowed } from "../js/services/timetable.service.js";
+import { downloadElementAsPdf, prewarmPdfLibs } from "../js/services/pdf.util.js";
 
 /**
  * Public standalone shared timetable view.
@@ -103,6 +104,7 @@ export async function render({ params = {} }) {
 }
 
 function renderTimetableContent(container, data) {
+  prewarmPdfLibs();
   const school = data.schoolInfo || {};
   const periods = data.periods || [];
   const slots = data.slots || [];
@@ -176,8 +178,22 @@ function renderTimetableContent(container, data) {
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm",
-        onClick: () => window.print(),
-      }, [icon("print", "text-xs"), "Print / Save PDF"]),
+        title: "Download official A4 landscape PDF",
+        onClick: async (e) => {
+          const btn = e.currentTarget;
+          const restore = busyButton(btn, "Preparing PDF…");
+          try {
+            const filename = `${(data.title || "Timetable").replace(/[^a-zA-Z0-9_\-]/g, "_")}_${data.schoolInfo?.academicYear || new Date().getFullYear()}.pdf`;
+            await downloadElementAsPdf(container, filename, { orientation: "landscape" });
+            toast("Timetable PDF downloaded.", "success");
+          } catch (err) {
+            console.error("Shared timetable PDF error:", err);
+            toast("Could not generate PDF.", "error");
+          } finally {
+            restore();
+          }
+        },
+      }, [icon("download", "text-xs"), "Download PDF"]),
 
       el("button", {
         type: "button",
@@ -499,4 +515,6 @@ function showAddToHomeScreenDialog() {
   alert(`Save to Your Phone Screen:\n\n${msg}\n\nThe timetable will open instantly without needing a login!`);
 }
 
-export function init() {}
+export function init() {
+  prewarmPdfLibs();
+}

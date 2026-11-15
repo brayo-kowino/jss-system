@@ -25,6 +25,7 @@ import {
   isDoubleAllowed,
   isDoubleEligibleSubject,
 } from "../js/services/timetable.service.js";
+import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
 import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
@@ -458,6 +459,7 @@ export function openShareTimetableModal({
 // ------------------------------------------------------------- Main Render --
 
 export async function render({ profile, params = {} }) {
+  prewarmPdfLibs();
   const canManage = CAN_MANAGE.includes(profile.role);
   if (canManage) {
     await seedDefaultPeriodsIfEmpty();
@@ -700,10 +702,10 @@ async function renderMasterTab(container, profile) {
 
         el("button", {
           type: "button",
-          class: "btn btn--ghost btn--sm hide-on-mobile",
-          title: "Print Landscape Institutional Master Wall Chart",
-          onClick: () => printMasterSchedule(),
-        }, [icon("print", "text-xs"), masterViewMode === "wall" ? "Print Master Wall Chart" : "Print Master Timetable"]),
+          class: "btn btn--primary btn--sm hide-on-mobile",
+          title: "Download publication-ready A4 landscape PDF wall chart",
+          onClick: (e) => downloadMasterPdf(e.currentTarget),
+        }, [icon("download", "text-xs"), masterViewMode === "wall" ? "Download Master PDF" : "Download Master Timetable PDF"]),
 
         el("button", {
           type: "button",
@@ -1271,14 +1273,16 @@ function renderClassPicker(container, profile, gridMount) {
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm hide-on-mobile",
-        onClick: () => printSingleClassSchedule(classSelection.grade, classSelection.stream),
-      }, [icon("print", "text-xs"), "Print This Class"]),
+        title: "Download official A4 landscape PDF schedule for this class",
+        onClick: (e) => downloadSingleClassPdf(e.currentTarget, classSelection.grade, classSelection.stream),
+      }, [icon("download", "text-xs"), "Download Class PDF"]),
 
       canManage ? el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm hide-on-mobile",
-        onClick: () => printAllClassesBatch(),
-      }, [icon("print_connect", "text-xs"), "Print All Classes (Batch)"]) : null,
+        title: "Download all class cohort schedules in a single ZIP archive",
+        onClick: (e) => downloadAllClassesZip(e.currentTarget),
+      }, [icon("archive", "text-xs"), "Download All Classes (ZIP)"]) : null,
 
       canManage && classSelection.grade ? el("button", {
         type: "button",
@@ -1425,14 +1429,16 @@ async function renderTeacherPicker(container, profile, gridMount) {
         el("button", {
           type: "button",
           class: "btn btn--primary btn--sm hide-on-mobile",
-          onClick: () => printSingleTeacherSchedule(teacherSelection.teacherId),
-        }, [icon("print", "text-xs"), "Print This Teacher"]),
+          title: "Download official A4 landscape PDF schedule for this teacher",
+          onClick: (e) => downloadSingleTeacherPdf(e.currentTarget, teacherSelection.teacherId),
+        }, [icon("download", "text-xs"), "Download Teacher PDF"]),
 
         CAN_MANAGE.includes(profile.role) ? el("button", {
           type: "button",
           class: "btn btn--ghost btn--sm hide-on-mobile",
-          onClick: () => printAllTeachersBatch(),
-        }, [icon("print_connect", "text-xs"), "Print All Teachers (Batch)"]) : null,
+          title: "Download all faculty schedules in a single ZIP archive",
+          onClick: (e) => downloadAllTeachersZip(e.currentTarget),
+        }, [icon("archive", "text-xs"), "Download All Teachers (ZIP)"]) : null,
       ].filter(Boolean)),
     ]);
 
@@ -1467,8 +1473,9 @@ async function renderTeacherPicker(container, profile, gridMount) {
         el("button", {
           type: "button",
           class: "btn btn--primary btn--sm hide-on-mobile",
-          onClick: () => printSingleTeacherSchedule(own.id),
-        }, [icon("print", "text-xs"), "Print Timetable"]),
+          title: "Download your personalized A4 landscape PDF schedule",
+          onClick: (e) => downloadSingleTeacherPdf(e.currentTarget, own.id),
+        }, [icon("download", "text-xs"), "Download My Timetable PDF"]),
 
         el("button", {
           type: "button",
@@ -2143,7 +2150,7 @@ function buildOfficialHeader(docTitle, metaSubtitle) {
   const phone = escapeHtml(schoolSettings.phone || "");
   const email = escapeHtml(schoolSettings.email || "");
   const rawLogo = schoolSettings.logoUrl || "";
-  const logo = /^https?:\/\//i.test(rawLogo) ? escapeHtml(rawLogo) : "";
+  const logo = /^(https?:\/\/|data:image\/)/i.test(rawLogo) ? escapeHtml(rawLogo) : "";
   const year = escapeHtml(String(schoolSettings.currentAcademicYear || new Date().getFullYear()));
   const term = escapeHtml(schoolSettings.currentTerm || "Term 1");
   const safeTitle = escapeHtml(docTitle || "");
@@ -2340,7 +2347,7 @@ export function buildClassTimetablePage(grade, stream, slotsMap) {
   `;
 
   return `
-    <div class="timetable-print-page timetable-print-page--landscape">
+    <div class="timetable-sheet timetable-pdf-page--landscape timetable-print-page timetable-print-page--landscape">
       <div>
         ${buildOfficialHeader(`OFFICIAL CLASS TIMETABLE · ${escapeHtml(classLabel.toUpperCase())}`, ctText)}
         <table class="timetable-print-wall-chart">
@@ -2558,7 +2565,7 @@ export function buildTeacherTimetablePage(teacher, slotsMap) {
   `;
 
   return `
-    <div class="timetable-print-page timetable-print-page--landscape">
+    <div class="timetable-sheet timetable-pdf-page--landscape timetable-print-page timetable-print-page--landscape">
       <div>
         ${buildOfficialHeader(`FACULTY INSTRUCTIONAL SCHEDULE · ${escapeHtml(teacher.fullName.toUpperCase())}`, subTitle)}
         <table class="timetable-print-wall-chart">
@@ -2574,9 +2581,427 @@ export function buildTeacherTimetablePage(teacher, slotsMap) {
   `;
 }
 
+function htmlToElement(htmlString) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "timetable-sheet timetable-pdf-page--landscape";
+  wrapper.innerHTML = htmlString.trim();
+  return wrapper.children.length === 1 ? wrapper.firstElementChild : wrapper;
+}
+
+export function buildMasterWallChartPage(slotsMap, cohorts, daysToPrint) {
+  cohorts = cohorts || getAllCohorts();
+  daysToPrint = daysToPrint || (masterDayFilter === "All" ? DAYS : [masterDayFilter]);
+
+  let theadHtml = `
+    <thead>
+      <tr>
+        <th style="width:45px;">DAY</th>
+        <th style="width:105px;">CLASS</th>
+        ${periods.map((p) => {
+          if (p.isBreak) {
+            return `<th class="print-wall-th-break" style="width:34px;">${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+          }
+          return `<th>${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
+        }).join("")}
+      </tr>
+    </thead>
+  `;
+
+  let tbodyHtml = "<tbody>";
+  for (const day of daysToPrint) {
+    for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+      const c = cohorts[cIdx];
+      const isFirst = cIdx === 0;
+      const isLast = cIdx === cohorts.length - 1;
+      const ct = getClassTeacher(teachers, c.grade, c.stream);
+
+      tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2pt solid #0f172a;' : ''}">`;
+
+      if (isFirst) {
+        tbodyHtml += `
+          <td rowspan="${cohorts.length}" class="print-wall-day-cell">
+            <div style="font-weight:900; letter-spacing:0.06em;">${day.substring(0, 4).toUpperCase()}</div>
+          </td>
+        `;
+      }
+
+      tbodyHtml += `
+        <td class="print-wall-class-cell">
+          <div><b>${escapeHtml(c.label)}</b></div>
+          ${ct ? `<div style="font-size:5.8pt; color:#475569;">C.A: ${escapeHtml(ct.fullName ? ct.fullName.split(" ")[0] : ct.name || "")}</div>` : ""}
+        </td>
+      `;
+
+      for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+        const p = periods[pIdx];
+
+        if (p.isBreak) {
+          if (isFirst) {
+            tbodyHtml += `
+              <td rowspan="${cohorts.length}" class="print-wall-break-cell">
+                <div class="print-vertical-label">${escapeHtml(p.name)} (${p.startTime}–${p.endTime})</div>
+              </td>
+            `;
+          }
+          continue;
+        }
+
+        const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+
+        // Check for consecutive double lesson
+        let isMerged = false;
+        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
+          const nextP = periods[pIdx + 1];
+          if (!nextP.isBreak) {
+            const nextSlot = slotsMap[`${c.grade}_${c.stream}_${day}_${nextP.id}`];
+            if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+              isMerged = true;
+            }
+          }
+        }
+
+        if (isMerged) {
+          tbodyHtml += `
+            <td colspan="2" class="print-wall-slot-cell print-wall-slot-cell--merged">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="print-wall-subj">${escapeHtml(slot.subjectCode)}</span>
+                <span class="print-wall-tag-double">Double</span>
+              </div>
+              <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
+            </td>
+          `;
+          pIdx++;
+          continue;
+        }
+
+        if (slot) {
+          tbodyHtml += `
+            <td class="print-wall-slot-cell">
+              <div class="print-wall-subj">${escapeHtml(slot.subjectCode)}</div>
+              <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
+            </td>
+          `;
+        } else {
+          tbodyHtml += `<td class="print-wall-slot-cell" style="text-align:center; color:#cbd5e1;">—</td>`;
+        }
+      }
+
+      tbodyHtml += "</tr>";
+    }
+  }
+  tbodyHtml += "</tbody>";
+
+  // Build Advisors Directory Table HTML for print
+  const advisorsHtml = `
+    <div class="print-wall-advisors-wrap">
+      <div class="print-wall-footer-title">Class Homeroom Advisors (C.A.) Directory</div>
+      <table class="print-wall-advisors-table">
+        <thead>
+          <tr>
+            <th>Class</th>
+            <th>Class Teacher (Homeroom)</th>
+            <th>TSC No. / Contact</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${cohorts.map((c) => {
+            const ct = getClassTeacher(teachers, c.grade, c.stream);
+            return `
+              <tr>
+                <td><b>${escapeHtml(c.label)}</b></td>
+                <td>${escapeHtml(ct ? ct.fullName : "Unassigned")}</td>
+                <td>${escapeHtml(ct ? (ct.tscNumber ? `TSC: ${ct.tscNumber}` : (ct.phone || "—")) : "—")}</td>
+              </tr>
+            `;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Build Signatures HTML for print
+  const signaturesHtml = `
+    <div class="print-wall-signatures-wrap">
+      <div class="print-wall-footer-title">Institutional Approval & Certification</div>
+      <div class="print-wall-sig-box">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <div>
+            <div style="font-weight:700;">Dean of Studies / Timetable Coordinator:</div>
+            <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Signature & Date</div>
+          </div>
+          <div>
+            <div style="font-weight:700;">Principal / Headteacher:</div>
+            <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
+            <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Official Stamp & Date</div>
+          </div>
+        </div>
+        <div class="print-wall-motto-statement">
+          "${escapeHtml(schoolSettings.motto || "Excellence in Quality Competency-Based Education")}" · Kenya Junior School Compliance
+        </div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="timetable-sheet timetable-pdf-page--landscape timetable-print-page timetable-print-page--landscape">
+      <div>
+        ${buildOfficialHeader("INSTITUTIONAL MASTER TIMETABLE · WALL CHART", `Master Distribution Across All ${cohorts.length} Classes`)}
+        <table class="timetable-print-wall-chart">
+          ${theadHtml}
+          ${tbodyHtml}
+        </table>
+      </div>
+      <div class="print-wall-footer-grid">
+        ${advisorsHtml}
+        ${signaturesHtml}
+      </div>
+    </div>
+  `;
+}
+
+export function buildMasterDailyCardsPage(slotsMap, cohorts, daysToPrint) {
+  cohorts = cohorts || getAllCohorts();
+  daysToPrint = daysToPrint || (masterDayFilter === "All" ? DAYS : [masterDayFilter]);
+
+  let pagesHtml = "";
+  for (const day of daysToPrint) {
+    let tableHtml = `
+      <table class="timetable-print-table">
+        <thead>
+          <tr>
+            <th style="width:85px;">Period</th>
+            ${cohorts.map((c) => `<th>${c.label}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const p of periods) {
+      if (p.isBreak) {
+        tableHtml += `
+          <tr class="print-break-row">
+            <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+            <td colspan="${cohorts.length}">${p.name}</td>
+          </tr>
+        `;
+        continue;
+      }
+      tableHtml += `
+        <tr>
+          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
+          ${cohorts.map((c) => {
+            const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
+            if (slot) {
+              return `
+                <td>
+                  <div class="timetable-print-cell-subj">${slot.subjectCode}</div>
+                  <div class="timetable-print-cell-teacher">${slot.teacherName ? slot.teacherName.split(" ")[0] : "—"}</div>
+                </td>
+              `;
+            }
+            return `<td><span style="color:#94a3b8; font-size:7pt;">—</span></td>`;
+          }).join("")}
+        </tr>
+      `;
+    }
+    tableHtml += `</tbody></table>`;
+
+    pagesHtml += `
+      <div class="timetable-sheet timetable-pdf-page--landscape timetable-print-page timetable-print-page--landscape">
+        <div>
+          ${buildOfficialHeader(`School Master Timetable · ${day}`, `Master Overview across all ${cohorts.length} classes`)}
+          ${tableHtml}
+        </div>
+        <div class="timetable-print-signatures">
+          <div class="timetable-print-sig-col">
+            <div class="timetable-print-sig-title">Dean of Studies / Academic Master:</div>
+            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Master Timetable Certified · Date: _______________</div>
+          </div>
+          <div class="timetable-print-sig-col">
+            <div class="timetable-print-sig-title">Principal's Office:</div>
+            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Approved & Stamped · Date: _______________</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  return pagesHtml;
+}
+
+// ── Direct PDF Downloads & Batch ZIP Exports (Matches Reports Module) ─────
+
+async function downloadMasterPdf(btn) {
+  const button = btn?.closest?.("button") || btn;
+  const restore = button ? busyButton(button, "Preparing PDF…") : () => {};
+  try {
+    const cohorts = getAllCohorts();
+    const slots = await getMasterTimetable();
+    const slotsMap = {};
+    for (const s of slots) {
+      slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+    }
+    const daysToPrint = masterDayFilter === "All" ? DAYS : [masterDayFilter];
+    const pageHtml = masterViewMode === "wall"
+      ? buildMasterWallChartPage(slotsMap, cohorts, daysToPrint)
+      : buildMasterDailyCardsPage(slotsMap, cohorts, daysToPrint);
+    const node = htmlToElement(pageHtml);
+    const filename = `Master_Timetable_${(schoolSettings.schoolName || "School").replace(/\s+/g, "_")}_${schoolSettings.currentAcademicYear || new Date().getFullYear()}.pdf`;
+    await downloadElementAsPdf(node, filename, { orientation: "landscape" });
+    toast("Master Timetable PDF downloaded.", "success");
+  } catch (err) {
+    console.error("Master PDF export error:", err);
+    toast("Could not generate Master Timetable PDF.", "error");
+  } finally {
+    restore();
+  }
+}
+
+async function downloadSingleClassPdf(btn, grade, stream) {
+  if (!grade) return toast("Select a class first.", "error");
+  stream = stream || "";
+  const button = btn?.closest?.("button") || btn;
+  const restore = button ? busyButton(button, "Preparing PDF…") : () => {};
+  try {
+    const slots = await getMasterTimetable();
+    const slotsMap = {};
+    for (const s of slots) {
+      slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+    }
+    const pageHtml = buildClassTimetablePage(grade, stream, slotsMap);
+    const node = htmlToElement(pageHtml);
+    const filename = `Timetable_${grade.replace(/\s+/g, "_")}${stream ? "_" + stream.replace(/\s+/g, "_") : ""}_${schoolSettings.currentAcademicYear || new Date().getFullYear()}.pdf`;
+    await downloadElementAsPdf(node, filename, { orientation: "landscape" });
+    toast(`Class timetable PDF for ${grade} ${stream} downloaded.`, "success");
+  } catch (err) {
+    console.error("Class PDF export error:", err);
+    toast("Could not generate class timetable PDF.", "error");
+  } finally {
+    restore();
+  }
+}
+
+async function downloadAllClassesZip(btn) {
+  const cohorts = getAllCohorts();
+  if (!cohorts.length) return toast("No classes to export.", "error");
+  const button = btn?.closest?.("button") || btn;
+  const originalText = button ? button.innerHTML : "";
+  if (button) button.disabled = true;
+  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:1120px;" });
+  document.body.appendChild(offscreen);
+
+  try {
+    const slots = await getMasterTimetable();
+    const slotsMap = {};
+    for (const s of slots) {
+      slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+    }
+
+    const items = cohorts.map((c) => ({
+      filename: `Timetable_${c.grade.replace(/\s+/g, "_")}${c.stream ? "_" + c.stream.replace(/\s+/g, "_") : ""}.pdf`,
+      build: () => {
+        offscreen.innerHTML = "";
+        const pageHtml = buildClassTimetablePage(c.grade, c.stream, slotsMap);
+        const node = htmlToElement(pageHtml);
+        offscreen.appendChild(node);
+        return node;
+      },
+    }));
+
+    const zipFilename = `All_Class_Timetables_${(schoolSettings.schoolName || "School").replace(/\s+/g, "_")}_${schoolSettings.currentAcademicYear || new Date().getFullYear()}.zip`;
+    await downloadPdfsAsZip(items, zipFilename, {
+      orientation: "landscape",
+      onProgress: (done, total) => {
+        if (button) button.textContent = `Preparing ${done}/${total}…`;
+      },
+    });
+    toast(`Downloaded ${cohorts.length} class timetable(s) in ZIP archive.`, "success");
+  } catch (err) {
+    console.error("Batch class export error:", err);
+    toast("Could not generate the classes ZIP archive.", "error");
+  } finally {
+    offscreen.remove();
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalText;
+    }
+  }
+}
+
+async function downloadSingleTeacherPdf(btn, teacherId) {
+  if (!teacherId) return toast("Select a faculty member first.", "error");
+  const teacher = teachers.find((t) => t.id === teacherId);
+  if (!teacher) return toast("Teacher record not found.", "error");
+  const button = btn?.closest?.("button") || btn;
+  const restore = button ? busyButton(button, "Preparing PDF…") : () => {};
+  try {
+    const slots = await getMasterTimetable();
+    const slotsMap = {};
+    for (const s of slots) {
+      slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+    }
+    const pageHtml = buildTeacherTimetablePage(teacher, slotsMap);
+    const node = htmlToElement(pageHtml);
+    const teacherClean = (teacher.fullName || teacher.name || "Teacher").replace(/\s+/g, "_");
+    const filename = `Faculty_Schedule_${teacherClean}_${schoolSettings.currentAcademicYear || new Date().getFullYear()}.pdf`;
+    await downloadElementAsPdf(node, filename, { orientation: "landscape" });
+    toast(`Faculty timetable PDF for ${teacher.fullName || teacher.name} downloaded.`, "success");
+  } catch (err) {
+    console.error("Teacher PDF export error:", err);
+    toast("Could not generate faculty timetable PDF.", "error");
+  } finally {
+    restore();
+  }
+}
+
+async function downloadAllTeachersZip(btn) {
+  if (!teachers.length) return toast("No teachers found to export.", "error");
+  const button = btn?.closest?.("button") || btn;
+  const originalText = button ? button.innerHTML : "";
+  if (button) button.disabled = true;
+  const offscreen = el("div", { style: "position:fixed; left:-10000px; top:0; width:1120px;" });
+  document.body.appendChild(offscreen);
+
+  try {
+    const slots = await getMasterTimetable();
+    const slotsMap = {};
+    for (const s of slots) {
+      slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
+    }
+
+    const items = teachers.map((t) => ({
+      filename: `Faculty_Schedule_${(t.fullName || t.name || "Teacher").replace(/\s+/g, "_")}.pdf`,
+      build: () => {
+        offscreen.innerHTML = "";
+        const pageHtml = buildTeacherTimetablePage(t, slotsMap);
+        const node = htmlToElement(pageHtml);
+        offscreen.appendChild(node);
+        return node;
+      },
+    }));
+
+    const zipFilename = `All_Faculty_Schedules_${(schoolSettings.schoolName || "School").replace(/\s+/g, "_")}_${schoolSettings.currentAcademicYear || new Date().getFullYear()}.zip`;
+    await downloadPdfsAsZip(items, zipFilename, {
+      orientation: "landscape",
+      onProgress: (done, total) => {
+        if (button) button.textContent = `Preparing ${done}/${total}…`;
+      },
+    });
+    toast(`Downloaded ${teachers.length} faculty timetable(s) in ZIP archive.`, "success");
+  } catch (err) {
+    console.error("Batch teacher export error:", err);
+    toast("Could not generate faculty schedules ZIP archive.", "error");
+  } finally {
+    offscreen.remove();
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalText;
+    }
+  }
+}
+
 async function printSingleClassSchedule(grade, stream) {
   if (!grade) return toast("Select a class first.", "error");
-  // Normalize stream to prevent undefined vs "" key mismatches
   stream = stream || "";
   const slots = await getMasterTimetable();
   const slotsMap = {};
@@ -2630,246 +3055,11 @@ async function printMasterSchedule() {
   for (const s of slots) {
     slotsMap[`${s.grade}_${s.stream || ""}_${s.day}_${s.periodId}`] = s;
   }
-
   const daysToPrint = masterDayFilter === "All" ? DAYS : [masterDayFilter];
-
-  if (masterViewMode === "wall") {
-    // Generate Landscape Institutional Master Wall Chart (JKUAT Format)
-    let theadHtml = `
-      <thead>
-        <tr>
-          <th style="width:45px;">DAY</th>
-          <th style="width:105px;">CLASS</th>
-          ${periods.map((p) => {
-            if (p.isBreak) {
-              return `<th class="print-wall-th-break" style="width:34px;">${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
-            }
-            return `<th>${escapeHtml(p.name)}<br/><span style="font-size:5.5pt; font-family:monospace;">${p.startTime}–${p.endTime}</span></th>`;
-          }).join("")}
-        </tr>
-      </thead>
-    `;
-
-    let tbodyHtml = "<tbody>";
-    for (const day of daysToPrint) {
-      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
-        const c = cohorts[cIdx];
-        const isFirst = cIdx === 0;
-        const isLast = cIdx === cohorts.length - 1;
-        const ct = getClassTeacher(teachers, c.grade, c.stream);
-
-        tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2pt solid #0f172a;' : ''}">`;
-
-        if (isFirst) {
-          tbodyHtml += `
-            <td rowspan="${cohorts.length}" class="print-wall-day-cell">
-              <div style="font-weight:900; letter-spacing:0.06em;">${day.substring(0, 4).toUpperCase()}</div>
-            </td>
-          `;
-        }
-
-        tbodyHtml += `
-          <td class="print-wall-class-cell">
-            <div><b>${escapeHtml(c.label)}</b></div>
-            ${ct ? `<div style="font-size:5.8pt; color:#475569;">C.A: ${escapeHtml(ct.fullName ? ct.fullName.split(" ")[0] : ct.name || "")}</div>` : ""}
-          </td>
-        `;
-
-        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
-          const p = periods[pIdx];
-
-          if (p.isBreak) {
-            if (isFirst) {
-              tbodyHtml += `
-                <td rowspan="${cohorts.length}" class="print-wall-break-cell">
-                  <div class="print-vertical-label">${escapeHtml(p.name)} (${p.startTime}–${p.endTime})</div>
-                </td>
-              `;
-            }
-            continue;
-          }
-
-          const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
-
-          // Check for consecutive double lesson
-          let isMerged = false;
-          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
-            const nextP = periods[pIdx + 1];
-            if (!nextP.isBreak) {
-              const nextSlot = slotsMap[`${c.grade}_${c.stream}_${day}_${nextP.id}`];
-              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
-                isMerged = true;
-              }
-            }
-          }
-
-          if (isMerged) {
-            tbodyHtml += `
-              <td colspan="2" class="print-wall-slot-cell print-wall-slot-cell--merged">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span class="print-wall-subj">${escapeHtml(slot.subjectCode)}</span>
-                  <span class="print-wall-tag-double">Double</span>
-                </div>
-                <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
-              </td>
-            `;
-            pIdx++;
-            continue;
-          }
-
-          if (slot) {
-            tbodyHtml += `
-              <td class="print-wall-slot-cell">
-                <div class="print-wall-subj">${escapeHtml(slot.subjectCode)}</div>
-                <div class="print-wall-meta">${escapeHtml(slot.teacherName ? slot.teacherName.split(" ")[0] : "—")} · ${escapeHtml(slot.room || "Room")}</div>
-              </td>
-            `;
-          } else {
-            tbodyHtml += `<td class="print-wall-slot-cell" style="text-align:center; color:#cbd5e1;">—</td>`;
-          }
-        }
-
-        tbodyHtml += "</tr>";
-      }
-    }
-    tbodyHtml += "</tbody>";
-
-    // Build Advisors Directory Table HTML for print
-    const advisorsHtml = `
-      <div class="print-wall-advisors-wrap">
-        <div class="print-wall-footer-title">Class Homeroom Advisors (C.A.) Directory</div>
-        <table class="print-wall-advisors-table">
-          <thead>
-            <tr>
-              <th>Class</th>
-              <th>Class Teacher (Homeroom)</th>
-              <th>TSC No. / Contact</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${cohorts.map((c) => {
-              const ct = getClassTeacher(teachers, c.grade, c.stream);
-              return `
-                <tr>
-                  <td><b>${escapeHtml(c.label)}</b></td>
-                  <td>${escapeHtml(ct ? ct.fullName : "Unassigned")}</td>
-                  <td>${escapeHtml(ct ? (ct.tscNumber ? `TSC: ${ct.tscNumber}` : (ct.phone || "—")) : "—")}</td>
-                </tr>
-              `;
-            }).join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    // Build Signatures HTML for print
-    const signaturesHtml = `
-      <div class="print-wall-signatures-wrap">
-        <div class="print-wall-footer-title">Institutional Approval & Certification</div>
-        <div class="print-wall-sig-box">
-          <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
-            <div>
-              <div style="font-weight:700;">Dean of Studies / Timetable Coordinator:</div>
-              <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
-              <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Signature & Date</div>
-            </div>
-            <div>
-              <div style="font-weight:700;">Principal / Headteacher:</div>
-              <div style="margin-top:16px; border-bottom:0.5pt solid #0f172a; width:130px;"></div>
-              <div style="font-size:5.5pt; color:#64748b; margin-top:2px;">Official Stamp & Date</div>
-            </div>
-          </div>
-          <div class="print-wall-motto-statement">
-            "${escapeHtml(schoolSettings.motto || "Excellence in Quality Competency-Based Education")}" · Kenya Junior School Compliance
-          </div>
-        </div>
-      </div>
-    `;
-
-    const pageHtml = `
-      <div class="timetable-print-page timetable-print-page--landscape">
-        <div>
-          ${buildOfficialHeader("INSTITUTIONAL MASTER TIMETABLE · WALL CHART", `Master Distribution Across All ${cohorts.length} Classes`)}
-          <table class="timetable-print-wall-chart">
-            ${theadHtml}
-            ${tbodyHtml}
-          </table>
-        </div>
-        <div class="print-wall-footer-grid">
-          ${advisorsHtml}
-          ${signaturesHtml}
-        </div>
-      </div>
-    `;
-
-    printTimetableDocument(pageHtml);
-    return;
-  }
-
-  let pagesHtml = "";
-  for (const day of daysToPrint) {
-    let tableHtml = `
-      <table class="timetable-print-table">
-        <thead>
-          <tr>
-            <th style="width:85px;">Period</th>
-            ${cohorts.map((c) => `<th>${c.label}</th>`).join("")}
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    for (const p of periods) {
-      if (p.isBreak) {
-        tableHtml += `
-          <tr class="print-break-row">
-            <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-            <td colspan="${cohorts.length}">${p.name}</td>
-          </tr>
-        `;
-        continue;
-      }
-      tableHtml += `
-        <tr>
-          <td class="print-period-col"><b>${p.name}</b><span>${p.startTime}–${p.endTime}</span></td>
-          ${cohorts.map((c) => {
-            const slot = slotsMap[`${c.grade}_${c.stream}_${day}_${p.id}`];
-            if (slot) {
-              return `
-                <td>
-                  <div class="timetable-print-cell-subj">${slot.subjectCode}</div>
-                  <div class="timetable-print-cell-teacher">${slot.teacherName ? slot.teacherName.split(" ")[0] : "—"}</div>
-                </td>
-              `;
-            }
-            return `<td><span style="color:#94a3b8; font-size:7pt;">—</span></td>`;
-          }).join("")}
-        </tr>
-      `;
-    }
-    tableHtml += `</tbody></table>`;
-
-    pagesHtml += `
-      <div class="timetable-print-page">
-        <div>
-          ${buildOfficialHeader(`School Master Timetable · ${day}`, `Master Overview across all ${cohorts.length} classes`)}
-          ${tableHtml}
-        </div>
-        <div class="timetable-print-signatures">
-          <div class="timetable-print-sig-col">
-            <div class="timetable-print-sig-title">Dean of Studies / Academic Master:</div>
-            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Master Timetable Certified · Date: _______________</div>
-          </div>
-          <div class="timetable-print-sig-col">
-            <div class="timetable-print-sig-title">Principal's Office:</div>
-            <div style="margin-top:20px; font-size:8pt; color:#64748b;">Approved & Stamped · Date: _______________</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  printTimetableDocument(pagesHtml);
+  const pageHtml = masterViewMode === "wall"
+    ? buildMasterWallChartPage(slotsMap, cohorts, daysToPrint)
+    : buildMasterDailyCardsPage(slotsMap, cohorts, daysToPrint);
+  printTimetableDocument(pageHtml);
 }
 
 // --------------------------------------------------- Workload & Excel Export --
@@ -3710,4 +3900,6 @@ function renderWelcomeDisclaimers(container, mode = "class") {
   container.append(welcomeCard);
 }
 
-export function init() {}
+export function init() {
+  prewarmPdfLibs();
+}
