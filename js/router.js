@@ -56,6 +56,7 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 // to an already-visited page doesn't re-fetch its chunk.
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
+  "/shared-timetable": { view: () => import("../views/shared-timetable.js"), public: true, allowAuthed: true, title: "Official Timetable" },
   "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0, bigCards: 3 } },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings", skeleton: { cards: 0, rows: 6 } },
@@ -258,7 +259,7 @@ export async function renderRoute() {
   try {
     if (route.public) {
       try { stopIdleTimeoutWatcher(); } catch(e) {}
-      if (profile) {
+      if (profile && !route.allowAuthed) {
         if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
           return;
         }
@@ -266,7 +267,7 @@ export async function renderRoute() {
       }
       const view = await loadView(path, route);
       if (isStale()) return;
-      const content = await view.render();
+      const content = await view.render({ profile, params });
       if (isStale()) return;
       app.innerHTML = "";
       app.appendChild(content);

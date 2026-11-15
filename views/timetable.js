@@ -20,6 +20,8 @@ import {
   clearSlot,
   clearDoubleSlot,
   checkSlotConflict,
+  createSharedTimetable,
+  downloadStandaloneTimetableHtml,
 } from "../js/services/timetable.service.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton, mobileOnlyNotice, escapeHtml } from "../js/utils.js";
@@ -255,6 +257,202 @@ export function openWorkflowGuideModal() {
   return closeFn;
 }
 
+/**
+ * Complete Timetable Sharing Modal (No Login Required)
+ * Generates an unguessable secure link for recipients to view and save schedules locally.
+ */
+export function openShareTimetableModal({
+  type = "master",
+  targetId = "master",
+  title = "Timetable",
+  subTitle = "",
+  slots = [],
+  periods = [],
+  profile,
+  schoolSettings = {},
+  teachers = [],
+}) {
+  const body = el("div", { class: "share-tt-modal-body" });
+
+  const intro = el("div", {
+    class: "callout callout--info",
+    style: "margin-bottom:16px; font-size:12.5px; display:flex; align-items:flex-start; gap:10px;",
+  }, [
+    icon("lock_open", "text-sm", "style: color:var(--color-primary-800); margin-top:2px; flex-shrink:0;"),
+    el("div", {}, [
+      el("strong", {}, "Secure Public Timetable Link: "),
+      "Generates a protected, unguessable link that allows recipients (faculty, parents, students) to view and save this timetable on their devices ",
+      el("strong", {}, "without needing an account or login password."),
+    ]),
+  ]);
+
+  const targetBox = el("div", {
+    style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:16px;",
+  }, [
+    el("div", { style: "font-size:11px; text-transform:uppercase; font-weight:700; color:var(--color-ink-soft);" }, "Sharing Schedule:"),
+    el("div", { style: "font-size:15px; font-weight:800; color:var(--color-primary-900); margin-top:2px;" }, title),
+    subTitle ? el("div", { style: "font-size:12px; color:var(--color-ink-soft); margin-top:2px;" }, subTitle) : null,
+    el("div", { style: "display:flex; gap:12px; margin-top:8px; font-size:11.5px; color:var(--color-ink-soft);" }, [
+      el("span", {}, `${slots.length} Scheduled Lessons`),
+      el("span", {}, "·"),
+      el("span", {}, `${periods.length} Daily Periods`),
+    ]),
+  ]);
+
+  // Security & PIN setting
+  const pinWrap = el("div", { style: "margin-bottom:16px; border-top:1px dashed var(--color-line); padding-top:12px;" });
+  const pinCheck = el("input", { type: "checkbox", id: "share-pin-check", style: "margin-top:2px;" });
+  const pinInput = el("input", {
+    type: "text",
+    placeholder: "e.g. 1234",
+    maxlength: "8",
+    style: "display:none; width:130px; margin-top:8px; font-size:13px; text-align:center; font-weight:700; letter-spacing:0.1em;",
+  });
+
+  pinCheck.addEventListener("change", () => {
+    pinInput.style.display = pinCheck.checked ? "inline-block" : "none";
+    if (pinCheck.checked) pinInput.focus();
+  });
+
+  const pinLabel = el("label", { style: "display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;" }, [
+    pinCheck,
+    el("div", {}, [
+      el("strong", {}, "Require a 4-digit PIN code to view (Optional)"),
+      el("div", { class: "text-muted text-xs", style: "margin-top:2px;" }, "Recommended if faculty contact numbers or internal teacher notes are displayed."),
+    ]),
+  ]);
+  pinWrap.append(pinLabel, pinInput);
+
+  // Link output mount
+  const linkOutputMount = el("div", { style: "margin-bottom:18px;" });
+
+  let currentShareResult = null;
+  let closeFn = null;
+
+  async function generateLink(btnElement = null) {
+    let restore = null;
+    if (btnElement) restore = busyButton(btnElement, "Generating secure link…");
+
+    try {
+      const pinValue = pinCheck.checked ? pinInput.value.trim() : null;
+      if (pinCheck.checked && (!pinValue || pinValue.length < 3)) {
+        toast("Please enter a PIN with at least 3 digits.", "error");
+        if (restore) restore();
+        return;
+      }
+
+      currentShareResult = await createSharedTimetable(profile?.uid || "staff", {
+        type,
+        targetId,
+        title,
+        subTitle,
+        slots,
+        periods,
+        schoolSettings,
+        teachers,
+        pin: pinValue,
+      });
+
+      renderLinkBox(currentShareResult.shareUrl, pinValue);
+      toast("Secure link created successfully!", "success");
+    } catch (err) {
+      toast(err.message || "Could not generate link.", "error");
+    } finally {
+      if (restore) restore();
+    }
+  }
+
+  function renderLinkBox(url, pin) {
+    linkOutputMount.innerHTML = "";
+
+    const linkBox = el("div", {
+      style: "background:#ffffff; border:1.5px solid var(--color-primary-700); border-radius:var(--radius-md); padding:14px; display:flex; flex-direction:column; gap:10px;",
+    }, [
+      el("div", { style: "display:flex; justify-content:space-between; align-items:center;" }, [
+        el("span", { style: "font-size:11px; font-weight:700; color:var(--color-primary-900); text-transform:uppercase; letter-spacing:0.04em;" }, "Ready-to-Share Link:"),
+        pin ? el("span", { class: "badge badge--warning", style: "font-size:10px;" }, `PIN: ${pin}`) : el("span", { class: "badge badge--success", style: "font-size:10px;" }, "Instant Access (No PIN)"),
+      ]),
+      el("div", { style: "display:flex; gap:8px;" }, [
+        el("input", {
+          type: "text",
+          readonly: "true",
+          value: url,
+          style: "flex:1; font-size:12px; font-family:monospace; background:var(--color-cream-dim, #f1f5f9); border:1px solid var(--color-line); padding:8px 10px; border-radius:var(--radius-sm);",
+          onClick: (e) => e.target.select(),
+        }),
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm",
+          style: "flex-shrink:0;",
+          onClick: () => {
+            navigator.clipboard.writeText(url).then(() => toast("Link copied to clipboard!", "success"));
+          },
+        }, [icon("content_copy", "text-xs"), "Copy Link"]),
+      ]),
+      el("div", { style: "display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;" }, [
+        el("a", {
+          href: `https://api.whatsapp.com/send?text=${encodeURIComponent(`*${schoolSettings.schoolName || "School"} Timetable*\n${title}\n\nView and save your schedule here:\n${url}`)}`,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          class: "btn btn--ghost btn--sm",
+          style: "color:#166534; border-color:#86efac; background:#f0fdf4;",
+        }, [icon("share", "text-xs"), "Share on WhatsApp"]),
+
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          title: "Download a single-file HTML timetable that can be opened anywhere offline",
+          onClick: () => {
+            if (currentShareResult && currentShareResult.payload) {
+              downloadStandaloneTimetableHtml(currentShareResult.payload);
+              toast("Offline timetable downloaded!", "success");
+            }
+          },
+        }, [icon("download", "text-xs"), "Download Offline HTML"]),
+
+        el("a", {
+          href: url,
+          target: "_blank",
+          rel: "noopener",
+          class: "btn btn--ghost btn--sm",
+        }, [icon("open_in_new", "text-xs"), "Preview Link"]),
+      ]),
+      el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed var(--color-line); font-size:11px; color:var(--color-ink-soft);" }, [
+        el("span", {}, "Internal link for logged-in staff only:"),
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--xs",
+          title: "Copy link for teachers/staff who have accounts in the system",
+          onClick: () => {
+            const p = { tab: type === "master" ? "master" : type === "class" ? "classes" : "teachers" };
+            if (type === "class" && classSelection.grade) {
+              p.grade = classSelection.grade;
+              if (classSelection.stream) p.stream = classSelection.stream;
+            } else if (type === "teacher" && teacherSelection.teacherId) {
+              p.teacherId = teacherSelection.teacherId;
+            }
+            copyDeepLink("/timetable", p, `${title} internal staff link`);
+          },
+        }, [icon("lock", "text-xs"), "Copy In-App Link"]),
+      ]),
+    ]);
+
+    linkOutputMount.append(linkBox);
+  }
+
+  const generateBtn = el("button", {
+    type: "button",
+    class: "btn btn--primary btn--block",
+    onClick: (e) => generateLink(e.currentTarget),
+  }, [icon("link", "text-xs"), "Generate / Update Link"]);
+
+  body.append(intro, targetBox, pinWrap, linkOutputMount, generateBtn);
+
+  closeFn = openModal("Share Timetable Securely (No Login Required)", body);
+  generateLink();
+  return closeFn;
+}
+
 // ------------------------------------------------------------- Main Render --
 
 export async function render({ profile, params = {} }) {
@@ -481,13 +679,20 @@ async function renderMasterTab(container, profile) {
 
         el("button", {
           type: "button",
-          class: "btn btn--ghost btn--sm deep-link-btn",
-          title: "Copy direct link to this timetable view",
+          class: "btn btn--ghost btn--sm",
+          title: "Share the Master Timetable via direct public link, WhatsApp, or offline file (No login needed)",
           onClick: () => {
-            const p = { tab: "master" };
-            if (masterDayFilter !== "All") p.day = masterDayFilter;
-            if (masterViewMode !== "wall") p.view = masterViewMode;
-            copyDeepLink("/timetable", p, "Master Timetable link");
+            openShareTimetableModal({
+              type: "master",
+              targetId: "master",
+              title: "Institutional Master Timetable",
+              subTitle: `Master schedule across all ${getAllCohorts().length} classes`,
+              slots: masterSlots,
+              periods,
+              profile,
+              schoolSettings,
+              teachers,
+            });
           },
         }, [icon("share", "text-xs"), "Share Link"]),
 
@@ -922,8 +1127,8 @@ function renderInstitutionalFooter(container, cohorts) {
 
   // Right: Executive Sign-off & Quality Assurance Blocks
   const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
-  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
-  const currentTerm = schoolSettings.term || "Term 1";
+  const currentYear = schoolSettings.currentAcademicYear || schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.currentTerm || schoolSettings.term || "Term 1";
 
   const rightCol = el("div", {}, [
     el("div", { class: "tt-wall-section-heading" }, [
@@ -1041,13 +1246,23 @@ function renderClassPicker(container, profile, gridMount) {
     el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
       el("button", {
         type: "button",
-        class: "btn btn--ghost btn--sm deep-link-btn",
-        title: "Copy direct link to this class timetable",
-        onClick: () => {
-          const p = { tab: "classes" };
-          if (classSelection.grade) p.grade = classSelection.grade;
-          if (classSelection.stream) p.stream = classSelection.stream;
-          copyDeepLink("/timetable", p, `${classSelection.grade} ${classSelection.stream || ""} timetable link`);
+        class: "btn btn--ghost btn--sm",
+        title: "Share this class timetable via direct public link, WhatsApp, or offline file (No login needed)",
+        onClick: async () => {
+          if (!classSelection.grade) return toast("Select a class first.", "error");
+          const allSlots = await getMasterTimetable();
+          const cohortSlots = allSlots.filter((s) => s.grade === classSelection.grade && (s.stream || "") === (classSelection.stream || ""));
+          openShareTimetableModal({
+            type: "class",
+            targetId: `${classSelection.grade}|${classSelection.stream || ""}`,
+            title: `Class Schedule · ${classSelection.grade} ${classSelection.stream || ""}`.trim(),
+            subTitle: `Weekly instructional lessons and room assignments`,
+            slots: cohortSlots,
+            periods,
+            profile,
+            schoolSettings,
+            teachers,
+          });
         },
       }, [icon("share", "text-xs"), "Share Link"]),
 
@@ -1184,12 +1399,24 @@ async function renderTeacherPicker(container, profile, gridMount) {
       el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" }, [
         el("button", {
           type: "button",
-          class: "btn btn--ghost btn--sm deep-link-btn",
-          title: "Copy direct link to this teacher's schedule",
-          onClick: () => {
-            const p = { tab: "teachers" };
-            if (teacherSelection.teacherId) p.teacherId = teacherSelection.teacherId;
-            copyDeepLink("/timetable", p, "Faculty timetable link");
+          class: "btn btn--ghost btn--sm",
+          title: "Share this teacher's timetable via direct public link, WhatsApp, or offline file (No login needed)",
+          onClick: async () => {
+            if (!teacherSelection.teacherId) return toast("Select a faculty member first.", "error");
+            const t = teachers.find((x) => x.id === teacherSelection.teacherId);
+            const allSlots = await getMasterTimetable();
+            const tSlots = allSlots.filter((s) => s.teacherId === teacherSelection.teacherId);
+            openShareTimetableModal({
+              type: "teacher",
+              targetId: teacherSelection.teacherId,
+              title: `Faculty Schedule · ${t?.fullName || "Teacher"}`,
+              subTitle: `Teaching Load: ${tSlots.length} Lessons/Wk · TSC: ${t?.tscNumber || "N/A"}`,
+              slots: tSlots,
+              periods,
+              profile,
+              schoolSettings,
+              teachers,
+            });
           },
         }, [icon("share", "text-xs"), "Share Link"]),
 
@@ -1234,11 +1461,34 @@ async function renderTeacherPicker(container, profile, gridMount) {
         el("h3", { style: "margin:0 0 2px; color:var(--color-primary-900); font-family:var(--font-display);" }, `Teaching Schedule · ${own.fullName}`),
         el("p", { class: "text-muted text-xs", style: "margin:0;" }, "Showing your personalized weekly instructional lessons and assigned classrooms."),
       ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--primary btn--sm hide-on-mobile",
-        onClick: () => printSingleTeacherSchedule(own.id),
-      }, [icon("print", "text-xs"), "Print Timetable"]),
+      el("div", { style: "display:flex; gap:8px;" }, [
+        el("button", {
+          type: "button",
+          class: "btn btn--primary btn--sm hide-on-mobile",
+          onClick: () => printSingleTeacherSchedule(own.id),
+        }, [icon("print", "text-xs"), "Print Timetable"]),
+
+        el("button", {
+          type: "button",
+          class: "btn btn--ghost btn--sm",
+          title: "Get your personal secure timetable link to save on your phone (No login needed)",
+          onClick: async () => {
+            const allSlots = await getMasterTimetable();
+            const tSlots = allSlots.filter((s) => s.teacherId === own.id);
+            openShareTimetableModal({
+              type: "teacher",
+              targetId: own.id,
+              title: `My Teaching Schedule · ${own.fullName}`,
+              subTitle: `Personal weekly instructional schedule (${tSlots.length} Lessons/Wk)`,
+              slots: tSlots,
+              periods,
+              profile,
+              schoolSettings,
+              teachers,
+            });
+          },
+        }, [icon("smartphone", "text-xs"), "Save to Phone / Share Link"]),
+      ]),
     ]));
     await loadTeacherGrid(gridMount);
   }
@@ -1862,7 +2112,7 @@ function openAutoGenerateModal(profile, container, onComplete) {
         periods,
         days: DAYS,
       });
-      toast(`Fresh master timetable generated (${res.totalSlots} slots) with 0 collisions!`, "success");
+      toast(`Fresh master timetable generated (${res.totalSlots} slots) with 0 collisions!${res.unassignedCount ? ` Note: ${res.unassignedCount} slot(s) could not be assigned a teacher due to workload conflicts — review and assign manually.` : ""}`, "success");
       close();
       if (onComplete) await onComplete();
     } catch (err) {
@@ -1911,6 +2161,8 @@ function buildOfficialHeader(docTitle, metaSubtitle) {
 }
 
 export function buildClassTimetablePage(grade, stream, slotsMap) {
+  // Normalize stream to avoid undefined vs "" key mismatches in slotsMap
+  stream = stream || "";
   const ct = getClassTeacher(teachers, grade, stream);
   const classLabel = `${grade}${stream ? " " + stream : ""}`;
   const ctText = ct ? `Class Teacher: ${ct.fullName}${ct.tscNumber ? ` (TSC No: ${ct.tscNumber})` : ""}${ct.phone ? ` · Phone: ${ct.phone}` : ""}` : "Class Teacher: Unassigned";
@@ -2319,6 +2571,8 @@ export function buildTeacherTimetablePage(teacher, slotsMap) {
 
 async function printSingleClassSchedule(grade, stream) {
   if (!grade) return toast("Select a class first.", "error");
+  // Normalize stream to prevent undefined vs "" key mismatches
+  stream = stream || "";
   const slots = await getMasterTimetable();
   const slotsMap = {};
   for (const s of slots) {
@@ -2722,7 +2976,7 @@ function openFacultyWorkloadModal() {
       el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Avg Lessons/Wk"),
     ]),
     el("div", { class: "timetable-metric-box timetable-metric-box--tsc" }, [
-      el("div", { class: "timetable-metric-val" }, "20–27"),
+      el("div", { class: "timetable-metric-val" }, "18–27"),
       el("div", { class: "timetable-metric-label" }, "TSC Standard"),
     ]),
   ]);
@@ -3194,7 +3448,7 @@ export function renderGrid(container, { canManage, getSlot, onCellClick, emptyLa
         td.append(emptyBtn);
       } else {
         td.append(el("div", {
-          style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:4px; border:1px solid #e2e8f0; color:#94a3b8; font-size:10px; font-weight:600; font-style:italic;"
+          style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:var(--color-cream-dim); border-radius:4px; border:1px solid var(--color-line); color:var(--color-ink-soft); font-size:10px; font-weight:600; font-style:italic;"
         }, "FREE / PREP"));
       }
 
@@ -3276,9 +3530,9 @@ function renderClassScheduleFooter(container, metaInfo, getSlot) {
   ]);
 
   // Right: Class Teacher & Executive Sign-off
-  const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
-  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
-  const currentTerm = schoolSettings.term || "Term 1";
+  const schoolName = schoolSettings.schoolName || schoolSettings.name || "BM JUNIOR AND SENIOR SCHOOL";
+  const currentYear = schoolSettings.currentAcademicYear || schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.currentTerm || schoolSettings.term || "Term 1";
 
   const rightCol = el("div", {}, [
     el("div", { class: "tt-wall-section-heading" }, [
@@ -3383,9 +3637,9 @@ function renderTeacherScheduleFooter(container, metaInfo, getSlot) {
   ]);
 
   // Right: Faculty Sign-off & Quality Assurance Blocks
-  const schoolName = schoolSettings.schoolName || "BM JUNIOR AND SENIOR SCHOOL";
-  const currentYear = schoolSettings.academicYear || new Date().getFullYear();
-  const currentTerm = schoolSettings.term || "Term 1";
+  const schoolName = schoolSettings.schoolName || schoolSettings.name || "BM JUNIOR AND SENIOR SCHOOL";
+  const currentYear = schoolSettings.currentAcademicYear || schoolSettings.academicYear || new Date().getFullYear();
+  const currentTerm = schoolSettings.currentTerm || schoolSettings.term || "Term 1";
 
   const rightCol = el("div", {}, [
     el("div", { class: "tt-wall-section-heading" }, [

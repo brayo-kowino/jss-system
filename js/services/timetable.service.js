@@ -14,6 +14,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -26,6 +27,7 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { cached, invalidate, invalidatePrefix } from "./query-cache.js";
+import { buildDeepLink } from "./deep-link.service.js";
 
 export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
@@ -553,10 +555,28 @@ function generateSingleScheduleAttempt({
         // Failsafe: if every card in the pool has a busy teacher in this period,
         // place the card but unassign the teacher for this specific slot so the students
         // still receive their lesson and zero slots are dropped, while strictly preventing collisions!
+        // IMPORTANT: clone the card before mutating so the original pool entry is not poisoned
+        // for future scheduling iterations (fix: previously mutated in-place).
+        let unassignedFallbackCard = null;
         if (bestIndex === -1 && pool.length > 0) {
           bestIndex = 0;
-          pool[bestIndex].teacherId = "";
-          pool[bestIndex].teacherName = "";
+          unassignedFallbackCard = { ...pool[bestIndex], teacherId: "", teacherName: "" };
+          pool.splice(0, 1);
+        }
+
+        if (unassignedFallbackCard !== null) {
+          generatedSlots.push({
+            grade: cohort.grade,
+            stream: cohort.stream,
+            day,
+            periodId: period.id,
+            subjectCode: unassignedFallbackCard.subjectCode,
+            subjectName: unassignedFallbackCard.subjectName,
+            teacherId: "",
+            teacherName: "",
+            room: "",
+          });
+          continue;
         }
 
         if (bestIndex !== -1) {
@@ -714,7 +734,8 @@ export async function generateCollisionFreeTimetable(userId, { classes, subjects
   invalidate(masterTimetableCacheKey());
   await logAction(userId, "generate_master_timetable", "timetable_slots", schoolId);
 
-  return { totalSlots: generated.length, conflictsCount: conflicts.length };
+  const unassignedCount = generated.filter((s) => !s.teacherId).length;
+  return { totalSlots: generated.length, conflictsCount: conflicts.length, unassignedCount };
 }
 
 /** Clears all timetable slots for the entire school. */
@@ -920,4 +941,486 @@ export async function clearDoubleSlot(userId, grade, stream, day, period1Id, per
   if (period2Id) {
     await clearSlot(userId, grade, stream, day, period2Id);
   }
+}
+
+// ------------------------------------ Secure Shared Public Timetables (No Login) --
+
+export function generateSecureShareToken() {
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    const bytes = new Uint8Array(18);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  return "tt_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+/**
+ * Creates an unguessable, secure shared timetable document in Firestore.
+ * Anyone with the resulting link can view this timetable without logging in.
+ */
+export async function createSharedTimetable(userId, {
+  type = "master", // "master" | "teacher" | "class"
+  targetId = "master",
+  title = "",
+  subTitle = "",
+  slots = [],
+  periods = [],
+  schoolSettings = {},
+  teachers = [],
+  pin = null,
+}) {
+  const schoolId = getCurrentSchoolId();
+  const shareId = `sec_${generateSecureShareToken()}`;
+
+  const payload = {
+    id: shareId,
+    schoolId,
+    type,
+    targetId,
+    title: title || (type === "master" ? "Institutional Master Timetable" : type === "teacher" ? "Teacher Schedule" : "Class Schedule"),
+    subTitle: subTitle || "",
+    schoolInfo: {
+      name: schoolSettings.schoolName || schoolSettings.name || "School Timetable",
+      motto: schoolSettings.motto || "Excellence in Competency-Based Education",
+      logoUrl: schoolSettings.logoUrl || "",
+      address: schoolSettings.address || "",
+      phone: schoolSettings.phone || "",
+      email: schoolSettings.email || "",
+      academicYear: schoolSettings.currentAcademicYear || schoolSettings.academicYear || new Date().getFullYear(),
+      term: schoolSettings.currentTerm || schoolSettings.term || "Term 1",
+    },
+    periods: (periods || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      isBreak: !!p.isBreak,
+    })),
+    slots: (slots || []).map((s) => ({
+      grade: s.grade || "",
+      stream: s.stream || "",
+      day: s.day,
+      periodId: s.periodId,
+      subjectCode: s.subjectCode || "",
+      subjectName: s.subjectName || "",
+      teacherId: s.teacherId || "",
+      teacherName: s.teacherName || "",
+      room: s.room || "",
+      isActivity: !!s.isActivity,
+    })),
+    teachers: (teachers || []).map((t) => ({
+      id: t.id,
+      fullName: t.fullName || t.name || "",
+      tscNumber: t.tscNumber || "",
+      homeroom: t.homeroom || "",
+      phone: t.phone || "",
+    })),
+    pin: pin ? String(pin).trim() : null,
+    createdAt: serverTimestamp(),
+    createdBy: userId,
+  };
+
+  await setDoc(doc(db, "shared_timetables", shareId), payload);
+  await logAction(userId, "create_shared_timetable", "shared_timetables", shareId);
+
+  // Cache locally on authoring device
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.setItem(`eeskia_shared_tt_${shareId}`, JSON.stringify({ ...payload, createdAt: Date.now() }));
+    } catch {}
+  }
+
+  const shareUrl = buildDeepLink("/shared-timetable", { id: shareId });
+
+  return { shareId, shareUrl, payload };
+}
+
+/**
+ * Retrieves a shared timetable document by its secure unguessable share ID.
+ * Falls back to local storage cache if offline.
+ */
+export async function getSharedTimetable(shareId) {
+  if (!shareId) throw new Error("Missing timetable share ID.");
+
+  let cachedData = null;
+  if (typeof localStorage !== "undefined") {
+    try {
+      const raw = localStorage.getItem(`eeskia_shared_tt_${shareId}`);
+      if (raw) cachedData = JSON.parse(raw);
+    } catch {}
+  }
+
+  try {
+    const snap = await getDoc(doc(db, "shared_timetables", shareId));
+    if (snap.exists()) {
+      const data = { id: snap.id, ...snap.data(), isOnline: true };
+      if (typeof localStorage !== "undefined") {
+        try {
+          localStorage.setItem(`eeskia_shared_tt_${shareId}`, JSON.stringify(data));
+        } catch {}
+      }
+      return data;
+    }
+  } catch (err) {
+    console.warn("Could not fetch online shared timetable, falling back to local cache:", err);
+    if (cachedData) {
+      return { ...cachedData, isOffline: true };
+    }
+    throw err;
+  }
+
+  if (cachedData) {
+    return { ...cachedData, isOffline: true };
+  }
+
+  throw new Error("This timetable link was not found or has expired.");
+}
+
+/**
+ * Builds a 100% self-contained standalone HTML document that can be saved
+ * locally to any phone, tablet, or PC and opened offline forever in any browser.
+ */
+export function generateStandaloneHtml(data) {
+  const school = data.schoolInfo || {};
+  const periods = data.periods || [];
+  const slots = data.slots || [];
+  const title = data.title || "School Timetable";
+  const subTitle = data.subTitle || "";
+  const schoolName = school.name || "School Timetable";
+  const motto = school.motto || "";
+  const currentYear = school.academicYear || new Date().getFullYear();
+  const currentTerm = school.term || "Term 1";
+
+  const slotMap = new Map();
+  for (const s of slots) {
+    const key = `${s.grade || ""}_${s.stream || ""}_${s.day}_${s.periodId}`;
+    slotMap.set(key, s);
+  }
+
+  // Derive unique cohorts
+  const cohortKeys = new Set();
+  const cohorts = [];
+  for (const s of slots) {
+    const key = `${s.grade || ""}|${s.stream || ""}`;
+    if (!cohortKeys.has(key)) {
+      cohortKeys.add(key);
+      const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
+      cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
+    }
+  }
+  if (!cohorts.length) {
+    cohorts.push({ grade: "", stream: "", label: "Schedule" });
+  }
+
+  const days = DAYS;
+
+  // Build grid HTML
+  let theadHtml = `
+    <thead>
+      <tr>
+        <th style="width:55px;">DAY</th>
+        ${cohorts.length > 1 ? '<th style="width:110px;">CLASS</th>' : ''}
+        ${periods.map((p) => {
+          if (p.isBreak) {
+            return `<th class="th-break" style="width:36px;">${p.name}<br/><span style="font-size:7pt; font-family:monospace; font-weight:normal;">${p.startTime}–${p.endTime}</span></th>`;
+          }
+          return `<th>${p.name}<br/><span style="font-size:7pt; font-family:monospace; font-weight:normal;">${p.startTime}–${p.endTime}</span></th>`;
+        }).join("")}
+      </tr>
+    </thead>
+  `;
+
+  let tbodyHtml = "<tbody>";
+  for (const day of days) {
+    for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+      const c = cohorts[cIdx];
+      const isFirst = cIdx === 0;
+      const isLast = cIdx === cohorts.length - 1;
+
+      tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
+
+      if (isFirst) {
+        tbodyHtml += `
+          <td rowspan="${cohorts.length}" class="day-cell">
+            <b>${day.substring(0, 4).toUpperCase()}</b>
+          </td>
+        `;
+      }
+
+      if (cohorts.length > 1) {
+        tbodyHtml += `
+          <td class="class-cell">
+            <b>${c.label}</b>
+          </td>
+        `;
+      }
+
+      for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+        const p = periods[pIdx];
+
+        if (p.isBreak) {
+          if (isFirst) {
+            tbodyHtml += `
+              <td rowspan="${cohorts.length}" class="break-cell">
+                <div class="vertical-text">${p.name} (${p.startTime}–${p.endTime})</div>
+              </td>
+            `;
+          }
+          continue;
+        }
+
+        // Find slot
+        let slot = null;
+        if (data.type === "teacher") {
+          slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
+        } else {
+          slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
+        }
+
+        // Check for double lesson
+        let isMerged = false;
+        if (slot && pIdx + 1 < periods.length) {
+          const nextP = periods[pIdx + 1];
+          if (!nextP.isBreak) {
+            let nextSlot = null;
+            if (data.type === "teacher") {
+              nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
+            } else {
+              nextSlot = slotMap.get(`${c.grade}_${c.stream}_${day}_${nextP.id}`);
+            }
+            if (nextSlot && nextSlot.subjectCode === slot.subjectCode && (nextSlot.teacherId === slot.teacherId || data.type === "teacher")) {
+              isMerged = true;
+            }
+          }
+        }
+
+        if (isMerged) {
+          const subj = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
+          const meta = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          tbodyHtml += `
+            <td colspan="2" class="slot-cell slot-cell--merged">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="subj-name">${subj}</span>
+                <span class="tag-double">Double</span>
+              </div>
+              <div class="meta-line">${meta} · ${slot.room || "Room"}</div>
+            </td>
+          `;
+          pIdx++;
+          continue;
+        }
+
+        if (slot) {
+          const subj = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
+          const meta = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          tbodyHtml += `
+            <td class="slot-cell">
+              <div class="subj-name">${subj}</div>
+              <div class="meta-line">${meta} · ${slot.room || "Room"}</div>
+            </td>
+          `;
+        } else {
+          tbodyHtml += `<td class="slot-cell empty-cell">${data.type === "teacher" ? "FREE / PREP" : "—"}</td>`;
+        }
+      }
+
+      tbodyHtml += "</tr>";
+    }
+  }
+  tbodyHtml += "</tbody>";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title} · ${schoolName}</title>
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+    padding: 20px;
+    font-size: 13px;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    overflow: hidden;
+  }
+  .header {
+    background: #0f2744;
+    color: #ffffff;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .school-title { font-size: 20px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+  .school-motto { font-size: 11px; opacity: 0.85; font-style: italic; margin-top: 2px; }
+  .doc-badge {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    text-align: right;
+  }
+  .actions-bar {
+    background: #f1f5f9;
+    border-bottom: 1px solid #cbd5e1;
+    padding: 10px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #0f2744;
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .btn:hover { background: #1e3a8a; }
+  .btn--ghost { background: #ffffff; color: #0f2744; border: 1px solid #cbd5e1; }
+  .btn--ghost:hover { background: #e2e8f0; }
+  .table-wrap { overflow-x: auto; padding: 20px; }
+  table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: 11px; }
+  th, td { border: 1px solid #94a3b8; padding: 6px 8px; vertical-align: middle; }
+  thead th {
+    background: #0f2744;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 8px 6px;
+  }
+  thead th.th-break { background: #92400e; }
+  .day-cell { background: #f1f5f9; text-align: center; font-size: 12px; font-weight: 800; }
+  .class-cell { background: #f8fafc; font-weight: 700; white-space: nowrap; }
+  .break-cell {
+    background: #fef3c7;
+    text-align: center;
+    vertical-align: middle;
+    padding: 2px;
+    min-height: 80px;
+  }
+  .vertical-text {
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    font-size: 9px;
+    font-weight: 800;
+    color: #78350f;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    margin: 0 auto;
+  }
+  .slot-cell { vertical-align: top; background: #ffffff; }
+  .slot-cell--merged { background: #f0fdf4; border-left: 2px solid #0f172a; }
+  .subj-name { font-weight: 700; font-size: 12px; color: #0f172a; display: block; }
+  .meta-line { font-size: 10px; color: #475569; margin-top: 2px; }
+  .empty-cell { text-align: center; color: #94a3b8; font-style: italic; font-size: 10px; }
+  .tag-double { font-size: 8px; font-weight: 800; border: 1px solid #0284c7; color: #0284c7; padding: 0 4px; border-radius: 3px; text-transform: uppercase; }
+  .footer {
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-top: 1px solid #cbd5e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #64748b;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  @media print {
+    body { padding: 0; background: #ffffff; }
+    .container { border: none; box-shadow: none; max-width: 100%; }
+    .actions-bar { display: none; }
+    .header { background: #0f2744 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    th, td { border: 1px solid #0f172a !important; }
+    thead th { background: #0f2744 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    thead th.th-break { background: #92400e !important; }
+    .break-cell { background: #fef3c7 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <div class="school-title">${schoolName}</div>
+      ${motto ? `<div class="school-motto">"${motto}"</div>` : ''}
+      <div style="font-size:12px; margin-top:6px; opacity:0.9;"><b>${title}</b>${subTitle ? ` · ${subTitle}` : ''}</div>
+    </div>
+    <div class="doc-badge">
+      <div><b>${currentTerm}</b></div>
+      <div>Academic Year ${currentYear}</div>
+      <div style="font-size:10px; opacity:0.8; margin-top:2px;">Official Timetable</div>
+    </div>
+  </div>
+
+  <div class="actions-bar">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#16a34a;"></span>
+      <span style="font-weight:600; font-size:11.5px; color:#166534;">Saved Offline File · Works Without Internet</span>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      ${theadHtml}
+      ${tbodyHtml}
+    </table>
+  </div>
+
+  <div class="footer">
+    <div>${schoolName} · Verified CBC JSS Timetable</div>
+    <div>Generated from Official School Record · Offline Ready</div>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+/**
+ * Triggers a browser file download of the standalone single-file HTML timetable.
+ */
+export function downloadStandaloneTimetableHtml(data) {
+  const html = generateStandaloneHtml(data);
+  const schoolSlug = ((data.schoolInfo && data.schoolInfo.name) || "School").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const titleSlug = (data.title || "Timetable").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const filename = `${schoolSlug}_${titleSlug}_Offline.html`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 150);
 }

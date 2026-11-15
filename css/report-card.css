@@ -372,6 +372,12 @@
 
 /* --- Print: show only the report card, receipt, or timetable, one clean page --- */
 @media print {
+  html, body {
+    color-scheme: light !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111827 !important;
+  }
   body * { visibility: hidden; }
   .report-card, .report-card *, .receipt, .receipt *, .timetable-print-sheet, .timetable-print-sheet * { visibility: visible; }
   .report-card, .receipt { position: absolute; inset: 0; margin: 0 auto; max-width: 420px; box-shadow: none; border: none; }

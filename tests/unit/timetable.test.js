@@ -4,6 +4,8 @@ import {
   buildCollisionFreeSchedule,
   DAYS,
   DEFAULT_PERIODS,
+  generateSecureShareToken,
+  generateStandaloneHtml,
 } from "../../js/services/timetable.service.js";
 
 describe("Timetable Conflict Detection & Scheduling Engine", () => {
@@ -463,6 +465,103 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(games.startTime).toBe("14:30");
       expect(games.endTime).toBe("15:30");
       expect(games.isBreak).toBe(true);
+    });
+  });
+
+  describe("Public Timetable Sharing & Standalone HTML Generator", () => {
+    it("generateSecureShareToken() generates high-entropy unguessable tokens with 0 collisions", () => {
+      const tokens = new Set();
+      for (let i = 0; i < 100; i++) {
+        const token = generateSecureShareToken();
+        expect(typeof token).toBe("string");
+        expect(token.length).toBeGreaterThanOrEqual(16);
+        tokens.add(token);
+      }
+      expect(tokens.size).toBe(100);
+    });
+
+    it("generateStandaloneHtml() creates a standalone, self-contained HTML document with complete timetable structure", () => {
+      const sampleData = {
+        type: "master",
+        title: "Master Timetable 2026",
+        subTitle: "All Classes",
+        schoolInfo: {
+          name: "Kilimani Junior Secondary School",
+          motto: "Elimu Ni Nguvu",
+          academicYear: 2026,
+          term: "Term 1",
+        },
+        periods: DEFAULT_PERIODS.map((p, idx) => ({ ...p, id: `p${idx + 1}` })),
+        slots: [
+          {
+            grade: "Grade 7",
+            stream: "A",
+            day: "Monday",
+            periodId: "p1",
+            subjectCode: "MAT",
+            subjectName: "Mathematics",
+            teacherName: "Mr. Mwangi",
+            room: "Room 101",
+          },
+          {
+            grade: "Grade 7",
+            stream: "A",
+            day: "Monday",
+            periodId: "p2",
+            subjectCode: "ENG",
+            subjectName: "English",
+            teacherName: "Mrs. Otieno",
+            room: "Room 101",
+          },
+        ],
+      };
+
+      const html = generateStandaloneHtml(sampleData);
+
+      expect(typeof html).toBe("string");
+      expect(html).toContain("<!DOCTYPE html>");
+      expect(html).toContain("Kilimani Junior Secondary School");
+      expect(html).toContain("Elimu Ni Nguvu");
+      expect(html).toContain("Master Timetable 2026");
+      expect(html).toContain("Term 1");
+      expect(html).toContain("Mathematics");
+      expect(html).toContain("Mr. Mwangi");
+      expect(html).toContain("Short Break");
+      expect(html).toContain("Lunch");
+      expect(html).toContain("Games & Clubs");
+      expect(html).toContain("window.print()");
+      expect(html).toContain("@media print");
+    });
+
+    it("generateStandaloneHtml() renders teacher schedule with FREE / PREP markers for unscheduled periods", () => {
+      const teacherData = {
+        type: "teacher",
+        title: "Teacher Schedule: Mr. Mwangi",
+        schoolInfo: {
+          name: "Kilimani Junior Secondary School",
+        },
+        periods: [
+          { id: "p1", name: "Period 1", startTime: "08:00", endTime: "08:45", isBreak: false },
+          { id: "b1", name: "Short Break", startTime: "08:45", endTime: "09:05", isBreak: true },
+          { id: "p2", name: "Period 2", startTime: "09:05", endTime: "09:50", isBreak: false },
+        ],
+        slots: [
+          {
+            grade: "Grade 7",
+            stream: "A",
+            day: "Monday",
+            periodId: "p1",
+            subjectCode: "MAT",
+            subjectName: "Mathematics",
+            teacherName: "Mr. Mwangi",
+          },
+        ],
+      };
+
+      const html = generateStandaloneHtml(teacherData);
+      expect(html).toContain("Teacher Schedule: Mr. Mwangi");
+      expect(html).toContain("Grade 7 A");
+      expect(html).toContain("FREE / PREP");
     });
   });
 });
