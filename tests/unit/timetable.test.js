@@ -562,6 +562,7 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(html).toContain("Teacher Schedule: Mr. Mwangi");
       expect(html).toContain("Grade 7 A");
       expect(html).toContain("FREE / PREP");
+      expect(html).not.toContain('<th style="width:110px;">CLASS</th>');
     });
   });
 });

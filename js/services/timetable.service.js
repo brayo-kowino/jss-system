@@ -1097,19 +1097,23 @@ export function generateStandaloneHtml(data) {
     slotMap.set(key, s);
   }
 
-  // Derive unique cohorts
+  const isMaster = data.type === "master";
+
+  // Derive unique cohorts (only for master institutional wall chart)
   const cohortKeys = new Set();
   const cohorts = [];
-  for (const s of slots) {
-    const key = `${s.grade || ""}|${s.stream || ""}`;
-    if (!cohortKeys.has(key)) {
-      cohortKeys.add(key);
-      const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
-      cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
+  if (isMaster) {
+    for (const s of slots) {
+      const key = `${s.grade || ""}|${s.stream || ""}`;
+      if (!cohortKeys.has(key)) {
+        cohortKeys.add(key);
+        const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
+        cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
+      }
     }
-  }
-  if (!cohorts.length) {
-    cohorts.push({ grade: "", stream: "", label: "Schedule" });
+    if (!cohorts.length) {
+      cohorts.push({ grade: "", stream: "", label: "All Classes" });
+    }
   }
 
   const days = DAYS;
@@ -1119,7 +1123,7 @@ export function generateStandaloneHtml(data) {
     <thead>
       <tr>
         <th style="width:55px;">DAY</th>
-        ${cohorts.length > 1 ? '<th style="width:110px;">CLASS</th>' : ''}
+        ${isMaster && cohorts.length > 1 ? '<th style="width:110px;">CLASS</th>' : ''}
         ${periods.map((p) => {
           if (p.isBreak) {
             return `<th class="th-break" style="width:36px;">${p.name}<br/><span style="font-size:7pt; font-family:monospace; font-weight:normal;">${p.startTime}–${p.endTime}</span></th>`;
@@ -1131,29 +1135,99 @@ export function generateStandaloneHtml(data) {
   `;
 
   let tbodyHtml = "<tbody>";
-  for (const day of days) {
-    for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
-      const c = cohorts[cIdx];
-      const isFirst = cIdx === 0;
-      const isLast = cIdx === cohorts.length - 1;
+  if (isMaster && cohorts.length > 1) {
+    for (const day of days) {
+      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+        const c = cohorts[cIdx];
+        const isFirst = cIdx === 0;
+        const isLast = cIdx === cohorts.length - 1;
 
-      tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
+        tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
 
-      if (isFirst) {
-        tbodyHtml += `
-          <td rowspan="${cohorts.length}" class="day-cell">
-            <b>${day.substring(0, 4).toUpperCase()}</b>
-          </td>
-        `;
-      }
+        if (isFirst) {
+          tbodyHtml += `
+            <td rowspan="${cohorts.length}" class="day-cell">
+              <b>${day.substring(0, 4).toUpperCase()}</b>
+            </td>
+          `;
+        }
 
-      if (cohorts.length > 1) {
         tbodyHtml += `
           <td class="class-cell">
             <b>${c.label}</b>
           </td>
         `;
+
+        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+          const p = periods[pIdx];
+
+          if (p.isBreak) {
+            if (isFirst) {
+              tbodyHtml += `
+                <td rowspan="${cohorts.length}" class="break-cell">
+                  <div class="vertical-text">${p.name} (${p.startTime}–${p.endTime})</div>
+                </td>
+              `;
+            }
+            continue;
+          }
+
+          const slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
+
+          let isMerged = false;
+          if (slot && pIdx + 1 < periods.length) {
+            const nextP = periods[pIdx + 1];
+            if (!nextP.isBreak) {
+              const nextSlot = slotMap.get(`${c.grade}_${c.stream}_${day}_${nextP.id}`);
+              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+                isMerged = true;
+              }
+            }
+          }
+
+          if (isMerged) {
+            tbodyHtml += `
+              <td colspan="2" class="slot-cell slot-cell--merged">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="subj-name">${slot.subjectName || slot.subjectCode}</span>
+                  <span class="tag-double">Double</span>
+                </div>
+                <div class="meta-line">${slot.teacherName || "—"} · ${slot.room || "Room"}</div>
+              </td>
+            `;
+            pIdx++;
+            continue;
+          }
+
+          if (slot) {
+            tbodyHtml += `
+              <td class="slot-cell">
+                <div class="subj-name">${slot.subjectName || slot.subjectCode}</div>
+                <div class="meta-line">${slot.teacherName || "—"} · ${slot.room || "Room"}</div>
+              </td>
+            `;
+          } else {
+            tbodyHtml += `<td class="slot-cell empty-cell">—</td>`;
+          }
+        }
+
+        tbodyHtml += "</tr>";
       }
+    }
+  } else {
+    // Individual Schedule (Teacher or Single Class): 1 clean row per Day!
+    for (let dIdx = 0; dIdx < days.length; dIdx++) {
+      const day = days[dIdx];
+      const isFirst = dIdx === 0;
+      const isLast = dIdx === days.length - 1;
+
+      tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
+
+      tbodyHtml += `
+        <td class="day-cell">
+          <b>${day.substring(0, 4).toUpperCase()}</b>
+        </td>
+      `;
 
       for (let pIdx = 0; pIdx < periods.length; pIdx++) {
         const p = periods[pIdx];
@@ -1161,7 +1235,7 @@ export function generateStandaloneHtml(data) {
         if (p.isBreak) {
           if (isFirst) {
             tbodyHtml += `
-              <td rowspan="${cohorts.length}" class="break-cell">
+              <td rowspan="${days.length}" class="break-cell">
                 <div class="vertical-text">${p.name} (${p.startTime}–${p.endTime})</div>
               </td>
             `;
@@ -1169,41 +1243,38 @@ export function generateStandaloneHtml(data) {
           continue;
         }
 
-        // Find slot
-        let slot = null;
-        if (data.type === "teacher") {
-          slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
-        } else {
-          slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
-        }
+        const slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
 
-        // Check for double lesson
         let isMerged = false;
         if (slot && pIdx + 1 < periods.length) {
           const nextP = periods[pIdx + 1];
           if (!nextP.isBreak) {
-            let nextSlot = null;
-            if (data.type === "teacher") {
-              nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
-            } else {
-              nextSlot = slotMap.get(`${c.grade}_${c.stream}_${day}_${nextP.id}`);
-            }
-            if (nextSlot && nextSlot.subjectCode === slot.subjectCode && (nextSlot.teacherId === slot.teacherId || data.type === "teacher")) {
-              isMerged = true;
+            const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
+            if (nextSlot && nextSlot.subjectCode === slot.subjectCode) {
+              if (data.type === "teacher") {
+                if (nextSlot.grade === slot.grade && (nextSlot.stream || "") === (slot.stream || "")) {
+                  isMerged = true;
+                }
+              } else {
+                if (nextSlot.teacherId === slot.teacherId) {
+                  isMerged = true;
+                }
+              }
             }
           }
         }
 
         if (isMerged) {
-          const subj = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
-          const meta = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          const topLabel = data.type === "teacher" ? `${slot.grade} ${slot.stream || ""}`.trim() : (slot.subjectName || slot.subjectCode);
+          const subLabel = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+
           tbodyHtml += `
             <td colspan="2" class="slot-cell slot-cell--merged">
               <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="subj-name">${subj}</span>
+                <span class="subj-name">${topLabel}</span>
                 <span class="tag-double">Double</span>
               </div>
-              <div class="meta-line">${meta} · ${slot.room || "Room"}</div>
+              <div class="meta-line">${subLabel} · ${slot.room || "Room"}</div>
             </td>
           `;
           pIdx++;
@@ -1211,12 +1282,13 @@ export function generateStandaloneHtml(data) {
         }
 
         if (slot) {
-          const subj = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
-          const meta = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          const topLabel = data.type === "teacher" ? `${slot.grade} ${slot.stream || ""}`.trim() : (slot.subjectName || slot.subjectCode);
+          const subLabel = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+
           tbodyHtml += `
             <td class="slot-cell">
-              <div class="subj-name">${subj}</div>
-              <div class="meta-line">${meta} · ${slot.room || "Room"}</div>
+              <div class="subj-name">${topLabel}</div>
+              <div class="meta-line">${subLabel} · ${slot.room || "Room"}</div>
             </td>
           `;
         } else {

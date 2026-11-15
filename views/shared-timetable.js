@@ -211,19 +211,23 @@ function renderTimetableContent(container, data) {
     slotMap.set(key, s);
   }
 
-  // Derive unique cohorts
+  const isMaster = data.type === "master";
+
+  // Derive unique cohorts (only needed for institutional master timetable)
   const cohortKeys = new Set();
   const cohorts = [];
-  for (const s of slots) {
-    const key = `${s.grade || ""}|${s.stream || ""}`;
-    if (!cohortKeys.has(key)) {
-      cohortKeys.add(key);
-      const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
-      cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
+  if (isMaster) {
+    for (const s of slots) {
+      const key = `${s.grade || ""}|${s.stream || ""}`;
+      if (!cohortKeys.has(key)) {
+        cohortKeys.add(key);
+        const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
+        cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
+      }
     }
-  }
-  if (!cohorts.length) {
-    cohorts.push({ grade: "", stream: "", label: "Schedule" });
+    if (!cohorts.length) {
+      cohorts.push({ grade: "", stream: "", label: "All Classes" });
+    }
   }
 
   // Table Thead
@@ -232,7 +236,7 @@ function renderTimetableContent(container, data) {
   headRow.append(
     el("th", { class: "tt-wall-th-day", style: "width:60px;" }, "DAY")
   );
-  if (cohorts.length > 1) {
+  if (isMaster && cohorts.length > 1) {
     headRow.append(el("th", { class: "tt-wall-th-class", style: "width:110px;" }, "CLASS"));
   }
 
@@ -259,31 +263,116 @@ function renderTimetableContent(container, data) {
   // Table Tbody
   const tbody = el("tbody", {});
 
-  for (const day of DAYS) {
-    for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
-      const cohort = cohorts[cIdx];
-      const isFirst = cIdx === 0;
-      const isLast = cIdx === cohorts.length - 1;
+  if (isMaster && cohorts.length > 1) {
+    // Multi-cohort Master Matrix: Grouped by day with a row per class cohort
+    for (const day of DAYS) {
+      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
+        const cohort = cohorts[cIdx];
+        const isFirst = cIdx === 0;
+        const isLast = cIdx === cohorts.length - 1;
 
-      const row = el("tr", { class: `tt-wall-row ${isLast ? "tt-wall-row--last-in-day" : ""}` });
+        const row = el("tr", { class: `tt-wall-row ${isLast ? "tt-wall-row--last-in-day" : ""}` });
 
-      if (isFirst) {
-        row.append(
-          el("td", { rowspan: String(cohorts.length), class: "tt-wall-day-cell", style: "width:60px;" }, [
-            el("div", { class: "tt-wall-day-label" }, [
-              el("span", {}, day.substring(0, 4).toUpperCase()),
-            ]),
-          ])
-        );
-      }
+        if (isFirst) {
+          row.append(
+            el("td", { rowspan: String(cohorts.length), class: "tt-wall-day-cell", style: "width:60px;" }, [
+              el("div", { class: "tt-wall-day-label" }, [
+                el("span", {}, day.substring(0, 4).toUpperCase()),
+              ]),
+            ])
+          );
+        }
 
-      if (cohorts.length > 1) {
         row.append(
           el("td", { class: "tt-wall-class-cell", style: "width:110px;" }, [
             el("span", { class: "tt-wall-class-name" }, cohort.label),
           ])
         );
+
+        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
+          const p = periods[pIdx];
+
+          if (p.isBreak) {
+            if (isFirst) {
+              row.append(
+                el("td", { rowspan: String(cohorts.length), class: "tt-wall-break-cell" }, [
+                  el("div", { class: "tt-wall-break-text" }, [
+                    icon("coffee", "text-xs"),
+                    `${p.name} (${p.startTime}–${p.endTime})`,
+                  ]),
+                ])
+              );
+            }
+            continue;
+          }
+
+          const slot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${p.id}`) || null;
+
+          // Double lesson check
+          let isMerged = false;
+          if (slot && pIdx + 1 < periods.length) {
+            const nextP = periods[pIdx + 1];
+            if (!nextP.isBreak) {
+              const nextSlot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${nextP.id}`);
+              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
+                isMerged = true;
+              }
+            }
+          }
+
+          if (isMerged) {
+            const td = el("td", { colspan: "2", class: "tt-wall-slot-cell tt-wall-slot-cell--merged" }, [
+              el("div", { class: "tt-wall-subj-line" }, [
+                el("span", { class: "tt-wall-subj" }, slot.subjectName || slot.subjectCode),
+                el("span", { class: "tt-wall-tag-double" }, "Double"),
+              ]),
+              el("div", { class: "tt-wall-teacher" }, slot.teacherName || "—"),
+              el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+            ]);
+            row.append(td);
+            pIdx++;
+            continue;
+          }
+
+          if (slot) {
+            const td = el("td", { class: "tt-wall-slot-cell" }, [
+              el("div", { class: "tt-wall-subj-line" }, [
+                el("span", { class: "tt-wall-subj" }, slot.subjectName || slot.subjectCode),
+              ]),
+              el("div", { class: "tt-wall-teacher" }, slot.teacherName || "—"),
+              el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
+            ]);
+            row.append(td);
+          } else {
+            const td = el("td", { class: "tt-wall-slot-cell" }, [
+              el("div", {
+                style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:var(--color-cream-dim); border-radius:4px; border:1px solid var(--color-line); color:var(--color-ink-soft); font-size:10px; font-weight:600; font-style:italic;",
+              }, "—"),
+            ]);
+            row.append(td);
+          }
+        }
+
+        tbody.append(row);
       }
+    }
+  } else {
+    // Individual Schedule (Teacher or Single Class): Exactly 1 clean row per Day!
+    for (let dIdx = 0; dIdx < DAYS.length; dIdx++) {
+      const day = DAYS[dIdx];
+      const isFirst = dIdx === 0;
+      const isLast = dIdx === DAYS.length - 1;
+
+      const row = el("tr", { class: `tt-wall-row ${isLast ? "tt-wall-row--last-in-day" : ""}` });
+
+      // Day column (1 row per day)
+      row.append(
+        el("td", { class: "tt-wall-day-cell", style: "width:60px;" }, [
+          el("div", { class: "tt-wall-day-label" }, [
+            el("span", {}, day.substring(0, 4).toUpperCase()),
+          ]),
+        ])
+      );
 
       for (let pIdx = 0; pIdx < periods.length; pIdx++) {
         const p = periods[pIdx];
@@ -291,7 +380,7 @@ function renderTimetableContent(container, data) {
         if (p.isBreak) {
           if (isFirst) {
             row.append(
-              el("td", { rowspan: String(cohorts.length), class: "tt-wall-break-cell" }, [
+              el("td", { rowspan: String(DAYS.length), class: "tt-wall-break-cell" }, [
                 el("div", { class: "tt-wall-break-text" }, [
                   icon("coffee", "text-xs"),
                   `${p.name} (${p.startTime}–${p.endTime})`,
@@ -302,41 +391,43 @@ function renderTimetableContent(container, data) {
           continue;
         }
 
-        // Find slot
-        let slot = null;
-        if (data.type === "teacher") {
-          slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
-        } else {
-          slot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${p.id}`);
-        }
+        // Find the slot for this teacher/class on this day and period
+        const slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
 
         // Check for double lesson
         let isMerged = false;
         if (slot && pIdx + 1 < periods.length) {
           const nextP = periods[pIdx + 1];
           if (!nextP.isBreak) {
-            let nextSlot = null;
-            if (data.type === "teacher") {
-              nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
-            } else {
-              nextSlot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${nextP.id}`);
-            }
-            if (nextSlot && nextSlot.subjectCode === slot.subjectCode && (nextSlot.teacherId === slot.teacherId || data.type === "teacher")) {
-              isMerged = true;
+            const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
+            if (nextSlot && nextSlot.subjectCode === slot.subjectCode) {
+              if (data.type === "teacher") {
+                if (nextSlot.grade === slot.grade && (nextSlot.stream || "") === (slot.stream || "")) {
+                  isMerged = true;
+                }
+              } else {
+                if (nextSlot.teacherId === slot.teacherId) {
+                  isMerged = true;
+                }
+              }
             }
           }
         }
 
         if (isMerged) {
-          const titleText = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
-          const subText = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          const topLabel = data.type === "teacher"
+            ? `${slot.grade} ${slot.stream || ""}`.trim()
+            : (slot.subjectName || slot.subjectCode);
+          const subLabel = data.type === "teacher"
+            ? (slot.subjectName || slot.subjectCode)
+            : (slot.teacherName || "—");
 
           const td = el("td", { colspan: "2", class: "tt-wall-slot-cell tt-wall-slot-cell--merged" }, [
             el("div", { class: "tt-wall-subj-line" }, [
-              el("span", { class: "tt-wall-subj" }, titleText),
+              el("span", { class: "tt-wall-subj", style: data.type === "teacher" ? "font-weight:800; color:var(--color-primary-900);" : "" }, topLabel),
               el("span", { class: "tt-wall-tag-double" }, "Double"),
             ]),
-            el("div", { class: "tt-wall-teacher" }, subText),
+            el("div", { class: "tt-wall-teacher", style: data.type === "teacher" ? "font-weight:600; color:var(--color-ink);" : "" }, subLabel),
             el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
           ]);
           row.append(td);
@@ -345,14 +436,18 @@ function renderTimetableContent(container, data) {
         }
 
         if (slot) {
-          const titleText = data.type === "teacher" ? `${slot.grade} ${slot.stream}` : (slot.subjectName || slot.subjectCode);
-          const subText = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
+          const topLabel = data.type === "teacher"
+            ? `${slot.grade} ${slot.stream || ""}`.trim()
+            : (slot.subjectName || slot.subjectCode);
+          const subLabel = data.type === "teacher"
+            ? (slot.subjectName || slot.subjectCode)
+            : (slot.teacherName || "—");
 
           const td = el("td", { class: "tt-wall-slot-cell" }, [
             el("div", { class: "tt-wall-subj-line" }, [
-              el("span", { class: "tt-wall-subj" }, titleText),
+              el("span", { class: "tt-wall-subj", style: data.type === "teacher" ? "font-weight:800; color:var(--color-primary-900);" : "" }, topLabel),
             ]),
-            el("div", { class: "tt-wall-teacher" }, subText),
+            el("div", { class: "tt-wall-teacher", style: data.type === "teacher" ? "font-weight:600; color:var(--color-ink);" : "" }, subLabel),
             el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
           ]);
           row.append(td);
