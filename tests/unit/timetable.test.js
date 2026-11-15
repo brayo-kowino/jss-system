@@ -8,6 +8,7 @@ import {
   generateStandaloneHtml,
   isDoubleEligibleSubject,
   isDoubleAllowed,
+  isBreakPeriod,
   MAX_TEACHER_WEEKLY_LESSONS,
   MAX_TEACHER_DAILY_LESSONS,
 } from "../../js/services/timetable.service.js";
@@ -469,6 +470,31 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(games.startTime).toBe("14:30");
       expect(games.endTime).toBe("15:30");
       expect(games.isBreak).toBe(true);
+    });
+
+    it("isBreakPeriod() automatically identifies lunch, breaks, and non-instructional slots even if isBreak flag was omitted", () => {
+      // Unflagged lunch (as seen in Sirandumb where user forgot to check the box)
+      expect(isBreakPeriod({ name: "LUNCH", isBreak: false })).toBe(true);
+      expect(isBreakPeriod({ name: "Lunch", isBreak: false })).toBe(true);
+      expect(isBreakPeriod({ name: "Lunch Break", isBreak: false })).toBe(true);
+
+      // Other variations of breaks
+      expect(isBreakPeriod({ name: "SHORT BREAK", isBreak: false })).toBe(true);
+      expect(isBreakPeriod({ name: "SECOND BREAK", isBreak: false })).toBe(true);
+      expect(isBreakPeriod({ name: "Tea Break" })).toBe(true);
+      expect(isBreakPeriod({ name: "Recess" })).toBe(true);
+      expect(isBreakPeriod({ name: "Games & Clubs" })).toBe(true);
+      expect(isBreakPeriod({ name: "Morning Devotion" })).toBe(true);
+      expect(isBreakPeriod({ name: "School Assembly" })).toBe(true);
+
+      // Explicitly flagged
+      expect(isBreakPeriod({ name: "Custom Time", isBreak: true })).toBe(true);
+
+      // Normal teaching periods must remain false
+      expect(isBreakPeriod({ name: "Period 1", isBreak: false })).toBe(false);
+      expect(isBreakPeriod({ name: "Period 6", isBreak: false })).toBe(false);
+      expect(isBreakPeriod({ name: "Mathematics", isBreak: false })).toBe(false);
+      expect(isBreakPeriod({ name: "Lesson 3" })).toBe(false);
     });
   });
 

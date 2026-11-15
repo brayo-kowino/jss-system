@@ -55,6 +55,18 @@ export function isDoubleAllowed(slot) {
 export const MAX_TEACHER_WEEKLY_LESSONS = 28; // Kenya TSC maximum weekly workload
 export const MAX_TEACHER_DAILY_LESSONS = 6;    // Guarantees at least 2 free/prep periods per day
 
+/**
+ * Resolves whether a period is a break/lunch/recess period.
+ * Protects against periods named "Lunch", "Break", "Tea", etc. where an admin
+ * forgot to check the isBreak checkbox in Period Configuration.
+ */
+export function isBreakPeriod(period) {
+  if (!period) return false;
+  if (period.isBreak === true || period.isBreak === "true") return true;
+  const name = (period.name || "").toLowerCase().trim();
+  return /break|lunch|recess|tea\b|interval|games\b|clubs\b|assembly|devotion/i.test(name);
+}
+
 export const DEFAULT_PERIODS = [
   { name: "Period 1", startTime: "08:00", endTime: "08:40", isBreak: false },
   { name: "Period 2", startTime: "08:40", endTime: "09:20", isBreak: false },
@@ -82,7 +94,14 @@ export async function listPeriods(forceRefresh = false) {
   if (forceRefresh) invalidate(periodsCacheKey());
   return cached(periodsCacheKey(), 60 * 60_000, async () => {
     const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", getCurrentSchoolId())));
-    const all = snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
+    const all = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        isBreak: isBreakPeriod(data),
+      };
+    }).sort((a, b) => (a.startTime < b.startTime ? -1 : 1));
     
     // Deduplicate periods that have identical name, start and end times
     const seen = new Set();
@@ -152,12 +171,13 @@ export async function seedDefaultPeriodsIfEmpty() {
 export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
   if (!name?.trim()) throw new Error("Period name is required.");
   if (!startTime || !endTime) throw new Error("Start and end time are required.");
+  const resolvedBreak = isBreakPeriod({ name, isBreak });
   const ref_ = await addDoc(collection(db, "periods"), {
     schoolId: getCurrentSchoolId(),
     name: name.trim(),
     startTime,
     endTime,
-    isBreak: !!isBreak,
+    isBreak: resolvedBreak,
     createdAt: serverTimestamp(),
   });
   invalidate(periodsCacheKey());
@@ -166,11 +186,12 @@ export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
 }
 
 export async function updatePeriod(userId, id, { name, startTime, endTime, isBreak }) {
+  const resolvedBreak = isBreakPeriod({ name, isBreak });
   await updateDoc(doc(db, "periods", id), {
     name: name.trim(),
     startTime,
     endTime,
-    isBreak: !!isBreak,
+    isBreak: resolvedBreak,
     updatedAt: serverTimestamp(),
   });
   invalidate(periodsCacheKey());
@@ -876,7 +897,7 @@ export function buildCollisionFreeSchedule({
  */
 export async function generateCollisionFreeTimetable(userId, { classes, subjects, teachers, periods, days = DAYS }) {
   const schoolId = getCurrentSchoolId();
-  const instructionalPeriods = periods.filter((p) => !p.isBreak);
+  const instructionalPeriods = periods.filter((p) => !isBreakPeriod(p));
 
   const cohorts = [];
   for (const c of classes) {

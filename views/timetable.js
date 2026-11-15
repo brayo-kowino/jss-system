@@ -24,6 +24,7 @@ import {
   downloadStandaloneTimetableHtml,
   isDoubleAllowed,
   isDoubleEligibleSubject,
+  isBreakPeriod,
 } from "../js/services/timetable.service.js";
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
@@ -3423,7 +3424,14 @@ function openPeriodModal(profile, existing, container) {
   const nameInput = el("input", { type: "text", value: existing?.name || "", placeholder: "e.g. Period 1, Lunch Break" });
   const startInput = el("input", { type: "time", value: existing?.startTime || "" });
   const endInput = el("input", { type: "time", value: existing?.endTime || "" });
-  const breakCheck = el("input", { type: "checkbox", ...(existing?.isBreak ? { checked: "true" } : {}) });
+  const initialIsBreak = existing ? isBreakPeriod(existing) : false;
+  const breakCheck = el("input", { type: "checkbox", ...(initialIsBreak ? { checked: "true" } : {}) });
+
+  nameInput.addEventListener("input", () => {
+    if (isBreakPeriod({ name: nameInput.value })) {
+      breakCheck.checked = true;
+    }
+  });
 
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Period Name"), nameInput]),
@@ -3440,7 +3448,12 @@ function openPeriodModal(profile, existing, container) {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
     try {
-      const payload = { name: nameInput.value, startTime: startInput.value, endTime: endInput.value, isBreak: breakCheck.checked };
+      const payload = {
+        name: nameInput.value,
+        startTime: startInput.value,
+        endTime: endInput.value,
+        isBreak: breakCheck.checked || isBreakPeriod({ name: nameInput.value }),
+      };
       if (isEdit) await updatePeriod(profile.uid, existing.id, payload);
       else await addPeriod(profile.uid, payload);
       periods = await listPeriods();
