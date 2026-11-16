@@ -10,6 +10,8 @@ import {
   savePlatformEmailSettings,
   getPlatformTrialConfig,
   savePlatformTrialConfig,
+  fetchMaintenanceStatus,
+  setEmergencyKillswitch,
 } from "../js/services/platform-settings.service.js";
 import {
   listTrustedDevices,
@@ -37,6 +39,7 @@ let emailSettings = null;
 let trialConfig = null;
 let trustedDevices = [];
 let has2FA = false;
+let maintenanceState = null;
 
 function getActiveTabFromUrl() {
   const hash = location.hash || "";
@@ -58,12 +61,13 @@ export async function render({ profile }) {
     ]);
   }
 
-  [securitySettings, emailSettings, trialConfig, trustedDevices, has2FA] = await Promise.all([
+  [securitySettings, emailSettings, trialConfig, trustedDevices, has2FA, maintenanceState] = await Promise.all([
     getPlatformSecuritySettings(),
     getPlatformEmailSettings(),
     getPlatformTrialConfig(),
     listTrustedDevices(profile.uid).catch(() => []),
     is2FAEnabled(profile.uid).catch(() => false),
+    fetchMaintenanceStatus().catch(() => ({ active: false })),
   ]);
 
   const wrap = el("div", { class: "platform-settings-wrap" });
@@ -124,6 +128,55 @@ function switchTab(tabId, tabsNav, panels) {
 
 function buildSecurityTab(profile) {
   const container = el("div", { style: "display:flex; flex-direction:column; gap:var(--sp-4);" });
+
+  // 0. Emergency Platform Killswitch (Inbound Cutoff)
+  const isKillswitchActive = maintenanceState?.active === true;
+  const killswitchCard = el("div", {
+    class: "card",
+    style: isKillswitchActive
+      ? "padding:20px; border:2px solid #dc2626; background: rgba(220, 38, 38, 0.03);"
+      : "padding:20px;",
+  }, [
+    el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;" }, [
+      el("div", {}, [
+        el("h3", { style: "margin:0; font-size:16px; display:flex; align-items:center; gap:8px;" }, [
+          icon(isKillswitchActive ? "error" : "shield", isKillswitchActive ? "text-danger" : "text-primary"),
+          "Emergency Platform Killswitch",
+        ]),
+        el("p", { class: "text-muted text-xs", style: "margin:4px 0 0;" },
+          "Instantly sever client Firestore connections, pause pending auto-saves, and lock client browser tabs across all schools."
+        ),
+      ]),
+      el("span", {
+        class: `badge badge--${isKillswitchActive ? "danger" : "success"}`,
+      }, isKillswitchActive ? "🚨 KILLSWITCH ACTIVE (Inbound Cut Off)" : "🟢 Inbound Connections Live"),
+    ]),
+
+    isKillswitchActive
+      ? el("div", { style: "background:rgba(220, 38, 38, 0.08); border:1px solid rgba(220, 38, 38, 0.2); border-radius:8px; padding:12px; margin-bottom:14px;" }, [
+          el("div", { style: "font-weight:600; color:#b91c1c; font-size:13px; margin-bottom:4px;" }, "Active Lockdown Notice:"),
+          el("div", { class: "text-sm", style: "color:#7f1d1d; margin-bottom:4px;" }, maintenanceState.reason || "Emergency maintenance in progress."),
+          maintenanceState.estimatedDuration
+            ? el("div", { class: "text-xs text-muted" }, `Estimated Window: ${maintenanceState.estimatedDuration}`)
+            : "",
+        ])
+      : "",
+
+    el("div", { style: "display:flex; gap:10px; align-items:center; flex-wrap:wrap;" }, [
+      isKillswitchActive
+        ? el("button", {
+            type: "button",
+            class: "btn btn--success btn--sm",
+            onClick: () => openRestorePlatformModal(profile),
+          }, [icon("restart_alt", "text-xs"), "Deactivate Killswitch & Restore Platform"])
+        : el("button", {
+            type: "button",
+            class: "btn btn--danger btn--sm",
+            onClick: () => openActivateKillswitchModal(profile),
+          }, [icon("power_settings_new", "text-xs"), "Engage Emergency Killswitch"]),
+    ]),
+  ]);
+  container.append(killswitchCard);
 
   // 1. Device Approval Policy
   const isApprovalReq = securitySettings.requireDeviceApproval === true;
@@ -268,6 +321,127 @@ function buildSecurityTab(profile) {
   container.append(devicesCard);
 
   return container;
+}
+
+// -------------------------------------------------------------------------
+// Emergency Killswitch Modals
+// -------------------------------------------------------------------------
+
+function openActivateKillswitchModal(profile) {
+  const reasonInput = el("textarea", {
+    id: "killswitch-reason",
+    rows: "3",
+    class: "input",
+    style: "width:100%; resize:vertical; font-size:13px; font-family:inherit; padding:8px;",
+    placeholder: "e.g. Emergency platform maintenance. Inbound connections paused.",
+  });
+  reasonInput.value = "Emergency platform maintenance. Inbound connections and writes have been paused to protect your records.";
+
+  const durationInput = el("input", {
+    type: "text",
+    id: "killswitch-duration",
+    class: "input",
+    placeholder: "e.g. 15 minutes, 1 hour",
+    value: "15 minutes",
+    style: "width:100%; font-size:13px; font-family:inherit; padding:8px;",
+  });
+
+  const confirmInput = el("input", {
+    type: "text",
+    id: "killswitch-confirm",
+    class: "input",
+    placeholder: "Type LOCKDOWN to confirm",
+    style: "width:100%; font-weight:700; text-align:center; letter-spacing:1px; border-color:#ef4444; padding:8px;",
+  });
+
+  const form = el("form", { style: "display:flex; flex-direction:column; gap:14px;" }, [
+    el("div", { style: "background:#fee2e2; border:1px solid #f87171; border-radius:8px; padding:12px; color:#991b1b; font-size:13px; line-height:1.5;" }, [
+      el("strong", { style: "display:block; margin-bottom:4px;" }, "⚠️ Extreme Caution: Global Network Cutoff"),
+      "Activating the Emergency Killswitch will immediately sever client-side Firestore connections across all schools worldwide, discard pending auto-saves, and mount a full-screen maintenance lock on all active devices.",
+    ]),
+
+    el("div", { class: "field" }, [
+      el("label", { style: "font-weight:600; font-size:13px; display:block; margin-bottom:4px;" }, "Public Maintenance Notice (Visible to Users)"),
+      reasonInput,
+    ]),
+
+    el("div", { class: "field" }, [
+      el("label", { style: "font-weight:600; font-size:13px; display:block; margin-bottom:4px;" }, "Estimated Duration (Optional)"),
+      durationInput,
+    ]),
+
+    el("div", { class: "field" }, [
+      el("label", { style: "font-weight:600; font-size:13px; color:#b91c1c; display:block; margin-bottom:4px;" }, "Type LOCKDOWN to confirm:"),
+      confirmInput,
+    ]),
+
+    el("div", { style: "display:flex; justify-content:flex-end; gap:8px; margin-top:8px;" }, [
+      el("button", {
+        type: "submit",
+        class: "btn btn--danger btn--block",
+      }, [icon("power_settings_new", "text-xs"), "Engage Global Killswitch"]),
+    ]),
+  ]);
+
+  const close = openModal("🚨 Engage Emergency Killswitch", form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (confirmInput.value.trim().toUpperCase() !== "LOCKDOWN") {
+      return toast("Type LOCKDOWN to confirm activation.", "warning");
+    }
+
+    const restore = busyButton(e.submitter, "Severing connections…");
+    try {
+      await setEmergencyKillswitch(profile.uid, {
+        active: true,
+        reason: reasonInput.value.trim(),
+        estimatedDuration: durationInput.value.trim(),
+      });
+      toast("Emergency Killswitch engaged. Inbound connections severed.", "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Failed to activate killswitch.", "error");
+      restore();
+    }
+  });
+}
+
+function openRestorePlatformModal(profile) {
+  const form = el("form", { style: "display:flex; flex-direction:column; gap:14px;" }, [
+    el("div", { style: "background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px; padding:12px; color:#065f46; font-size:13px; line-height:1.5;" }, [
+      el("strong", { style: "display:block; margin-bottom:4px;" }, "Restore Inbound Database Connections"),
+      "Deactivating the killswitch will re-enable Firestore network connections globally, dismiss the maintenance overlay, and restore normal operations across all schools.",
+    ]),
+
+    el("div", { style: "display:flex; justify-content:flex-end; gap:8px; margin-top:8px;" }, [
+      el("button", {
+        type: "submit",
+        class: "btn btn--success btn--block",
+      }, [icon("restart_alt", "text-xs"), "Restore All Client Connections"]),
+    ]),
+  ]);
+
+  const close = openModal("Restore Platform Operations", form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const restore = busyButton(e.submitter, "Restoring…");
+    try {
+      await setEmergencyKillswitch(profile.uid, {
+        active: false,
+      });
+      toast("Platform restored. Inbound connections re-established.", "success");
+      close();
+      const { renderRoute } = await import("../js/router.js");
+      renderRoute();
+    } catch (err) {
+      toast(err.message || "Failed to restore platform.", "error");
+      restore();
+    }
+  });
 }
 
 // -------------------------------------------------------------------------

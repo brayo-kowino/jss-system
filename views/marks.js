@@ -1264,13 +1264,27 @@ function renderRoster(container, profile) {
 // -------------------------------------------------------------- Auto-save --
 
 function startAutoSaveLoop() {
+  if (typeof window !== "undefined" && window.__eeskiaEmergencyLockdown) return;
   if (autoSaveTimer) return;
   autoSaveTimer = setInterval(() => {
     flushDirtyMarks().catch(() => {});
   }, AUTO_SAVE_INTERVAL_MS);
 }
 
+if (typeof window !== "undefined") {
+  window.addEventListener("eeskia-platform-lockdown", () => {
+    if (autoSaveTimer) {
+      clearInterval(autoSaveTimer);
+      autoSaveTimer = null;
+    }
+  });
+  window.addEventListener("eeskia-platform-restored", () => {
+    startAutoSaveLoop();
+  });
+}
+
 async function flushDirtyMarks() {
+  if (typeof window !== "undefined" && window.__eeskiaEmergencyLockdown) return;
   if (!dirty.size || !currentProfile) return;
   const { classKey, subjectCode, assessmentId } = loadedSelection;
   if (!classKey || !subjectCode || !assessmentId) return;

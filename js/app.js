@@ -66,13 +66,16 @@ async function bootApp() {
     });
 
     const { onAuthChange, refreshCurrentSchool, getCurrentProfile } = await import("./services/auth.service.js");
+    const { initMaintenanceWatchdog, applyClientMaintenancePolicy, getMaintenanceState } = await import("./services/maintenance.service.js");
     const { startRouter, renderRoute, navigate } = await import("./router.js");
 
+    initMaintenanceWatchdog(getCurrentProfile);
     startRouter();
 
     let firstLoad = true;
     onAuthChange(async (profile) => {
       try {
+        await applyClientMaintenancePolicy(getMaintenanceState());
         window.__jssUpdateSplashProgress?.(85, "Authenticating session…");
         if (firstLoad) {
           firstLoad = false;

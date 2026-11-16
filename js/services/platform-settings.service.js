@@ -109,3 +109,11 @@ export async function savePlatformTrialConfig(superAdminUid, config) {
   await logAction(superAdminUid, "update_platform_trial_config", "platform_settings", "trial");
   return payload;
 }
+
+export {
+  fetchMaintenanceStatus,
+  getMaintenanceState,
+  subscribeMaintenanceStatus,
+  setEmergencyKillswitch,
+} from "./maintenance.service.js";
+

@@ -96,6 +96,7 @@ export const db = initializeFirestore(firebaseApp, {
 // offline queueing - this only changes how fast reads notice we're offline.
 if (typeof window !== "undefined") {
   const syncNetworkState = () => {
+    if (window.__eeskiaEmergencyLockdown) return;
     const op = navigator.onLine ? enableNetwork(db) : disableNetwork(db);
     op.catch(() => {}); 
   };
