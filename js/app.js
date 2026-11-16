@@ -76,7 +76,6 @@ async function bootApp() {
       try {
         if (profile) {
           initMaintenanceWatchdog(() => profile);
-          await applyClientMaintenancePolicy(getMaintenanceState());
         } else {
           stopMaintenanceWatchdog();
         }

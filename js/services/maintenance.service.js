@@ -35,6 +35,7 @@ let watchdogUnsubscribe = null;
 let currentProfileGetter = null;
 let overlayElement = null;
 let bannerElement = null;
+let isNetworkDisabledByKillswitch = false;
 
 /**
  * Returns current in-memory maintenance status.
@@ -185,20 +186,26 @@ export async function applyClientMaintenancePolicy(state) {
     // Platform is in EMERGENCY LOCKDOWN
     if (isSuperAdmin) {
       if (typeof window !== "undefined") window.__eeskiaEmergencyLockdown = false;
-      // Super admin is allowed in to diagnose and restore
-      try {
-        await enableNetwork(db);
-      } catch {}
+      // Super admin is allowed in to diagnose and restore; re-enable network if previously cut
+      if (isNetworkDisabledByKillswitch) {
+        isNetworkDisabledByKillswitch = false;
+        try {
+          await enableNetwork(db);
+        } catch {}
+      }
       removeLockdownOverlay();
       mountSuperAdminWarningBanner(state);
     } else {
       if (typeof window !== "undefined") window.__eeskiaEmergencyLockdown = true;
       // Normal staff / students / anonymous visitors: SEVER NETWORK & LOCK SCREEN
       removeSuperAdminWarningBanner();
-      try {
-        await disableNetwork(db);
-      } catch (err) {
-        console.warn("[maintenance] disableNetwork notice:", err);
+      if (!isNetworkDisabledByKillswitch) {
+        isNetworkDisabledByKillswitch = true;
+        try {
+          await disableNetwork(db);
+        } catch (err) {
+          console.warn("[maintenance] disableNetwork notice:", err);
+        }
       }
 
       // Dispatch global freeze event so forms and autosaves cancel timers
@@ -218,14 +225,18 @@ export async function applyClientMaintenancePolicy(state) {
     removeSuperAdminWarningBanner();
     removeLockdownOverlay();
 
-    try {
-      if (typeof navigator === "undefined" || navigator.onLine !== false) {
-        await enableNetwork(db);
-      }
-    } catch {}
+    // Only invoke enableNetwork if we actually disabled it via killswitch
+    if (isNetworkDisabledByKillswitch) {
+      isNetworkDisabledByKillswitch = false;
+      try {
+        if (typeof navigator === "undefined" || navigator.onLine !== false) {
+          await enableNetwork(db);
+        }
+      } catch {}
 
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent(RESTORED_EVENT));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(RESTORED_EVENT));
+      }
     }
   }
 }

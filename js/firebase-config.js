@@ -102,5 +102,4 @@ if (typeof window !== "undefined") {
   };
   window.addEventListener("actually-online", syncNetworkState);
   window.addEventListener("offline", syncNetworkState);
-  syncNetworkState();
 }
