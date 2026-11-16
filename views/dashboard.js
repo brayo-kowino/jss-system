@@ -40,6 +40,19 @@ let currentSettings = null;
 let activeProfile = null;
 
 function getGradePalette() {
+  const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
+  if (isDark) {
+    return [
+      "#38BDF8", // Luminous Sky Blue (high contrast against dark cards)
+      "#FBBF24", // Radiant Warm Amber/Gold (vivid, non-muddy)
+      "#34D399", // Emerald Green
+      "#FB923C", // Coral Orange
+      "#A78BFA", // Luminous Violet
+      "#F472B6", // Rose Pink
+      "#2DD4BF", // Bright Teal
+      "#FDE047"  // Soft Radiant Gold
+    ];
+  }
   const { primary, accent } = getBrandColors();
   return [
     primary,
@@ -1097,11 +1110,20 @@ export function init({ profile } = {}) {
     }
   }
 
+  const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
   const { primary, accent } = getBrandColors();
+  const lineStroke = isDark ? "#38BDF8" : primary;
+  const lineFill = isDark ? "rgba(56, 189, 248, 0.18)" : hexToRgba(primary, 0.15);
+  const pointBg = isDark ? "#FBBF24" : accent;
+  const gridLineColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)";
+  const tickColor = isDark ? "#94A3B8" : undefined;
 
   // 1. Initialize Real Revenue Line Chart
   const revCtx = document.getElementById('revenueChart');
   if (revCtx && chartDataCache.hasRevenueData) {
+    const existingRev = Chart.getChart(revCtx);
+    if (existingRev) existingRev.destroy();
+
     new Chart(revCtx, {
       type: 'line',
       data: {
@@ -1109,12 +1131,14 @@ export function init({ profile } = {}) {
         datasets: [{
           label: 'Fees (KES)',
           data: chartDataCache.revenueData, 
-          borderColor: primary,
-          backgroundColor: hexToRgba(primary, 0.15),
+          borderColor: lineStroke,
+          backgroundColor: lineFill,
           borderWidth: 2.5,
           fill: true,
           tension: 0.4,
-          pointBackgroundColor: accent,
+          pointBackgroundColor: pointBg,
+          pointBorderColor: isDark ? "#111827" : "#FFFFFF",
+          pointBorderWidth: 1.5,
           pointRadius: 4,
           pointHoverRadius: 6
         }]
@@ -1133,8 +1157,9 @@ export function init({ profile } = {}) {
         scales: {
           y: {
             beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.05)' },
+            grid: { color: gridLineColor },
             ticks: {
+              color: tickColor,
               maxTicksLimit: 5,
               callback: (val) => {
                 if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
@@ -1143,7 +1168,10 @@ export function init({ profile } = {}) {
               }
             }
           },
-          x: { grid: { display: false } }
+          x: {
+            grid: { display: false },
+            ticks: { color: tickColor }
+          }
         }
       }
     });
@@ -1152,9 +1180,10 @@ export function init({ profile } = {}) {
   // 2. Initialize Real Demographics Doughnut Chart
   const demoCtx = document.getElementById('demographicsChart');
   if (demoCtx && chartDataCache.gradeLabels.length > 0) {
-    const palette = chartDataCache.gradeColors && chartDataCache.gradeColors.length > 0
-      ? chartDataCache.gradeColors
-      : getGradePalette();
+    const existingDemo = Chart.getChart(demoCtx);
+    if (existingDemo) existingDemo.destroy();
+
+    const palette = getGradePalette();
 
     new Chart(demoCtx, {
       type: 'doughnut',
@@ -1163,7 +1192,8 @@ export function init({ profile } = {}) {
         datasets: [{
           data: chartDataCache.gradeCounts,
           backgroundColor: chartDataCache.gradeLabels.map((_, i) => palette[i % palette.length]),
-          borderWidth: 0,
+          borderWidth: isDark ? 2 : 0,
+          borderColor: isDark ? "#111827" : "transparent",
           hoverOffset: 4
         }]
       },
