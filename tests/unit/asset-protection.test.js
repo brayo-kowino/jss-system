@@ -129,4 +129,14 @@ describe("Asset Protection & Two-Tier Preloader", () => {
       expect(res.status).toBe(200);
     });
   });
+
+  describe("3. Shell Branding Binding & Navigation Resilience", () => {
+    it("exports applyBranding from branding.service.js without throwing ReferenceError", async () => {
+      const branding = await import("../../js/services/branding.service.js");
+      expect(typeof branding.applyBranding).toBe("function");
+      expect(() => {
+        branding.applyBranding({ schoolName: "Test School", themeColor: "#14538A" });
+      }).not.toThrow();
+    });
+  });
 });

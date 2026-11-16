@@ -51,9 +51,10 @@ function markTourSeen(uid) {
   }
 }
 
-// Re-export color helpers for backwards compatibility
+// Re-export color helpers and branding for backwards compatibility
 export { updateThemeColor, shade, tint };
-export { applyBranding } from "../services/branding.service.js";
+import { applyBranding } from "../services/branding.service.js";
+export { applyBranding };
 
 const NAV = [
   {
