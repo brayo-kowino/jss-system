@@ -296,6 +296,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Never intercept direct browser address-bar navigation to assets;
+  // let Netlify's edge function security interceptor handle and block it.
+  if (url.pathname.startsWith("/assets/") && isNavigationRequest(request)) {
+    return;
+  }
+
   if (isNavigationRequest(request)) {
     event.respondWith(networkFirst(request, SHELL_CACHE));
     return;
@@ -303,7 +309,7 @@ self.addEventListener("fetch", (event) => {
 
   // Content-hashed build output and local fonts - immutable, served cache-first forever.
   if (
-    (url.pathname.startsWith("/assets/") && /-[a-f0-9]{6,}\.(js|css|png|woff2)$/i.test(url.pathname)) ||
+    (url.pathname.startsWith("/assets/") && /-[a-zA-Z0-9_-]{6,}\.(js|css|png|woff2)$/.test(url.pathname)) ||
     url.pathname.startsWith("/fonts/")
   ) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));

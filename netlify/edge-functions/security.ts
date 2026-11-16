@@ -236,7 +236,8 @@ export default async (request: Request, context: Context) => {
 
     // 4. Block direct address-bar navigation to JavaScript chunk bundles
     const secFetchDest = (request.headers.get("sec-fetch-dest") || "").toLowerCase();
-    if (url.pathname.endsWith(".js") && secFetchDest === "document") {
+    const secFetchMode = (request.headers.get("sec-fetch-mode") || "").toLowerCase();
+    if (url.pathname.endsWith(".js") && (secFetchDest === "document" || secFetchMode === "navigate")) {
       return new Response("Forbidden: Direct browser navigation to code assets is disabled.", {
         status: 403,
         headers: {
