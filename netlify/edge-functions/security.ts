@@ -159,12 +159,99 @@ async function applyNonceCsp(response: Response): Promise<Response> {
   return new Response(withNonce, { status: response.status, headers });
 }
 
+function isAllowedOriginOrReferer(rawHost: string, currentHost: string): boolean {
+  if (!rawHost) return false;
+  const host = rawHost.toLowerCase().split(":")[0];
+  const current = currentHost.toLowerCase().split(":")[0];
+  if (host === current) return true;
+  if (host === "localhost" || host === "127.0.0.1") return true;
+  if (host.endsWith(".netlify.app") || host.endsWith(".iskify360.tech") || host === "iskify360.tech") return true;
+  return false;
+}
+
 export default async (request: Request, context: Context) => {
+  const url = new URL(request.url);
+
+  // --------------------------------------------------------------------------
+  // Asset Protection: reject hotlinking, cross-site embedding, or outside scraping
+  // of internal JS and application assets.
+  // --------------------------------------------------------------------------
+  if (url.pathname.startsWith("/assets/")) {
+    const secFetchSite = (request.headers.get("sec-fetch-site") || "").toLowerCase();
+    const origin = request.headers.get("origin");
+    const referer = request.headers.get("referer");
+
+    // 1. Explicit cross-site fetch (browser metadata)
+    if (secFetchSite === "cross-site") {
+      return new Response("Forbidden: Cross-site asset access is not permitted.", {
+        status: 403,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+
+    // 2. Foreign Origin header (e.g. cross-origin fetch/script)
+    if (origin) {
+      try {
+        const originHost = new URL(origin).host;
+        if (!isAllowedOriginOrReferer(originHost, url.host)) {
+          return new Response("Forbidden: Unauthorized origin.", {
+            status: 403,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-store",
+              "X-Content-Type-Options": "nosniff",
+            },
+          });
+        }
+      } catch {
+        return new Response("Forbidden: Malformed origin header.", {
+          status: 403,
+          headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" },
+        });
+      }
+    }
+
+    // 3. Foreign Referer header (external site embedding or hotlinking)
+    if (referer) {
+      try {
+        const refererHost = new URL(referer).host;
+        if (!isAllowedOriginOrReferer(refererHost, url.host)) {
+          return new Response("Forbidden: Hotlinking from external sites is prohibited.", {
+            status: 403,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-store",
+              "X-Content-Type-Options": "nosniff",
+            },
+          });
+        }
+      } catch {
+        // Ignore unparseable referer
+      }
+    }
+
+    // 4. Block direct address-bar navigation to JavaScript chunk bundles
+    const secFetchDest = (request.headers.get("sec-fetch-dest") || "").toLowerCase();
+    if (url.pathname.endsWith(".js") && secFetchDest === "document") {
+      return new Response("Forbidden: Direct browser navigation to code assets is disabled.", {
+        status: 403,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      });
+    }
+  }
+
   const maintenanceOn =
     (Netlify.env.get("MAINTENANCE_MODE") || "").toLowerCase() === "true";
 
   if (maintenanceOn) {
-    const url = new URL(request.url);
     const bypassToken = Netlify.env.get("MAINTENANCE_BYPASS_TOKEN") || "";
 
     // Admin visiting with ?bypass=<token>: set the cookie, redirect to the

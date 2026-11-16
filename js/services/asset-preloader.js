@@ -88,15 +88,15 @@ async function preloadCoreServices() {
   await timeoutPromise(Promise.allSettled(loads), 6000);
 }
 
-export async function preloadAllAppAssets(onProgress) {
-  onProgress?.(10, "Checking environment…");
+export async function preloadSplashBasics(onProgress) {
+  onProgress?.(15, "Checking environment…");
 
   // Step 1: Preload fonts & icon glyphs (avoids icon flashing and raw text names)
-  onProgress?.(25, "Loading fonts & icons…");
+  onProgress?.(40, "Loading fonts & icons…");
   await preloadFonts();
 
   // Step 2: Preload core images & logos
-  onProgress?.(45, "Loading graphics & branding…");
+  onProgress?.(70, "Loading graphics & branding…");
   await preloadImages();
 
   if (typeof navigator !== "undefined" && navigator.serviceWorker?.controller) {
@@ -116,12 +116,40 @@ export async function preloadAllAppAssets(onProgress) {
     }
   }
 
+  onProgress?.(80, "Ready…");
+}
+
+let privateEnginesWarmed = false;
+
+export function preloadPrivateEngines() {
+  if (privateEnginesWarmed) return;
+  privateEnginesWarmed = true;
+
+  const warmup = async () => {
+    try {
+      await preloadHeavyModules();
+      await preloadCoreServices();
+    } catch {
+      // Non-fatal: modules load on-demand if preheat is interrupted
+    }
+  };
+
+  if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+    window.requestIdleCallback(() => warmup(), { timeout: 4000 });
+  } else {
+    setTimeout(warmup, 800);
+  }
+}
+
+export async function preloadAllAppAssets(onProgress) {
+  await preloadSplashBasics(onProgress);
+
   // Step 3: Preload PDF engine & Chart.js
-  onProgress?.(70, "Preparing PDF & charting tools…");
+  onProgress?.(85, "Preparing PDF & charting tools…");
   await preloadHeavyModules();
 
   // Step 4: Preload core app services & router
-  onProgress?.(90, "Initializing system services…");
+  onProgress?.(95, "Initializing system services…");
   await preloadCoreServices();
 
   onProgress?.(100, "Almost ready…");

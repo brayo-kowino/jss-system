@@ -64,8 +64,8 @@ async function bootApp() {
     // Initialize background watcher for visibility change, network reconnect, and periodic checks
     initVersionWatcher();
 
-    const { preloadAllAppAssets } = await import("./services/asset-preloader.js");
-    await preloadAllAppAssets((percent, text) => {
+    const { preloadSplashBasics } = await import("./services/asset-preloader.js");
+    await preloadSplashBasics((percent, text) => {
       window.__jssUpdateSplashProgress?.(percent, text);
     });
 
@@ -100,6 +100,13 @@ async function bootApp() {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         window.__jssUpdateSplashProgress?.(100, "Ready!");
         window.__jssBootOk?.();
+
+        // Tier 2: Only authenticated profiles trigger private engine warming in the background
+        if (profile) {
+          import("./services/asset-preloader.js")
+            .then((m) => m.preloadPrivateEngines?.())
+            .catch(() => {});
+        }
       } catch (err) {
         showFatalError(err, { where: "app.onAuthChange" });
       }
