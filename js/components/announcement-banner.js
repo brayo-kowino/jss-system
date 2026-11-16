@@ -13,7 +13,6 @@
 // Dismissing one is per-browser (localStorage) and per-version.
 // ==========================================================================
 import { el, icon } from "../utils.js";
-import { openModal } from "./modal.js";
 import { listActiveAnnouncements, severityMeta, dismissKey } from "../services/platform-announcement.service.js";
 
 const DISMISSED_KEY = "jss_dismissed_announcements";
@@ -95,7 +94,8 @@ function bannerRow(announcement, onDismiss) {
   ]);
 }
 
-function openAnnouncementModal(announcement, onDismiss) {
+async function openAnnouncementModal(announcement, onDismiss) {
+  const { openModal } = await import("./modal.js");
   const isCritical = announcement.severity === "critical";
   const isWarning = announcement.severity === "warning";
   const badgeTone = isCritical ? "danger" : isWarning ? "warning" : "primary";

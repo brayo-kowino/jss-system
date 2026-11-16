@@ -44,8 +44,6 @@ import {
 // split, one big eagerly-imported bundle would ship the whole app to a
 // suspended/expired school regardless of what the edge function blocks.
 import * as loginView from "../views/login.js";
-import * as changePasswordView from "../views/change-password.js";
-import * as subscriptionLockedView from "../views/subscription-locked.js";
 
 // path -> () => import("../views/x.js"). Each entry is a *function*, not
 // the module itself - calling it kicks off the dynamic import, which Vite
@@ -56,7 +54,7 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
   "/shared-timetable": { view: () => import("../views/shared-timetable.js"), public: true, allowAuthed: true, title: "Official Timetable" },
-  "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
+  "/change-password": { view: () => import("../views/change-password.js"), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0, bigCards: 3 } },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings", skeleton: { cards: 0, rows: 6 } },
 
@@ -291,6 +289,7 @@ export async function renderRoute() {
     // standing credential once someone else has read it off a shared link,
     // a chat message, or a sticky note.
     if (profile.mustChangePassword) {
+      const changePasswordView = await import("../views/change-password.js");
       const content = await changePasswordView.render({ profile, forced: true });
       if (isStale()) return;
       app.innerHTML = "";
@@ -361,6 +360,7 @@ export async function renderRoute() {
       // This includes showing subscription-locked.js if trial is expired and grace period is also expired,
       // as well as during the grace period itself (subState.active is false in both cases).
       if (!subState.active) {
+        const subscriptionLockedView = await import("../views/subscription-locked.js");
         const content = await subscriptionLockedView.render({ profile, school, subState });
         if (isStale()) return;
         app.innerHTML = "";
