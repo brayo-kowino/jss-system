@@ -70,26 +70,31 @@ export async function fetchMaintenanceStatus() {
  * Subscribe to real-time maintenance updates from Firestore.
  */
 export function subscribeMaintenanceStatus(callback) {
-  const ref = doc(db, ...MAINTENANCE_DOC_PATH);
-  return onSnapshot(
-    ref,
-    (snap) => {
-      if (snap.exists()) {
-        activeState = { ...activeState, ...snap.data() };
-      } else {
-        activeState = { active: false, reason: "", estimatedDuration: "" };
+  try {
+    const ref = doc(db, ...MAINTENANCE_DOC_PATH);
+    return onSnapshot(
+      ref,
+      (snap) => {
+        if (snap.exists()) {
+          activeState = { ...activeState, ...snap.data() };
+        } else {
+          activeState = { active: false, reason: "", estimatedDuration: "" };
+        }
+        try {
+          callback(getMaintenanceState());
+        } catch (err) {
+          console.error("[maintenance] Subscriber error:", err);
+        }
+      },
+      (err) => {
+        // In offline / network-disabled / permission state, safely ignore without crashing
+        console.warn("[maintenance] Listener notice:", err?.message || err);
       }
-      try {
-        callback(getMaintenanceState());
-      } catch (err) {
-        console.error("[maintenance] Subscriber error:", err);
-      }
-    },
-    (err) => {
-      // In offline / network-disabled state, onSnapshot might report unavailable
-      console.warn("[maintenance] Listener notice:", err?.message || err);
-    }
-  );
+    );
+  } catch (err) {
+    console.warn("[maintenance] subscribeMaintenanceStatus error:", err);
+    return () => {};
+  }
 }
 
 /**
@@ -133,19 +138,38 @@ export async function setEmergencyKillswitch(superAdminUid, { active, reason, es
 }
 
 /**
+ * Stops the active maintenance watchdog listener.
+ */
+export function stopMaintenanceWatchdog() {
+  if (watchdogUnsubscribe) {
+    try {
+      watchdogUnsubscribe();
+    } catch {}
+    watchdogUnsubscribe = null;
+  }
+}
+
+/**
  * Initializes the global client-side maintenance watchdog.
  * Runs on every client tab to enforce real-time socket shutdown and screen takeover.
  */
 export function initMaintenanceWatchdog(getProfileFn) {
   currentProfileGetter = getProfileFn;
+  stopMaintenanceWatchdog();
 
-  if (watchdogUnsubscribe) {
-    watchdogUnsubscribe();
+  // If there is no authenticated profile, do NOT start an unauthenticated Firestore stream
+  const profile = typeof currentProfileGetter === "function" ? currentProfileGetter() : null;
+  if (!profile) {
+    return () => {};
   }
 
-  watchdogUnsubscribe = subscribeMaintenanceStatus(async (state) => {
-    await applyClientMaintenancePolicy(state);
-  });
+  try {
+    watchdogUnsubscribe = subscribeMaintenanceStatus(async (state) => {
+      await applyClientMaintenancePolicy(state);
+    });
+  } catch (err) {
+    console.warn("[maintenance] Watchdog subscription notice:", err);
+  }
 
   return watchdogUnsubscribe;
 }
