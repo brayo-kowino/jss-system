@@ -748,7 +748,6 @@ export async function render({ profile }) {
     const alertsCard = el("div", { class: "md3-card md3-alerts-card" }, [
       el("div", { class: "md3-card__header" }, [
         el("h3", { class: "md3-card__title" }, "Quick Insights"),
-        el("span", { class: "md3-card__badge md3-card__badge--blue" }, `${insightCandidates.length} Highlights`),
       ]),
       el("div", { class: "md3-card__body", style: "flex: 1;" }, [
         insightsBody
@@ -797,7 +796,6 @@ export async function render({ profile }) {
       demoCardContent = [
         el("div", { class: "md3-card__header" }, [
           el("h3", { class: "md3-card__title" }, "Students by Grade"),
-          el("span", { class: "md3-card__badge" }, `${studentsCount} Learners`),
         ]),
         el("div", { class: "md3-card__body", style: "flex: 1;" }, [
           el("div", { class: "md3-chart-container--donut" }, [
@@ -856,7 +854,6 @@ export async function render({ profile }) {
       chartCardContent = [
         el("div", { class: "md3-card__header" }, [
           el("h3", { class: "md3-card__title" }, "Revenue Trend"),
-          el("span", { class: "md3-card__badge md3-card__badge--green" }, formattedTotal),
         ]),
         el("div", { class: "md3-card__body", style: "flex: 1;" }, [
           el("div", { class: "md3-chart-container--revenue" }, [
