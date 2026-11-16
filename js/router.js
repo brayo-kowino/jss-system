@@ -13,7 +13,6 @@
 //    with a "try again" button, and the sidebar/nav stay usable.
 // ==========================================================================
 import { getCurrentProfile, getCurrentSchool, refreshCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
-import { getSubscriptionState } from "./services/subscription.service.js";
 import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
@@ -355,6 +354,7 @@ export async function renderRoute() {
         window.__jssBootPing?.();
         school = await refreshCurrentSchool();
       }
+      const { getSubscriptionState } = await import("./services/subscription.service.js");
       const subState = getSubscriptionState(school || {});
       
       // Ensure the router handles the new trial states returned by getSubscriptionState() properly.

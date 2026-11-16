@@ -1,4 +1,6 @@
 import flatpickr from "flatpickr";
+import "flatpickr/dist/flatpickr.min.css";
+import "../../css/datepicker.css";
 import { el, icon } from "../utils.js";
 
 /**

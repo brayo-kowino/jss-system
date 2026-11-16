@@ -7,8 +7,6 @@
 // icon rendering, charts, and navigation) are instant with zero runtime delay.
 // ============================================================================
 
-import { prewarmPdfLibs } from "./pdf.util.js";
-
 function timeoutPromise(promise, ms, fallbackValue = null) {
   return Promise.race([
     promise,
@@ -73,7 +71,10 @@ async function preloadHeavyModules() {
     import("xlsx/xlsx.mjs").catch(() => null),
   ];
   await timeoutPromise(Promise.allSettled(loads), 8000);
-  prewarmPdfLibs();
+  try {
+    const { prewarmPdfLibs } = await import("./pdf.util.js");
+    prewarmPdfLibs();
+  } catch {}
 }
 
 async function preloadCoreServices() {

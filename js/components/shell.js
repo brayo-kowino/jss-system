@@ -16,7 +16,14 @@ import { registerFCMToken } from "../services/fcm.service.js";
 import { mountTrialBanner } from "./trial-banner.js";
 import { getEffectiveTheme, getTheme, toggleTheme, setTheme } from "../theme.js";
 import { applyThemeVariables, updateThemeColor, shade, tint } from "../theme-engine.js";
-import { initCommandPalette, openCommandPalette } from "./command-palette.js";
+
+let commandPaletteModulePromise = null;
+function getCommandPalette() {
+  if (!commandPaletteModulePromise) {
+    commandPaletteModulePromise = import("./command-palette.js");
+  }
+  return commandPaletteModulePromise;
+}
 import {
   subscribeNetworkHealth,
   getOfflineDurationInfo,
@@ -46,35 +53,7 @@ function markTourSeen(uid) {
 
 // Re-export color helpers for backwards compatibility
 export { updateThemeColor, shade, tint };
-
-// Captured once, before any school branding has had a chance to overwrite
-// it, so there's a real generic title to fall back to for contexts with no
-// resolved school (e.g. super_admin/Platform Admin).
-const DEFAULT_TITLE = document.title;
-
-// Re-themes the whole app (sidebar, buttons, letterhead accents, browser
-// tab title, PWA status bar / window title bar) to a school's chosen brand - colors from CSS custom properties
-// every stylesheet already keys off of, plus the tab title so a user with
-// several schools open in different tabs can tell them apart at a glance.
-export function applyBranding(settings) {
-  if (settings) {
-    cachedSettings = settings;
-  }
-  const primary = settings?.themeColor || cachedSettings?.themeColor || "#14538A";
-  const accent = settings?.secondaryColor || cachedSettings?.secondaryColor || "#C9A227";
-  const effectiveTheme = getEffectiveTheme();
-
-  applyThemeVariables(primary, accent, effectiveTheme);
-
-  document.title = settings?.schoolName ? `${settings.schoolName} ` : (cachedSettings?.schoolName ? `${cachedSettings.schoolName} ` : DEFAULT_TITLE);
-  setFavicon(settings?.logoUrl || cachedSettings?.logoUrl || "/assets/logo.png");
-}
-
-if (typeof window !== "undefined") {
-  window.addEventListener("themechange", () => {
-    applyBranding(cachedSettings || {});
-  });
-}
+export { applyBranding } from "../services/branding.service.js";
 
 const NAV = [
   {
@@ -745,7 +724,7 @@ export function stopIdleTimeoutWatcher() {
 
 export function renderShell(app, profile, activePath) {
   teardownNotifListeners();
-  initCommandPalette(profile);
+  getCommandPalette().then((m) => m.initCommandPalette(profile)).catch(() => {});
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
   const previousSidebar = app.querySelector(".sidebar");
@@ -941,7 +920,7 @@ export function renderShell(app, profile, activePath) {
       "data-tour": "topbar-search",
       title: "Search commands, students, classes (Ctrl+K)",
       "aria-label": "Search commands, students, classes (Ctrl+K)",
-      onClick: () => openCommandPalette({ profile }),
+      onClick: () => getCommandPalette().then((m) => m.openCommandPalette({ profile })).catch(() => {}),
     },
     [
       icon("search", "topbar__search-icon"),
@@ -1081,7 +1060,7 @@ export function renderShell(app, profile, activePath) {
           title: "View all keyboard shortcuts and letter jump instructions (Ctrl+K or ?)",
           onClick: () => {
             dropdown.classList.remove("open");
-            openCommandPalette({ profile, defaultTab: "hints" });
+            getCommandPalette().then((m) => m.openCommandPalette({ profile, defaultTab: "hints" })).catch(() => {});
           },
         },
         [
@@ -1267,8 +1246,14 @@ function currentTitle(path) {
   return "";
 }
 
-import { signOutWithFeedback, showSignoutOverlay } from "./signout-modal.js";
-export { signOutWithFeedback, showSignoutOverlay };
+export async function signOutWithFeedback() {
+  const { signOutWithFeedback: doSignOut } = await import("./signout-modal.js");
+  return doSignOut();
+}
+export async function showSignoutOverlay() {
+  const { showSignoutOverlay: doShow } = await import("./signout-modal.js");
+  return doShow();
+}
 
 async function handleLogout() {
   await signOutWithFeedback();

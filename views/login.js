@@ -10,7 +10,7 @@ import { navigate, getDefaultRoute, routes } from "../js/router.js";
 import { resolvePostLoginDestination } from "../js/services/deep-link.service.js";
 import { el, icon, toast, busyButton, setFavicon } from "../js/utils.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
-import { applyBranding } from "../js/components/shell.js";
+import { applyBranding } from "../js/services/branding.service.js";
 
 const BRAND_POINTS = [
   { icon: "school", text: "Admissions, classes, streams and CBC subjects in one place" },

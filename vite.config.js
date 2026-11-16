@@ -221,6 +221,7 @@ export default {
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
         manualChunks(id) {
+          if (id.includes("preload-helper")) return "preload-helper";
           if (id.includes("node_modules/xlsx")) return "vendor-xlsx";
           if (id.includes("node_modules/jspdf")) return "vendor-jspdf";
           if (id.includes("node_modules/html2canvas-pro") || id.includes("node_modules/html2canvas")) return "vendor-html2canvas";
