@@ -565,11 +565,17 @@ export function init() {
       const result = await login(email, password);
 
       const safeNavigatePostLogin = (prof) => {
-        const current = typeof location !== "undefined" ? location.hash : "";
-        if (!current || current === "#" || current.startsWith("#/login")) {
-          const dest = resolvePostLoginDestination(prof, routes, getDefaultRoute);
-          navigate(dest);
-        }
+        // Always navigate after a gate clears (approval / 2FA). The old guard
+        // only called navigate() when the hash started with "#/login", which
+        // silently dropped the redirect when a user landed directly on a
+        // bookmarked protected page (e.g. "#/dashboard"), got the 2FA gate,
+        // verified, and then onDone() was a no-op - leaving the gate UI
+        // frozen with an endless spinner.  Now we always resolve the
+        // destination and navigate unconditionally; router.navigate() is
+        // safe to call even when the hash hasn't changed - it calls
+        // renderRoute() directly in that case.
+        const dest = resolvePostLoginDestination(prof, routes, getDefaultRoute);
+        navigate(dest);
       };
 
       // Admin account protection gates: the login service returns extra flags

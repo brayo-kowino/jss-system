@@ -194,6 +194,7 @@ export function renderTwoFactorGate(gate, onDone) {
       if (valid) {
         mark2FAVerifiedThisSession(gate.uid);
         await refreshCurrentSchool();
+        restore();
         toast("Verified! Welcome in.", "success");
         onDone();
       } else {
