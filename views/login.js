@@ -687,8 +687,11 @@ export function init() {
 function openEmergencySupportModal(prefilledEmail = "") {
   const form = el("form", { style: "display:flex; flex-direction:column; gap:14px;" }, [
     el("div", { style: "background:rgba(220, 38, 38, 0.06); border:1px solid rgba(220, 38, 38, 0.2); border-radius:8px; padding:12px; font-size:13px; color:#991b1b; line-height:1.5;" }, [
-      el("strong", {}, "Emergency Security Hotline: "),
-      "Use this form if you suspect your account has been breached, credentials altered without consent, or if you are locked out by unrecognized 2FA. Our security team will review and contact you via verified school channels."
+      "Use this form if you suspect your account has been breached, credentials altered without consent, or if you are locked out by unrecognized 2FA. Our security team will review and contact you via verified school channels.",
+      el("div", { style: "margin-top:8px; font-weight:600;" }, [
+        "Emergency Security Hotline: ",
+        el("a", { href: "tel:+2540107195545", style: "color:inherit; white-space:nowrap;" }, "+254 0107195545"),
+      ]),
     ]),
     el("div", { class: "field" }, [
       el("label", { for: "em-school" }, "School Name or Code"),
@@ -713,11 +716,11 @@ function openEmergencySupportModal(prefilledEmail = "") {
     el("div", { id: "em-error", class: "field-error", style: "margin-top:-6px;" }, ""),
     el("button", { type: "submit", class: "btn btn--danger btn--block" }, [
       icon("emergency", "text-sm"),
-      " Lodge Critical Security Incident",
+      " Submit Emergency Report",
     ]),
   ]);
 
-  const close = openModal("🚨 Account Compromise & Locked-Out Support", form);
+  const close = openModal("Account Compromise & Locked-Out Support", form);
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -750,11 +753,11 @@ function openEmergencySupportModal(prefilledEmail = "") {
         el("div", { style: "width:60px; height:60px; border-radius:50%; background:#ecfdf5; color:#059669; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;" }, [
           icon("check_circle", "style: font-size:32px;"),
         ]),
-        el("h3", { style: "margin:0 0 8px; font-size:18px; color:#0f172a;" }, "Incident Ticket Dispatched"),
+        el("h3", { style: "margin:0 0 8px; font-size:18px; color:#0f172a;" }, "Emergency Incident Reported"),
         el("p", { class: "text-sm text-muted", style: "line-height:1.6; margin-bottom:16px;" }, [
           "Emergency incident ticket ",
           el("strong", { style: "color:#0f172a;" }, `#${(data.ticketId || "").slice(0, 8)}`),
-          " has been lodged with the platform Super Admin desk."
+          " has been submitted with the security response desk."
         ]),
         el("div", { style: "background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:12px; color:#475569; text-align:left; line-height:1.5; margin-bottom:16px;" }, [
           el("strong", {}, "Next steps: "),
@@ -762,9 +765,9 @@ function openEmergencySupportModal(prefilledEmail = "") {
         ]),
         el("button", { type: "button", class: "btn btn--primary", onClick: () => modalClose && modalClose() }, "Understood")
       ]);
-      modalClose = openModal("Emergency Alert Lodged", successModalBody);
+      modalClose = openModal("Emergency Incident Reported", successModalBody);
     } catch (err) {
-      if (errorEl) errorEl.textContent = err.message || "Failed to lodge report.";
+      if (errorEl) errorEl.textContent = err.message || "Failed to submit report.";
       restore();
     }
   });
