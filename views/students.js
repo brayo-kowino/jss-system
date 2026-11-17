@@ -650,7 +650,6 @@ function openStudentProfile(profile, student, initialTab = "overview") {
   const tabsNav = el("div", { class: "profile-tabs" });
   const panel = el("div", { class: "profile-tab-panel" });
 
-  let activeTab = initialTab;
   // Cache each tab's rendered fetch so switching back and forth doesn't
   // re-query Firestore every click; a fresh profile open always refetches.
   const loaders = {
@@ -660,6 +659,7 @@ function openStudentProfile(profile, student, initialTab = "overview") {
     attendance: () => renderAttendanceTab(panel, profile, student),
     activity: () => renderActivityTab(panel, profile, student, refreshAll),
   };
+  let activeTab = (initialTab && loaders[initialTab]) ? initialTab : "overview";
 
   function rerenderHeader() {
     header.innerHTML = "";
