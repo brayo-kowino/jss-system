@@ -94,6 +94,9 @@ async function getDoc(token, path) {
 }
 
 async function signFreezeToken(secret, payload) {
+  if (!secret || !secret.trim()) {
+    throw new Error("STEP_UP_TOKEN_SECRET is not configured");
+  }
   const enc = new TextEncoder();
   const payloadB64 = base64UrlEncode(enc.encode(JSON.stringify(payload)));
   const key = await webcrypto.subtle.importKey(
@@ -171,7 +174,15 @@ export default async (req) => {
   }
 
   // Generate 48-hour emergency freeze token
-  const freezeSecret = process.env.STEP_UP_TOKEN_SECRET || "eeskia-freeze-default-secret";
+  const freezeSecret = process.env.STEP_UP_TOKEN_SECRET;
+  if (!freezeSecret || !freezeSecret.trim()) {
+    console.error("notify-password-changed: STEP_UP_TOKEN_SECRET not set");
+    return new Response(JSON.stringify({ error: "Emergency freeze service is temporarily unavailable." }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const freezeTokenPayload = {
     uid,
     email: recipientEmail,

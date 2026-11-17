@@ -38,6 +38,9 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 async function verifyFreezeToken(secret: string, token: string): Promise<any | null> {
+  if (!secret || !secret.trim()) {
+    throw new Error("STEP_UP_TOKEN_SECRET is not configured");
+  }
   if (!token || !token.includes(".")) return null;
   const [payloadB64, sigB64] = token.split(".");
   if (!payloadB64 || !sigB64) return null;
@@ -87,7 +90,12 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "Missing emergency freeze token." }, 400);
   }
 
-  const secret = Netlify.env.get("STEP_UP_TOKEN_SECRET") || "eeskia-freeze-default-secret";
+  const secret = Netlify.env.get("STEP_UP_TOKEN_SECRET");
+  if (!secret || !secret.trim()) {
+    console.error("emergency-freeze: STEP_UP_TOKEN_SECRET not set");
+    return jsonResponse({ error: "Emergency freeze service is temporarily unavailable." }, 500);
+  }
+
   const payload = await verifyFreezeToken(secret, token);
   if (!payload) {
     return jsonResponse({ error: "This emergency freeze link is invalid or has expired." }, 400);
