@@ -788,8 +788,18 @@
   gap: 2px;
 }
 .md3-revenue-kpi-box--accent {
-  background: color-mix(in srgb, var(--color-gold, #D97706) 8%, white);
-  border-color: color-mix(in srgb, var(--color-gold, #D97706) 25%, transparent);
+  background: #FFFBEB;
+  border-color: #FDE68A;
+}
+.md3-revenue-kpi-box--accent .md3-revenue-kpi-box__label {
+  color: #92400E;
+}
+.md3-revenue-kpi-box--accent .md3-revenue-kpi-box__val {
+  color: #B45309;
+}
+.md3-revenue-kpi-box--accent .md3-revenue-kpi-box__sub {
+  color: #92400E;
+  font-weight: 500;
 }
 [data-theme="dark"] .md3-revenue-kpi-box,
 :root[data-theme="dark"] .md3-revenue-kpi-box {
@@ -856,8 +866,8 @@
   color: var(--color-primary-900);
   font-weight: 500;
 }
-.text-gold { color: var(--color-gold); }
-.text-accent { color: var(--color-gold); }
+.text-gold { color: #D97706; }
+.text-accent { color: #D97706; }
 .text-green { color: var(--color-green); }
 .text-blue { color: var(--color-primary-700); }
 .text-primary { color: var(--color-primary-700); }

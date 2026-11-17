@@ -56,13 +56,13 @@ function getGradePalette() {
   const { primary, accent } = getBrandColors();
   return [
     primary,
-    accent,
+    "#D97706", // Rich Amber with strong contrast
     "#0284C7", // Sky blue
-    "#EAB308", // Amber yellow
-    "#10B981", // Emerald green
+    "#CA8A04", // Deep Gold
+    "#16A34A", // Emerald green
     "#8B5CF6", // Purple
     "#EC4899", // Pink
-    "#F97316"  // Orange
+    "#EA580C"  // Orange
   ];
 }
 
@@ -875,8 +875,8 @@ export async function render({ profile }) {
                 }
               }
             }, [
-              el("span", { class: "md3-revenue-kpi-box__label", style: "color: var(--color-gold);" }, "Pending Balance"),
-              el("span", { class: "md3-revenue-kpi-box__val", style: "color: var(--color-gold);" }, `${studentsWithBalancesCount} Student(s)`),
+              el("span", { class: "md3-revenue-kpi-box__label" }, "Pending Balance"),
+              el("span", { class: "md3-revenue-kpi-box__val" }, `${studentsWithBalancesCount} Student(s)`),
               el("span", { class: "md3-revenue-kpi-box__sub" }, studentsWithBalancesCount > 0 ? "Awaiting clearance ↗" : "All up to date"),
             ])
           ])
