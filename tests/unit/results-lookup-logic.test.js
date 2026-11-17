@@ -78,7 +78,7 @@ describe("Results Lookup Edge Function Security Logic", () => {
         kcpeNumber: "123456789",
         phone: "+254712345678",
         parentPhone: "+254798765432",
-        parentName: "Jane Doe",
+        parentName: "Maximilla Aleyo",
         homeAddress: "Nairobi, Kenya",
         medicalNotes: "Asthmatic",
         academicYear: "2026",

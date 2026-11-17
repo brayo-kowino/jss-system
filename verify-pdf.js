@@ -18,7 +18,7 @@ import('./js/services/pdf-vector.util.js').then(async (module) => {
     motto: "Aiming for Excellence",
     address: "123 Verification St",
     phone: "+254 700 000 000",
-    principalName: "Jane Doe",
+    principalName: "Maximilla Aleyo",
     principalTitle: "Chief Principal"
   };
 

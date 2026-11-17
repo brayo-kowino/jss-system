@@ -16,7 +16,7 @@ vi.mock("../../js/theme.js", () => ({
 // Mock services
 vi.mock("../../js/services/student.service.js", () => ({
   listStudents: vi.fn(async () => [
-    { id: "s1", fullName: "Jane Doe", admissionNumber: "ADM-101", grade: "Grade 7", stream: "Alpha", status: "active" },
+    { id: "s1", fullName: "Maximilla Aleyo", admissionNumber: "ADM-101", grade: "Grade 7", stream: "Alpha", status: "active" },
     { id: "s2", fullName: "Kevin Omondi", admissionNumber: "ADM-102", grade: "Grade 8", stream: "Beta", status: "active" },
   ]),
 }));
@@ -313,12 +313,12 @@ describe("Global Command Palette", () => {
       openCommandPalette({ profile: adminProfile });
       const input = document.querySelector(".cmd-palette-input");
 
-      input.value = "Jane Doe";
+      input.value = "Maximilla Aleyo";
       input.dispatchEvent(new Event("input"));
 
       const items = document.querySelectorAll(".cmd-palette-item");
       const studentItem = Array.from(items).find((el) =>
-        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Jane Doe")
+        el.querySelector(".cmd-palette-item-title")?.textContent.includes("Maximilla Aleyo")
       );
       expect(studentItem).toBeDefined();
 
