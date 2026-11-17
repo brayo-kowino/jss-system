@@ -6,6 +6,7 @@ import {
   buildFeeReminderEmail,
   buildGeneralNotificationEmail,
   buildPlatformBroadcastEmail,
+  buildPasswordChangedSecurityEmail,
 } from "../../netlify/functions/lib/email-templates.mjs";
 
 describe("Eeskia Email Engine - Branded Email Templates", () => {
@@ -138,5 +139,25 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
     expect(email.html).toContain("Second paragraph details.");
     expect(email.html).toContain("Official Notice");
     expect(email.html).toContain("https://eeskia.iskify360.tech/assets/logo.png");
+  });
+
+  it("builds security alert password changed emails with emergency freeze button and details", () => {
+    const email = buildPasswordChangedSecurityEmail({
+      fullName: "Principal Jane",
+      email: "jane@greenhill.ac.ke",
+      schoolName: "Green Hill Academy",
+      deviceSummary: "Chrome on Windows",
+      changedAt: "17 Nov 2026, 14:30 EAT",
+      freezeUrl: "https://eeskia.iskify360.tech/#/emergency-freeze?token=test-freeze-token-123",
+    });
+
+    expect(email.subject).toContain("Security Alert: Password changed for jane@greenhill.ac.ke");
+    expect(email.html).toContain("Principal Jane");
+    expect(email.html).toContain("jane@greenhill.ac.ke");
+    expect(email.html).toContain("Green Hill Academy");
+    expect(email.html).toContain("Chrome on Windows");
+    expect(email.html).toContain("Freeze My Account Immediately");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/#/emergency-freeze?token=test-freeze-token-123");
+    expect(email.html).toContain("Security Notice");
   });
 });

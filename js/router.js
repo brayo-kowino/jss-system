@@ -53,6 +53,7 @@ import * as loginView from "../views/login.js";
 // to an already-visited page doesn't re-fetch its chunk.
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
+  "/emergency-freeze": { view: () => import("../views/emergency-freeze.js"), public: true, title: "Emergency Account Freeze" },
   "/shared-timetable": { view: () => import("../views/shared-timetable.js"), public: true, allowAuthed: true, title: "Official Timetable" },
   "/change-password": { view: () => import("../views/change-password.js"), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0, bigCards: 3 } },
