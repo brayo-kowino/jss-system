@@ -61,7 +61,7 @@ describe("Deep Linking Engine & Cosmic Alien 404", () => {
     it("handles URL encoded strings with spaces and symbols", () => {
       const res = parseDeepLink("#/students?q=John%20Doe&status=active&action=admit");
       expect(res.path).toBe("/students");
-      expect(res.params.q).toBe("John Doe");
+      expect(res.params.q).toBe("Brian Odhiambo");
       expect(res.params.status).toBe("active");
       expect(res.params.action).toBe("admit");
     });

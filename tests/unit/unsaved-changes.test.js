@@ -50,7 +50,7 @@ describe("Unsaved Changes Guard Service (Contextual Prompting)", () => {
     nameLabel.textContent = "Full Name";
     const nameInput = document.createElement("input");
     nameInput.id = "s-name";
-    nameInput.value = "John Doe";
+    nameInput.value = "Brian Odhiambo";
     nameField.append(nameLabel, nameInput);
 
     const gradeField = document.createElement("div");

@@ -108,7 +108,7 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
   it("builds personalized parent fee balance reminders", () => {
     const email = buildFeeReminderEmail({
       schoolName: "Milimani Academy",
-      parentName: "John Doe",
+      parentName: "Brian Odhiambo",
       studentName: "Grace Doe",
       grade: "Grade 7",
       balanceAmount: "KES 14,500",
@@ -118,7 +118,7 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
     });
 
     expect(email.subject).toContain("Fee Balance Notice: Grace Doe");
-    expect(email.html).toContain("Dear John Doe");
+    expect(email.html).toContain("Dear Brian Odhiambo");
     expect(email.html).toContain("KES 14,500");
     expect(email.html).toContain("522522");
     expect(email.html).toContain("MIL-701");

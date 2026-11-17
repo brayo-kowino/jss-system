@@ -33,13 +33,13 @@ ADM002,Bob Mwangi,Male,Grade 7,Red,2012-08-20,987654321`;
 
     it("handles alternative header aliases (Adm No, Name, Sex, Class, UPI)", () => {
       const csv = `Adm No,Name,Sex,Class,UPI
-ADM101,John Doe,Male,Grade 7,UPI-998877`;
+ADM101,Brian Odhiambo,Male,Grade 7,UPI-998877`;
 
       const result = parseStudentsCsv(csv);
       expect(result.error).toBeNull();
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].raw.admissionNumber).toBe("ADM101");
-      expect(result.rows[0].raw.fullName).toBe("John Doe");
+      expect(result.rows[0].raw.fullName).toBe("Brian Odhiambo");
       expect(result.rows[0].raw.gender).toBe("Male");
       expect(result.rows[0].raw.grade).toBe("Grade 7");
       expect(result.rows[0].raw.kcpeNumber).toBe("UPI-998877");

@@ -80,7 +80,7 @@ export function userFactory(role, schoolId, overrides = {}) {
 export function studentFactory(schoolId, overrides = {}) {
   return {
     schoolId,
-    fullName: 'John Doe',
+    fullName: 'Brian Odhiambo',
     admissionNumber: '1234',
     grade: 'Grade 7',
     stream: 'A',

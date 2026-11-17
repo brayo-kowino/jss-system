@@ -699,7 +699,7 @@ function openEmergencySupportModal(prefilledEmail = "") {
     ]),
     el("div", { class: "field" }, [
       el("label", { for: "em-name" }, "Your Full Name & Role"),
-      el("input", { id: "em-name", type: "text", required: "true", placeholder: "e.g. Mr. John Doe (Principal / School Admin)" }),
+      el("input", { id: "em-name", type: "text", required: "true", placeholder: "e.g. Mr. Brian Odhiambo (Principal / School Admin)" }),
     ]),
     el("div", { class: "field" }, [
       el("label", { for: "em-email" }, "Affected Account Email"),

@@ -23,7 +23,7 @@ import('./js/services/pdf-vector.util.js').then(async (module) => {
   };
 
   const mockReportData = {
-    fullName: "John Smith",
+    fullName: "Brian Odhiambo",
     admissionNumber: "ADM/2026/001",
     grade: "Grade 7",
     stream: "Blue",
