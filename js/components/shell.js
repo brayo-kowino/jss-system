@@ -14,6 +14,20 @@ import { subscribeToNotifications, getNotificationsLastSeen, countUnreadNotifica
 import { subscribeToActiveAnnouncements, countUndismissedAnnouncements, dismissKey } from "../services/platform-announcement.service.js";
 import { registerFCMToken } from "../services/fcm.service.js";
 import { mountTrialBanner } from "./trial-banner.js";
+import { getEffectiveTheme, getTheme, toggleTheme, setTheme } from "../theme.js";
+import { applyThemeVariables, updateThemeColor, shade, tint } from "../theme-engine.js";
+
+let commandPaletteModulePromise = null;
+function getCommandPalette() {
+  if (!commandPaletteModulePromise) {
+    commandPaletteModulePromise = import("./command-palette.js");
+  }
+  return commandPaletteModulePromise;
+}
+import {
+  subscribeNetworkHealth,
+  getOfflineDurationInfo,
+} from "../services/network-health.service.js";
 
 // First-time visitors get the tour started for them automatically, once
 // per account (per browser). Keyed by uid so switching accounts on a
@@ -37,61 +51,10 @@ function markTourSeen(uid) {
   }
 }
 
-// Lightens/darkens a hex color by `amt` (-255..255), used to derive a darker
-// sidebar shade from the school's single primary brand color.
-function shade(hex, amt) {
-  const n = parseInt((hex || "#14538A").replace("#", ""), 16);
-  const clamp = (v) => Math.max(0, Math.min(255, v));
-  const r = clamp(((n >> 16) & 255) + amt);
-  const g = clamp(((n >> 8) & 255) + amt);
-  const b = clamp((n & 255) + amt);
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
-function tint(hex, ratio = 0.12) {
-  const n = parseInt((hex || "#14538A").replace("#", ""), 16);
-  const r = Math.round(((n >> 16) & 255) * ratio + 255 * (1 - ratio));
-  const g = Math.round(((n >> 8) & 255) * ratio + 255 * (1 - ratio));
-  const b = Math.round((n & 255) * ratio + 255 * (1 - ratio));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
-// Captured once, before any school branding has had a chance to overwrite
-// it, so there's a real generic title to fall back to for contexts with no
-// resolved school (e.g. super_admin/Platform Admin).
-const DEFAULT_TITLE = document.title;
-
-export function updateThemeColor(color) {
-  if (!color || typeof document === "undefined") return;
-  const metas = document.querySelectorAll('meta[name="theme-color"]');
-  if (!metas.length) {
-    const meta = document.createElement("meta");
-    meta.name = "theme-color";
-    meta.content = color;
-    document.head.appendChild(meta);
-  } else {
-    metas.forEach((m) => m.setAttribute("content", color));
-  }
-}
-
-// Re-themes the whole app (sidebar, buttons, letterhead accents, browser
-// tab title, PWA status bar / window title bar) to a school's chosen brand - colors from CSS custom properties
-// every stylesheet already keys off of, plus the tab title so a user with
-// several schools open in different tabs can tell them apart at a glance.
-export function applyBranding(settings) {
-  const root = document.documentElement.style;
-  const primary = settings?.themeColor || "#14538A";
-  const accent = settings?.secondaryColor || "#C9A227";
-  root.setProperty("--color-primary-700", primary);
-  root.setProperty("--color-primary-900", shade(primary, -30));
-  root.setProperty("--color-primary-600", shade(primary, 25));
-  root.setProperty("--color-primary-100", tint(primary, 0.12));
-  root.setProperty("--color-gold", accent);
-  root.setProperty("--color-gold-soft", shade(accent, 60));
-  document.title = settings?.schoolName ? `${settings.schoolName} ` : DEFAULT_TITLE;
-  setFavicon(settings?.logoUrl || "/assets/logo.png");
-  updateThemeColor(primary);
-}
+// Re-export color helpers and branding for backwards compatibility
+export { updateThemeColor, shade, tint };
+import { applyBranding } from "../services/branding.service.js";
+export { applyBranding };
 
 const NAV = [
   {
@@ -162,41 +125,8 @@ function roleLabel(roleValue) {
   return ROLES.find((r) => r.value === roleValue)?.label || roleValue;
 }
 
+// PWA App Installation handlers
 // ---------------------------------------------------------------------------
-// Install button - shown in the topbar whenever the browser has something
-// useful to offer (a real one-tap Chrome/Edge/Android prompt, or iOS's
-// manual "Add to Home Screen" steps), hidden the moment the app is already
-// running installed. renderShell() rebuilds the whole topbar on every
-// navigation, so the previous button's live-update subscription is torn
-// down first (see installUnsubscribe below) rather than piling up a new
-// listener on every route change for the life of the session.
-// ---------------------------------------------------------------------------
-let installUnsubscribe = null;
-
-function installButton() {
-  const wrap = el("span", {});
-
-  function render() {
-    wrap.innerHTML = "";
-    if (!isInstallable() || isRunningInstalled()) return;
-    const method = installMethod();
-    const btn = el(
-      "button",
-      {
-        class: "btn btn--ghost btn--sm",
-        title: "Install Eeskia as an app on this device",
-        onClick: () => (method === "prompt" ? handleNativeInstall() : showIosInstallHint()),
-      },
-      [icon("install_desktop"), "Install app"]
-    );
-    wrap.append(btn);
-  }
-
-  if (installUnsubscribe) installUnsubscribe();
-  installUnsubscribe = onInstallabilityChange(render);
-  render();
-  return wrap;
-}
 
 async function handleNativeInstall() {
   try {
@@ -223,88 +153,93 @@ function showIosInstallHint() {
 }
 
 // ---------------------------------------------------------------------------
-// Offline status pill - a persistent (not auto-dismissing) indicator so
-// someone marking attendance or entering marks with no signal for an
-// extended stretch can see, at a glance, that they're still safely in
-// "will sync later" territory rather than wondering if anything is being
-// saved at all. error-handler.js's toasts cover the *moment* connectivity
-// changes; this covers the whole time in between.
+// Network Status Pill (Cloud Sync indicator)
+//
+// Displays a sleek, non-intrusive compact icon indicator in the topbar:
+//   - "online":  Compact cloud icon with tooltip ("Connected • Cloud synchronized")
+//                without expanding text or dropdown popovers.
+//   - "syncing": Primary blue badge + spinning sync icon + "Syncing…"
+//   - "offline": Amber badge + "Offline" (with duration tooltip)
 // ---------------------------------------------------------------------------
 let offlinePillCleanup = null;
 
-// How long someone can be offline before the pill escalates from a calm
-// "will sync" note to an explicit nudge to reconnect. Deliberately not
-// instant - a dropped connection for a minute mid-lesson is normal and
-// shouldn't feel urgent; the nudge is for "I've been offline long enough
-// that I should probably go find signal soon," not every brief drop.
-const OFFLINE_NUDGE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
-const LAST_ONLINE_KEY = "jss_last_online_at";
+function networkHealthPill() {
+  const iconSlot = el("span", { class: "network-pill__icon-slot" });
+  const textLabel = el("span", { class: "network-pill-text", style: "display: none;" }, "");
 
-function readLastOnlineAt() {
-  const raw = Number(localStorage.getItem(LAST_ONLINE_KEY));
-  return Number.isFinite(raw) && raw > 0 ? raw : Date.now();
-}
-function markOnlineNow() {
-  try { localStorage.setItem(LAST_ONLINE_KEY, String(Date.now())); } catch { /* non-fatal */ }
-}
+  const pillEl = el(
+    "div",
+    {
+      class: "badge topbar__network-pill topbar__network-pill--online",
+      "aria-label": "Network & Cloud Sync Status",
+      title: "Connected • Cloud synchronized",
+    },
+    [iconSlot, textLabel]
+  );
 
-// Offline status pill - persistent (not auto-dismissing, unlike
-// error-handler.js's toasts) so someone marking attendance or entering
-// marks with no signal for an extended stretch can see, at a glance, that
-// they're still safely in "will sync later" territory. Past
-// OFFLINE_NUDGE_AFTER_MS it escalates to an explicit reconnect nudge -
-// partly so unsynced work (only ever saved on this one device until it
-// actually reaches the server) doesn't sit at risk indefinitely, and
-// partly because a lapsed subscription only gets caught and shown for
-// real once back online (see the "online" handler in app.js) - staying
-// offline doesn't grant continued access to anything, it just delays
-// finding out either way.
-function offlineStatusPill() {
-  const pill = el("span", { class: "badge badge--warning topbar__offline-pill", style: "display:none;", title: "" }, [
-    icon("wifi_off"),
-    el("span", { class: "offline-pill-text" }, "Offline - will sync"),
-  ]);
-  const label = pill.querySelector(".offline-pill-text");
-  let nudgeTimer = null;
+  const wrap = el("div", { class: "topbar__network-pill-wrap", "data-tour": "topbar-sync" }, [pillEl]);
 
-  function applyState(online) {
-    pill.style.display = online ? "none" : "inline-flex";
-    if (online) {
-      markOnlineNow();
-      if (nudgeTimer) { clearInterval(nudgeTimer); nudgeTimer = null; }
+  let durationTimer = null;
+
+  function applyState(state) {
+    if (durationTimer) {
+      clearInterval(durationTimer);
+      durationTimer = null;
+    }
+
+    iconSlot.replaceChildren();
+
+    if (state.status === "offline") {
+      pillEl.className = "badge badge--warning topbar__network-pill topbar__offline-pill topbar__network-pill--offline";
+      iconSlot.append(icon("wifi_off"));
+      textLabel.textContent = "Offline";
+      textLabel.style.display = "inline-block";
+
+      const updateOfflineLabel = () => {
+        const info = getOfflineDurationInfo(state.lastOnlineAt);
+        if (info.needsNudge) {
+          pillEl.title = `Offline ${info.readableDuration} - reconnect to sync. Local edits safe on this device.`;
+        } else {
+          pillEl.title = "Offline - edits are saved in local cache and will sync automatically when reconnected.";
+        }
+      };
+
+      updateOfflineLabel();
+      durationTimer = setInterval(updateOfflineLabel, 60 * 1000);
       return;
     }
-    checkDuration();
-    if (!nudgeTimer) nudgeTimer = setInterval(checkDuration, 60 * 1000);
-  }
 
-  function checkDuration() {
-    const offlineMs = Date.now() - readLastOnlineAt();
-    if (offlineMs >= OFFLINE_NUDGE_AFTER_MS) {
-      const mins = Math.round(offlineMs / 60000);
-      const hrs = Math.floor(mins / 60);
-      const readable = hrs >= 1 ? `${hrs}h` : `${mins}m`;
-      label.textContent = `Offline ${readable} - reconnect to sync`;
-      pill.title = "Anything entered while offline is saved on this device only until it syncs. Reconnect for a few seconds when you can, especially to confirm your school's subscription status is up to date.";
-    } else {
-      label.textContent = "Offline - will sync";
-      pill.title = "No connection right now. What you enter is saved and will sync automatically once you're back online.";
+    if (state.status === "syncing") {
+      pillEl.className = "badge badge--primary topbar__network-pill topbar__offline-pill topbar__network-pill--syncing";
+      const syncIcon = icon("sync", "icon-spin");
+      iconSlot.append(syncIcon);
+      textLabel.textContent = "Syncing…";
+      textLabel.style.display = "inline-block";
+      pillEl.title = "Uploading pending edits to the cloud server…";
+      return;
     }
+
+    // "online" -> Sleek compact cloud icon, zero text expansion, zero layout shift
+    pillEl.className = "badge topbar__network-pill topbar__network-pill--online";
+    iconSlot.append(icon("cloud_done"));
+    textLabel.textContent = "";
+    textLabel.style.display = "none";
+    pillEl.title = "Connected • Cloud synchronized";
   }
 
-  const onOnline = () => applyState(true);
-  const onOffline = () => applyState(false);
-  window.addEventListener("actually-online", onOnline);
-  window.addEventListener("offline", onOffline);
-  applyState(navigator.onLine);
+  const unsub = subscribeNetworkHealth(applyState);
 
   if (offlinePillCleanup) offlinePillCleanup();
   offlinePillCleanup = () => {
-    window.removeEventListener("online", onOnline);
-    window.removeEventListener("offline", onOffline);
-    if (nudgeTimer) clearInterval(nudgeTimer);
+    unsub();
+    if (durationTimer) clearInterval(durationTimer);
   };
-  return pill;
+
+  return wrap;
+}
+
+function offlineStatusPill() {
+  return networkHealthPill();
 }
 
 // ---------------------------------------------------------------------------
@@ -790,6 +725,7 @@ export function stopIdleTimeoutWatcher() {
 
 export function renderShell(app, profile, activePath) {
   teardownNotifListeners();
+  getCommandPalette().then((m) => m.initCommandPalette(profile)).catch(() => {});
   // The whole shell rebuilds on every navigation, which would otherwise
   // reset the sidebar's scroll position back to the top each time.
   const previousSidebar = app.querySelector(".sidebar");
@@ -850,26 +786,7 @@ export function renderShell(app, profile, activePath) {
 
   sidebar.append(logoMount);
 
-  // Sidebar search: filters nav links by label as the user types. Matching
-  // groups stay expanded for the duration of the search; clearing the box
-  // restores each group's normal collapsed/expanded state.
-  const searchInput = el("input", {
-    class: "sidebar__search-input",
-    type: "text",
-    placeholder: "Search menu",
-    autocomplete: "off",
-  });
-  sidebar.append(
-    el("div", { class: "sidebar__search", "data-tour": "sidebar-search" }, [
-      el("span", { class: "material-symbols-rounded icon sidebar__search-icon" }, "search"),
-      searchInput,
-    ])
-  );
-
   const collapsedGroups = getCollapsedGroups();
-  // Collected while building the groups below, then used by the search
-  // handler to filter/restore without re-rendering the whole sidebar.
-  const groupRefs = [];
   let mainNavBadge = null;
 
   for (const group of NAV) {
@@ -891,7 +808,6 @@ export function renderShell(app, profile, activePath) {
     groupEl.append(labelRow);
 
     const linksWrap = el("div", { class: "nav-group__links" });
-    const linkRefs = [];
     for (const link of visibleLinks) {
       const isActive = activePath === link.path;
       
@@ -915,7 +831,6 @@ export function renderShell(app, profile, activePath) {
         [iconWrap, el("span", {}, link.text)]
       );
       linksWrap.append(linkEl);
-      linkRefs.push({ linkEl, text: link.text.toLowerCase() });
     }
     groupEl.append(linksWrap);
 
@@ -927,43 +842,20 @@ export function renderShell(app, profile, activePath) {
     }
 
     sidebar.append(groupEl);
-    groupRefs.push({ label: group.label, groupEl, chevron, hasActiveLink, linkRefs });
   }
-
-  searchInput.addEventListener("input", () => {
-    const query = searchInput.value.trim().toLowerCase();
-    if (!query) {
-      // Restore each group to its persisted collapsed/expanded state.
-      for (const ref of groupRefs) {
-        ref.groupEl.style.display = "";
-        for (const linkRef of ref.linkRefs) linkRef.linkEl.style.display = "";
-        const shouldCollapse = collapsedGroups.has(ref.label) && !ref.hasActiveLink;
-        ref.groupEl.classList.toggle("nav-group--collapsed", shouldCollapse);
-        ref.chevron.classList.toggle("nav-group__chevron--collapsed", shouldCollapse);
-      }
-      return;
-    }
-    // While searching, force every group open and show only matching links;
-    // hide a group entirely if nothing in it matches.
-    for (const ref of groupRefs) {
-      let anyMatch = false;
-      for (const linkRef of ref.linkRefs) {
-        const matches = linkRef.text.includes(query);
-        linkRef.linkEl.style.display = matches ? "" : "none";
-        if (matches) anyMatch = true;
-      }
-      ref.groupEl.style.display = anyMatch ? "" : "none";
-      ref.groupEl.classList.remove("nav-group--collapsed");
-      ref.chevron.classList.remove("nav-group__chevron--collapsed");
-    }
-  });
 
   // Collapse-to-icons toggle now lives at the top of the topbar, before the
   // school name, so it's always reachable without scrolling and doesn't
   // shift position as nav groups expand/collapse.
   const collapseBtn = el(
     "button",
-    { type: "button", class: "topbar__collapse-btn topbar__icon-btn" },
+    {
+      type: "button",
+      class: "topbar__collapse-btn topbar__icon-btn",
+      "data-tour": "sidebar-collapse",
+      title: "Collapse sidebar",
+      "aria-label": "Collapse sidebar",
+    },
     [el("span", { class: "material-symbols-rounded icon" }, "left_panel_close")]
   );
   const applyCollapsedState = (collapsed) => {
@@ -1021,18 +913,37 @@ export function renderShell(app, profile, activePath) {
 
   // Topbar
   const topbar = el("header", { class: "topbar" });
-  topbar.append(el("div", { class: "topbar__left" }, [
-    mobileMenuBtn,
-    collapseBtn,
-    el("div", { class: "topbar__titles" }, [
-      schoolNameEl,
-      el("div", { class: "topbar__title" }, currentTitle(activePath)),
+  const searchTriggerBtn = el(
+    "button",
+    {
+      type: "button",
+      class: "topbar__search-trigger",
+      "data-tour": "topbar-search",
+      title: "Search commands, students, classes (Ctrl+K)",
+      "aria-label": "Search commands, students, classes (Ctrl+K)",
+      onClick: () => getCommandPalette().then((m) => m.openCommandPalette({ profile })).catch(() => {}),
+    },
+    [
+      icon("search", "topbar__search-icon"),
+      el("span", { class: "topbar__search-text" }, "Search or jump to…"),
+      el("kbd", { class: "topbar__search-kbd" }, "Ctrl K"),
+    ]
+  );
+  topbar.append(
+    el("div", { class: "topbar__left" }, [
+      mobileMenuBtn,
+      collapseBtn,
+      el("div", { class: "topbar__titles" }, [
+        schoolNameEl,
+        el("div", { class: "topbar__title" }, currentTitle(activePath)),
+      ]),
     ]),
-  ]));
+    el("div", { class: "topbar__center" }, [searchTriggerBtn])
+  );
   const tourButton = el(
     "button",
     {
-      class: "topbar__icon-btn",
+      class: "topbar__icon-btn hide-on-mobile",
       "data-tour": "tour-trigger",
       title: "Guided system tour",
       "aria-label": "Guided system tour",
@@ -1075,6 +986,26 @@ export function renderShell(app, profile, activePath) {
       ]
     );
 
+    const themeIcon = icon(getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode");
+    const themeLabel = el("span", {}, getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme");
+    const themeBtn = el(
+      "button",
+      {
+        type: "button",
+        class: "topbar__profile-item",
+        onClick: () => {
+          dropdown.classList.remove("open");
+          toggleTheme();
+        },
+      },
+      [themeIcon, themeLabel]
+    );
+
+    window.addEventListener("themechange", () => {
+      themeIcon.textContent = getEffectiveTheme() === "dark" ? "light_mode" : "dark_mode";
+      themeLabel.textContent = getEffectiveTheme() === "dark" ? "Light theme" : "Dark theme";
+    });
+
     const dropdown = el("div", { class: "topbar__profile-dropdown" }, [
       el("div", { class: "topbar__profile-header" }, [
         el("div", { class: "topbar__avatar topbar__avatar--lg" }, initials),
@@ -1085,6 +1016,60 @@ export function renderShell(app, profile, activePath) {
         ]),
       ]),
       el("div", { class: "topbar__profile-divider" }),
+      ...(isInstallable() && !isRunningInstalled()
+        ? [
+            el(
+              "button",
+              {
+                type: "button",
+                class: "topbar__profile-item",
+                onClick: () => {
+                  dropdown.classList.remove("open");
+                  const method = installMethod();
+                  method === "prompt" ? handleNativeInstall() : showIosInstallHint();
+                },
+              },
+              [icon("install_desktop"), "Install app"]
+            ),
+          ]
+        : []),
+      themeBtn,
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item hide-on-mobile",
+          title: "Guided system tour",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            if (sidebar.classList.contains("sidebar--collapsed")) {
+              saveSidebarCollapsed(false);
+              applyCollapsedState(false);
+              setTimeout(() => startTour(TOUR_STEPS), 200);
+            } else {
+              startTour(TOUR_STEPS);
+            }
+          },
+        },
+        [icon("smart_toy"), "Guided Tour"]
+      ),
+      el(
+        "button",
+        {
+          type: "button",
+          class: "topbar__profile-item",
+          title: "View all keyboard shortcuts and letter jump instructions (Ctrl+K or ?)",
+          onClick: () => {
+            dropdown.classList.remove("open");
+            getCommandPalette().then((m) => m.openCommandPalette({ profile, defaultTab: "hints" })).catch(() => {});
+          },
+        },
+        [
+          icon("keyboard"),
+          "Commands & Shortcuts",
+          el("kbd", { class: "topbar__search-kbd", style: "margin-left:auto; font-size:10px;" }, "Ctrl K / ?"),
+        ]
+      ),
       ...(profile.role === "super_admin" ? [
         el(
           "button",
@@ -1139,7 +1124,6 @@ export function renderShell(app, profile, activePath) {
 
   const userBox = el("div", { class: "topbar__user", "data-tour": "topbar-user" }, [
     offlineStatusPill(),
-    installButton(),
     tourButton,
     renderUserProfileMenu(),
   ]);
@@ -1263,8 +1247,14 @@ function currentTitle(path) {
   return "";
 }
 
-import { signOutWithFeedback, showSignoutOverlay } from "./signout-modal.js";
-export { signOutWithFeedback, showSignoutOverlay };
+export async function signOutWithFeedback() {
+  const { signOutWithFeedback: doSignOut } = await import("./signout-modal.js");
+  return doSignOut();
+}
+export async function showSignoutOverlay() {
+  const { showSignoutOverlay: doShow } = await import("./signout-modal.js");
+  return doShow();
+}
 
 async function handleLogout() {
   await signOutWithFeedback();

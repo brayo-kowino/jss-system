@@ -16,7 +16,9 @@ import {
 import { downloadElementAsPdf, downloadPdfsAsZip, prewarmPdfLibs } from "../js/services/pdf.util.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, skeleton, busyButton } from "../js/utils.js";
+import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput, makeCopyable, renderEmptyState } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
+import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 let classes = [];
 let settings = null;
@@ -48,91 +50,25 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-/**
- * Animated Scholar Accountant mascot with ledger, waving gold coin, and swaying tassel.
- */
-export function buildFinanceMascotSvg({ width = 125, height = 110 } = {}) {
-  return `
-    <svg class="fees-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Finance Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+import { buildFinanceMascotSvg } from "../js/components/mascot.js";
+export { buildFinanceMascotSvg };
 
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Financial Ledgers Stack -->
-        <g class="support-mascot__books">
-          <rect x="56" y="174" width="108" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="60" y="177" width="100" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="62" y="162" width="96" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="66" y="165" width="88" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="68" y="150" width="84" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="72" y="153" width="76" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Open Ledger -->
-        <g class="fees-mascot__ledger">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <rect x="60" y="128" width="26" height="32" rx="3" fill="#FAF6F0" stroke="#14538A" stroke-width="1.4" transform="rotate(-10 73 144)" />
-          <line x1="64" y1="134" x2="80" y2="131" stroke="#059669" stroke-width="1.5" />
-          <line x1="65" y1="140" x2="81" y2="137" stroke="#94A3B8" stroke-width="1.2" />
-          <line x1="66" y1="146" x2="82" y2="143" stroke="#94A3B8" stroke-width="1.2" />
-          <line x1="67" y1="152" x2="77" y2="150" stroke="#059669" stroke-width="1.2" />
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Right Arm Raising Gold Coin -->
-        <g class="fees-mascot__arm-coin">
-          <path d="M136,128 C148,132 154,120 150,108" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="108" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Eyes (Animated Blink) -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Cheerful Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap -->
-        <g transform="rotate(-6 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
-
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);
-  selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  selection.academicYear = params.academicYear || params.year || selection.academicYear || settings.currentAcademicYear || "";
+  selection.term = params.term || selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  if (params.grade || params.class) {
+    selection.grade = params.grade || params.class;
+  }
+  if (params.stream) {
+    selection.stream = params.stream;
+  }
+  if (params.status && ["all", "pending", "cleared"].includes(params.status)) {
+    statusFilter = params.status;
+  }
+  if (params.q || params.search) {
+    searchQuery = (params.q || params.search).toLowerCase().trim();
+  }
 
   const wrap = el("div", { class: "fees-page" });
 
@@ -160,6 +96,20 @@ export async function render({ profile }) {
       el("div", { class: "fees-hero__pills" }, [
         el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
         el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
+        el("button", {
+          type: "button",
+          class: "fees-pill deep-link-btn",
+          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
+          title: "Copy link to Fees module",
+          onClick: () => {
+            const p = {};
+            if (selection.grade) p.grade = selection.grade;
+            if (selection.stream) p.stream = selection.stream;
+            if (selection.academicYear) p.academicYear = selection.academicYear;
+            if (selection.term) p.term = selection.term;
+            copyDeepLink("/fees", p, "Fees link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
       ]),
     ]),
 
@@ -185,6 +135,36 @@ export async function render({ profile }) {
   wrap.append(receiptMount);
 
   renderPicker(pickerCard, profile, balancesMount, paymentsMount, receiptMount);
+
+  // Auto-action if triggered via deep link
+  if (params.action === "new-structure") {
+    setTimeout(() => {
+      openStructureModal(profile, null, structuresCard);
+    }, 150);
+  } else if (selection.grade) {
+    const validStreams = streamOptions(selection.grade);
+    if (!selection.stream && validStreams.length > 0) {
+      if (params.stream && validStreams.includes(params.stream)) {
+        selection.stream = params.stream;
+      } else {
+        selection.stream = validStreams[0];
+      }
+    }
+    setTimeout(async () => {
+      await loadBalances(profile, balancesMount, paymentsMount, receiptMount);
+      const targetStudentId = params.studentId || params.id || params.admNo;
+      if (targetStudentId && balanceRows.length) {
+        const found = balanceRows.find((r) =>
+          r.student.id === targetStudentId ||
+          r.student.admissionNumber === targetStudentId
+        );
+        if (found) {
+          openPaymentModal(profile, found, balancesMount, paymentsMount, receiptMount);
+        }
+      }
+    }, 120);
+  }
+
   return wrap;
 }
 
@@ -206,6 +186,12 @@ function renderStructures(container, profile) {
       el("p", { class: "text-muted text-sm", style: "margin:4px 0 0 0;" }, "Baseline tuition amounts per grade and academic term."),
     ]),
     el("div", { style: "display:flex; gap:8px; align-items:center; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy link to Fee Structures",
+        onClick: () => copyDeepLink("/fees", { tab: "structures" }, "Fee structures link"),
+      }, [icon("share", "text-xs"), "Share Structures"]),
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
@@ -303,7 +289,13 @@ function openStructureModal(profile, existing, structuresContainer) {
     { ...(isEdit ? { disabled: "true" } : {}) },
     (settings.terms || []).map((t) => el("option", { value: t, ...(t === (existing?.term || settings.currentTerm) ? { selected: "true" } : {}) }, t))
   );
-  const amountInput = el("input", { type: "number", min: "0", step: "1", value: existing?.amount ?? "", placeholder: "e.g. 15000" });
+  const amountInput = el("input", {
+    type: "text",
+    value: existing?.amount != null ? String(existing.amount) : "",
+    placeholder: "e.g. 15,000",
+    autocomplete: "off",
+  });
+  attachCurrencyInput(amountInput, { prefix: "KES " });
 
   body.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
@@ -313,7 +305,9 @@ function openStructureModal(profile, existing, structuresContainer) {
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "price_change"), isEdit ? "Save Changes" : "Set Fee Structure"])
   );
 
-  const close = openModal(isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure", body);
+  const structTitle = isEdit ? `Edit Fee Structure: ${existing.grade}` : "Set Fee Structure";
+  const close = openModal(structTitle, body);
+  trackForm(body, { name: structTitle });
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
@@ -322,7 +316,7 @@ function openStructureModal(profile, existing, structuresContainer) {
         grade: isEdit ? existing.grade : gradeSelect.value,
         academicYear: isEdit ? existing.academicYear : yearInput.value.trim(),
         term: isEdit ? existing.term : termSelect.value,
-        amount: amountInput.value,
+        amount: (amountInput.dataset.rawValue || amountInput.value).replace(/[^0-9.]/g, ""),
       });
       structures = await listFeeStructures();
       renderStructures(structuresContainer, profile);
@@ -431,6 +425,19 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   const actions = el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end; gap:8px;" }, [
     el("button", {
       type: "button",
+      class: "btn btn--ghost btn--sm deep-link-btn",
+      title: "Share a link with these class & term filters",
+      onClick: () => {
+        const p = {};
+        if (gradeSelect.value) p.grade = gradeSelect.value;
+        if (streamSelect.value) p.stream = streamSelect.value;
+        if (yearInput.value.trim()) p.academicYear = yearInput.value.trim();
+        if (termSelect.value) p.term = termSelect.value;
+        copyDeepLink("/fees", p, "Fee filter link");
+      },
+    }, [icon("share", "text-xs"), "Share Filter"]),
+    el("button", {
+      type: "button",
       class: "btn btn--primary btn--sm",
       onClick: () => loadBalances(profile, balancesMount, paymentsMount, receiptMount),
     }, [icon("search"), "Load Balances & Records"]),
@@ -525,7 +532,11 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
       el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
         icon("group_off", "text-muted", "style: font-size:42px;"),
         el("h3", { style: "margin:8px 0 4px; color:var(--color-primary-900);" }, "No active students in this class"),
-        el("p", { class: "text-muted text-sm" }, "Check the active student roster under the Students module."),
+        el("p", { class: "text-muted text-sm", style: "display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center;" }, [
+          "Check the active student roster or admit new learners under the ",
+          internalLink("/students", { grade, stream, action: "admit" }, `Students Directory for ${grade}${stream ? " " + stream : ""}`),
+          ".",
+        ]),
       ])
     ]));
     return;
@@ -603,11 +614,24 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
       ]),
       el("p", { class: "text-muted text-sm", style: "margin:4px 0 0 0;" }, `${totalStudents} active student records in this class roster.`),
     ]),
-    el("button", {
-      type: "button",
-      class: "btn btn--ghost btn--sm",
-      onClick: () => exportClassFeeSheetCsv(),
-    }, [icon("download"), "Export Sheet (CSV)"]),
+    el("div", { style: "display:flex; gap:8px; align-items:center; flex-wrap:wrap;" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Share direct link to this class fee roster",
+        onClick: () => {
+          const p = { grade, stream, academicYear, term };
+          if (statusFilter !== "all") p.status = statusFilter;
+          if (searchQuery) p.q = searchQuery;
+          copyDeepLink("/fees", p, `${grade} ${stream} fee roster link`);
+        },
+      }, [icon("share", "text-xs"), "Share Balances"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm",
+        onClick: () => exportClassFeeSheetCsv(),
+      }, [icon("download"), "Export Sheet (CSV)"]),
+    ]),
   ]);
   rosterCard.append(rosterHeader);
 
@@ -616,6 +640,12 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
     type: "text",
     placeholder: "Search by student name or admission no…",
     value: searchQuery,
+  });
+  attachSearchClear(searchInput, {
+    onClear: () => {
+      searchQuery = "";
+      renderRosterRows(tbody);
+    },
   });
 
   const filterTabsContainer = el("div", { class: "fees-status-filter" });
@@ -688,11 +718,26 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
     });
 
     if (!filtered.length) {
+      const resetBtn = el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--xs",
+        style: "margin-left:8px; display:inline-flex; align-items:center; gap:4px;",
+        onClick: () => {
+          searchQuery = "";
+          statusFilter = "all";
+          searchInput.value = "";
+          searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+          updateStatusButtons();
+          renderRosterRows(targetTbody);
+        },
+      }, [icon("restart_alt", "text-xs"), "Reset Filters"]);
+
       targetTbody.append(
         el("tr", {}, [
           el("td", { colspan: "7", style: "text-align:center; padding:var(--sp-5); color:var(--color-ink-soft);" }, [
             icon("search_off", "", "style: vertical-align:middle; margin-right:4px;"),
-            "No students match the active search or filter criteria.",
+            "No students match the active search or filter criteria. ",
+            resetBtn,
           ]),
         ])
       );
@@ -719,9 +764,9 @@ function renderBalances(container, profile, paymentsMount, receiptMount) {
         ]);
       }
 
-      const paidColor = (paid || 0) > 0 ? "#059669" : "var(--color-ink-soft)";
+      const paidColor = (paid || 0) > 0 ? "var(--color-green)" : "var(--color-ink-soft)";
       const paidWeight = (paid || 0) > 0 ? "600" : "400";
-      const balColor = isCleared ? "#059669" : "#dc2626";
+      const balColor = isCleared ? "var(--color-green)" : "var(--color-red)";
 
       targetTbody.append(el("tr", {}, [
         el("td", { "data-label": "Adm No." }, [
@@ -764,27 +809,46 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
   const body = el("form", {});
 
   // Context card with balance indicator
-  const contextCard = el("div", { class: "modal-student-context" }, [
+  const contextCard = el("div", {
+    class: "modal-student-context",
+    style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;",
+  }, [
     el("div", {}, [
       el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm); display:block;" }, student.fullName),
       el("span", { class: "text-muted text-xs" }, `Adm No: ${student.admissionNumber || "—"} · ${grade} ${stream} · ${term} ${academicYear}`),
     ]),
-    el("div", { style: "text-align:right;" }, [
-      el("span", { class: "text-muted text-xs", style: "display:block;" }, "Outstanding Balance"),
-      el("span", {
-        class: `badge badge--${(balance || 0) > 0 ? "danger" : "success"}`,
-        style: "font-weight:700; font-family:var(--font-mono, monospace);",
-      }, formatKES(balance)),
+    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+      el("div", { style: "text-align:right;" }, [
+        el("span", { class: "text-muted text-xs", style: "display:block;" }, "Outstanding Balance"),
+        el("span", {
+          class: `badge badge--${(balance || 0) > 0 ? "danger" : "success"}`,
+          style: "font-weight:700; font-family:var(--font-mono, monospace);",
+        }, formatKES(balance)),
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--xs deep-link-btn",
+        title: "Copy link to this learner's fee ledger",
+        onClick: () => {
+          copyDeepLink("/fees", {
+            grade,
+            stream,
+            academicYear,
+            term,
+            studentId: student.id,
+          }, `Fee link for ${student.fullName}`);
+        },
+      }, [icon("share", "text-xs"), "Share Link"]),
     ]),
   ]);
 
   const amountInput = el("input", {
-    type: "number",
-    min: "1",
-    step: "1",
-    placeholder: "e.g. 5000",
+    type: "text",
+    placeholder: "e.g. 5,000",
     required: "true",
+    autocomplete: "off",
   });
+  attachCurrencyInput(amountInput, { prefix: "KES " });
 
   const methodSelect = el("select", {}, PAYMENT_METHODS.map((m) => el("option", { value: m }, m)));
   const referenceInput = el("input", { type: "text", placeholder: "e.g. QKH782GH19 / Receipt ref" });
@@ -808,6 +872,8 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
       style: "font-size:11px; padding:2px 8px;",
       onClick: () => {
         amountInput.value = balance;
+        amountInput.dispatchEvent(new Event("input", { bubbles: true }));
+        amountInput.dispatchEvent(new Event("blur", { bubbles: true }));
       },
     }, [icon("paid", "text-xs"), `Fill Remaining: ${formatKES(balance)}`]);
     quickFillRow.append(fillBtn);
@@ -829,7 +895,9 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
     ])
   );
 
-  const close = openModal(`Record Payment: ${student.fullName}`, body);
+  const paymentModalTitle = `Record Payment: ${student.fullName}`;
+  const close = openModal(paymentModalTitle, body);
+  trackForm(body, { name: paymentModalTitle });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -843,7 +911,7 @@ function openPaymentModal(profile, rowData, balancesContainer, paymentsMount, re
         stream,
         academicYear,
         term,
-        amount: amountInput.value,
+        amount: (amountInput.dataset.rawValue || amountInput.value).replace(/[^0-9.]/g, ""),
         method: methodSelect.value,
         reference: referenceInput.value.trim(),
         date: paymentDate,
@@ -947,7 +1015,7 @@ async function renderPaymentsHistory(container, profile, receiptMount) {
       el("td", { "data-label": "Channel" }, renderPaymentMethodBadge(p.method)),
       el("td", { "data-label": "Reference" }, [
         p.reference
-          ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); background:var(--color-cream-dim); padding:2px 6px; border-radius:var(--radius-sm);" }, p.reference)
+          ? makeCopyable(el("span", { style: "font-family:var(--font-mono, monospace); font-size:var(--fs-xs); background:var(--color-cream-dim); padding:2px 6px; border-radius:var(--radius-sm);" }, p.reference), p.reference, { title: "Click to copy reference" })
           : el("span", { class: "text-muted text-xs" }, "—"),
       ]),
       el("td", { class: "col-action", "data-label": "Action" }, [
@@ -1002,26 +1070,58 @@ async function handleBulkReceiptDownload(button, payments) {
 
 function buildReceiptCard(payment) {
   const card = el("div", { class: "receipt" });
+  const schoolSettings = settings || {};
+
+  const logoNode = schoolSettings.logoUrl
+    ? el("img", { class: "receipt__logo", src: schoolSettings.logoUrl, alt: "School Crest" })
+    : el("div", {
+        class: "receipt__logo",
+        style: "display:flex; align-items:center; justify-content:center; background:var(--color-primary-100); color:var(--color-primary-700); font-weight:700; border-radius:50%; width:44px; height:44px;",
+      }, [icon("school", "text-lg")]);
+
   card.append(
     el("div", { class: "receipt__header" }, [
-      el("img", { class: "receipt__logo", src: settings.logoUrl || "/assets/logo.png", alt: "logo" }),
+      logoNode,
       el("div", {}, [
-        el("h3", { class: "receipt__school-name" }, settings.schoolName || "School Name"),
-        el("p", { class: "receipt__address" }, settings.address || ""),
+        el("h3", { class: "receipt__school-name" }, schoolSettings.schoolName || "Institution Name"),
+        schoolSettings.motto ? el("p", { style: "margin:0 0 2px 0; font-size:10px; font-style:italic; color:var(--color-gold);" }, `“${schoolSettings.motto}”`) : null,
+        el("p", { class: "receipt__address" }, schoolSettings.address || ""),
       ]),
     ]),
-    el("div", { class: "receipt__banner" }, "FEE PAYMENT RECEIPT"),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", {}, payment.id.slice(0, 10).toUpperCase())]),
+    el("div", { class: "receipt__banner" }, "OFFICIAL FEE PAYMENT RECEIPT"),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Receipt No."), el("b", { style: "font-family:var(--font-mono, monospace);" }, (payment.id || "").slice(0, 10).toUpperCase() || "N/A")]),
     el("div", { class: "receipt__row" }, [el("span", {}, "Date"), el("b", {}, formatDate(payment.date))]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Student"), el("b", {}, payment.studentName || "N/A")]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Class"), el("b", {}, `${payment.grade} ${payment.stream}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Term"), el("b", {}, `${payment.term} ${payment.academicYear}`)]),
-    el("div", { class: "receipt__row" }, [el("span", {}, "Method"), el("b", {}, payment.method || "N/A")]),
-    ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Reference"), el("b", {}, payment.reference)])] : []),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Learner Name"), el("b", {}, payment.studentName || "N/A")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Class & Stream"), el("b", {}, `${payment.grade || ""} ${payment.stream || ""}`.trim() || "N/A")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Term & Year"), el("b", {}, `${payment.term || ""} ${payment.academicYear || ""}`.trim() || "N/A")]),
+    el("div", { class: "receipt__row" }, [el("span", {}, "Payment Method"), el("b", {}, payment.method || "N/A")]),
+    ...(payment.reference ? [el("div", { class: "receipt__row" }, [el("span", {}, "Ref / Transaction ID"), el("b", { style: "font-family:var(--font-mono, monospace);" }, payment.reference)])] : []),
     el("div", { class: "receipt__amount" }, formatKES(payment.amount)),
-    el("div", { class: "receipt__footer" }, "Thank you. Keep this receipt for your records.")
+    el("div", { class: "receipt__footer" }, "Thank you for supporting quality CBC education. Keep this receipt for institutional records.")
   );
   return card;
+}
+
+function showReceiptModal(payment) {
+  const card = buildReceiptCard(payment);
+  const actions = el("div", {
+    class: "no-print",
+    style: "display:flex; gap:10px; justify-content:flex-end; width:100%; margin-top:16px; border-top:1px solid var(--color-line); padding-top:12px;",
+  }, [
+    el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => window.print() }, [icon("print"), "Print Receipt"]),
+    el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: (e) => handleDownload(e.currentTarget, card, payment) }, [icon("download"), "Download PDF"]),
+  ]);
+
+  const body = el("div", { style: "display:flex; flex-direction:column; align-items:center; width:100%;" }, [
+    card,
+    actions,
+  ]);
+
+  openModal({
+    title: `Payment Receipt: ${payment.studentName || "Learner"}`,
+    body,
+    maxWidth: "480px",
+  });
 }
 
 function renderReceipt(container, payment) {
@@ -1034,7 +1134,7 @@ function renderReceipt(container, payment) {
   ]);
 
   container.append(card, actions);
-  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  showReceiptModal(payment);
 }
 
 async function handleDownload(btn, node, payment) {

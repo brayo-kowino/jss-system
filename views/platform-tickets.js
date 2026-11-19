@@ -4,6 +4,7 @@ import {
   reopenSupportTicket,
 } from "../js/services/support.service.js";
 import { listSchools } from "../js/services/school.service.js";
+import { openAccountRecoveryModal } from "../js/services/recovery.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { openModal } from "../js/components/modal.js";
 
@@ -15,10 +16,15 @@ function renderRow(ticket, profile) {
   const isOpen = ticket.status === "open";
   const tr = el("tr", { class: isOpen ? "" : "row-dimmed" });
 
+  const isSecurityIncident = ticket.category === "account_compromise" ||
+    ticket.category === "security_breach" ||
+    ticket.priority === "critical" ||
+    /compromise|quarantine|breach|hack/i.test(ticket.subject || "");
+
   const statusBadge = el(
     "span",
-    { class: `badge badge--${isOpen ? "warning" : "success"}` },
-    isOpen ? "Open" : "Resolved"
+    { class: `badge badge--${isOpen ? (isSecurityIncident ? "danger" : "warning") : "success"}` },
+    isOpen ? (isSecurityIncident ? "🚨 Critical" : "Open") : "Resolved"
   );
 
   const resolvedSchoolName =
@@ -32,9 +38,13 @@ function renderRow(ticket, profile) {
     el("td", { "data-label": "School" }, [
       el("strong", {}, resolvedSchoolName),
       el("div", { class: "text-xs text-muted" }, `ID: ${ticket.schoolId}`),
+      ticket.contactPhone ? el("div", { class: "text-xs", style: "color:var(--color-primary-700); margin-top:2px;" }, `📞 ${ticket.contactPhone}`) : "",
     ]),
     el("td", { "data-label": "Subject & Issue" }, [
-      el("strong", {}, ticket.subject),
+      el("div", { style: "display:flex; align-items:center; gap:6px; flex-wrap:wrap;" }, [
+        el("strong", {}, ticket.subject),
+        isSecurityIncident ? el("span", { class: "badge badge--danger", style: "font-size:10px; font-weight:700;" }, "SECURITY") : "",
+      ]),
       el(
         "div",
         {
@@ -56,23 +66,33 @@ function renderRow(ticket, profile) {
         : el("span", { class: "text-muted" }, "—"),
     ]),
     el("td", { "data-label": "Actions", class: "row-actions" }, [
-      isOpen
-        ? el(
-            "button",
-            {
-              class: "btn btn--primary btn--sm",
-              onClick: () => showResolveModal(ticket, profile),
-            },
-            [icon("reply"), "Resolve"]
-          )
-        : el(
-            "button",
-            {
-              class: "btn btn--ghost btn--sm",
-              onClick: () => handleReopen(ticket, profile),
-            },
-            [icon("undo"), "Reopen"]
-          ),
+      el("div", { style: "display:flex; gap:6px; align-items:center;" }, [
+        ticket.schoolId && ticket.schoolId !== "unresolved"
+          ? el("button", {
+              type: "button",
+              class: `btn btn--sm ${isSecurityIncident ? "btn--danger" : "btn--ghost"}`,
+              title: "Open Account Recovery & Quarantine Suite",
+              onClick: () => openAccountRecoveryModal(ticket.schoolId, ticket.contactEmail || ticket.raisedBy, profile),
+            }, [icon("shield", "text-sm"), "Recovery"])
+          : "",
+        isOpen
+          ? el(
+              "button",
+              {
+                class: "btn btn--primary btn--sm",
+                onClick: () => showResolveModal(ticket, profile),
+              },
+              [icon("reply"), "Resolve"]
+            )
+          : el(
+              "button",
+              {
+                class: "btn btn--ghost btn--sm",
+                onClick: () => handleReopen(ticket, profile),
+              },
+              [icon("undo"), "Reopen"]
+            ),
+      ]),
     ])
   );
   return tr;

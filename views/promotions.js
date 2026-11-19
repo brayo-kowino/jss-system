@@ -310,7 +310,7 @@ function buildManualFields(container) {
 
   container.innerHTML = "";
   container.append(
-    el("div", { style: "display:flex; gap:var(--sp-4); align-items:flex-end; flex-wrap:wrap; margin-top:var(--sp-4); padding:var(--sp-4); background:#f8fafc; border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
+    el("div", { style: "display:flex; gap:var(--sp-4); align-items:flex-end; flex-wrap:wrap; margin-top:var(--sp-4); padding:var(--sp-4); background:var(--color-surface-alt, var(--color-cream-dim)); border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
       el("div", { class: "field", style: "flex:1; min-width:200px; margin:0;" }, [
         el("label", { class: "field__label", style: "font-weight:600; margin-bottom:4px;" }, "Source Grade"),
         sourceSelect,
@@ -530,7 +530,7 @@ function buildReviewStep() {
         style: "display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(245, 158, 11, 0.08); border-top:1px solid rgba(245, 158, 11, 0.2); font-size:var(--fs-xs); color:#B45309;",
       }, [
         icon("info"),
-        el("span", {}, `${warnings.length} learner(s) had their stream auto-assigned because their previous stream is not offered in the destination grade. Click the edit icon (✎) on any row to change it.`),
+        el("span", {}, `${warnings.length} learner(s) had their stream auto-assigned because their previous stream is not offered in the destination grade. Click the edit icon on any row to change it.`),
       ])
     );
   }

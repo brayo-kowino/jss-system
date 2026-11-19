@@ -21,7 +21,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, setCustomClaims, claimExpiryIso, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { verifyTotp, hashBackupCode } from "./lib/totp.ts";
 import { signStepUpToken, newJti } from "./lib/step-up-token.ts";
 import { checkRateLimit, rateLimitedResponse, clientIp } from "./lib/rate-limit.ts";
@@ -127,7 +127,10 @@ export default async (request: Request, context: Context) => {
   // inheriting whatever "verified" state the account happened to have from
   // a previous session.
   try {
-    await setCustomClaims(accessToken, uid, { twoFactorVerifiedUntil: claimExpiryIso(TWO_FACTOR_CLAIM_TTL_MS) });
+    await setCustomClaims(accessToken, uid, {
+      twoFactorVerifiedUntil: claimExpiryIso(TWO_FACTOR_CLAIM_TTL_MS),
+      twoFactorVerifiedUntilMs: claimExpiryMs(TWO_FACTOR_CLAIM_TTL_MS),
+    });
   } catch (err) {
     console.error("two-factor-verify: setCustomClaims failed", err);
   }

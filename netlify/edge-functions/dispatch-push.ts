@@ -1,4 +1,5 @@
-import { verifyFirebaseIdToken, getAccessToken, runFsQuery, jsonResponse } from "./lib/firestore-rest.ts";
+import { verifyFirebaseIdToken, getAccessToken, runFsQuery, getFsDoc, deleteFsDoc, jsonResponse } from "./lib/firestore-rest.ts";
+import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 export default async function handler(req: Request) {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -10,50 +11,85 @@ export default async function handler(req: Request) {
   const uid = await verifyFirebaseIdToken(idToken);
   if (!uid) return jsonResponse({ error: "Invalid token" }, 401);
 
-  const body = await req.json();
-  const { title, message, schoolId, isPlatformAnnouncement } = body;
-  
+  // Rate limit: 10 push dispatches per 5 minutes per user
+  const rl = await checkRateLimit(`dispatch-push:uid:${uid}`, 10, 300);
+  if (!rl.allowed) return rateLimitedResponse(rl.retryAfterSeconds);
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
+  }
+
+  const { title, message, schoolId, isPlatformAnnouncement } = body || {};
   if (!title || !message) return jsonResponse({ error: "Missing title or message" }, 400);
 
   const accessToken = await getAccessToken();
 
-  let tokens: any[] = [];
+  // Role & school authorization check
+  const user = await getFsDoc(accessToken, `users/${uid}`);
+  if (!user || user.status === "suspended") {
+    return jsonResponse({ error: "Account is unauthorized or suspended" }, 403);
+  }
+
   if (isPlatformAnnouncement) {
-    // Platform announcement: broadcast to all fcm_tokens
-    // (This uses an empty filter. In a massive scale app, this might need chunking, 
-    // but for the current size, 1000 limit in runFsQuery is okay or we fetch all pages.)
-    tokens = await runFsQuery(accessToken, "fcm_tokens", []);
+    if (user.role !== "super_admin") {
+      return jsonResponse({ error: "Forbidden: Super admin required for platform announcements" }, 403);
+    }
   } else if (schoolId) {
-    // School-specific notification
-    tokens = await runFsQuery(accessToken, "fcm_tokens", [["schoolId", "EQUAL", schoolId]]);
+    const isSuper = user.role === "super_admin";
+    const isAuthorizedStaff = user.schoolId === schoolId && ["admin", "principal", "deputy_principal", "academic_master"].includes(user.role);
+    if (!isSuper && !isAuthorizedStaff) {
+      return jsonResponse({ error: "Forbidden: Not authorized to dispatch notifications for this school" }, 403);
+    }
   } else {
     return jsonResponse({ error: "Must specify schoolId or isPlatformAnnouncement" }, 400);
   }
 
-  const fcmTokens = tokens.map(t => t.token).filter(Boolean);
-  if (fcmTokens.length === 0) return jsonResponse({ success: true, count: 0 }, 200);
+  let tokens: any[] = [];
+  if (isPlatformAnnouncement) {
+    tokens = await runFsQuery(accessToken, "fcm_tokens", []);
+  } else if (schoolId) {
+    tokens = await runFsQuery(accessToken, "fcm_tokens", [["schoolId", "EQUAL", schoolId]]);
+  }
+
+  const fcmDocs = tokens.filter(t => t.token);
+  if (fcmDocs.length === 0) return jsonResponse({ success: true, count: 0 }, 200);
 
   // Send pushes in parallel
-  const sendPromises = fcmTokens.map(token => {
-    return fetch(`https://fcm.googleapis.com/v1/projects/jss-management-system/messages:send`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        message: {
-          token,
-          notification: { title, body: message },
-          data: { url: "/app/#!/notifications" }
+  const sendPromises = fcmDocs.map(async (docItem) => {
+    try {
+      const res = await fetch(`https://fcm.googleapis.com/v1/projects/jss-management-system/messages:send`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: {
+            token: docItem.token,
+            notification: { title, body: message },
+            data: { url: "/app/#/notifications" }
+          }
+        })
+      });
+
+      // Stale token cleanup: If FCM says UNREGISTERED or 404, delete the token
+      if (res.status === 404 || res.status === 410) {
+        if (docItem.id) {
+          deleteFsDoc(accessToken, `fcm_tokens/${docItem.id}`).catch(() => {});
         }
-      })
-    });
+      }
+      return res.ok;
+    } catch {
+      return false;
+    }
   });
 
   await Promise.allSettled(sendPromises);
 
-  return jsonResponse({ success: true, count: fcmTokens.length }, 200);
+  return jsonResponse({ success: true, count: fcmDocs.length }, 200);
 }
 
 export const config = { path: "/api/dispatch-push" };

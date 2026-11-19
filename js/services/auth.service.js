@@ -43,6 +43,7 @@ import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
 import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice } from "./device.service.js";
 import { findOrCreatePendingApproval, cleanupOldApprovals } from "./login-approval.service.js";
+import { clearPostLoginRedirect } from "./deep-link.service.js";
 import { is2FAVerifiedThisSession } from "./two-factor.service.js";
 import { getSchoolSettings } from "./settings.service.js";
 
@@ -495,6 +496,7 @@ export async function logout() {
   writeCachedSchool(null);
   await signOut(auth);
   syncSchoolIdCookie(null);
+  clearPostLoginRedirect();
   // So the next sign-in (possibly a different account/school in the same
   // tab) never reads another account's cached data out of query-cache.js.
   clearReadCache();
@@ -531,12 +533,32 @@ export async function changeOwnPassword(currentPassword, newPassword) {
     const primaryDevice = await getPrimaryDevice(currentProfile.uid);
     const isPrimary = !primaryDevice || primaryDevice.id === fingerprint;
     await registerTrustedDevice(currentProfile.uid, fingerprint, deviceInfo, isPrimary);
+    triggerPasswordChangeAlert(deviceInfo);
   } catch (deviceErr) {
     console.error("Trusted device registration failed during password change:", deviceErr);
   }
 
   await logAction(currentProfile.uid, "change_password", "auth", null);
   return currentProfile;
+}
+
+async function triggerPasswordChangeAlert(deviceInfo) {
+  try {
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) return;
+    const deviceSummary = `${deviceInfo?.browser || "Browser"} on ${deviceInfo?.os || "Device"}`;
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://eeskia.iskify360.tech";
+    fetch("/.netlify/functions/notify-password-changed", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ deviceSummary, origin }),
+    }).catch((err) => console.warn("Failed to dispatch password change alert:", err));
+  } catch (err) {
+    console.warn("Password change alert dispatch failed:", err);
+  }
 }
 
 // Used by the forced "you must set a new password" screen every fresh

@@ -39,9 +39,11 @@ import {
 } from "../js/services/student-import.service.js";
 import { openModal } from "../js/components/modal.js";
 import { datePickerInput, datePickerField } from "../js/components/datepicker.js";
-import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
+import { el, icon, toast, formatDate, busyButton, spinner, attachSearchClear, makeCopyable, renderEmptyState, animateNumber } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
+import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
 
 let students = [];
 let parents = [];
@@ -52,102 +54,19 @@ let filterText = "";
 let filterGrade = "";
 let filterStatus = "";
 let currentPage = 1;
-const PAGE_SIZE = 50;
+let pageSize = 50;
+let sortColumn = "admissionNumber";
+let sortDirection = "asc";
+let activeSearchInput = null;
+let activeGradeSelect = null;
+let activeStatusSelect = null;
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
-/**
- * Dynamic Academic Registrar mascot with student folio and graduation diploma.
- */
-export function buildStudentsMascotSvg({ width = 125, height = 110 } = {}) {
-  return `
-    <svg class="students-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Student Registrar Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+import { buildStudentsMascotSvg } from "../js/components/mascot.js";
+export { buildStudentsMascotSvg };
 
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Scholar Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Student Portfolio Folio -->
-        <g class="students-mascot__folio">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- Blue Student Folio Binder -->
-          <rect x="52" y="124" width="32" height="26" rx="3" fill="#0B2545" stroke="#14538A" stroke-width="1.2" transform="rotate(-6 68 137)" />
-          <rect x="56" y="128" width="18" height="3" rx="1" fill="#C9A227" transform="rotate(-6 68 137)" />
-          <rect x="56" y="133" width="22" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
-          <rect x="56" y="137" width="15" height="2" rx="1" fill="#93C5FD" opacity="0.8" transform="rotate(-6 68 137)" />
-          <!-- Golden Star Seal -->
-          <polygon points="76,140 77.5,143 81,143.5 78.5,146 79,149.5 76,148 73,149.5 73.5,146 71,143.5 74.5,143" fill="#F59E0B" transform="rotate(-6 68 137)" />
-          <!-- Hand Holding Folio -->
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Right Arm Raising Rolled Diploma with Animated Tilt -->
-        <g class="students-mascot__diploma">
-          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Rolled Diploma Parchment -->
-          <rect x="144" y="94" width="26" height="11" rx="2" fill="#FAF6F0" stroke="#8C6F12" stroke-width="1.2" transform="rotate(-25 157 100)" />
-          <!-- Red Ribbon Tied Around Diploma -->
-          <rect x="154" y="93" width="5" height="13" rx="1" fill="#DC2626" transform="rotate(-25 157 100)" />
-          <!-- Ribbon Streamers -->
-          <path d="M157,105 Q161,114 158,121" stroke="#DC2626" stroke-width="2" fill="none" />
-          <path d="M156,105 Q152,113 155,120" stroke="#DC2626" stroke-width="2" fill="none" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
-
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   const [studentsRes, parentsRes, classesRes, settingsRes, openIssuesRes] = await Promise.all([
     listStudents(),
@@ -202,14 +121,14 @@ export async function render({ profile }) {
   if (!classes.length) {
     wrap.append(
       el("div", {
-        class: "callout callout--danger",
-        style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:16px 20px; background:#FDF2F2; border:1px solid #F8B4B4; border-radius:8px; flex-wrap:wrap; gap:12px;",
+        class: "alert alert--danger",
+        style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; padding:16px 20px; flex-wrap:wrap; gap:12px;",
       }, [
         el("div", { style: "display:flex; align-items:center; gap:12px;" }, [
-          icon("warning", "text-danger", { style: "font-size:28px;" }),
+          icon("warning", "", { style: "font-size:28px;" }),
           el("div", {}, [
-            el("h4", { style: "margin:0 0 4px; color:#9B1C1C; font-weight:600;" }, "Classes & Streams Setup Required"),
-            el("p", { style: "margin:0; color:#771D1D; font-size:14px;" }, "You must create your school's classes and streams under Academics before you can enroll or import any students."),
+            el("h4", { style: "margin:0 0 4px; font-weight:600; color:inherit;" }, "Classes & Streams Setup Required"),
+            el("p", { style: "margin:0; font-size:14px; opacity:0.9; color:inherit;" }, "You must create your school's classes and streams under Academics before you can enroll or import any students."),
           ]),
         ]),
         el("a", {
@@ -227,18 +146,22 @@ export async function render({ profile }) {
 
   // 2. Executive KPI Metrics Strip (using .md3-kpi-grid & .md3-kpi-chip)
   const kpis = [
-    { label: "Total Registered", value: students.length, icon: "groups", color: "blue" },
-    { label: "Active Learners", value: activeCount, icon: "how_to_reg", color: "green" },
+    { label: "Total Registered", value: students.length, isNum: true, icon: "groups", color: "blue" },
+    { label: "Active Learners", value: activeCount, isNum: true, icon: "how_to_reg", color: "green" },
     { label: "Boys / Girls", value: `${boysCount}B / ${girlsCount}G`, icon: "wc", color: "gold" },
-    { label: "Welfare Alerts", value: totalOpenIssues, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
+    { label: "Welfare Alerts", value: totalOpenIssues, isNum: true, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
   ];
   const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
+    const valEl = el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value));
+    if (k.isNum) {
+      animateNumber(valEl, k.value);
+    }
     const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
       el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
       el("div", { class: "md3-kpi-chip__data" }, [
         el("div", { class: "md3-kpi-chip__label" }, k.label),
-        el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value)),
+        valEl,
       ]),
     ]);
     kpiGrid.append(chip);
@@ -247,16 +170,20 @@ export async function render({ profile }) {
 
   // 3. Filter Toolbar & Action Buttons (Consolidated Card)
   const searchInput = el("input", {
+    id: "students-search-input",
     placeholder: "Search by name, adm no., phone, or parent…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const gradeSelect = el("select", {
+    id: "students-grade-filter",
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
     el("option", { value: "" }, "All Grades"),
     ...classes.map((c) => el("option", { value: c.grade }, c.grade)),
   ]);
   const statusSelect = el("select", {
+    id: "students-status-filter",
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
     el("option", { value: "" }, "All Statuses"),
@@ -266,6 +193,10 @@ export async function render({ profile }) {
     el("option", { value: "suspended" }, "Suspended"),
     el("option", { value: "archived" }, "Archived"),
   ]);
+
+  activeSearchInput = searchInput;
+  activeGradeSelect = gradeSelect;
+  activeStatusSelect = statusSelect;
 
   const filterToolbar = el("div", {
     class: "card",
@@ -308,13 +239,25 @@ export async function render({ profile }) {
   // 4. Modern Table Card
   const tableCard = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
   const tableHeader = el("div", {
-    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line);",
+    style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-3) var(--sp-4); border-bottom:1px solid var(--color-line); flex-wrap:wrap; gap:8px;",
   }, [
     el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
       icon("badge", "text-primary"),
       el("h3", { style: "margin:0; font-size:var(--fs-sm); font-weight:700; color:var(--color-primary-900);" }, "Learner Directory"),
       el("span", { class: "badge badge--neutral", id: "students-count-badge", style: "font-size:11px;" }, `${students.length} Learners`),
     ]),
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm deep-link-btn hide-on-mobile",
+      title: "Copy direct link with current filters",
+      onClick: () => {
+        const p = {};
+        if (filterGrade) p.grade = filterGrade;
+        if (filterStatus) p.status = filterStatus;
+        if (filterText) p.q = filterText;
+        copyDeepLink("/students", p, "Learner directory link");
+      },
+    }, [icon("share", "text-xs"), "Share Filtered View"]),
   ]);
   tableCard.append(tableHeader);
 
@@ -338,6 +281,51 @@ export async function render({ profile }) {
     currentPage = 1;
     renderTable(tableWrap, profile);
   });
+
+  // Handle dynamic deep link parameters & URL query actions
+  const queryParam = params.q || params.search;
+  const actionParam = params.action;
+  const studentIdParam = params.id || params.studentId || params.admNo || params.admissionNumber;
+  const gradeParam = params.grade || params.class;
+  const streamParam = params.stream;
+  const statusParam = params.status;
+
+  if (gradeParam) {
+    const targetGrade = streamParam ? `${gradeParam}|${streamParam}` : gradeParam;
+    filterGrade = targetGrade;
+    gradeSelect.value = targetGrade;
+  }
+
+  if (statusParam) {
+    filterStatus = statusParam;
+    statusSelect.value = statusParam;
+  }
+
+  if (queryParam) {
+    filterText = queryParam.toLowerCase();
+    searchInput.value = queryParam;
+  }
+
+  if (gradeParam || statusParam || queryParam) {
+    renderTable(tableWrap, profile);
+  }
+
+  if (actionParam === "new" || actionParam === "admit") {
+    setTimeout(() => {
+      if (classes.length) {
+        openStudentForm(profile);
+      }
+    }, 120);
+  }
+
+  if (studentIdParam) {
+    setTimeout(() => {
+      const match = students.find((s) => s.id === studentIdParam || s.admissionNumber === studentIdParam);
+      if (match) {
+        openStudentProfile(profile, match, params.tab || "overview");
+      }
+    }, 150);
+  }
 
   setTimeout(() => {
     document.getElementById("new-admission-btn")?.addEventListener("click", () => {
@@ -385,36 +373,106 @@ function renderTable(container, profile) {
 
   if (!filtered.length) {
     container.innerHTML = "";
-    container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-      icon("school", "empty-state__icon"),
-      el("h3", {}, "No learners found"),
-      el("p", {}, students.length ? "Try adjusting your search query or filters." : "Click '+ New Admission' to register your first student."),
-    ]));
+    if (students.length > 0) {
+      container.append(renderEmptyState({
+        iconName: "search_off",
+        title: "No learners match your search or filters",
+        message: "No student records match the active query or filter criteria. Clear your filters to see the full student directory.",
+        resetText: "Clear filters & search",
+        onReset: () => {
+          filterText = "";
+          filterGrade = "";
+          filterStatus = "";
+          currentPage = 1;
+          const searchInp = activeSearchInput || document.getElementById("students-search-input");
+          const gradeSel = activeGradeSelect || document.getElementById("students-grade-filter");
+          const statusSel = activeStatusSelect || document.getElementById("students-status-filter");
+          if (gradeSel) gradeSel.value = "";
+          if (statusSel) statusSel.value = "";
+          if (searchInp) {
+            searchInp.value = "";
+            searchInp.dispatchEvent(new Event("input", { bubbles: true }));
+          } else {
+            renderTable(container, profile);
+          }
+        },
+      }));
+    } else {
+      container.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+        icon("school", "empty-state__icon"),
+        el("h3", {}, "No learners found"),
+        el("p", {}, "Click '+ New Admission' to register your first student."),
+      ]));
+    }
     return;
   }
 
-  // Filtering runs on the full in-memory list (already fetched via
-  // listStudents()), so this is just capping how many rows we build DOM
-  // nodes for at once - keeps large rosters from turning the table render
-  // into the slow part. Clamp in case a filter change shrank the result
-  // set below the page currentPage was pointing at.
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortColumn === "admissionNumber") {
+      const aAdm = a.admissionNumber || "";
+      const bAdm = b.admissionNumber || "";
+      cmp = aAdm.localeCompare(bAdm, undefined, { numeric: true, sensitivity: "base" });
+    } else if (sortColumn === "fullName") {
+      cmp = (a.fullName || "").localeCompare(b.fullName || "");
+    } else if (sortColumn === "grade") {
+      const aClass = `${a.grade || ""} ${a.stream || ""}`;
+      const bClass = `${b.grade || ""} ${b.stream || ""}`;
+      cmp = aClass.localeCompare(bClass, undefined, { numeric: true });
+    } else if (sortColumn === "gender") {
+      cmp = (a.gender || "").localeCompare(b.gender || "");
+    } else if (sortColumn === "status") {
+      cmp = (a.status || "").localeCompare(b.status || "");
+    } else if (sortColumn === "admissionDate") {
+      const aDate = a.admissionDate ? new Date(a.admissionDate).getTime() : 0;
+      const bDate = b.admissionDate ? new Date(b.admissionDate).getTime() : 0;
+      cmp = aDate - bDate;
+    }
+    return sortDirection === "asc" ? cmp : -cmp;
+  });
+
+  const effectivePageSize = pageSize === 0 ? Math.max(1, sorted.length) : pageSize;
+  const totalPages = Math.max(1, Math.ceil(sorted.length / effectivePageSize));
   if (currentPage > totalPages) currentPage = totalPages;
-  const pageStart = (currentPage - 1) * PAGE_SIZE;
-  const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
+  const pageStart = (currentPage - 1) * effectivePageSize;
+  const pageItems = sorted.slice(pageStart, pageStart + effectivePageSize);
+
+  const makeSortTh = (colKey, label, style = "") => {
+    const isActive = sortColumn === colKey;
+    const sortIconName = isActive ? (sortDirection === "asc" ? "arrow_upward" : "arrow_downward") : "unfold_more";
+    const btn = el("button", {
+      type: "button",
+      class: `table-sort-btn ${isActive ? "table-sort-btn--active" : ""}`,
+      title: `Sort by ${label}`,
+      onClick: () => {
+        if (sortColumn === colKey) {
+          sortDirection = sortDirection === "asc" ? "desc" : "asc";
+        } else {
+          sortColumn = colKey;
+          sortDirection = "asc";
+        }
+        renderTable(container, profile);
+      },
+    }, [
+      el("span", {}, label),
+      icon(sortIconName, "table-sort-icon"),
+    ]);
+    return el("th", { style }, [btn]);
+  };
 
   const table = el("table", { class: "reports-table" }, [
     el("thead", {}, el("tr", {}, [
-      el("th", { style: "width:110px;" }, "Adm. No."),
-      el("th", { style: "min-width:200px;" }, "Student Name"),
-      el("th", { style: "width:140px;" }, "Class / Stream"),
-      el("th", { style: "width:90px;" }, "Gender"),
-      el("th", { style: "width:110px;" }, "Status"),
-      el("th", { style: "width:120px;" }, "Admitted"),
+      makeSortTh("admissionNumber", "Adm. No.", "width:115px;"),
+      makeSortTh("fullName", "Student Name", "min-width:200px;"),
+      makeSortTh("grade", "Class / Stream", "width:145px;"),
+      makeSortTh("gender", "Gender", "width:95px;"),
+      makeSortTh("status", "Status", "width:110px;"),
+      makeSortTh("admissionDate", "Admitted", "width:125px;"),
       el("th", { style: "width:80px;" }, "Alerts"),
       el("th", { class: "col-right", style: "width:100px;" }, "Actions"),
     ])),
   ]);
+
   const tbody = el("tbody", {});
   for (const s of pageItems) {
     const openCount = openIssueCounts.get(s.id) || 0;
@@ -426,7 +484,11 @@ function renderTable(container, profile) {
       }, s.fullName),
     ]);
     tbody.append(el("tr", {}, [
-      el("td", { class: "numeric", "data-label": "Adm. No." }, el("span", { style: "font-family:var(--font-mono); font-weight:600; font-size:var(--fs-xs);" }, s.admissionNumber || "—")),
+      el("td", { class: "numeric", "data-label": "Adm. No." }, [
+        s.admissionNumber
+          ? makeCopyable(el("span", { style: "font-family:var(--font-mono); font-weight:600; font-size:var(--fs-xs);" }, s.admissionNumber), s.admissionNumber, { title: "Click to copy admission number" })
+          : el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
+      ]),
       nameCell,
       el("td", { "data-label": "Class / Stream" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, `${s.grade || "N/A"}${s.stream ? " · " + s.stream : ""}`)),
       el("td", { "data-label": "Gender" }, s.gender || "—"),
@@ -450,37 +512,95 @@ function renderTable(container, profile) {
   table.append(tbody);
   container.innerHTML = "";
   container.append(table);
-  if (filtered.length > PAGE_SIZE) {
-    container.append(renderPagination(filtered.length, totalPages, container, profile));
+  if (sorted.length > 25 || pageSize > 0) {
+    container.append(renderPagination(sorted.length, totalPages, container, profile));
   }
 }
 
 function renderPagination(totalItems, totalPages, tableWrap, profile) {
-  const rangeStart = (currentPage - 1) * PAGE_SIZE + 1;
-  const rangeEnd = Math.min(currentPage * PAGE_SIZE, totalItems);
+  const effectivePageSize = pageSize === 0 ? totalItems : pageSize;
+  const rangeStart = Math.min((currentPage - 1) * effectivePageSize + 1, totalItems);
+  const rangeEnd = Math.min(currentPage * effectivePageSize, totalItems);
 
   const goTo = (page) => {
     currentPage = Math.min(Math.max(page, 1), totalPages);
     renderTable(tableWrap, profile);
   };
 
-  const bar = el("div", {
-    style: "display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 4px; flex-wrap:wrap;",
+  const sizeSelect = el("select", {
+    class: "pagination-size-select",
+    "aria-label": "Learners per page",
+    onChange: (e) => {
+      pageSize = Number(e.target.value);
+      currentPage = 1;
+      renderTable(tableWrap, profile);
+    },
   }, [
-    el("span", { style: "color:var(--color-muted, #666); font-size:0.9em;" },
-      `Showing ${rangeStart}–${rangeEnd} of ${totalItems}`),
-    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
+    el("option", { value: "25", ...(pageSize === 25 ? { selected: "true" } : {}) }, "25 / page"),
+    el("option", { value: "50", ...(pageSize === 50 ? { selected: "true" } : {}) }, "50 / page"),
+    el("option", { value: "100", ...(pageSize === 100 ? { selected: "true" } : {}) }, "100 / page"),
+    el("option", { value: "0", ...(pageSize === 0 ? { selected: "true" } : {}) }, "Show All"),
+  ]);
+
+  const pageButtons = [];
+  const maxButtons = 5;
+  let startP = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+  let endP = Math.min(totalPages, startP + maxButtons - 1);
+  if (endP - startP + 1 < maxButtons) {
+    startP = Math.max(1, endP - maxButtons + 1);
+  }
+
+  for (let p = startP; p <= endP; p++) {
+    const isCur = p === currentPage;
+    pageButtons.push(
       el("button", {
-        class: "btn btn--ghost btn--sm",
+        type: "button",
+        class: `pagination-page-btn ${isCur ? "pagination-page-btn--active" : ""}`,
+        "aria-current": isCur ? "page" : undefined,
+        onClick: () => goTo(p),
+      }, String(p))
+    );
+  }
+
+  const bar = el("div", { class: "pagination-bar" }, [
+    el("div", { style: "display:flex; align-items:center; gap:12px; flex-wrap:wrap;" }, [
+      el("span", { style: "color:var(--color-ink-soft); font-size:var(--fs-xs);" },
+        `Showing ${rangeStart}–${rangeEnd} of ${totalItems}`),
+      el("div", { style: "display:flex; align-items:center; gap:6px;" }, [
+        el("span", { class: "text-muted text-xs" }, "Rows:"),
+        sizeSelect,
+      ]),
+    ]),
+    el("div", { class: "pagination-controls" }, [
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "First page",
+        disabled: currentPage === 1 ? "true" : undefined,
+        onClick: () => goTo(1),
+      }, [icon("keyboard_double_arrow_left")]),
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Previous page",
         disabled: currentPage === 1 ? "true" : undefined,
         onClick: () => goTo(currentPage - 1),
-      }, [icon("chevron_left"), "Prev"]),
-      el("span", { style: "font-size:0.9em;" }, `Page ${currentPage} of ${totalPages}`),
+      }, [icon("chevron_left")]),
+      ...pageButtons,
       el("button", {
-        class: "btn btn--ghost btn--sm",
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Next page",
         disabled: currentPage === totalPages ? "true" : undefined,
         onClick: () => goTo(currentPage + 1),
-      }, ["Next", icon("chevron_right")]),
+      }, [icon("chevron_right")]),
+      el("button", {
+        type: "button",
+        class: "pagination-page-btn",
+        title: "Last page",
+        disabled: currentPage === totalPages ? "true" : undefined,
+        onClick: () => goTo(totalPages),
+      }, [icon("keyboard_double_arrow_right")]),
     ]),
   ]);
   return bar;
@@ -530,7 +650,6 @@ function openStudentProfile(profile, student, initialTab = "overview") {
   const tabsNav = el("div", { class: "profile-tabs" });
   const panel = el("div", { class: "profile-tab-panel" });
 
-  let activeTab = initialTab;
   // Cache each tab's rendered fetch so switching back and forth doesn't
   // re-query Firestore every click; a fresh profile open always refetches.
   const loaders = {
@@ -540,6 +659,7 @@ function openStudentProfile(profile, student, initialTab = "overview") {
     attendance: () => renderAttendanceTab(panel, profile, student),
     activity: () => renderActivityTab(panel, profile, student, refreshAll),
   };
+  let activeTab = (initialTab && loaders[initialTab]) ? initialTab : "overview";
 
   function rerenderHeader() {
     header.innerHTML = "";
@@ -604,6 +724,12 @@ function buildProfileHeader(profile, student, refreshAll) {
       ]),
     ]),
     el("div", { class: "profile-actions" }, [
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy direct link to this learner's profile",
+        onClick: () => copyDeepLink("/students", { id: student.id }, `Student link (${student.fullName})`),
+      }, [icon("share", "text-xs"), "Share Link"]),
       ...(["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStudentForm(profile, student, refreshAll) }, [icon("edit"), "Edit Info"]),
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTransferForm(profile, student, refreshAll) }, [icon("swap_horiz"), "Transfer/Promote"]),
@@ -1446,6 +1572,7 @@ function openStudentForm(profile, existing = null, onDone) {
   );
 
   const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "New Admission", body);
+  trackForm(body, { name: isEdit ? `Edit Student (${existing.fullName})` : "Student Admission Form" });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

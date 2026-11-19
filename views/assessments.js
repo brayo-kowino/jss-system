@@ -18,6 +18,7 @@ import { openModal } from "../js/components/modal.js";
 import { datePickerInput } from "../js/components/datepicker.js";
 import { navigate } from "../js/router.js";
 import { el, icon, toast, formatDate, busyButton, spinner } from "../js/utils.js";
+import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -45,106 +46,10 @@ let statsCache = new Map();
 let filters = { search: "", type: "all", term: "all", year: "all", status: "all", grade: "all", subject: "all" };
 let sort = { key: "date", dir: "desc" };
 
-/**
- * Dynamic Academic Scholar Mascot with Exam Test Paper and golden fountain pen.
- */
-export function buildAssessmentsMascotSvg({ width = 125, height = 110 } = {}) {
-  return `
-    <svg class="assessments-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Assessments Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
+import { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
+export { buildAssessmentsMascotSvg };
 
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Scholar Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Exam / CAT Assessment Paper -->
-        <g class="assessments-mascot__paper">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- Exam Booklet -->
-          <rect x="50" y="122" width="30" height="38" rx="2.5" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.4" transform="rotate(-6 65 141)" />
-          <!-- Folded Corner -->
-          <polygon points="73,122 80,129 73,129" fill="#E2E8F0" stroke="#0D3559" stroke-width="0.8" transform="rotate(-6 65 141)" />
-          <!-- Header Bar -->
-          <rect x="54" y="127" width="16" height="4" rx="1" fill="#14538A" transform="rotate(-6 65 141)" />
-          <!-- Test check lines -->
-          <line x1="54" y1="135" x2="68" y2="135" stroke="#0B2545" stroke-width="1.2" stroke-linecap="round" transform="rotate(-6 65 141)" />
-          <line x1="54" y1="140" x2="72" y2="140" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 65 141)" />
-          <line x1="54" y1="145" x2="66" y2="145" stroke="#64748B" stroke-width="1" stroke-linecap="round" transform="rotate(-6 65 141)" />
-          <!-- Green 100% Score Tag -->
-          <rect x="54" y="149" width="18" height="6" rx="1.5" fill="#059669" transform="rotate(-6 65 141)" />
-          <line x1="57" y1="152" x2="69" y2="152" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" transform="rotate(-6 65 141)" />
-          <!-- Hand Holding Exam -->
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Right Arm Raising Golden Grading Pen with Gleam Animation -->
-        <g class="assessments-mascot__pen">
-          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Pen Body -->
-          <path d="M152,112 L168,88 L173,91 L157,115 Z" fill="#C9A227" stroke="#8C6F12" stroke-width="1" />
-          <!-- Golden Nib -->
-          <polygon points="168,88 174,78 173,91" fill="#F59E0B" stroke="#D97706" stroke-width="1" />
-          <line x1="171" y1="89" x2="173" y2="80" stroke="#78350F" stroke-width="0.8" />
-          <!-- Sparkle star at nib tip -->
-          <polygon points="174,73 175.5,76 179,77.5 175.5,79 174,82 172.5,79 169,77.5 172.5,76" fill="#FDE68A" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <g class="support-mascot__tassel">
-            <path d="M110,48.5 Q135,46 142,66" stroke="#FAF6F0" stroke-width="2.2" fill="none" />
-            <polygon points="139,66 145,66 143,77 141,77" fill="#FAF6F0" />
-          </g>
-        </g>
-      </g>
-    </svg>
-  `;
-}
-
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   [assessments, classes, subjects, students, settings] = await Promise.all([
     listAssessments(),
@@ -156,6 +61,20 @@ export async function render({ profile }) {
   expectedById = buildExpectedIndex();
   statsCache = new Map();
   const canManage = CAN_MANAGE.includes(profile.role);
+
+  // Apply deep link filter parameters
+  if (params.type && (params.type === "all" || ASSESSMENT_TYPES.includes(params.type))) {
+    filters.type = params.type;
+  }
+  if (params.status && ["all", "open", "locked"].includes(params.status)) {
+    filters.status = params.status;
+  }
+  if (params.search || params.q) {
+    filters.search = params.search || params.q;
+  }
+  if (params.term) {
+    filters.term = params.term;
+  }
 
   const wrap = el("div", {});
 
@@ -171,6 +90,19 @@ export async function render({ profile }) {
         el("div", { class: "assessments-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
         el("div", { class: "assessments-pill" }, [icon("school"), `${subjects.length} Subjects`]),
         el("div", { class: "assessments-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
+        el("button", {
+          type: "button",
+          class: "assessments-pill deep-link-btn",
+          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
+          title: "Copy link to Assessments module",
+          onClick: () => {
+            const p = {};
+            if (filters.type !== "all") p.type = filters.type;
+            if (filters.status !== "all") p.status = filters.status;
+            if (filters.term !== "all") p.term = filters.term;
+            copyDeepLink("/assessments", p, "Assessments link");
+          },
+        }, [icon("share", "text-xs"), "Share Link"]),
       ]),
     ]),
 
@@ -210,6 +142,20 @@ export async function render({ profile }) {
   wrap.append(tableCard);
 
   renderTable(tableWrap, profile, canManage);
+
+  // Auto-action if triggered via deep link
+  if (canManage && (params.action === "new" || params.action === "add")) {
+    setTimeout(() => {
+      openAssessmentForm(profile);
+    }, 150);
+  } else if (params.id) {
+    setTimeout(() => {
+      const target = assessments.find((a) => a.id === params.id);
+      if (target) {
+        openAssessmentForm(profile, target);
+      }
+    }, 150);
+  }
 
   return wrap;
 }
@@ -1171,7 +1117,7 @@ function renderArrearsNotice(amountOwed) {
   
   return el("div", { 
     class: "card", 
-    style: "max-width: 540px; margin: 20px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: #ffffff;" 
+    style: "max-width: 540px; margin: 20px auto; padding: 48px 32px; text-align: center; border: 1px solid var(--color-danger-200); border-radius: 16px; box-shadow: 0 12px 32px rgba(239, 68, 68, 0.05); background: var(--color-surface);" 
   }, [
     el("div", { 
       style: "width: 72px; height: 72px; margin: 0 auto 24px; background: rgba(239,68,68,0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--color-danger-600);" 
@@ -1209,7 +1155,7 @@ function renderArrearsNotice(amountOwed) {
       el("a", { 
         href: "mailto:iskify360.tech@gmail.com", 
         class: "btn btn--sm",
-        style: "background: #fff; border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
+        style: "background: var(--color-surface-soft, var(--color-cream-dim)); border: 1px solid var(--color-surface-hover); color: var(--color-ink-hard); text-decoration: none; font-weight: 600;" 
       }, [
         icon("mail", "", "style: font-size: 16px;"), "Email Us"
       ])

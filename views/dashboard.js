@@ -9,7 +9,8 @@ import { listStudents } from "../js/services/student.service.js";
 import { getCurrentSchoolId } from "../js/services/auth.service.js";
 import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
-import { el, formatDate, getBrandColors, hexToRgba } from "../js/utils.js";
+import { el, formatDate, getBrandColors, hexToRgba, animateNumber } from "../js/utils.js";
+import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
@@ -30,12 +31,40 @@ async function safeCount(collectionName) {
 let chartDataCache = {
   gradeLabels: [],
   gradeCounts: [],
+  gradeColors: [],
   revenueLabels: [],
   revenueData: [],
   hasRevenueData: false
 };
 let currentSettings = null;
 let activeProfile = null;
+
+function getGradePalette() {
+  const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
+  if (isDark) {
+    return [
+      "#38BDF8", // Luminous Sky Blue (high contrast against dark cards)
+      "#FBBF24", // Radiant Warm Amber/Gold (vivid, non-muddy)
+      "#34D399", // Emerald Green
+      "#FB923C", // Coral Orange
+      "#A78BFA", // Luminous Violet
+      "#F472B6", // Rose Pink
+      "#2DD4BF", // Bright Teal
+      "#FDE047"  // Soft Radiant Gold
+    ];
+  }
+  const { primary, accent } = getBrandColors();
+  return [
+    primary,
+    "#D97706", // Rich Amber with strong contrast
+    "#0284C7", // Sky blue
+    "#CA8A04", // Deep Gold
+    "#16A34A", // Emerald green
+    "#8B5CF6", // Purple
+    "#EC4899", // Pink
+    "#EA580C"  // Orange
+  ];
+}
 
 export async function render({ profile }) {
   const settings = await getSchoolSettings();
@@ -103,6 +132,8 @@ export async function render({ profile }) {
   });
   chartDataCache.gradeLabels = Object.keys(gradeDistribution);
   chartDataCache.gradeCounts = Object.values(gradeDistribution);
+  const palette = getGradePalette();
+  chartDataCache.gradeColors = chartDataCache.gradeLabels.map((_, i) => palette[i % palette.length]);
 
   // 3. Gender split (real headcount, not a guess)
   const boysCount = activeStudents.filter((s) => s.gender === "Male").length;
@@ -420,12 +451,14 @@ export async function render({ profile }) {
   const kpis = [
     {
       label: "Active Students",
+      rawNumber: studentsCount || 0,
       displayValue: String(studentsCount),
       icon: "school",
       color: "blue",
     },
     {
       label: "Active Staff",
+      rawNumber: teachers || 0,
       displayValue: String(teachers || 0),
       icon: "badge",
       color: "gold",
@@ -439,6 +472,8 @@ export async function render({ profile }) {
     {
       label: "Term Revenue",
       currency: "KES",
+      rawNumber: Number(feesCollected || 0),
+      decimals: 2,
       displayValue: Number(feesCollected || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       icon: "account_balance_wallet",
       color: "gold",
@@ -446,12 +481,17 @@ export async function render({ profile }) {
   ];
 
   for (const kpi of kpis) {
+    const valueSpan = el("span", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue);
+    if (kpi.rawNumber !== undefined) {
+      animateNumber(valueSpan, kpi.rawNumber, { decimals: kpi.decimals || 0 });
+    }
+
     const valContent = kpi.currency
       ? el("div", { class: "md3-kpi-chip__val-wrap" }, [
           el("span", { class: "md3-kpi-chip__currency" }, kpi.currency),
-          el("span", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue),
+          valueSpan,
         ])
-      : el("div", { class: "md3-kpi-chip__value numeric" }, kpi.displayValue);
+      : valueSpan;
 
     kpiGrid.append(
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${kpi.color}` }, [
@@ -572,17 +612,34 @@ export async function render({ profile }) {
 
     const insightCandidates = [
       studentsWithBalancesCount > 0
-        ? { icon: "warning", color: "gold", text: `${studentsWithBalancesCount} of ${studentsCount} student(s) have pending fee balances.` }
+        ? {
+            icon: "warning",
+            color: "gold",
+            text: `${studentsWithBalancesCount} of ${studentsCount} student(s) have pending fee balances.`,
+            targetRoute: "/fees",
+            targetParams: { status: "pending" },
+          }
         : studentsCount
-        ? { icon: "check_circle", color: "green", text: "All enrolled students are up to date on fees." }
+        ? {
+            icon: "check_circle",
+            color: "green",
+            text: "All enrolled students are up to date on fees.",
+            targetRoute: "/fees",
+            targetParams: { status: "cleared" },
+          }
         : null,
 
       attendancePct != null
-        ? attendancePct >= 90
-          ? { icon: "how_to_reg", color: "green", text: `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}` }
-          : attendancePct >= 75
-          ? { icon: "how_to_reg", color: "gold", text: `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
-          : { icon: "how_to_reg", color: "red", text: `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}` }
+        ? {
+            icon: "how_to_reg",
+            color: attendancePct >= 90 ? "green" : (attendancePct >= 75 ? "gold" : "red"),
+            text: attendancePct >= 90
+              ? `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}`
+              : (attendancePct >= 75
+                ? `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`
+                : `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`),
+            targetRoute: "/attendance",
+          }
         : null,
 
       settings.openingDate
@@ -590,7 +647,12 @@ export async function render({ profile }) {
         : null,
 
       boysCount + girlsCount > 0
-        ? { icon: "groups", color: "blue", text: `${boysCount} boys and ${girlsCount} girls enrolled (${Math.round((girlsCount / (boysCount + girlsCount)) * 100)}% girls).` }
+        ? {
+            icon: "groups",
+            color: "blue",
+            text: `${boysCount} boys and ${girlsCount} girls enrolled (${Math.round((girlsCount / (boysCount + girlsCount)) * 100)}% girls).`,
+            targetRoute: "/students",
+          }
         : null,
 
       revenueTrend
@@ -598,29 +660,75 @@ export async function render({ profile }) {
             icon: revenueTrend.pct >= 0 ? "trending_up" : "trending_down",
             color: revenueTrend.pct >= 0 ? "green" : "red",
             text: `Revenue in ${revenueTrend.label} is ${revenueTrend.pct >= 0 ? "up" : "down"} ${Math.abs(revenueTrend.pct)}% vs ${revenueTrend.prevLabel}.`,
+            targetRoute: "/fees",
           }
         : null,
 
       newAdmissionsCount > 0
-        ? { icon: "person_add", color: "green", text: `${newAdmissionsCount} new student(s) admitted in the last 30 days.` }
+        ? {
+            icon: "person_add",
+            color: "green",
+            text: `${newAdmissionsCount} new student(s) admitted in the last 30 days.`,
+            targetRoute: "/students",
+            targetParams: { status: "active" },
+          }
         : null,
 
       openAssessmentsCount > 0
-        ? { icon: "assignment", color: "gold", text: `${openAssessmentsCount} assessment(s) open and awaiting marks entry.` }
+        ? {
+            icon: "assignment",
+            color: "gold",
+            text: `${openAssessmentsCount} assessment(s) open and awaiting marks entry.`,
+            targetRoute: "/marks",
+            targetParams: { tab: "entry" },
+          }
         : lockedAssessmentsCount > 0
-        ? { icon: "lock", color: "blue", text: `${lockedAssessmentsCount} assessment(s) are locked.` }
+        ? {
+            icon: "lock",
+            color: "blue",
+            text: `${lockedAssessmentsCount} assessment(s) are locked.`,
+            targetRoute: "/assessments",
+          }
         : null,
 
       topGrade
-        ? { icon: "school", color: "blue", text: `${topGrade.grade} has the largest enrollment (${topGrade.count} students).` }
+        ? {
+            icon: "school",
+            color: "blue",
+            text: `${topGrade.grade} has the largest enrollment (${topGrade.count} students).`,
+            targetRoute: "/students",
+            targetParams: { grade: topGrade.grade },
+          }
         : null,
     ].filter(Boolean).slice(0, 6);
 
     let insightsBody;
     if (insightCandidates.length) {
-      insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) =>
-        el("li", {}, [el("span", { class: `material-symbols-rounded text-${item.color}` }, item.icon), item.text])
-      ));
+      insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) => {
+        if (item.targetRoute) {
+          return el("li", {
+            class: "md3-insight-item--clickable",
+            role: "button",
+            tabindex: "0",
+            title: `Jump to ${item.targetRoute}`,
+            onClick: () => navigateDeepLink(item.targetRoute, item.targetParams || {}),
+            onKeydown: (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                navigateDeepLink(item.targetRoute, item.targetParams || {});
+              }
+            },
+          }, [
+            el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
+            el("span", { style: "flex:1; line-height:1.4;" }, item.text),
+            el("span", { class: "md3-insight-arrow", "aria-hidden": "true" }, "↗"),
+          ]);
+        }
+        return el("li", {}, [
+          el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
+          el("span", { style: "flex:1; line-height:1.4;" }, item.text),
+        ]);
+      }));
     } else {
       insightsBody = el("div", { class: "card-empty-state" }, [
         el("div", { class: "card-empty-state__halo card-empty-state__halo--blue" }, [
@@ -638,8 +746,19 @@ export async function render({ profile }) {
     }
 
     const alertsCard = el("div", { class: "md3-card md3-alerts-card" }, [
-      el("h3", { class: "md3-card__title" }, "Quick Insights"),
-      insightsBody,
+      el("div", { class: "md3-card__header" }, [
+        el("h3", { class: "md3-card__title" }, "Quick Insights"),
+      ]),
+      el("div", { class: "md3-card__body", style: "flex: 1;" }, [
+        insightsBody
+      ]),
+      el("div", { class: "md3-card__footer", style: "border-top-color: rgba(20, 83, 138, 0.15);" }, [
+        el("span", { style: "color: var(--color-primary-900); font-weight: 500;" }, "Operational Highlights"),
+        el("span", { style: "display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--color-green);" }, [
+          el("span", { style: "width: 7px; height: 7px; border-radius: 50%; background: var(--color-green); display: inline-block;" }),
+          "Live"
+        ])
+      ])
     ]);
     leftCol.append(alertsCard);
 
@@ -648,52 +767,153 @@ export async function render({ profile }) {
 
     // "Students by Grade" — clean actionable empty state when no students admitted yet
     const hasGradeData = chartDataCache.gradeLabels.length > 0;
-    const demoCard = el("div", { class: "md3-card" }, [
-      el("h3", { class: "md3-card__title" }, "Students by Grade"),
-      hasGradeData
-        ? el("div", { class: "md3-chart-container" }, [
-            el("canvas", { id: "demographicsChart" })
-          ])
-        : el("div", { class: "card-empty-state" }, [
-            el("div", { class: "card-empty-state__halo card-empty-state__halo--green" }, [
-              el("span", { class: "material-symbols-rounded" }, "group_add")
-            ]),
-            el("p", { class: "card-empty-state__title" }, "Awaiting Student Enrollment"),
-            el("p", { class: "card-empty-state__sub" }, "Enroll learners into grade cohorts to visualize demographic distributions and class sizes."),
-            el("button", {
-              class: "btn btn--primary btn--xs card-empty-state__btn",
-              onClick: () => navigate("/students")
-            }, [
-              el("span", { class: "material-symbols-rounded" }, "person_add"), "Admit Student"
-            ]),
+    let demoCardContent;
+
+    if (hasGradeData) {
+      // Sort grades by headcount descending for clean hierarchy
+      const sortedGrades = chartDataCache.gradeLabels.map((grade, idx) => ({
+        grade,
+        count: chartDataCache.gradeCounts[idx] || 0,
+        color: chartDataCache.gradeColors[idx] || "#14538A"
+      })).sort((a, b) => b.count - a.count);
+
+      const breakdownRows = sortedGrades.map(({ grade, count, color }) => {
+        const pct = studentsCount > 0 ? Math.round((count / studentsCount) * 100) : 0;
+        return el("div", { class: "md3-grade-row" }, [
+          el("div", { class: "md3-grade-row__label" }, [
+            el("span", { class: "md3-grade-row__dot", style: `background: ${color};` }),
+            el("span", {}, grade)
           ]),
-    ]);
+          el("div", { class: "md3-grade-row__bar-wrap" }, [
+            el("div", { class: "md3-grade-row__track" }, [
+              el("div", { class: "md3-grade-row__bar", style: `width: ${pct}%; background: ${color};` })
+            ]),
+            el("span", { class: "md3-grade-row__count" }, `${count} (${pct}%)`)
+          ])
+        ]);
+      });
+
+      demoCardContent = [
+        el("div", { class: "md3-card__header" }, [
+          el("h3", { class: "md3-card__title" }, "Students by Grade"),
+        ]),
+        el("div", { class: "md3-card__body", style: "flex: 1;" }, [
+          el("div", { class: "md3-chart-container--donut" }, [
+            el("canvas", { id: "demographicsChart" }),
+            el("div", { class: "md3-donut-center" }, [
+              el("span", { class: "md3-donut-center__count" }, String(studentsCount)),
+              el("span", { class: "md3-donut-center__label" }, "Total"),
+            ])
+          ]),
+          el("div", { class: "md3-grade-breakdown" }, breakdownRows)
+        ]),
+        el("div", { class: "md3-card__footer" }, [
+          el("span", {}, boysCount + girlsCount > 0 ? `${boysCount} Boys • ${girlsCount} Girls` : "Cohort Split"),
+          el("a", {
+            href: "#/students",
+            onClick: (e) => {
+              e.preventDefault();
+              navigate("/students");
+            }
+          }, ["View Roster", el("span", { class: "material-symbols-rounded", style: "font-size: 14px;" }, "arrow_forward")])
+        ])
+      ];
+    } else {
+      demoCardContent = [
+        el("div", { class: "md3-card__header" }, [
+          el("h3", { class: "md3-card__title" }, "Students by Grade")
+        ]),
+        el("div", { class: "card-empty-state", style: "flex: 1;" }, [
+          el("div", { class: "card-empty-state__halo card-empty-state__halo--green" }, [
+            el("span", { class: "material-symbols-rounded" }, "group_add")
+          ]),
+          el("p", { class: "card-empty-state__title" }, "Awaiting Student Enrollment"),
+          el("p", { class: "card-empty-state__sub" }, "Enroll learners into grade cohorts to visualize demographic distributions and class sizes."),
+          el("button", {
+            class: "btn btn--primary btn--xs card-empty-state__btn",
+            onClick: () => navigate("/students")
+          }, [
+            el("span", { class: "material-symbols-rounded" }, "person_add"), "Admit Student"
+          ]),
+        ])
+      ];
+    }
+
+    const demoCard = el("div", { class: "md3-card" }, demoCardContent);
     centerCol.append(demoCard);
 
     // --- Right Column ---
     const rightCol = el("div", { class: "md3-col" });
 
     // "Revenue Trend" — clean actionable empty state when no fee payments recorded yet
-    const chartCard = el("div", { class: "md3-card" }, [
-      el("h3", { class: "md3-card__title" }, "Revenue Trend"),
-      hasRevenueData
-        ? el("div", { class: "md3-chart-container" }, [
+    let chartCardContent;
+    if (hasRevenueData) {
+      const clearedCount = Math.max(0, studentsCount - studentsWithBalancesCount);
+      const formattedTotal = formatKES(feesCollected || 0);
+
+      chartCardContent = [
+        el("div", { class: "md3-card__header" }, [
+          el("h3", { class: "md3-card__title" }, "Revenue Trend"),
+        ]),
+        el("div", { class: "md3-card__body", style: "flex: 1;" }, [
+          el("div", { class: "md3-chart-container--revenue" }, [
             el("canvas", { id: "revenueChart" })
-          ])
-        : el("div", { class: "card-empty-state" }, [
-            el("div", { class: "card-empty-state__halo card-empty-state__halo--gold" }, [
-              el("span", { class: "material-symbols-rounded" }, "account_balance_wallet")
-            ]),
-            el("p", { class: "card-empty-state__title" }, "Ready for Fee Collections"),
-            el("p", { class: "card-empty-state__sub" }, "Fee payments recorded via M-Pesa, bank slip, or cash will automatically generate revenue analytics here."),
-            el("button", {
-              class: "btn btn--tonal btn--xs card-empty-state__btn",
-              onClick: () => navigate("/fees")
-            }, [
-              el("span", { class: "material-symbols-rounded" }, "payments"), "Record Payment"
-            ]),
           ]),
-    ]);
+          el("div", { class: "md3-revenue-kpi-grid" }, [
+            el("div", { class: "md3-revenue-kpi-box" }, [
+              el("span", { class: "md3-revenue-kpi-box__label" }, "Collections"),
+              el("span", { class: "md3-revenue-kpi-box__val", style: "color: var(--color-green);" }, formattedTotal),
+              el("span", { class: "md3-revenue-kpi-box__sub" }, `${clearedCount} student(s) cleared`),
+            ]),
+            el("div", {
+              class: "md3-revenue-kpi-box md3-revenue-kpi-box--accent",
+              style: studentsWithBalancesCount > 0 ? "cursor: pointer;" : "",
+              title: studentsWithBalancesCount > 0 ? "Click to view learners with pending balances" : "",
+              onClick: () => {
+                if (studentsWithBalancesCount > 0) {
+                  navigateDeepLink("/fees", { status: "pending" });
+                }
+              }
+            }, [
+              el("span", { class: "md3-revenue-kpi-box__label" }, "Pending Balance"),
+              el("span", { class: "md3-revenue-kpi-box__val" }, `${studentsWithBalancesCount} Student(s)`),
+              el("span", { class: "md3-revenue-kpi-box__sub" }, studentsWithBalancesCount > 0 ? "Awaiting clearance ↗" : "All up to date"),
+            ])
+          ])
+        ]),
+        el("div", { class: "md3-card__footer" }, [
+          el("span", {}, `${settings.currentTerm || "Term"} ${settings.currentAcademicYear || ""}`),
+          el("a", {
+            href: "#/fees",
+            onClick: (e) => {
+              e.preventDefault();
+              navigate("/fees");
+            }
+          }, ["Fee Records", el("span", { class: "material-symbols-rounded", style: "font-size: 14px;" }, "arrow_forward")])
+        ])
+      ];
+    } else {
+      chartCardContent = [
+        el("div", { class: "md3-card__header" }, [
+          el("h3", { class: "md3-card__title" }, "Revenue Trend")
+        ]),
+        el("div", { class: "card-empty-state", style: "flex: 1;" }, [
+          el("div", { class: "card-empty-state__halo card-empty-state__halo--gold" }, [
+            el("span", { class: "material-symbols-rounded" }, "account_balance_wallet")
+          ]),
+          el("p", { class: "card-empty-state__title" }, "Ready for Fee Collections"),
+          el("p", { class: "card-empty-state__sub" }, "Fee payments recorded via M-Pesa, bank slip, or cash will automatically generate revenue analytics here."),
+          el("button", {
+            class: "btn btn--tonal btn--xs card-empty-state__btn",
+            onClick: () => navigate("/fees")
+          }, [
+            el("span", { class: "material-symbols-rounded" }, "payments"), "Record Payment"
+          ]),
+        ])
+      ];
+    }
+
+    const chartCard = el("div", { class: "md3-card" }, chartCardContent);
     rightCol.append(chartCard);
 
     mainGrid.append(leftCol, centerCol, rightCol);
@@ -887,11 +1107,20 @@ export function init({ profile } = {}) {
     }
   }
 
+  const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
   const { primary, accent } = getBrandColors();
+  const lineStroke = isDark ? "#38BDF8" : primary;
+  const lineFill = isDark ? "rgba(56, 189, 248, 0.18)" : hexToRgba(primary, 0.15);
+  const pointBg = isDark ? "#FBBF24" : accent;
+  const gridLineColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)";
+  const tickColor = isDark ? "#94A3B8" : undefined;
 
   // 1. Initialize Real Revenue Line Chart
   const revCtx = document.getElementById('revenueChart');
   if (revCtx && chartDataCache.hasRevenueData) {
+    const existingRev = Chart.getChart(revCtx);
+    if (existingRev) existingRev.destroy();
+
     new Chart(revCtx, {
       type: 'line',
       data: {
@@ -899,12 +1128,14 @@ export function init({ profile } = {}) {
         datasets: [{
           label: 'Fees (KES)',
           data: chartDataCache.revenueData, 
-          borderColor: primary,
-          backgroundColor: hexToRgba(primary, 0.15),
-          borderWidth: 3,
+          borderColor: lineStroke,
+          backgroundColor: lineFill,
+          borderWidth: 2.5,
           fill: true,
           tension: 0.4,
-          pointBackgroundColor: accent,
+          pointBackgroundColor: pointBg,
+          pointBorderColor: isDark ? "#111827" : "#FFFFFF",
+          pointBorderWidth: 1.5,
           pointRadius: 4,
           pointHoverRadius: 6
         }]
@@ -912,10 +1143,32 @@ export function init({ profile } = {}) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `KES ${Number(ctx.raw || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`
+            }
+          }
+        },
         scales: {
-          y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
-          x: { grid: { display: false } }
+          y: {
+            beginAtZero: true,
+            grid: { color: gridLineColor },
+            ticks: {
+              color: tickColor,
+              maxTicksLimit: 5,
+              callback: (val) => {
+                if (val >= 1000000) return `${(val / 1000000).toFixed(1)}M`;
+                if (val >= 1000) return `${Math.round(val / 1000)}k`;
+                return val;
+              }
+            }
+          },
+          x: {
+            grid: { display: false },
+            ticks: { color: tickColor }
+          }
         }
       }
     });
@@ -924,30 +1177,29 @@ export function init({ profile } = {}) {
   // 2. Initialize Real Demographics Doughnut Chart
   const demoCtx = document.getElementById('demographicsChart');
   if (demoCtx && chartDataCache.gradeLabels.length > 0) {
+    const existingDemo = Chart.getChart(demoCtx);
+    if (existingDemo) existingDemo.destroy();
+
+    const palette = getGradePalette();
+
     new Chart(demoCtx, {
       type: 'doughnut',
       data: {
         labels: chartDataCache.gradeLabels,
         datasets: [{
           data: chartDataCache.gradeCounts,
-          backgroundColor: [
-            primary,
-            hexToRgba(primary, 0.75),
-            accent,
-            hexToRgba(accent, 0.65),
-            hexToRgba(primary, 0.45),
-            '#2E7D46',
-          ],
-          borderWidth: 0,
+          backgroundColor: chartDataCache.gradeLabels.map((_, i) => palette[i % palette.length]),
+          borderWidth: isDark ? 2 : 0,
+          borderColor: isDark ? "#111827" : "transparent",
           hoverOffset: 4
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: '70%',
+        cutout: '72%',
         plugins: {
-          legend: { position: 'bottom', labels: { usePointStyle: true, padding: 16 } }
+          legend: { display: false }
         }
       }
     });

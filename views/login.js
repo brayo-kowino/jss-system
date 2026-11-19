@@ -6,10 +6,12 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { navigate, getDefaultRoute } from "../js/router.js";
+import { navigate, getDefaultRoute, routes } from "../js/router.js";
+import { resolvePostLoginDestination } from "../js/services/deep-link.service.js";
 import { el, icon, toast, busyButton, setFavicon } from "../js/utils.js";
+import { openModal } from "../js/components/modal.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
-import { applyBranding } from "../js/components/shell.js";
+import { applyBranding } from "../js/services/branding.service.js";
 
 const BRAND_POINTS = [
   { icon: "school", text: "Admissions, classes, streams and CBC subjects in one place" },
@@ -299,7 +301,18 @@ export async function render() {
 
   const submitBtn = el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Sign In");
 
-  form.append(emailField, passwordField, authRow, submitBtn);
+  const emergencyHelpRow = el("div", { style: "margin-top:14px; text-align:center; padding-top:10px; border-top:1px dashed var(--color-line, #e2e8f0);" }, [
+    el("a", {
+      href: "#",
+      id: "emergency-support-link",
+      style: "font-size:12px; color:var(--color-ink-soft, #64748b); text-decoration:none; display:inline-flex; align-items:center; gap:5px; transition:color 0.2s ease;",
+    }, [
+      icon("security", "style: font-size:14px; color:var(--color-amber-700, #b45309);"),
+      "Account compromised or locked out? Get Emergency Help"
+    ]),
+  ]);
+
+  form.append(emailField, passwordField, authRow, submitBtn, emergencyHelpRow);
   card.append(form);
 
   // Switch-school / enter-code affordance: a one-line link that reveals a
@@ -551,6 +564,20 @@ export function init() {
       await setPersistence(auth, rememberCheckbox.checked ? browserLocalPersistence : browserSessionPersistence);
       const result = await login(email, password);
 
+      const safeNavigatePostLogin = (prof) => {
+        // Always navigate after a gate clears (approval / 2FA). The old guard
+        // only called navigate() when the hash started with "#/login", which
+        // silently dropped the redirect when a user landed directly on a
+        // bookmarked protected page (e.g. "#/dashboard"), got the 2FA gate,
+        // verified, and then onDone() was a no-op - leaving the gate UI
+        // frozen with an endless spinner.  Now we always resolve the
+        // destination and navigate unconditionally; router.navigate() is
+        // safe to call even when the hash hasn't changed - it calls
+        // renderRoute() directly in that case.
+        const dest = resolvePostLoginDestination(prof, routes, getDefaultRoute);
+        navigate(dest);
+      };
+
       // Admin account protection gates: the login service returns extra flags
       // instead of a plain profile when additional verification is needed.
       // Rendered via the same shared gate screens router.js uses on every
@@ -558,17 +585,17 @@ export function init() {
       // each screen (see js/components/auth-gate.js).
       if (result.needsApproval) {
         restore();
-        renderApprovalGate(result, () => navigate(getDefaultRoute(result)));
+        renderApprovalGate(result, () => safeNavigatePostLogin(result));
         return;
       }
       if (result.needs2FA) {
         restore();
-        renderTwoFactorGate(result, () => navigate(getDefaultRoute(result)));
+        renderTwoFactorGate(result, () => safeNavigatePostLogin(result));
         return;
       }
 
       eyes?.happy();
-      navigate(getDefaultRoute(result));
+      safeNavigatePostLogin(result);
     } catch (err) {
       errorEl.textContent = friendlyError(err);
       restore();
@@ -591,6 +618,12 @@ export function init() {
     } finally {
       restore();
     }
+  });
+
+  document.getElementById("emergency-support-link")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email")?.value.trim() || "";
+    openEmergencySupportModal(email);
   });
 
   initRotator();
@@ -657,6 +690,94 @@ export function init() {
   window.addEventListener("offline", updateOnlineState);
 }
 
+function openEmergencySupportModal(prefilledEmail = "") {
+  const form = el("form", { style: "display:flex; flex-direction:column; gap:14px;" }, [
+    el("div", { style: "background:rgba(220, 38, 38, 0.06); border:1px solid rgba(220, 38, 38, 0.2); border-radius:8px; padding:12px; font-size:13px; color:#991b1b; line-height:1.5;" }, [
+      "Use this form if you suspect your account has been breached, credentials altered without consent, or if you are locked out by unrecognized 2FA. Our security team will review and contact you via verified school channels.",
+      el("div", { style: "margin-top:8px; font-weight:600;" }, [
+        "Emergency Security Hotline: ",
+        el("a", { href: "tel:+2540107195545", style: "color:inherit; white-space:nowrap;" }, "+254 0107195545"),
+      ]),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { for: "em-school" }, "School Name or Code"),
+      el("input", { id: "em-school", type: "text", required: "true", placeholder: "e.g. Green Hill JSS or greenhill-jss" }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { for: "em-name" }, "Your Full Name & Role"),
+      el("input", { id: "em-name", type: "text", required: "true", placeholder: "e.g. Mr. Brian Odhiambo (Principal / School Admin)" }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { for: "em-email" }, "Affected Account Email"),
+      el("input", { id: "em-email", type: "email", required: "true", value: prefilledEmail, placeholder: "admin@school.ac.ke" }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { for: "em-phone" }, "Verified Alternate Phone / WhatsApp Number"),
+      el("input", { id: "em-phone", type: "tel", required: "true", placeholder: "e.g. +254 712 345 678" }),
+    ]),
+    el("div", { class: "field" }, [
+      el("label", { for: "em-details" }, "Incident Description"),
+      el("textarea", { id: "em-details", rows: "3", required: "true", placeholder: "Please explain what happened (e.g. password changed without my consent, unknown device locked me out...)" }),
+    ]),
+    el("div", { id: "em-error", class: "field-error", style: "margin-top:-6px;" }, ""),
+    el("button", { type: "submit", class: "btn btn--danger btn--block" }, [
+      icon("emergency", "text-sm"),
+      " Submit Emergency Report",
+    ]),
+  ]);
+
+  const close = openModal("Account Compromise & Locked-Out Support", form);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errorEl = document.getElementById("em-error");
+    if (errorEl) errorEl.textContent = "";
+
+    const schoolCodeOrName = document.getElementById("em-school").value.trim();
+    const reporterName = document.getElementById("em-name").value.trim();
+    const email = document.getElementById("em-email").value.trim();
+    const contactPhone = document.getElementById("em-phone").value.trim();
+    const details = document.getElementById("em-details").value.trim();
+
+    const submitBtn = form.querySelector("button[type=submit]");
+    const restore = busyButton(submitBtn, "Submitting alert…");
+
+    try {
+      const res = await fetch("/emergency-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolCodeOrName, reporterName, email, contactPhone, details }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to submit incident report.");
+
+      close();
+      toast("Emergency incident reported! Our security response desk has been alerted.", "success");
+
+      let modalClose = null;
+      const successModalBody = el("div", { style: "text-align:center; padding:16px 0;" }, [
+        el("div", { style: "width:60px; height:60px; border-radius:50%; background:#ecfdf5; color:#059669; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;" }, [
+          icon("check_circle", "style: font-size:32px;"),
+        ]),
+        el("h3", { style: "margin:0 0 8px; font-size:18px; color:#0f172a;" }, "Emergency Incident Reported"),
+        el("p", { class: "text-sm text-muted", style: "line-height:1.6; margin-bottom:16px;" }, [
+          "Emergency incident ticket ",
+          el("strong", { style: "color:#0f172a;" }, `#${(data.ticketId || "").slice(0, 8)}`),
+          " has been submitted with the security response desk."
+        ]),
+        el("div", { style: "background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:12px; color:#475569; text-align:left; line-height:1.5; margin-bottom:16px;" }, [
+          el("strong", {}, "Next steps: "),
+          "Our security engineers will cross-verify your identity using official school registration records and phone lines before recovering your account."
+        ]),
+        el("button", { type: "button", class: "btn btn--primary", onClick: () => modalClose && modalClose() }, "Understood")
+      ]);
+      modalClose = openModal("Emergency Incident Reported", successModalBody);
+    } catch (err) {
+      if (errorEl) errorEl.textContent = err.message || "Failed to submit report.";
+      restore();
+    }
+  });
+}
 
 function friendlyError(err) {
   const code = err?.code || "";

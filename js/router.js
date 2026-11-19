@@ -13,11 +13,23 @@
 //    with a "try again" button, and the sidebar/nav stay usable.
 // ==========================================================================
 import { getCurrentProfile, getCurrentSchool, refreshCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
-import { getSubscriptionState } from "./services/subscription.service.js";
 import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
 import { renderApprovalGate, renderTwoFactorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
+import {
+  parseDeepLink,
+  renderAlienNotFound,
+  buildDeepLink,
+  savePostLoginRedirect,
+  resolvePostLoginDestination,
+  clearPostLoginRedirect,
+} from "./services/deep-link.service.js";
+import {
+  isFormDirty,
+  confirmNavigationIfDirty,
+  clearDirtyTrackers,
+} from "./services/unsaved-changes.service.js";
 
 // These three are the only views that can be reached *before* we know a
 // visitor is on an active subscription (login, forced password change, and
@@ -32,8 +44,6 @@ import { renderInlineError, showFatalError } from "./error-handler.js";
 // split, one big eagerly-imported bundle would ship the whole app to a
 // suspended/expired school regardless of what the edge function blocks.
 import * as loginView from "../views/login.js";
-import * as changePasswordView from "../views/change-password.js";
-import * as subscriptionLockedView from "../views/subscription-locked.js";
 
 // path -> () => import("../views/x.js"). Each entry is a *function*, not
 // the module itself - calling it kicks off the dynamic import, which Vite
@@ -43,7 +53,9 @@ import * as subscriptionLockedView from "../views/subscription-locked.js";
 // to an already-visited page doesn't re-fetch its chunk.
 export const routes = {
   "/login": { view: () => Promise.resolve(loginView), public: true },
-  "/change-password": { view: () => Promise.resolve(changePasswordView), allRoles: true, title: "Change Password" },
+  "/emergency-freeze": { view: () => import("../views/emergency-freeze.js"), public: true, title: "Emergency Account Freeze" },
+  "/shared-timetable": { view: () => import("../views/shared-timetable.js"), public: true, allowAuthed: true, title: "Official Timetable" },
+  "/change-password": { view: () => import("../views/change-password.js"), allRoles: true, title: "Change Password" },
   "/dashboard": { view: () => import("../views/dashboard.js"), roles: ["admin", "principal", "deputy_principal", "academic_master", "bursar", "registrar"], skeleton: { cards: 4, rows: 0, bigCards: 3 } },
   "/settings": { view: () => import("../views/school-settings.js"), roles: ["admin"], title: "School Settings", skeleton: { cards: 0, rows: 6 } },
 
@@ -107,24 +119,31 @@ export function getDefaultRoute(profile) {
   return "/dashboard";
 }
 
-// Reads location.hash defensively: decodes safely, strips anything that
-// isn't a plausible route path, and caps the length, so a malformed or
-// malicious link can never reach the route table or the DOM as-is.
-function currentPath(profile) {
-  let raw = location.hash.replace(/^#/, "");
-  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
-  try {
-    raw = decodeURIComponent(raw);
-  } catch {
-    return "__invalid__"; // malformed percent-encoding (e.g. a stray "%")
+let lastParsedParams = {};
+
+export function currentParams() {
+  return { ...lastParsedParams };
+}
+
+// Reads location.hash and search query through the deep linking engine.
+// Decodes safely, extracts structured query parameters, and validates the route path.
+function currentRouteState(profile) {
+  const parsed = parseDeepLink(location.hash);
+  lastParsedParams = parsed.params;
+
+  let raw = parsed.path;
+  if (!raw || raw === "/") return { path: profile ? getDefaultRoute(profile) : "/dashboard", params: parsed.params, rawHash: parsed.raw };
+  if (raw.length > MAX_PATH_LENGTH || !SAFE_PATH_RE.test(raw)) {
+    return { path: "__invalid__", params: parsed.params, rawHash: parsed.raw };
   }
-  raw = raw.split("?")[0].split("#")[0].trim();
-  if (!raw) return profile ? getDefaultRoute(profile) : "/dashboard";
-  if (raw.length > MAX_PATH_LENGTH || !SAFE_PATH_RE.test(raw)) return "__invalid__";
-  return raw;
+  return { path: raw, params: parsed.params, rawHash: parsed.raw };
 }
 
 export function navigate(path) {
+  if (isFormDirty() && !confirmNavigationIfDirty()) {
+    return;
+  }
+  clearDirtyTrackers();
   const targetHash = path.startsWith("#") ? path : `#${path}`;
   if (location.hash === targetHash) {
     renderRoute().catch((err) => showFatalError(err, { where: "router.navigate" }));
@@ -133,19 +152,39 @@ export function navigate(path) {
   }
 }
 
-function renderNotFound(app, { authed }) {
-  const actionPath = authed ? "/dashboard" : "/login";
-  const actionLabel = authed ? "Go to dashboard" : "Go to sign in";
-  app.innerHTML = "";
-  app.append(
-    el("div", { class: "not-found-page" }, [
-      el("div", { class: "not-found-page__code" }, "404"),
-      el("span", { class: "material-symbols-rounded icon empty-state__icon" }, "explore_off"),
-      el("h2", {}, "That page doesn't exist"),
-      el("p", { class: "text-muted" }, "The link you followed may be broken, out of date, or mistyped."),
-      el("button", { class: "btn btn--primary", style: "margin-top:16px;", onClick: () => navigate(actionPath) }, [icon("home"), actionLabel]),
-    ])
-  );
+export function navigateWithParams(path, params = {}) {
+  const norm = path.startsWith("/") ? path : `/${path}`;
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") {
+      qs.set(k, String(v).trim());
+    }
+  }
+  const qPart = qs.toString() ? `?${qs.toString()}` : "";
+  navigate(`${norm}${qPart}`);
+}
+
+function renderNotFound(app, { authed, badRoute, profile }) {
+  if (authed && profile) {
+    try {
+      const main = renderShell(app, profile, "/dashboard");
+      renderAlienNotFound(main, {
+        badRoute,
+        routes,
+        authed: true,
+        onNavigate: navigate,
+      });
+      return;
+    } catch (e) {
+      console.warn("Could not render in-shell 404, falling back to full container:", e);
+    }
+  }
+  renderAlienNotFound(app, {
+    badRoute,
+    routes,
+    authed: false,
+    onNavigate: navigate,
+  });
 }
 
 // Bumped on every renderRoute() call. Each call captures its own token and
@@ -197,16 +236,19 @@ export async function renderRoute() {
     return;
   }
 
-  let path;
+  let path, params, rawHash;
   try {
-    path = currentPath(profile);
+    const routeState = currentRouteState(profile);
+    path = routeState.path;
+    params = routeState.params;
+    rawHash = routeState.rawHash;
   } catch (err) {
-    showFatalError(err, { where: "router.currentPath" });
+    showFatalError(err, { where: "router.currentRouteState" });
     return;
   }
 
   if (path === "__invalid__" || !routes[path]) {
-    renderNotFound(app, { authed: !!profile });
+    renderNotFound(app, { authed: !!profile, badRoute: rawHash || path, profile });
     return;
   }
 
@@ -215,15 +257,15 @@ export async function renderRoute() {
   try {
     if (route.public) {
       try { stopIdleTimeoutWatcher(); } catch(e) {}
-      if (profile) {
+      if (profile && !route.allowAuthed) {
         if (document.querySelector(".approval-wait") || document.querySelector(".twofa-gate")) {
           return;
         }
-        return navigate(getDefaultRoute(profile));
+        return navigate(resolvePostLoginDestination(profile, routes, getDefaultRoute));
       }
       const view = await loadView(path, route);
       if (isStale()) return;
-      const content = await view.render();
+      const content = await view.render({ profile, params });
       if (isStale()) return;
       app.innerHTML = "";
       app.appendChild(content);
@@ -234,6 +276,10 @@ export async function renderRoute() {
 
     if (!profile) {
       document.querySelectorAll(".signout-modal-backdrop").forEach((el) => el.remove());
+      const target = rawHash || (typeof location !== "undefined" ? location.hash : "");
+      if (target && !["#/login", "#/", "#", ""].includes(target.trim())) {
+        savePostLoginRedirect(target);
+      }
       return navigate("/login");
     }
 
@@ -244,6 +290,7 @@ export async function renderRoute() {
     // standing credential once someone else has read it off a shared link,
     // a chat message, or a sticky note.
     if (profile.mustChangePassword) {
+      const changePasswordView = await import("../views/change-password.js");
       const content = await changePasswordView.render({ profile, forced: true });
       if (isStale()) return;
       app.innerHTML = "";
@@ -307,12 +354,14 @@ export async function renderRoute() {
         window.__jssBootPing?.();
         school = await refreshCurrentSchool();
       }
+      const { getSubscriptionState } = await import("./services/subscription.service.js");
       const subState = getSubscriptionState(school || {});
       
       // Ensure the router handles the new trial states returned by getSubscriptionState() properly.
       // This includes showing subscription-locked.js if trial is expired and grace period is also expired,
       // as well as during the grace period itself (subState.active is false in both cases).
       if (!subState.active) {
+        const subscriptionLockedView = await import("../views/subscription-locked.js");
         const content = await subscriptionLockedView.render({ profile, school, subState });
         if (isStale()) return;
         app.innerHTML = "";
@@ -348,6 +397,7 @@ export async function renderRoute() {
     // the inline skeleton/error card (which keeps the shell intact) instead
     // of falsely triggering a full-screen "Eeskia couldn't start" fatal error.
     window.__jssBootOk?.();
+    clearPostLoginRedirect();
 
     main.innerHTML = "";
     main.appendChild(skeletonPage(route.skeleton || {}));
@@ -366,11 +416,13 @@ export async function renderRoute() {
       const maybeTimeout = (p) => offline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
       const view = await maybeTimeout(loadView(path, route));
       if (isStale()) return;
-      const content = await maybeTimeout(view.render({ profile, title: route.title }));
+      const content = await maybeTimeout(view.render({ profile, title: route.title, params }));
       if (isStale()) return;
       main.innerHTML = "";
       main.appendChild(content);
-      await view.init?.({ profile });
+      lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+      clearDirtyTrackers();
+      await view.init?.({ profile, params });
     } catch (viewErr) {
       if (isStale()) return;
       renderInlineError(main, viewErr, {
@@ -384,11 +436,13 @@ export async function renderRoute() {
           const retryMaybeTimeout = (p) => retryOffline ? p : withTimeout(p, RENDER_TIMEOUT_MS);
           const view = await retryMaybeTimeout(loadView(path, route));
           if (retryToken !== currentRenderToken) return;
-          const content = await retryMaybeTimeout(view.render({ profile, title: route.title }));
+          const content = await retryMaybeTimeout(view.render({ profile, title: route.title, params }));
           if (retryToken !== currentRenderToken) return;
           main.innerHTML = "";
           main.appendChild(content);
-          await view.init?.({ profile });
+          lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+          clearDirtyTrackers();
+          await view.init?.({ profile, params });
         },
       });
     }
@@ -400,8 +454,25 @@ export async function renderRoute() {
   }
 }
 
+let lastSafeHash = typeof location !== "undefined" ? location.hash : "";
+let isRevertingHash = false;
+
 export function startRouter() {
+  lastSafeHash = typeof location !== "undefined" ? location.hash : "";
   window.addEventListener("hashchange", () => {
+    if (isRevertingHash) {
+      isRevertingHash = false;
+      return;
+    }
+    if (isFormDirty()) {
+      if (!confirmNavigationIfDirty()) {
+        isRevertingHash = true;
+        location.hash = lastSafeHash;
+        return;
+      }
+      clearDirtyTrackers();
+    }
+    lastSafeHash = location.hash;
     renderRoute().catch((err) => showFatalError(err, { where: "router.hashchange" }));
   });
 }

@@ -24,7 +24,7 @@ messaging.onBackgroundMessage((payload) => {
     icon: "/assets/logo.png",
     tag: "eeskia-push",
     data: {
-      url: "/app/#!/notifications"
+      url: "/app/#/notifications"
     }
   };
 
@@ -33,7 +33,7 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || "/app/#!/notifications";
+  const urlToOpen = event.notification.data?.url || "/app/#/notifications";
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {

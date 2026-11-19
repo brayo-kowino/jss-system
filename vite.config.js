@@ -1,8 +1,94 @@
 import { resolve } from "node:path";
 import { fileURLToPath, URL } from "node:url";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import JavaScriptObfuscator from "javascript-obfuscator";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
+
+const pkg = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+const appVersion = pkg.version || "1.0.0";
+let gitCommit = process.env.COMMIT_REF || "";
+if (!gitCommit) {
+  try {
+    gitCommit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    gitCommit = "";
+  }
+}
+const buildTimestamp = Date.now();
+const buildId = `${appVersion}.${gitCommit || buildTimestamp.toString(36)}`;
+const buildTime = new Date().toISOString();
+
+function versionTrackerPlugin() {
+  return {
+    name: "version-tracker",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === "/version.json") {
+          res.setHeader("Content-Type", "application/json");
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.end(
+            JSON.stringify(
+              {
+                version: appVersion,
+                buildId,
+                builtAt: buildTime,
+                dev: true,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
+        next();
+      });
+    },
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify(
+          {
+            version: appVersion,
+            buildId,
+            builtAt: buildTime,
+          },
+          null,
+          2
+        ),
+      });
+    },
+    closeBundle() {
+      // Stamp the exact buildId into dist/sw.js so the service worker gets a fresh byte fingerprint
+      const swDistPath = resolve(root, "dist/sw.js");
+      if (existsSync(swDistPath)) {
+        let swContent = readFileSync(swDistPath, "utf8");
+        swContent = swContent.replace(
+          /const CACHE_VERSION = ["'][^"']+["'];/,
+          `const CACHE_VERSION = "eeskia-${buildId}";`
+        );
+        writeFileSync(swDistPath, swContent, "utf8");
+      }
+      // Also ensure public/version.json is synced on disk
+      const publicVersionPath = resolve(root, "public/version.json");
+      writeFileSync(
+        publicVersionPath,
+        JSON.stringify(
+          {
+            version: appVersion,
+            buildId,
+            builtAt: buildTime,
+          },
+          null,
+          2
+        ),
+        "utf8"
+      );
+    },
+  };
+}
 
 // --------------------------------------------------------------------------
 // These are already-whitelisted (in netlify.toml's CSP script-src) CDN ESM
@@ -60,6 +146,9 @@ function obfuscatorPlugin() {
       for (const fileName of Object.keys(bundle)) {
         const asset = bundle[fileName];
         if (asset.type !== "chunk" || !fileName.endsWith(".js")) continue;
+        // Skip third-party vendor chunks - they are already minified and obfuscating
+        // open-source libraries drastically slows down build time and bloats bundle sizes.
+        if (asset.name?.startsWith("vendor-") || fileName.includes("vendor-")) continue;
         const result = JavaScriptObfuscator.obfuscate(asset.code, {
           compact: true,
           controlFlowFlattening: false,
@@ -88,6 +177,9 @@ function obfuscatorPlugin() {
 export default {
   root,
   publicDir: "public",
+  worker: {
+    format: "es",
+  },
   build: {
     outDir: "dist",
     emptyOutDir: true,
@@ -113,6 +205,7 @@ export default {
     sourcemap: false, // no sourcemaps in a build meant to obfuscate the output
     minify: "esbuild",
     cssMinify: true,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       input: {
         landing: resolve(root, "index.html"),
@@ -127,8 +220,22 @@ export default {
         entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash][extname]",
+        manualChunks(id) {
+          if (id.includes("preload-helper")) return "preload-helper";
+          if (id.includes("node_modules/xlsx")) return "vendor-xlsx";
+          if (id.includes("node_modules/jspdf")) return "vendor-jspdf";
+          if (id.includes("node_modules/html2canvas-pro") || id.includes("node_modules/html2canvas")) return "vendor-html2canvas";
+          if (id.includes("node_modules/chart.js")) return "vendor-chart";
+          if (id.includes("node_modules/jszip")) return "vendor-jszip";
+          if (id.includes("node_modules/flatpickr")) return "vendor-flatpickr";
+        },
       },
     },
   },
-  plugins: [obfuscatorPlugin()],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+    __APP_BUILD_ID__: JSON.stringify(buildId),
+    __APP_BUILD_TIME__: JSON.stringify(buildTime),
+  },
+  plugins: [versionTrackerPlugin(), obfuscatorPlugin()],
 };

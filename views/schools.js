@@ -9,6 +9,7 @@
 // the lock screen within moments via auth.service.js's live listener on
 // the school doc, not just on that tab's next sign-in.
 import { listSchools, createSchool, setSchoolStatus } from "../js/services/school.service.js";
+import { openAccountRecoveryModal } from "../js/services/recovery.service.js";
 import { issueSubscriptionToken, listSubscriptionTokens, revokeSubscription, getSubscriptionState, SUBSCRIPTION_PLANS, SUBSCRIPTION_DURATIONS, REVOKE_REASONS } from "../js/services/subscription.service.js";
 import { getTrialState, assignTrial, extendTrial, endTrial, getTrialConfig, updateTrialConfig } from "../js/services/trial.service.js";
 import { openModal } from "../js/components/modal.js";
@@ -210,6 +211,12 @@ export async function render({ profile }) {
               title: "Issue subscription token",
               onClick: () => openIssueTokenModal(s),
             }, [icon("key")]),
+            el("button", {
+              class: "btn btn--sm btn--ghost",
+              style: "color: #b45309;",
+              title: "Admin Account Recovery & Security",
+              onClick: () => openAccountRecoveryModal(s.id, s.adminEmail, profile),
+            }, [icon("shield", "text-amber")]),
             el("button", {
               class: "btn btn--sm btn--ghost",
               title: "Token history",

@@ -1,3 +1,5 @@
+import { packZipWithWorker } from "./export-worker.client.js";
+
 let libsPromise = null;
 
 function loadLibs() {
@@ -38,7 +40,7 @@ function yieldToMain(ms = 30) {
 // Report cards are generated in standard A4 portrait format so they print
 // correctly on any printer without white gaps. Receipts keep a compact custom
 // page size since they are short slips not printed on full A4 sheets.
-export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3000, onStatus } = {}) {
+export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3000, orientation = "portrait", onStatus } = {}) {
   onStatus?.("loading_libs");
   await yieldToMain(20);
   const [{ default: html2canvas }, { jsPDF }] = await loadLibs();
@@ -47,7 +49,12 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   await yieldToMain(30);
 
   const isReceipt = node.classList?.contains("receipt");
-  const targetWidth = isReceipt ? 440 : 840;
+  const isLandscape = orientation === "landscape" ||
+    node.classList?.contains("timetable-sheet") ||
+    node.classList?.contains("timetable-print-page--landscape") ||
+    node.classList?.contains("timetable-pdf-page--landscape") ||
+    node.classList?.contains("landscape");
+  const targetWidth = isReceipt ? 440 : (isLandscape ? 1120 : 840);
 
   // Pre-convert any loaded images in the live node to base64 Data URIs.
   // This guarantees offline rendering, eliminates cross-origin network fetches,
@@ -88,16 +95,18 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
       clonedElement.style.width = `${targetWidth}px`;
       clonedElement.style.maxWidth = `${targetWidth}px`;
       clonedElement.style.minWidth = `${targetWidth}px`;
+      clonedElement.style.boxSizing = "border-box";
+      clonedElement.style.overflow = "visible";
       clonedElement.style.boxShadow = "none";
       clonedElement.style.border = "none";
       clonedElement.style.borderRadius = "0";
       clonedElement.style.margin = "0";
-      clonedElement.style.padding = isReceipt ? "16px" : "12px 16px 16px 16px";
+      clonedElement.style.padding = isReceipt ? "16px" : (isLandscape ? "14px 18px" : "12px 16px 16px 16px");
       clonedElement.style.transform = "none";
       clonedElement.style.zoom = "1";
 
       // 2. Expand all table containers to be fully visible (no horizontal scrollbar clipping)
-      const wraps = clonedElement.querySelectorAll(".table-wrap, table, .report-card__student, .report-card__header");
+      const wraps = clonedElement.querySelectorAll(".table-wrap, .tt-scroll, .timetable-scroll-wrap, table, .tt-wall-chart, .timetable-print-wall-chart, .report-card__student, .report-card__header");
       wraps.forEach((el) => {
         el.style.overflow = "visible";
         el.style.maxWidth = "none";
@@ -158,13 +167,12 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
     return pdf.output("blob");
   }
 
-  // ── Report cards: single A4 portrait page, content scaled to fit ──────────
-  // A4 portrait is 595.28pt x 841.89pt.
-  // Official documents start neatly at the top margin (not vertically centered in the void).
-  const A4_W = 595.28;  // pt
-  const A4_H = 841.89;  // pt
-  const MARGIN_X = 12;  // pt — left & right margins
-  const MARGIN_Y = 12;  // pt — top margin
+  // ── Report cards & Timetables: single A4 page (Portrait or Landscape), content scaled to fit ──
+  // A4 portrait is 595.28pt x 841.89pt; A4 landscape is 841.89pt x 595.28pt.
+  const A4_W = isLandscape ? 841.89 : 595.28;  // pt
+  const A4_H = isLandscape ? 595.28 : 841.89;  // pt
+  const MARGIN_X = isLandscape ? 16 : 12;       // pt — left & right margins
+  const MARGIN_Y = isLandscape ? 14 : 12;       // pt — top margin
 
   const contentW = A4_W - MARGIN_X * 2;
   const contentH = A4_H - MARGIN_Y * 2;
@@ -179,7 +187,12 @@ export async function renderElementToPdfBlob(node, { scale = 3, imageTimeout = 3
   // Top-aligned: official letterhead begins at top margin instead of floating in the middle
   const yOffset = MARGIN_Y;
 
-  const pdf = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait", compress: true });
+  const pdf = new jsPDF({
+    unit: "pt",
+    format: "a4",
+    orientation: isLandscape ? "landscape" : "portrait",
+    compress: true,
+  });
   pdf.addImage(imgData, "JPEG", xOffset, yOffset, scaledW, scaledH, undefined, "FAST");
   await yieldToMain(30);
   return pdf.output("blob");
@@ -236,9 +249,8 @@ export async function downloadElementAsPdf(node, filename, opts) {
 // `items`: array of { filename, build } where build() returns (or
 // resolves to) the DOM node to render for that entry.
 // `onProgress(done, total, currentFilename)` fires after each item.
-export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 3 } = {}) {
-  const JSZip = await loadZipLib();
-  const zip = new JSZip();
+export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale = 3, orientation = "portrait" } = {}) {
+  const files = [];
   const usedNames = new Set();
   const BATCH_SIZE = 20;
   
@@ -246,7 +258,7 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
     const { filename, build } = items[i];
     const node = await build();
     try {
-      const blob = await renderElementToPdfBlob(node, { scale });
+      const blob = await renderElementToPdfBlob(node, { scale, orientation });
       let flatName = flattenFilename(filename);
       if (usedNames.has(flatName)) {
         const dot = flatName.lastIndexOf(".");
@@ -255,7 +267,7 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
         flatName = `${base}_${i + 1}${ext}`;
       }
       usedNames.add(flatName);
-      zip.file(flatName, blob);
+      files.push({ name: flatName, data: blob });
     } finally {
       node?.remove?.();
     }
@@ -267,7 +279,12 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
       await new Promise((resolve) => setTimeout(resolve, 35));
     }
   }
-  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+
+  const zipBlob = await packZipWithWorker(files, (meta) => {
+    if (meta.percent) {
+      onProgress?.(items.length, items.length, `Compressing ZIP (${Math.round(meta.percent)}%)…`);
+    }
+  });
   triggerBlobDownload(zipBlob, zipFilename);
 }
 
@@ -277,8 +294,7 @@ export async function renderReportVectorPdfBlob(reportData, settings, opts = {})
 }
 
 export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, scale = 3 } = {}) {
-  const JSZip = await loadZipLib();
-  const zip = new JSZip();
+  const files = [];
   const usedNames = new Set();
   const BATCH_SIZE = 20;
 
@@ -293,7 +309,7 @@ export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, 
       flatName = `${base}_${i + 1}${ext}`;
     }
     usedNames.add(flatName);
-    zip.file(flatName, blob);
+    files.push({ name: flatName, data: blob });
     
     onProgress?.(i + 1, items.length, filename);
     
@@ -303,6 +319,11 @@ export async function downloadPdfsAsZipVector(items, zipFilename, { onProgress, 
       await new Promise((resolve) => setTimeout(resolve, 35));
     }
   }
-  const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
+
+  const zipBlob = await packZipWithWorker(files, (meta) => {
+    if (meta.percent) {
+      onProgress?.(items.length, items.length, `Compressing ZIP (${Math.round(meta.percent)}%)…`);
+    }
+  });
   triggerBlobDownload(zipBlob, zipFilename);
 }

@@ -2,7 +2,8 @@ import { listTeachers, createTeacher, updateTeacher, setTeacherStatus } from "..
 import { listSubjects, listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { createUserAccount, listSchoolUsers, setUserStatus, ROLES } from "../js/services/auth.service.js";
 import { openModal } from "../js/components/modal.js";
-import { el, icon, toast, busyButton } from "../js/utils.js";
+import { el, icon, toast, busyButton, attachSearchClear, createPasswordField, makeCopyable, renderEmptyState } from "../js/utils.js";
+import { trackForm } from "../js/services/unsaved-changes.service.js";
 
 // Roles that can hold a system login at all, in the order they're offered.
 // Anyone not in this list (parent/student/admin/super_admin) isn't managed
@@ -34,97 +35,8 @@ let subjects = [];
 let classes = [];
 let staffUsers = [];
 
-/**
- * Dynamic Academic Staff & Security Administrator mascot with ID badge and security key.
- */
-export function buildStaffMascotSvg({ width = 125, height = 110 } = {}) {
-  return `
-    <svg class="staff-mascot-svg" viewBox="0 0 220 200" width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" aria-label="Eeskia Staff Administrator Assistant">
-      <!-- Ground Shadow -->
-      <ellipse class="support-mascot__shadow" cx="110" cy="190" rx="55" ry="7" fill="rgba(20, 83, 138, 0.15)" />
-
-      <!-- Floating Mascot Body -->
-      <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="#14538A" stroke="#0D3559" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="#93C5FD" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="#059669" stroke="#047857" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="#A7F3D0" opacity="0.9" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="#C9A227" stroke="#8C6F12" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="#FDE68A" opacity="0.9" />
-        </g>
-
-        <!-- Academic Scholar Robe -->
-        <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="#14538A" stroke="#0D3559" stroke-width="1.5" />
-        <!-- Gold Sash -->
-        <path d="M96,124 L110,150 L124,124 L118,124 L110,138 L102,124 Z" fill="#C9A227" />
-
-        <!-- Left Arm Holding Staff ID Badge Card -->
-        <g class="staff-mascot__badge">
-          <path d="M84,128 C74,136 74,148 85,152" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <!-- ID Card Lanyard -->
-          <path d="M96,124 L72,132" stroke="#C9A227" stroke-width="2" fill="none" />
-          <!-- ID Card Body -->
-          <rect x="54" y="128" width="26" height="34" rx="3" fill="#FAF6F0" stroke="#0D3559" stroke-width="1.2" transform="rotate(-5 67 145)" />
-          <rect x="58" y="132" width="10" height="10" rx="1.5" fill="#14538A" transform="rotate(-5 67 145)" />
-          <rect x="58" y="145" width="18" height="2" rx="0.8" fill="#0B2545" transform="rotate(-5 67 145)" />
-          <rect x="58" y="149" width="14" height="2" rx="0.8" fill="#64748B" transform="rotate(-5 67 145)" />
-          <rect x="58" y="153" width="10" height="2" rx="0.8" fill="#059669" transform="rotate(-5 67 145)" />
-          <!-- Hand Holding Badge -->
-          <circle cx="85" cy="150" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-        </g>
-
-        <!-- Right Arm Raising Golden Security Key with Gleam Animation -->
-        <g class="staff-mascot__key">
-          <path d="M136,128 C146,134 154,122 150,110" stroke="#14538A" stroke-width="6.5" stroke-linecap="round" fill="none" />
-          <circle cx="150" cy="110" r="4.5" fill="#FAF6F0" stroke="#14538A" stroke-width="1.2" />
-          <!-- Golden Key -->
-          <circle cx="160" cy="98" r="7" fill="none" stroke="#F59E0B" stroke-width="2.5" />
-          <line x1="164" y1="103" x2="176" y2="115" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" />
-          <line x1="172" y1="111" x2="175" y2="108" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" />
-          <line x1="175" y1="114" x2="178" y2="111" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" />
-          <!-- Star sparkle -->
-          <polygon points="160,86 161.5,89 165,90.5 161.5,92 160,95 158.5,92 155,90.5 158.5,89" fill="#FDE68A" />
-        </g>
-
-        <!-- Head -->
-        <circle cx="110" cy="92" r="31" fill="#FAF6F0" stroke="#14538A" stroke-width="2.2" />
-        <ellipse cx="88" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-        <ellipse cx="132" cy="99" rx="5" ry="3.5" fill="#FCA5A5" opacity="0.65" />
-
-        <!-- Cheerful Eyebrows -->
-        <path d="M89,76 Q97,71 103,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-        <path d="M131,76 Q123,71 117,75" stroke="#8C6F12" stroke-width="2.2" stroke-linecap="round" fill="none" />
-
-        <!-- Animated Blinking Eyes -->
-        <g class="support-mascot__eyes">
-          <ellipse cx="98" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <ellipse cx="122" cy="90" rx="7" ry="8.5" fill="#FFFFFF" stroke="#14538A" stroke-width="1.4" />
-          <circle cx="98" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="122" cy="92" r="4.4" fill="#0B2545" />
-          <circle cx="96.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="99" cy="93.5" r="0.8" fill="#FFFFFF" />
-          <circle cx="120.5" cy="89.5" r="1.8" fill="#FFFFFF" />
-          <circle cx="123" cy="93.5" r="0.8" fill="#FFFFFF" />
-        </g>
-
-        <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="#0B2545" stroke-width="2.4" stroke-linecap="round" fill="none" />
-
-        <!-- Graduation Cap (Mortarboard) -->
-        <g transform="rotate(-5 110 58)">
-          <rect x="95" y="56" width="30" height="13" rx="4" fill="#8C6F12" />
-          <polygon points="110,36 154,50 110,61 66,50" fill="#C9A227" stroke="#8C6F12" stroke-width="1.5" />
-          <circle cx="110" cy="48.5" r="3" fill="#FAF6F0" />
-          <!-- Swaying Tassel -->
-          <path class="support-mascot__tassel" d="M110,48.5 C126,52 136,64 133,80" stroke="#FAF6F0" stroke-width="1.8" fill="none" />
-          <circle cx="133" cy="81" r="2.5" fill="#FAF6F0" />
-        </g>
-      </g>
-    </svg>
-  `;
-}
+import { buildStaffMascotSvg } from "../js/components/mascot.js";
+export { buildStaffMascotSvg };
 
 function showInstructionsModal() {
   const body = el("div", { style: "padding-bottom: 8px; font-family: var(--font-body, sans-serif); color: var(--color-ink);" }, [
@@ -307,8 +219,9 @@ function renderLoginsTab(container, profile) {
   // 1. Filter Toolbar Card
   const searchInput = el("input", {
     placeholder: "Search logins by name or email…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const roleSelect = el("select", {
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
@@ -377,11 +290,30 @@ function renderLoginsTab(container, profile) {
     countBadge.textContent = `${filtered.length} Users`;
 
     if (!filtered.length) {
-      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-        icon("badge", "empty-state__icon"),
-        el("h3", {}, "No staff logins found"),
-        el("p", {}, logins.length ? "Try adjusting your search query or filters." : "Create a login for a class teacher, principal, bursar, or any other staff role."),
-      ]));
+      if (logins.length > 0) {
+        tableWrap.append(renderEmptyState({
+          iconName: "search_off",
+          title: "No staff logins match your search or filters",
+          message: "No staff accounts match your current query or role filter. Clear your filters to see all staff logins.",
+          resetText: "Clear filters & search",
+          onReset: () => {
+            searchInput.value = "";
+            filterText = "";
+            roleSelect.value = "";
+            filterRole = "";
+            statusSelect.value = "";
+            filterStatus = "";
+            searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+            drawTable();
+          },
+        }));
+      } else {
+        tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+          icon("badge", "empty-state__icon"),
+          el("h3", {}, "No staff logins found"),
+          el("p", {}, "Create a login for a class teacher, principal, bursar, or any other staff role."),
+        ]));
+      }
       return;
     }
 
@@ -408,7 +340,9 @@ function renderLoginsTab(container, profile) {
           ]),
         ]),
         el("td", { "data-label": "Email / Login ID" }, [
-          el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink);" }, u.email || "—"),
+          u.email
+            ? makeCopyable(el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink);" }, u.email), u.email, { title: "Click to copy email" })
+            : el("div", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
         ]),
         el("td", { "data-label": "Assigned Role" }, el("span", { class: "badge badge--muted", style: "font-size:11px;" }, roleLabel(u.role))),
         el("td", { "data-label": "Teaching Profile" }, linkedTeacher
@@ -463,7 +397,9 @@ function openCreateLoginModal(profile, presetTeacher = null) {
   body.append(fieldsMount);
   body.append(el("button", { type: "submit", class: "btn btn--primary btn--block", style: "margin-top:8px;" }, [icon("person_add"), "Create Login"]));
 
-  const close = openModal(presetTeacher ? `Create Login: ${presetTeacher.fullName}` : "Create Staff Login", body);
+  const modalTitle = presetTeacher ? `Create Login: ${presetTeacher.fullName}` : "Create Staff Login";
+  const close = openModal(modalTitle, body);
+  trackForm(body, { name: modalTitle });
 
   // state for the dynamic middle section of the form
   let selectedRole = presetTeacher
@@ -599,10 +535,15 @@ function openCreateLoginModal(profile, presetTeacher = null) {
       el("label", {}, "Email (used to sign in)"),
       el("input", { id: "cl-email", type: "email", value: presetLinkedTeacher?.email || "" }),
     ]));
-    fieldsMount.append(el("div", { class: "field" }, [
-      el("label", {}, "Temporary Password"),
-      el("input", { id: "cl-temppass", type: "text", placeholder: "Given to the person to sign in with the first time" }),
-    ]));
+    const pwField = createPasswordField({
+      id: "cl-temppass",
+      label: "Temporary Password",
+      placeholder: "Given to the person to sign in with the first time",
+      required: true,
+      initialVisible: true,
+      helpText: "Click the eye to toggle visibility. Staff member rotates this upon first sign-in.",
+    });
+    fieldsMount.append(pwField.field);
   }
 
   body.addEventListener("submit", async (e) => {
@@ -752,8 +693,9 @@ function renderRosterTab(container, profile) {
   // 1. Filter Toolbar Card
   const searchInput = el("input", {
     placeholder: "Search teachers by name, TSC no., phone…",
-    style: "width:100%; padding:8px 12px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
+    style: "width:100%; padding:8px 34px 8px 34px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); outline:none;",
   });
+  attachSearchClear(searchInput);
   const linkSelect = el("select", {
     style: "height:36px; padding:0 10px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white);",
   }, [
@@ -831,11 +773,30 @@ function renderRosterTab(container, profile) {
     countBadge.textContent = `${filtered.length} Teachers`;
 
     if (!filtered.length) {
-      tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
-        icon("groups", "empty-state__icon"),
-        el("h3", {}, "No teacher records found"),
-        el("p", {}, teachers.length ? "Try adjusting your search query or filters." : "Add a teacher record to assign subjects and classes."),
-      ]));
+      if (teachers.length > 0) {
+        tableWrap.append(renderEmptyState({
+          iconName: "search_off",
+          title: "No teacher records match your search or filters",
+          message: "No faculty records match your search or filter criteria. Clear your filters to view all teachers.",
+          resetText: "Clear filters & search",
+          onReset: () => {
+            searchInput.value = "";
+            filterText = "";
+            linkSelect.value = "";
+            filterLink = "";
+            statusSelect.value = "";
+            filterStatus = "";
+            searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+            drawTable();
+          },
+        }));
+      } else {
+        tableWrap.append(el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
+          icon("groups", "empty-state__icon"),
+          el("h3", {}, "No teacher records found"),
+          el("p", {}, "Add a teacher record to assign subjects and classes."),
+        ]));
+      }
       return;
     }
 
@@ -868,12 +829,16 @@ function renderRosterTab(container, profile) {
             }, (t.fullName || "T").charAt(0).toUpperCase()),
             el("div", {}, [
               el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, t.fullName || "—"),
-              t.phone ? el("div", { style: "font-size:11px; color:var(--color-ink-soft);" }, t.phone) : null,
+              t.phone
+                ? makeCopyable(el("div", { style: "font-size:11px; color:var(--color-ink-soft);" }, t.phone), t.phone, { title: "Click to copy phone number" })
+                : null,
             ].filter(Boolean)),
           ]),
         ]),
         el("td", { "data-label": "TSC No." }, [
-          el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber || "—"),
+          t.tscNumber
+            ? makeCopyable(el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); font-weight:600; color:var(--color-ink);" }, t.tscNumber), t.tscNumber, { title: "Click to copy TSC number" })
+            : el("span", { style: "font-family:var(--font-mono); font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "—"),
         ]),
         el("td", { "data-label": "Assignments", colspan: "2" }, [
           Object.keys(grouped).length > 0
@@ -1136,7 +1101,9 @@ function openTeacherForm(profile, existing = null) {
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon(isEdit ? "save" : "person_add"), isEdit ? "Save changes" : "Add teacher"]),
   );
 
-  const close = openModal(isEdit ? `Edit: ${existing.fullName}` : "Add Teacher", body);
+  const teacherModalTitle = isEdit ? `Edit Teacher: ${existing.fullName}` : "Add Teacher";
+  const close = openModal(teacherModalTitle, body);
+  trackForm(body, { name: teacherModalTitle });
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();

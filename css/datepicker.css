@@ -2,6 +2,8 @@
    Modern Flatpickr DatePicker Theme for Eeskia
    ========================================================================== */
 
+@import "flatpickr/dist/flatpickr.min.css";
+
 .flatpickr-calendar {
   position: absolute;
   visibility: hidden;

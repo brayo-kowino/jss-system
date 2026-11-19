@@ -26,7 +26,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, putFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Firebase refreshes ID tokens roughly hourly, but auth_time only changes
@@ -174,7 +174,10 @@ export default async (request: Request, context: Context) => {
   // pre-claim token for up to an hour).
   try {
     const accessTokenForClaims = await getAccessToken();
-    await setCustomClaims(accessTokenForClaims, uid, { deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS) });
+    await setCustomClaims(accessTokenForClaims, uid, {
+      deviceApprovedUntil: claimExpiryIso(DEVICE_CLAIM_TTL_MS),
+      deviceApprovedUntilMs: claimExpiryMs(DEVICE_CLAIM_TTL_MS),
+    });
   } catch (err) {
     // Non-fatal to the device-registration itself, but the caller stays
     // gated until this succeeds - log loudly so it doesn't go unnoticed.

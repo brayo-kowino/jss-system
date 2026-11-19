@@ -62,8 +62,20 @@ export function renderApprovalGate(gate, onDone) {
   const statusEl = el("div", { id: "approval-status" });
   wrap.append(statusEl);
 
+  const actionsWrap = el("div", { style: "display:flex;gap:12px;justify-content:center;margin-top:20px;flex-wrap:wrap;align-items:center;" });
   const cancelBtn = el("button", { class: "btn btn--outline approval-wait__cancel" }, "Cancel & Sign Out");
-  wrap.append(cancelBtn);
+  const refreshBtn = el("button", { class: "btn btn--subtle btn--sm", style: "display:inline-flex;align-items:center;gap:6px;" }, [
+    icon("refresh"),
+    el("span", {}, "Check for Updates / Refresh"),
+  ]);
+  actionsWrap.append(cancelBtn, refreshBtn);
+  wrap.append(actionsWrap);
+
+  refreshBtn.addEventListener("click", async () => {
+    busyButton(refreshBtn, true, "Checking…");
+    const { forceHardRefresh } = await import("../services/version.service.js");
+    await forceHardRefresh({ reason: "approval_gate_manual_refresh" });
+  });
 
   app.appendChild(wrap);
 
@@ -182,6 +194,7 @@ export function renderTwoFactorGate(gate, onDone) {
       if (valid) {
         mark2FAVerifiedThisSession(gate.uid);
         await refreshCurrentSchool();
+        restore();
         toast("Verified! Welcome in.", "success");
         onDone();
       } else {

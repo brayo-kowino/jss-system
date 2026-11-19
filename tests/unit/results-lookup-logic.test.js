@@ -73,12 +73,12 @@ describe("Results Lookup Edge Function Security Logic", () => {
   describe("Data Minimization / PII Redaction", () => {
     it("never includes sensitive student PII in public response", () => {
       const rawResultFromDatabase = {
-        fullName: "John Doe",
+        fullName: "Brian Odhiambo",
         admissionNumber: "ADM001",
         kcpeNumber: "123456789",
         phone: "+254712345678",
         parentPhone: "+254798765432",
-        parentName: "Jane Doe",
+        parentName: "Maximilla Aleyo",
         homeAddress: "Nairobi, Kenya",
         medicalNotes: "Asthmatic",
         academicYear: "2026",

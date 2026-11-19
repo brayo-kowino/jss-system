@@ -1,6 +1,11 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify("1.0.0"),
+    __APP_BUILD_ID__: JSON.stringify("test-build-id"),
+    __APP_BUILD_TIME__: JSON.stringify("2026-11-10T00:00:00.000Z"),
+  },
   resolve: {
     alias: [
       {

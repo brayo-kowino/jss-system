@@ -17,8 +17,9 @@ export default async function trialManage(req: Request, context: Context) {
 
   try {
     const ip = clientIp(req, context);
-    if (!checkRateLimit(ip, "trial_manage", 20, 60)) {
-      return rateLimitedResponse();
+    const rl = await checkRateLimit(`trial_manage:${ip}`, 20, 60);
+    if (!rl.allowed) {
+      return rateLimitedResponse(rl.retryAfterSeconds);
     }
 
     const authHeader = req.headers.get("Authorization");
@@ -183,6 +184,6 @@ export default async function trialManage(req: Request, context: Context) {
 
   } catch (err: any) {
     console.error("Trial manage error:", err);
-    return jsonResponse({ error: "Internal server error: " + (err.message || String(err)) }, 500);
+    return jsonResponse({ error: "Service is temporarily unavailable." }, 500);
   }
 }

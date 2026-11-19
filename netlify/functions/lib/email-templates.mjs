@@ -553,3 +553,74 @@ export function buildPlatformBroadcastEmail({
     }),
   };
 }
+
+// --------------------------------------------------------------------------
+// Specialized Template: Account Password Changed Security Alert
+// Urgent transactional notification sent when a password is changed,
+// with an instant emergency freeze link.
+// --------------------------------------------------------------------------
+
+export function buildPasswordChangedSecurityEmail({
+  fullName = "Administrator",
+  email = "",
+  schoolName = "",
+  deviceSummary = "Web Browser",
+  changedAt = new Date().toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }),
+  freezeUrl = "",
+}) {
+  const safeName = escapeHtml(fullName);
+  const safeEmail = escapeHtml(email);
+  const safeDevice = escapeHtml(deviceSummary);
+  const safeDate = escapeHtml(changedAt);
+
+  const bodyHtml = `
+    <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #334155;">
+      Hello <strong>${safeName}</strong>,
+    </p>
+    <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #334155;">
+      The password for your Eeskia administrator account (<strong>${safeEmail}</strong>) was just changed.
+    </p>
+  `;
+
+  const keyDetails = [
+    { label: "Account Email", value: safeEmail },
+    { label: "Date & Time", value: safeDate },
+    { label: "Device & Browser", value: safeDevice },
+  ];
+  if (schoolName) {
+    keyDetails.unshift({ label: "School", value: schoolName });
+  }
+
+  const calloutBox = {
+    title: "Did you make this change?",
+    text: "If you made this change yourself, no action is needed. If you did NOT change your password, your account may be compromised. Click the button below immediately to quarantine your account, terminate all active logins, and alert our platform support desk.",
+    tone: "rose",
+  };
+
+  const ctaButton = freezeUrl
+    ? {
+        label: "🚨 Freeze My Account Immediately",
+        url: freezeUrl,
+        tone: "rose",
+      }
+    : null;
+
+  return {
+    subject: `🚨 Security Alert: Password changed for ${safeEmail}`,
+    html: renderBaseEmail({
+      brandName: "Eeskia",
+      schoolName,
+      badgeText: "Security Notice",
+      badgeTone: "rose",
+      title: "Password Changed",
+      preheader: `Security Alert: Your Eeskia password was changed on ${safeDate}`,
+      bodyHtml,
+      keyDetails,
+      calloutBox,
+      ctaButton,
+      secondaryNote: "If frozen, your account will be immediately locked to protect your school data. Our support desk will verify your identity before restoring access.",
+      footerText: "This is an automated critical security notification from Eeskia Platform Security.",
+    }),
+  };
+}
+

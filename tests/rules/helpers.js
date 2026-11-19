@@ -34,7 +34,9 @@ export async function getTestEnv() {
 export function authedDb(env, uid, claims = null) {
   const defaultClaims = {
     deviceApprovedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-    twoFactorVerifiedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+    deviceApprovedUntilMs: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    twoFactorVerifiedUntil: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    twoFactorVerifiedUntilMs: Date.now() + 365 * 24 * 60 * 60 * 1000
   };
   return env.authenticatedContext(uid, claims || defaultClaims).firestore();
 }
@@ -78,7 +80,7 @@ export function userFactory(role, schoolId, overrides = {}) {
 export function studentFactory(schoolId, overrides = {}) {
   return {
     schoolId,
-    fullName: 'John Doe',
+    fullName: 'Brian Odhiambo',
     admissionNumber: '1234',
     grade: 'Grade 7',
     stream: 'A',

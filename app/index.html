@@ -28,12 +28,28 @@
 <meta name="twitter:image" content="https://eeskia.iskify360.tech/assets/eeskia-hero-image.png" />
 <meta name="twitter:image:alt" content="Eeskia dashboard preview" />
 <meta name="theme-color" content="#14538A" />
+<script>
+  (function() {
+    try {
+      var t = localStorage.getItem("eeskia_theme");
+      var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (t === "dark" || (!t && prefersDark)) {
+        document.documentElement.setAttribute("data-theme", "dark");
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", "#0B0F19");
+      } else {
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    } catch (e) {}
+  })();
+</script>
 
 <link rel="manifest" href="/site.webmanifest" />
 <link rel="stylesheet" href="../css/variables.css" />
 <link rel="stylesheet" href="../css/base.css" />
 <link rel="stylesheet" href="../css/layout.css" />
 <link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/datepicker.css" />
 <link rel="stylesheet" href="../css/report-card.css" />
 <link rel="stylesheet" href="../css/newsletter.css" />
 <link rel="stylesheet" href="../css/tour.css" />
@@ -146,6 +162,24 @@
     }
   }, true);
 
+  function forceReloadWithCachePurge() {
+    try {
+      if (window.caches) {
+        caches.keys().then(function(keys) {
+          keys.forEach(function(k) { caches.delete(k); });
+        });
+      }
+    } catch (e) {}
+    try {
+      var url = new URL(location.href);
+      url.searchParams.set("_v", Date.now().toString(36));
+      location.replace(url.toString());
+    } catch (e) {
+      location.reload();
+    }
+  }
+  window.__jssForceReload = forceReloadWithCachePurge;
+
   function showBootFallback(reason) {
     if (settled) return;
     window.__jssHideSplash && window.__jssHideSplash();
@@ -160,7 +194,7 @@
             reason +
             ' Your data is safe and nothing has been lost or changed.' +
           '</p>' +
-          '<button onclick="location.reload()" style="background:#14538A;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;">Reload page</button>' +
+          '<button onclick="window.__jssForceReload ? window.__jssForceReload() : location.reload()" style="background:#14538A;color:#fff;border:none;border-radius:6px;padding:10px 20px;font-size:14px;cursor:pointer;">Reload page</button>' +
           '<p style="color:#5C6A73;font-size:12px;margin-top:16px;">' +
             'If this keeps happening, check your internet connection or report the issue to us.' +
           '</p>' +

@@ -1,6 +1,7 @@
 import { webcrypto } from "node:crypto";
 import nodemailer from "nodemailer";
 import { buildGeneralNotificationEmail } from "./lib/email-templates.mjs";
+import { verifyFirebaseIdToken } from "./lib/auth-helper.mjs";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -147,17 +148,32 @@ function resolveRecipients(audience, students, parents) {
 
 export default async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
+
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Missing authorization token" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+  const idToken = authHeader.split(" ")[1];
   
   let body;
   try {
     body = await req.json();
   } catch {
-    return new Response("Invalid JSON", { status: 400 });
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   const { notificationId, schoolId } = body;
   if (!notificationId || !schoolId) {
-    return new Response("Missing parameters", { status: 400 });
+    return new Response(JSON.stringify({ error: "Missing parameters" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   let token;
@@ -166,6 +182,32 @@ export default async (req) => {
   } catch (err) {
     console.error("dispatch-notifications: auth failed", err);
     return new Response("Auth failed", { status: 500 });
+  }
+
+  // Caller identity & permission check
+  const verifiedToken = await verifyFirebaseIdToken(idToken);
+  if (!verifiedToken?.sub) {
+    return new Response(JSON.stringify({ error: "Invalid ID token" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const caller = await getDoc(token, `users/${verifiedToken.sub}`);
+  if (!caller || caller.status === "suspended") {
+    return new Response(JSON.stringify({ error: "Unauthorized or suspended account" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+
+  const isSuper = caller.role === "super_admin";
+  const canSendSchool = caller.schoolId === schoolId && ["admin", "principal", "deputy_principal", "academic_master", "class_teacher", "bursar", "registrar"].includes(caller.role);
+  if (!isSuper && !canSendSchool) {
+    return new Response(JSON.stringify({ error: "Forbidden: Not permitted to dispatch notifications for this school" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   // 1. Fetch the notification

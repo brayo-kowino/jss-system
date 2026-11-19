@@ -24,18 +24,14 @@ service cloud.firestore {
     // approval/2FA UI at all - e.g. a stolen token used directly against
     // the Firestore SDK/REST API, skipping router.js's auth-gate entirely.
     //
-    // Both claims are expiry timestamps (ISO strings), not bare booleans -
-    // see claimExpiryIso() in lib/firestore-rest.ts for why. A claim past
-    // its expiry is treated exactly like a claim that was never granted -
-    // and so is a claim that was NEVER SET AT ALL (e.g. an admin/super_admin
-    // token that has never once gone through device-register.ts, or a 2FA-
-    // enabled account's token that's never gone through two-factor-verify.ts
-    // this session). Each existence/type/expiry check below is written as a
-    // single `&&` so it both short-circuits safely (no runtime error from
-    // calling timestamp.value() on an absent field) AND correctly requires
-    // the claim - a standalone `!('claim' in token) || ...` bypass term
-    // would make an unverified token pass this check outright, which is
-    // the exact case this gate exists to block.
+    // Both claims enforce expiry against the numeric timestamp claims
+    // (deviceApprovedUntilMs / twoFactorVerifiedUntilMs) compared against
+    // request.time.toMillis(). A claim past its expiry is treated exactly
+    // like a claim that was never granted - and so is a claim that was NEVER
+    // SET AT ALL (or legacy tokens missing the Ms timestamp). Each existence/
+    // type/expiry check below is written as a single `&&` so it both
+    // short-circuits safely (no runtime error on an absent field) AND correctly
+    // requires the claim to be present and strictly in the future.
     //
     // IMPORTANT SCOPE CAVEAT (documented here on purpose, not silently
     // assumed): Firebase custom claims are account-wide, not per-device or
@@ -51,10 +47,12 @@ service cloud.firestore {
       return isSignedIn()
         && (myProfile() == null
             || (!('role' in myProfile()) || (myProfile().role != 'admin' && myProfile().role != 'super_admin'))
-            || ('deviceApprovedUntil' in request.auth.token))
+            || (('deviceApprovedUntilMs' in request.auth.token)
+                && request.auth.token.deviceApprovedUntilMs > request.time.toMillis()))
         && (myProfile() == null
             || (!('twoFactorEnabled' in myProfile()) || myProfile().twoFactorEnabled != true)
-            || ('twoFactorVerifiedUntil' in request.auth.token));
+            || (('twoFactorVerifiedUntilMs' in request.auth.token)
+                && request.auth.token.twoFactorVerifiedUntilMs > request.time.toMillis()));
     }
 
     function isUserActive() {
@@ -224,7 +222,7 @@ service cloud.firestore {
     // exists to protect, so a stolen admin token that never cleared that
     // gate can't use it to mint or hijack accounts. It deliberately does
     // NOT gate self-read or the narrow self-update below: those have to
-    // keep working before deviceApprovedUntil/twoFactorVerifiedUntil
+    // keep working before deviceApprovedUntilMs/twoFactorVerifiedUntilMs
     // claims exist at all, since the app reads its own profile (to decide
     // whether the gate even applies) and clears mustChangePassword during
     // onboarding, before any device/2FA step has happened yet.
@@ -510,6 +508,13 @@ service cloud.firestore {
       allow update: if canManageAcademicStructure() && ownsBoth();
       allow delete: if canManageAcademicStructure() && ownsExisting();
     }
+    // Shared Timetables - unguessable shareId token allows direct single-doc get only; no public listing or scraping
+    match /shared_timetables/{docId} {
+      allow get: if true;
+      allow list: if isStaff() && ownsExisting();
+      allow create: if isStaff() && ownsIncoming();
+      allow update, delete: if canManageAcademicStructure() && ownsExisting();
+    }
 
     // Assessments - read broadly (marks entry, grading, report cards, the
     // dashboard all need to see them), write restricted to admin/
@@ -659,6 +664,11 @@ service cloud.firestore {
     // aware of the outage" on whatever screen isSubscriptionActive() left
     // them on. Write stays super_admin-only - no school's own admin can
     // post into every other school's dashboard.
+    match /platform_settings/maintenance {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
     match /platform_settings/{docId} {
       allow read: if isSignedIn();
       allow write: if isSuperAdmin();

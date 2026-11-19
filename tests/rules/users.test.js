@@ -284,4 +284,80 @@ describe('Users Collection Rules', () => {
       await assertSucceeds(getDoc(doc(db, 'users', userId)));
     });
   });
+
+  describe('Verification & 2FA Claims Enforcement (isFullyVerified)', () => {
+    it('denies admin with legacy string-only claim (missing deviceApprovedUntilMs)', async () => {
+      const adminId = 'legacy-admin';
+      const targetId = 'target-user';
+      await env.withSecurityRulesDisabled(async (context) => {
+        await seedDoc(context.firestore(), 'users', adminId, userFactory('admin', SCHOOL_A_ID));
+        await seedDoc(context.firestore(), 'users', targetId, userFactory('subject_teacher', SCHOOL_A_ID));
+      });
+
+      // Legacy token having only ISO string claim, without numeric *Ms claim
+      const legacyDb = authedDb(env, adminId, {
+        deviceApprovedUntil: new Date(Date.now() + 86400000).toISOString()
+      });
+      await assertFails(getDoc(doc(legacyDb, 'users', targetId)));
+    });
+
+    it('denies admin with expired deviceApprovedUntilMs', async () => {
+      const adminId = 'expired-admin';
+      const targetId = 'target-user';
+      await env.withSecurityRulesDisabled(async (context) => {
+        await seedDoc(context.firestore(), 'users', adminId, userFactory('admin', SCHOOL_A_ID));
+        await seedDoc(context.firestore(), 'users', targetId, userFactory('subject_teacher', SCHOOL_A_ID));
+      });
+
+      const expiredDb = authedDb(env, adminId, {
+        deviceApprovedUntilMs: Date.now() - 60000
+      });
+      await assertFails(getDoc(doc(expiredDb, 'users', targetId)));
+    });
+
+    it('denies 2FA-enabled user with legacy string-only claim (missing twoFactorVerifiedUntilMs)', async () => {
+      const adminId = 'legacy-2fa-admin';
+      const targetId = 'target-user';
+      await env.withSecurityRulesDisabled(async (context) => {
+        await seedDoc(context.firestore(), 'users', adminId, userFactory('admin', SCHOOL_A_ID, { twoFactorEnabled: true }));
+        await seedDoc(context.firestore(), 'users', targetId, userFactory('subject_teacher', SCHOOL_A_ID));
+      });
+
+      const legacyDb = authedDb(env, adminId, {
+        deviceApprovedUntilMs: Date.now() + 86400000,
+        twoFactorVerifiedUntil: new Date(Date.now() + 86400000).toISOString()
+      });
+      await assertFails(getDoc(doc(legacyDb, 'users', targetId)));
+    });
+
+    it('denies 2FA-enabled user with expired twoFactorVerifiedUntilMs', async () => {
+      const adminId = 'expired-2fa-admin';
+      const targetId = 'target-user';
+      await env.withSecurityRulesDisabled(async (context) => {
+        await seedDoc(context.firestore(), 'users', adminId, userFactory('admin', SCHOOL_A_ID, { twoFactorEnabled: true }));
+        await seedDoc(context.firestore(), 'users', targetId, userFactory('subject_teacher', SCHOOL_A_ID));
+      });
+
+      const expiredDb = authedDb(env, adminId, {
+        deviceApprovedUntilMs: Date.now() + 86400000,
+        twoFactorVerifiedUntilMs: Date.now() - 60000
+      });
+      await assertFails(getDoc(doc(expiredDb, 'users', targetId)));
+    });
+
+    it('allows 2FA-enabled user with valid deviceApprovedUntilMs and twoFactorVerifiedUntilMs', async () => {
+      const adminId = 'valid-2fa-admin';
+      const targetId = 'target-user';
+      await env.withSecurityRulesDisabled(async (context) => {
+        await seedDoc(context.firestore(), 'users', adminId, userFactory('admin', SCHOOL_A_ID, { twoFactorEnabled: true }));
+        await seedDoc(context.firestore(), 'users', targetId, userFactory('subject_teacher', SCHOOL_A_ID));
+      });
+
+      const validDb = authedDb(env, adminId, {
+        deviceApprovedUntilMs: Date.now() + 86400000,
+        twoFactorVerifiedUntilMs: Date.now() + 86400000
+      });
+      await assertSucceeds(getDoc(doc(validDb, 'users', targetId)));
+    });
+  });
 });
