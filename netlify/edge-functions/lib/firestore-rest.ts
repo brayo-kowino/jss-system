@@ -401,6 +401,7 @@ export function fsEncode(value: any): any {
 
 function fsDocToObject(doc: any): Record<string, any> {
   const out: Record<string, any> = { id: doc.name.split("/").pop() };
+  if (doc.updateTime) out._updateTime = doc.updateTime;
   for (const [k, v] of Object.entries(doc.fields || {})) out[k] = fsDecode(v);
   return out;
 }
@@ -463,6 +464,120 @@ export async function patchFsDoc(token: string, path: string, fields: Record<str
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Firestore update failed: ${res.status}`);
+}
+
+export async function reserveTrustedDeviceSlot(
+  token: string,
+  uid: string,
+  fingerprint: string,
+  deviceInfo: Record<string, any>,
+  existingDevices: Record<string, any>[],
+): Promise<{ ok: boolean; limitReached?: boolean }> {
+  const LIMIT = 5;
+  const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
+  if (isAlreadyTrusted) return { ok: true };
+  if (existingDevices.length >= LIMIT) return { ok: false, limitReached: true };
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const currentDevices = await listFsDocs(token, `users/${uid}/trusted_devices`);
+    if (currentDevices.some((device) => device.id === fingerprint)) return { ok: true };
+    if (currentDevices.length >= LIMIT) return { ok: false, limitReached: true };
+
+    const slots = await listFsDocs(token, `users/${uid}/trusted_device_slots`);
+    const existingIds = new Set(currentDevices.map((device) => device.id));
+    const activeSlots = slots.filter((slot) => existingIds.has(slot.fingerprint));
+    const staleSlots = slots.filter((slot) => !existingIds.has(slot.fingerprint));
+
+    if (activeSlots.length >= LIMIT) return { ok: false, limitReached: true };
+
+    const activeFingerprints = new Set(activeSlots.map((slot) => slot.fingerprint));
+    const unreservedDevices = currentDevices.filter((device) => !activeFingerprints.has(device.id));
+    const slotMap = new Map<string, string>();
+    for (const slot of activeSlots) slotMap.set(slot.id, slot.fingerprint);
+
+    const freeSlotIds: string[] = [];
+    for (let slotNumber = 1; slotNumber <= LIMIT; slotNumber++) {
+      const slotId = String(slotNumber);
+      if (!slotMap.has(slotId)) freeSlotIds.push(slotId);
+    }
+
+    const assignments: string[] = [
+      ...unreservedDevices.map((device) => device.id),
+      fingerprint,
+    ];
+    if (slotMap.size + assignments.length > LIMIT) {
+      return { ok: false, limitReached: true };
+    }
+
+    for (let i = 0; i < assignments.length; i++) {
+      slotMap.set(freeSlotIds[i], assignments[i]);
+    }
+
+    const beginRes = await fetch(`${FIRESTORE_BASE}:beginTransaction`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!beginRes.ok) throw new Error(`Firestore transaction begin failed: ${beginRes.status}`);
+    const { transaction } = await beginRes.json();
+
+    const writes: Record<string, any>[] = [];
+    for (const slot of staleSlots) {
+      if (!slotMap.has(slot.id)) {
+        writes.push({ delete: `${FIRESTORE_BASE}/users/${uid}/trusted_device_slots/${slot.id}` });
+      }
+    }
+
+    for (const [slotId, slotFingerprint] of slotMap) {
+      if (activeSlots.some((slot) => slot.id === slotId)) continue;
+      const slotWrite: Record<string, any> = {
+        update: {
+          name: `${FIRESTORE_BASE}/users/${uid}/trusted_device_slots/${slotId}`,
+          fields: {
+            fingerprint: { stringValue: slotFingerprint },
+            updatedAt: { timestampValue: new Date().toISOString() },
+          },
+        },
+      };
+      if (!slots.some((slot) => slot.id === slotId)) {
+        slotWrite.currentDocument = { exists: false };
+      } else {
+        const existingSlot = slots.find((slot) => slot.id === slotId);
+        if (existingSlot?._updateTime) {
+          slotWrite.currentDocument = { updateTime: existingSlot._updateTime };
+        }
+      }
+      writes.push(slotWrite);
+    }
+
+    writes.push({
+      update: {
+        name: `${FIRESTORE_BASE}/users/${uid}/trusted_devices/${fingerprint}`,
+        fields: Object.fromEntries(Object.entries({
+          fingerprint,
+          deviceName: String(deviceInfo.deviceName || "Unknown Device"),
+          screenRes: String(deviceInfo.screenRes || "Unknown"),
+          timezone: String(deviceInfo.timezone || "UTC"),
+          browser: String(deviceInfo.browser || "Unknown Browser"),
+          os: String(deviceInfo.os || "Unknown OS"),
+          isPrimary: deviceInfo.isPrimary === true,
+          registeredAt: new Date(),
+          lastSeenAt: new Date(),
+        }).map(([key, value]) => [key, fsEncode(value)])),
+      },
+    });
+
+    const commitRes = await fetch(`${FIRESTORE_BASE}:commit`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction, writes }),
+    });
+    if (commitRes.status === 409 || commitRes.status === 412) continue;
+    if (!commitRes.ok) throw new Error(`Firestore transaction commit failed: ${commitRes.status}`);
+    return { ok: true };
+  }
+
+  return { ok: false, limitReached: true };
 }
 
 export async function addFsDoc(token: string, collectionId: string, fields: Record<string, any>): Promise<any> {

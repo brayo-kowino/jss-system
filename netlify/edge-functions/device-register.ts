@@ -26,7 +26,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, addFsDoc, listFsDocs, reserveTrustedDeviceSlot, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Firebase refreshes ID tokens roughly hourly, but auth_time only changes
@@ -41,8 +41,6 @@ const RECENT_AUTH_WINDOW_SECS = 15 * 60;
 // system) while still bounding a stolen/stale claim's lifetime instead of
 // leaving it valid forever. Tune down if that window feels too wide.
 const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const TRUSTED_DEVICE_LIMIT = 5;
-
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);
@@ -89,20 +87,6 @@ export default async (request: Request, context: Context) => {
   const now = Math.floor(Date.now() / 1000);
   const authIsRecent = now - authTime <= RECENT_AUTH_WINDOW_SECS;
   const isGenuineBootstrap = existingDevices.length === 0;
-  const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
-
-  if (!isAlreadyTrusted && existingDevices.length >= TRUSTED_DEVICE_LIMIT) {
-    return jsonResponse(
-      {
-        error: "Trusted device limit reached. Contact your administrator.",
-        code: "DEVICE_LIMIT_REACHED",
-        limit: TRUSTED_DEVICE_LIMIT,
-        count: existingDevices.length,
-      },
-      403,
-    );
-  }
-
   // -------------------------------------------------------------------------
   // School-level device-approval policy gate (unbypassable server-side check).
   //
@@ -157,17 +141,24 @@ export default async (request: Request, context: Context) => {
   const isPrimary = Boolean(body.isPrimary) || isGenuineBootstrap;
 
   try {
-    await putFsDoc(accessToken, `users/${uid}/trusted_devices/${fingerprint}`, {
+    const reservation = await reserveTrustedDeviceSlot(
+      accessToken,
+      uid,
       fingerprint,
-      deviceName: String(deviceInfo.deviceName || "Unknown Device"),
-      screenRes: String(deviceInfo.screenRes || "Unknown"),
-      timezone: String(deviceInfo.timezone || "UTC"),
-      browser: String(deviceInfo.browser || "Unknown Browser"),
-      os: String(deviceInfo.os || "Unknown OS"),
-      isPrimary,
-      registeredAt: new Date(),
-      lastSeenAt: new Date(),
-    });
+      { ...deviceInfo, isPrimary },
+      existingDevices,
+    );
+    if (!reservation.ok) {
+      return jsonResponse(
+        {
+          error: "Trusted device limit reached. Contact your administrator.",
+          code: "DEVICE_LIMIT_REACHED",
+          limit: 5,
+          count: existingDevices.length,
+        },
+        403,
+      );
+    }
     await addFsDoc(accessToken, "audit_logs", {
       userId: uid,
       action: "register_device",
