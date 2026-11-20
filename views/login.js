@@ -1,5 +1,5 @@
 import { login, requestPasswordReset } from "../js/services/auth.service.js";
-import { renderApprovalGate, renderTwoFactorGate, renderDeviceLimitGate } from "../js/components/auth-gate.js";
+import { renderApprovalGate, renderTwoFactorGate, renderDeviceLimitGate, renderRegistrationErrorGate } from "../js/components/auth-gate.js";
 import { auth } from "../js/firebase-config.js";
 import {
   setPersistence,
@@ -596,6 +596,11 @@ export function init() {
       if (result.needsDeviceLimit) {
         restore();
         renderDeviceLimitGate(result);
+        return;
+      }
+      if (result.needsRegistrationError) {
+        restore();
+        renderRegistrationErrorGate();
         return;
       }
 

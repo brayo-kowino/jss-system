@@ -26,7 +26,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, addFsDoc, listFsDocs, reserveTrustedDeviceSlot, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, addFsDoc, listFsDocs, putFsDoc, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdTokenWithAuthTime, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Firebase refreshes ID tokens roughly hourly, but auth_time only changes
@@ -131,9 +131,34 @@ export default async (request: Request, context: Context) => {
     }
   }
 
-  if (!authIsRecent && !isGenuineBootstrap) {
+  // Final auth_time guard: requires a genuinely recent password entry for
+  // any non-bootstrap registration that isn't exempted by an explicit
+  // "requireDeviceApproval = false" policy above.
+  // Super_admin is exempt from this guard (device approval is off by
+  // default for them, and they may legitimately register across many
+  // devices without re-entering a password every 15 minutes). The guard
+  // still applies to school admins whose school has requireDeviceApproval
+  // explicitly set to false — they went through the policy gate above, so
+  // the edge function allowed them through, but they still need to have
+  // typed their password recently to prove it's really them.
+  const isSuperAdmin = userDoc?.role === "super_admin";
+  if (!authIsRecent && !isGenuineBootstrap && !isSuperAdmin) {
     return jsonResponse(
       { error: "For your security, re-enter your password before registering a new trusted device." },
+      403,
+    );
+  }
+
+  const LIMIT = 5;
+  const isAlreadyTrusted = existingDevices.some((d) => d.id === fingerprint);
+  if (!isAlreadyTrusted && existingDevices.length >= LIMIT) {
+    return jsonResponse(
+      {
+        error: "Trusted device limit reached. Contact your administrator.",
+        code: "DEVICE_LIMIT_REACHED",
+        limit: LIMIT,
+        count: existingDevices.length,
+      },
       403,
     );
   }
@@ -141,24 +166,26 @@ export default async (request: Request, context: Context) => {
   const isPrimary = Boolean(body.isPrimary) || isGenuineBootstrap;
 
   try {
-    const reservation = await reserveTrustedDeviceSlot(
-      accessToken,
-      uid,
+    // The device limit was already checked above (existingDevices.length >= LIMIT
+    // → 403 before we get here). A simple PUT on the fingerprint-keyed doc is
+    // atomic enough for our needs: Firestore's single-document write is
+    // linearisable, and the fingerprint IS the document ID, so two concurrent
+    // requests for the same fingerprint just write the same doc twice (idempotent).
+    // The old reserveTrustedDeviceSlot transaction (with its trusted_device_slots
+    // subcollection) was a distributed-lock attempt that turned out to be both
+    // unnecessary and the source of the 500 (transaction commit failures on
+    // the slot preconditions). Dropped entirely here.
+    await putFsDoc(accessToken, `users/${uid}/trusted_devices/${fingerprint}`, {
       fingerprint,
-      { ...deviceInfo, isPrimary },
-      existingDevices,
-    );
-    if (!reservation.ok) {
-      return jsonResponse(
-        {
-          error: "Trusted device limit reached. Contact your administrator.",
-          code: "DEVICE_LIMIT_REACHED",
-          limit: 5,
-          count: existingDevices.length,
-        },
-        403,
-      );
-    }
+      deviceName: String(deviceInfo.deviceName || "Unknown Device"),
+      screenRes: String(deviceInfo.screenRes || "Unknown"),
+      timezone: String(deviceInfo.timezone || "UTC"),
+      browser: String(deviceInfo.browser || "Unknown Browser"),
+      os: String(deviceInfo.os || "Unknown OS"),
+      isPrimary,
+      registeredAt: new Date(),
+      lastSeenAt: new Date(),
+    });
     await addFsDoc(accessToken, "audit_logs", {
       userId: uid,
       action: "register_device",

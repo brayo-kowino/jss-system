@@ -390,6 +390,7 @@ export async function login(email, password) {
   if (gate?.type === "approval") return { ...profile, needsApproval: true, ...gate };
   if (gate?.type === "2fa") return { ...profile, needs2FA: true, ...gate };
   if (gate?.type === "device_limit") return { ...profile, needsDeviceLimit: true, ...gate };
+  if (gate?.type === "registration_error") return { ...profile, needsRegistrationError: true, ...gate };
   return profile;
 }
 
@@ -449,7 +450,18 @@ export async function getAuthGateStatus(profile) {
   const deviceInfo = getDeviceInfo();
   const primaryDevice = await getPrimaryDevice(profile.uid);
   if (!primaryDevice) {
-    await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
+    // Bootstrap: very first device for this account. No existing trust boundary
+    // to protect, so a failure here just means registration will retry on the
+    // next login — the user shouldn't be left staring at a crash.
+    try {
+      await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, true);
+    } catch (regErr) {
+      console.error("getAuthGateStatus: bootstrap device registration failed:", regErr);
+      // Treat as a registration error — the shell would open but every Firestore
+      // call would fail with permission-denied (no deviceApprovedUntil claim).
+      // A clear retry screen is better than a broken shell or a fatal crash.
+      return { type: "registration_error", uid: profile.uid };
+    }
     return null;
   }
 
@@ -460,11 +472,23 @@ export async function getAuthGateStatus(profile) {
       const platformSec = await getPlatformSecuritySettings();
       // By default device approval is false for platform admin so logins on new devices work smoothly
       if (platformSec.requireDeviceApproval !== true) {
-        await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        try {
+          await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        } catch (regErr) {
+          console.error("getAuthGateStatus: super_admin device registration failed:", regErr);
+          return { type: "registration_error", uid: profile.uid };
+        }
         return null;
       }
     } catch {
-      await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+      // getPlatformSecuritySettings failed — still try to register (device
+      // approval defaults to OFF for super_admin, so this is the safe path).
+      try {
+        await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+      } catch (regErr) {
+        console.error("getAuthGateStatus: super_admin device registration failed (platform settings unavailable):", regErr);
+        return { type: "registration_error", uid: profile.uid };
+      }
       return null;
     }
   }
@@ -485,7 +509,12 @@ export async function getAuthGateStatus(profile) {
         // The /device-register edge function will enforce its own auth_time
         // check and will read requireDeviceApproval from Firestore server-side
         // before minting the deviceApprovedUntil claim.
-        await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        try {
+          await registerTrustedDevice(profile.uid, fingerprint, deviceInfo, false);
+        } catch (regErr) {
+          console.error("getAuthGateStatus: admin device registration failed:", regErr);
+          return { type: "registration_error", uid: profile.uid };
+        }
         return null;
       }
     } catch {

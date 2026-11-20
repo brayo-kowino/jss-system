@@ -14,7 +14,7 @@
 // ==========================================================================
 import { getCurrentProfile, getCurrentSchool, refreshCurrentSchool, getAuthGateStatus } from "./services/auth.service.js";
 import { renderShell, stopIdleTimeoutWatcher } from "./components/shell.js";
-import { renderApprovalGate, renderTwoFactorGate, renderDeviceLimitGate } from "./components/auth-gate.js";
+import { renderApprovalGate, renderTwoFactorGate, renderDeviceLimitGate, renderRegistrationErrorGate } from "./components/auth-gate.js";
 import { toast, skeletonPage, el, icon } from "./utils.js";
 import { renderInlineError, showFatalError } from "./error-handler.js";
 import {
@@ -321,6 +321,8 @@ export async function renderRoute() {
         renderTwoFactorGate(gate, onDone);
       } else if (gate.type === "device_limit") {
         renderDeviceLimitGate(gate);
+      } else if (gate.type === "registration_error") {
+        renderRegistrationErrorGate();
       }
       return;
     }

@@ -26,6 +26,61 @@ import { generateDeviceFingerprint, getDeviceInfo } from "../services/device.ser
 import { logout, refreshCurrentSchool } from "../services/auth.service.js";
 import { el, icon, toast, busyButton } from "../utils.js";
 
+// ===========================================================================
+// Device-registration error gate.
+// Rendered when the /device-register edge function returns a 5xx (e.g. the
+// GOOGLE_SERVICE_ACCOUNT_KEY env var is missing, or the Firestore transaction
+// failed on the server side). The user IS authenticated with Firebase, but
+// no deviceApprovedUntil claim was minted — so opening the shell would just
+// give them a view where every Firestore call fails with permission-denied.
+// A clear retry screen is better than a broken shell, a silent data-fail
+// loop, or a full fatal crash.
+//
+// Security note: this is not a gate bypass. The claim absence means
+// firestore.rules' isFullyVerified() still denies all protected reads/writes
+// server-side. The only thing "letting them in past this screen" would do is
+// show them an empty, broken shell — the actual data boundary is enforced
+// independently by Google's infrastructure.
+// ===========================================================================
+export function renderRegistrationErrorGate() {
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  app.innerHTML = "";
+  document.body.style.overflow = "hidden";
+
+  const backdrop = el("div", {
+    class: "modal-backdrop",
+    style: "cursor:default;",
+  });
+  const modal = el("div", {
+    class: "modal",
+    style: "max-width:460px;width:calc(100% - 32px);text-align:center;",
+  });
+  const iconWrap = el("div", {
+    style: "width:64px;height:64px;margin:0 auto 16px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-warning-bg,#fef3c7);color:var(--color-warning,#d97706);",
+  }, [icon("cloud_off", "")]);
+
+  const reloadBtn = el("button", { class: "btn btn--primary", style: "margin-top:20px;" }, [
+    icon("refresh"), " Reload & Retry",
+  ]);
+  reloadBtn.addEventListener("click", () => location.reload());
+
+  modal.append(
+    iconWrap,
+    el("h2", { style: "margin:0 0 10px;font-size:20px;" }, "Device Registration Failed"),
+    el("p", { style: "margin:0 0 8px;color:var(--color-text-muted,#64748b);line-height:1.6;" },
+      "We couldn't register this device with the server right now. This is a temporary server-side issue — your account and data are untouched."
+    ),
+    el("p", { style: "margin:0;color:var(--color-text-muted,#64748b);line-height:1.6;font-size:0.875rem;" },
+      "If this keeps happening, ask your platform administrator to check the Netlify function logs for a 500 error on /device-register."
+    ),
+    reloadBtn,
+  );
+  backdrop.append(modal);
+  app.append(backdrop);
+}
+
 export function renderDeviceLimitGate(gate) {
   const app = document.getElementById("app");
   if (!app) return;

@@ -15,7 +15,7 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, listFsDocs, reserveTrustedDeviceSlot, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, putFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Same TTL as device-register.ts - keep the two in sync since they grant
@@ -69,32 +69,40 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "This approval was issued for a different device." }, 403);
   }
 
+  let existingDevices: Record<string, any>[];
   try {
-    const existingDevices = await listFsDocs(accessToken, `users/${uid}/trusted_devices`);
-    const reservation = await reserveTrustedDeviceSlot(
-      accessToken,
-      uid,
-      fingerprint,
-      { ...deviceInfo, isPrimary: false },
-      existingDevices,
-    );
-    if (!reservation.ok) {
-      return jsonResponse(
-        {
-          error: "Trusted device limit reached. Contact your administrator.",
-          code: "DEVICE_LIMIT_REACHED",
-          limit: 5,
-          count: existingDevices.length,
-        },
-        403,
-      );
-    }
+    existingDevices = await listFsDocs(accessToken, `users/${uid}/trusted_devices`);
   } catch (err) {
     console.error("login-approval-redeem: existing-device lookup failed", err);
     return jsonResponse({ error: "Approval service is temporarily unavailable." }, 503);
   }
 
+  const LIMIT = 5;
+  const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
+  if (!isAlreadyTrusted && existingDevices.length >= LIMIT) {
+    return jsonResponse(
+      {
+        error: "Trusted device limit reached. Contact your administrator.",
+        code: "DEVICE_LIMIT_REACHED",
+        limit: LIMIT,
+        count: existingDevices.length,
+      },
+      403,
+    );
+  }
+
   try {
+    await putFsDoc(accessToken, `users/${uid}/trusted_devices/${fingerprint}`, {
+      fingerprint,
+      deviceName: String(deviceInfo.deviceName || "Unknown Device"),
+      screenRes: String(deviceInfo.screenRes || "Unknown"),
+      timezone: String(deviceInfo.timezone || "UTC"),
+      browser: String(deviceInfo.browser || "Unknown Browser"),
+      os: String(deviceInfo.os || "Unknown OS"),
+      isPrimary: false,
+      registeredAt: new Date(),
+      lastSeenAt: new Date(),
+    });
     // Mark redeemed first, same reasoning subscription-activate.ts uses:
     // if the trusted-device write below fails, the safe failure mode is
     // "approval burned, user asks their primary device to approve again,"
