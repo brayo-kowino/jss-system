@@ -40,6 +40,7 @@ if (isLocalDev && typeof self !== "undefined") {
 export const RECAPTCHA_SITE_KEY = "6LcEUX0tAAAAAA_U1HH-0ci7DiVoND7z-pzdEz4J";
 
 let mainAppCheck = null;
+const isTestEnvironment = typeof import.meta !== "undefined" && import.meta.env?.MODE === "test";
 
 export function attachAppCheck(app) {
   if (typeof window === "undefined" || (typeof navigator !== "undefined" && !navigator.onLine)) {
@@ -67,7 +68,9 @@ export function attachAppCheck(app) {
 // will fire without the App Check header. If App Check is enforced, the server rejects it
 // with a 401 Unauthorized, causing Auth to incorrectly assume the session is invalid and
 // log the user out on every refresh.
-attachAppCheck(firebaseApp);
+if (!isTestEnvironment) {
+  attachAppCheck(firebaseApp);
+}
 
 export const auth = getAuth(firebaseApp);
 

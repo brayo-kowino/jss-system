@@ -4,7 +4,7 @@
 // Dispatches an email alert with device info and an instant emergency freeze link.
 // ==========================================================================
 
-import { webcrypto } from "node:crypto";
+import { randomUUID, webcrypto } from "node:crypto";
 import nodemailer from "nodemailer";
 import { buildPasswordChangedSecurityEmail } from "./lib/email-templates.mjs";
 import { verifyFirebaseIdToken } from "./lib/auth-helper.mjs";
@@ -93,6 +93,25 @@ async function getDoc(token, path) {
   return fsDocToObject(await res.json());
 }
 
+function fsEncode(value) {
+  if (typeof value === "string") return { stringValue: value };
+  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  if (typeof value === "boolean") return { booleanValue: value };
+  if (value instanceof Date) return { timestampValue: value.toISOString() };
+  if (value == null) return { nullValue: null };
+  return { stringValue: String(value) };
+}
+
+async function putDoc(token, path, fields) {
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, fsEncode(value)])) };
+  const res = await fetch(`${FIRESTORE_BASE}/${path}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Firestore write failed: ${res.status}`);
+}
+
 async function signFreezeToken(secret, payload) {
   if (!secret || !secret.trim()) {
     throw new Error("STEP_UP_TOKEN_SECRET is not configured");
@@ -137,7 +156,19 @@ export default async (req) => {
   } catch {}
 
   const deviceSummary = String(body.deviceSummary || "Web Browser");
-  const origin = String(body.origin || "https://eeskia.iskify360.tech").replace(/\/+$/, "");
+  const defaultOrigin = "https://eeskia.iskify360.tech";
+  const trustedOrigins = new Set([
+    defaultOrigin,
+    "https://eeskia.netlify.app",
+    "https://beta--eeskia.netlify.app",
+  ]);
+  let origin = defaultOrigin;
+  try {
+    const requestedOrigin = new URL(String(body.origin || defaultOrigin)).origin;
+    if (trustedOrigins.has(requestedOrigin)) origin = requestedOrigin;
+  } catch {
+    console.warn("notify-password-changed: invalid alert origin, using production origin");
+  }
 
   let accessToken = null;
   try {
@@ -184,6 +215,7 @@ export default async (req) => {
   }
 
   const freezeTokenPayload = {
+    jti: randomUUID(),
     uid,
     email: recipientEmail,
     schoolId: user?.schoolId || null,
@@ -193,6 +225,26 @@ export default async (req) => {
 
   const freezeToken = await signFreezeToken(freezeSecret, freezeTokenPayload);
   const freezeUrl = `${origin}/#/emergency-freeze?token=${encodeURIComponent(freezeToken)}`;
+
+  if (!accessToken) {
+    return new Response(JSON.stringify({ error: "Security service temporarily unavailable.", emailSent: false }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  try {
+    await putDoc(accessToken, `emergency_freeze_tokens/${freezeTokenPayload.jti}`, {
+      uid,
+      exp: freezeTokenPayload.exp,
+      purpose: freezeTokenPayload.purpose,
+    });
+  } catch (err) {
+    console.error("notify-password-changed: failed to store freeze token", err);
+    return new Response(JSON.stringify({ error: "Security service temporarily unavailable.", emailSent: false }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   // Build the email
   const emailContent = buildPasswordChangedSecurityEmail({
@@ -232,6 +284,7 @@ export default async (req) => {
     fromAddress = `"${senderName}" <${schoolProviders.gmail.address}>`;
   }
 
+  let emailSent = false;
   if (transporter) {
     try {
       await transporter.sendMail({
@@ -242,6 +295,7 @@ export default async (req) => {
         text: `Security Alert: The password for your Eeskia account (${recipientEmail}) was just changed.\nDevice: ${deviceSummary}\n\nIf you did not make this change, freeze your account immediately:\n${freezeUrl}`,
         html: emailContent.html,
       });
+      emailSent = true;
       console.log(`notify-password-changed: alert email delivered to ${recipientEmail}`);
     } catch (err) {
       console.error(`notify-password-changed: failed to send email to ${recipientEmail}:`, err);
@@ -250,8 +304,12 @@ export default async (req) => {
     console.warn("notify-password-changed: no SMTP gateway configured, email skipped");
   }
 
-  return new Response(JSON.stringify({ success: true, emailSent: Boolean(transporter) }), {
-    status: 200,
+  return new Response(JSON.stringify({
+    success: emailSent,
+    emailSent,
+    error: emailSent ? undefined : "Password-change alert could not be delivered.",
+  }), {
+    status: emailSent ? 200 : 503,
     headers: { "Content-Type": "application/json" },
   });
 };
