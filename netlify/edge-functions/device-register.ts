@@ -41,6 +41,7 @@ const RECENT_AUTH_WINDOW_SECS = 15 * 60;
 // system) while still bounding a stolen/stale claim's lifetime instead of
 // leaving it valid forever. Tune down if that window feels too wide.
 const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TRUSTED_DEVICE_LIMIT = 5;
 
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
@@ -88,6 +89,19 @@ export default async (request: Request, context: Context) => {
   const now = Math.floor(Date.now() / 1000);
   const authIsRecent = now - authTime <= RECENT_AUTH_WINDOW_SECS;
   const isGenuineBootstrap = existingDevices.length === 0;
+  const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
+
+  if (!isAlreadyTrusted && existingDevices.length >= TRUSTED_DEVICE_LIMIT) {
+    return jsonResponse(
+      {
+        error: "Trusted device limit reached. Contact your administrator.",
+        code: "DEVICE_LIMIT_REACHED",
+        limit: TRUSTED_DEVICE_LIMIT,
+        count: existingDevices.length,
+      },
+      403,
+    );
+  }
 
   // -------------------------------------------------------------------------
   // School-level device-approval policy gate (unbypassable server-side check).
