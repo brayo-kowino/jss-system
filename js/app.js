@@ -1,5 +1,5 @@
 import { initErrorHandling, showFatalError } from "./error-handler.js";
-import { checkVersionAtBoot, initVersionWatcher, forceHardRefresh } from "./services/version.service.js";
+import { checkVersionAtBoot, initVersionWatcher } from "./services/version.service.js";
 import { initTheme } from "./theme.js";
 // Attaches the beforeinstallprompt listener as a side effect of import -
 // needs to happen this early since the event can fire before the router
@@ -21,24 +21,6 @@ initTheme();
 // affect the app itself, so it's not awaited and has no effect on boot.
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js", { scope: "/app/" }).catch(() => {});
-
-  // sw.js posts this once a new version has activated and taken over.
-  // If the user is on login or the approval waiting gate, immediately
-  // force a hard refresh so they never encounter false approval waiting
-  // or false lockouts due to protocol/schema differences.
-  navigator.serviceWorker.addEventListener("message", (event) => {
-    if (event.data?.type !== "EESKIA_SW_UPDATED") return;
-
-    const isLoginOrGate =
-      !location.hash ||
-      location.hash.startsWith("#/login") ||
-      document.querySelector(".approval-wait");
-
-    if (isLoginOrGate) {
-      forceHardRefresh({ reason: "sw_updated_login_gate" });
-      return;
-    }
-  });
 }
 
 // Tells the early inline boot-watchdog in index.html that JS is alive and
