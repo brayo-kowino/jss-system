@@ -332,20 +332,11 @@ export function initVersionWatcher() {
     try {
       const remote = await fetchServerVersion({ timeoutMs: 3000 });
       if (remote && isAppOutdated(remote)) {
-        // If the user is currently on the login screen or an auth approval gate,
-        // force a hard refresh immediately so they never encounter false approval waiting!
-        const hash = window.location.hash || "";
-        const isAuthGate =
-          hash.startsWith("#/login") ||
-          !hash ||
-          document.querySelector(".approval-wait");
-
-        if (isAuthGate) {
-          console.info("[Version] On auth/login gate with outdated code. Forcing hard refresh...");
-          forceHardRefresh({ reason: "watcher_auth_gate", targetVersion: remote.buildId });
-        } else {
-          showUpdateBanner(remote);
-        }
+        // Authentication and approval screens must never reload themselves
+        // because a background update check ran. Boot performs the single
+        // controlled reload when code is stale; all routes only show an
+        // explicit update banner after boot.
+        showUpdateBanner(remote);
       }
     } catch (err) {
       console.warn("[Version] Freshness check error:", err);

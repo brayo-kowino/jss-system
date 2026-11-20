@@ -37,7 +37,7 @@
 // bytes change. Without a version bump here, anyone who installed the SW
 // before a CSP change keeps enforcing the old policy indefinitely (only a
 // forced/hard reload bypasses the SW long enough to hide the symptom).
-const CACHE_VERSION = "eeskia-1.0.0.b6b061c";
+const CACHE_VERSION = "eeskia-1.0.0.50f02af";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -126,18 +126,6 @@ self.addEventListener("activate", (event) => {
       await self.clients.claim();
     })()
   );
-});
-
-// Lets an already-open tab know a new version has taken over, so app.js can
-// show a "Refresh to update" toast instead of the person wondering why
-// things look stale. Best-effort only - if no client is listening, this is
-// a no-op.
-async function notifyClientsOfUpdate() {
-  const clients = await self.clients.matchAll({ type: "window" });
-  for (const client of clients) client.postMessage({ type: "EESKIA_SW_UPDATED" });
-}
-self.addEventListener("activate", (event) => {
-  event.waitUntil(notifyClientsOfUpdate());
 });
 
 function isNavigationRequest(request) {

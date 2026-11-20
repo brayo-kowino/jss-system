@@ -128,18 +128,6 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Lets an already-open tab know a new version has taken over, so app.js can
-// show a "Refresh to update" toast instead of the person wondering why
-// things look stale. Best-effort only - if no client is listening, this is
-// a no-op.
-async function notifyClientsOfUpdate() {
-  const clients = await self.clients.matchAll({ type: "window" });
-  for (const client of clients) client.postMessage({ type: "EESKIA_SW_UPDATED" });
-}
-self.addEventListener("activate", (event) => {
-  event.waitUntil(notifyClientsOfUpdate());
-});
-
 function isNavigationRequest(request) {
   return request.mode === "navigate" || (request.method === "GET" && request.headers.get("accept")?.includes("text/html"));
 }

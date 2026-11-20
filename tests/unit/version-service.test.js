@@ -5,6 +5,7 @@ import {
   fetchServerVersion,
   forceHardRefresh,
   checkVersionAtBoot,
+  initVersionWatcher,
 } from "../../js/services/version.service.js";
 
 describe("Version Service", () => {
@@ -139,5 +140,29 @@ describe("Version Service", () => {
 
     const shouldAbortBoot = await checkVersionAtBoot();
     expect(shouldAbortBoot).toBe(true);
+  });
+
+  it("does not automatically reload login for a background update", async () => {
+    delete window.location;
+    window.location = {
+      hash: "#/login",
+      href: "https://eeskia.iskify360.tech/app/#/login",
+      replace: vi.fn(),
+      reload: vi.fn(),
+    };
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ version: "1.0.0", buildId: "new-server-build" }),
+    });
+
+    const replaceBefore = window.location.replace;
+    const cleanup = initVersionWatcher();
+    window.dispatchEvent(new Event("online"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(replaceBefore).not.toHaveBeenCalled();
+    expect(document.getElementById("eeskia-version-banner")).not.toBeNull();
+    cleanup();
   });
 });
