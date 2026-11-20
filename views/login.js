@@ -1,5 +1,5 @@
 import { login, requestPasswordReset } from "../js/services/auth.service.js";
-import { renderApprovalGate, renderTwoFactorGate } from "../js/components/auth-gate.js";
+import { renderApprovalGate, renderTwoFactorGate, renderDeviceLimitGate } from "../js/components/auth-gate.js";
 import { auth } from "../js/firebase-config.js";
 import {
   setPersistence,
@@ -591,6 +591,11 @@ export function init() {
       if (result.needs2FA) {
         restore();
         renderTwoFactorGate(result, () => safeNavigatePostLogin(result));
+        return;
+      }
+      if (result.needsDeviceLimit) {
+        restore();
+        renderDeviceLimitGate(result);
         return;
       }
 

@@ -26,6 +26,35 @@ import { generateDeviceFingerprint, getDeviceInfo } from "../services/device.ser
 import { logout, refreshCurrentSchool } from "../services/auth.service.js";
 import { el, icon, toast, busyButton } from "../utils.js";
 
+export function renderDeviceLimitGate(gate) {
+  const app = document.getElementById("app");
+  if (!app) return;
+
+  app.innerHTML = "";
+  document.body.style.overflow = "hidden";
+
+  const backdrop = el("div", {
+    class: "modal-backdrop",
+    style: "cursor:default;",
+  });
+  const modal = el("div", {
+    class: "modal",
+    style: "max-width:460px;width:calc(100% - 32px);text-align:center;",
+  });
+  const iconWrap = el("div", {
+    style: "width:64px;height:64px;margin:0 auto 16px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--color-danger-bg,#fee2e2);color:var(--color-danger,#dc2626);",
+  }, [icon("devices", "")]);
+  modal.append(
+    el("h2", { style: "margin:0 0 10px;font-size:20px;" }, "Trusted Device Limit Reached"),
+    iconWrap,
+    el("p", { style: "margin:0;color:var(--color-text-muted,#64748b);line-height:1.6;" },
+      `This account has reached its limit of ${gate.limit || 5} trusted devices. Contact your administrator to review or remove a registered device.`
+    ),
+  );
+  backdrop.append(modal);
+  app.append(backdrop);
+}
+
 // ===========================================================================
 // Awaiting-approval gate.
 // Rendered when an admin/super_admin logs in from an unrecognized device.

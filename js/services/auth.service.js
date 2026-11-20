@@ -41,7 +41,8 @@ import {
 import { auth, db, firebaseApp, attachAppCheck } from "../firebase-config.js";
 import { logAction } from "./audit.service.js";
 import { cached, invalidate, clearAll as clearReadCache } from "./query-cache.js";
-import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice } from "./device.service.js";
+import { generateDeviceFingerprint, getDeviceInfo, registerTrustedDevice, isDeviceTrusted, updateLastSeen, getPrimaryDevice, listTrustedDevices } from "./device.service.js";
+import { TRUSTED_DEVICE_LIMIT, shouldBlockNewDevice } from "./trusted-device-limit.js";
 import { findOrCreatePendingApproval, cleanupOldApprovals } from "./login-approval.service.js";
 import { clearPostLoginRedirect } from "./deep-link.service.js";
 import { is2FAVerifiedThisSession } from "./two-factor.service.js";
@@ -388,6 +389,7 @@ export async function login(email, password) {
   const gate = await getAuthGateStatus(profile);
   if (gate?.type === "approval") return { ...profile, needsApproval: true, ...gate };
   if (gate?.type === "2fa") return { ...profile, needs2FA: true, ...gate };
+  if (gate?.type === "device_limit") return { ...profile, needsDeviceLimit: true, ...gate };
   return profile;
 }
 
@@ -428,6 +430,16 @@ export async function getAuthGateStatus(profile) {
       return { type: "2fa", uid: profile.uid };
     }
     return null;
+  }
+
+  const registeredDevices = await listTrustedDevices(profile.uid).catch(() => null);
+  if (registeredDevices && shouldBlockNewDevice(registeredDevices.length, false, TRUSTED_DEVICE_LIMIT)) {
+    return {
+      type: "device_limit",
+      uid: profile.uid,
+      limit: TRUSTED_DEVICE_LIMIT,
+      count: registeredDevices.length,
+    };
   }
 
   // Unknown device: check if this user has ANY trusted devices registered.

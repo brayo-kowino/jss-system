@@ -22,6 +22,7 @@ import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 // the same claim for the same conceptual event ("this device is now on
 // record").
 const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const TRUSTED_DEVICE_LIMIT = 5;
 
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
@@ -68,6 +69,25 @@ export default async (request: Request, context: Context) => {
   // device than the one that was shown to the approver.
   if (approval.deviceFingerprint && approval.deviceFingerprint !== fingerprint) {
     return jsonResponse({ error: "This approval was issued for a different device." }, 403);
+  }
+
+  try {
+    const existingDevices = await listFsDocs(accessToken, `users/${uid}/trusted_devices`);
+    const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
+    if (!isAlreadyTrusted && existingDevices.length >= TRUSTED_DEVICE_LIMIT) {
+      return jsonResponse(
+        {
+          error: "Trusted device limit reached. Contact your administrator.",
+          code: "DEVICE_LIMIT_REACHED",
+          limit: TRUSTED_DEVICE_LIMIT,
+          count: existingDevices.length,
+        },
+        403,
+      );
+    }
+  } catch (err) {
+    console.error("login-approval-redeem: existing-device lookup failed", err);
+    return jsonResponse({ error: "Approval service is temporarily unavailable." }, 503);
   }
 
   try {
