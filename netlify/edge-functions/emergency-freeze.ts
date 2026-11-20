@@ -8,6 +8,7 @@ import type { Context } from "https://edge.netlify.com";
 import {
   getAccessToken,
   getFsDoc,
+  claimFsDoc,
   patchFsDoc,
   addFsDoc,
   deleteFsDoc,
@@ -101,6 +102,10 @@ export default async (request: Request, context: Context) => {
     return jsonResponse({ error: "This emergency freeze link is invalid or has expired." }, 400);
   }
 
+  if (typeof payload.jti !== "string" || !payload.jti) {
+    return jsonResponse({ error: "This emergency freeze link is invalid or has expired." }, 400);
+  }
+
   const uid = payload.uid;
 
   let accessToken: string;
@@ -108,6 +113,18 @@ export default async (request: Request, context: Context) => {
     accessToken = await getAccessToken();
   } catch (err) {
     console.error("emergency-freeze: service account auth failed", err);
+    return jsonResponse({ error: "Security service temporarily unavailable." }, 500);
+  }
+
+  try {
+    const claimed = await claimFsDoc(accessToken, `emergency_freeze_tokens/${payload.jti}`, {
+      usedAt: new Date(),
+    });
+    if (!claimed) {
+      return jsonResponse({ error: "This emergency freeze link has already been used or has expired." }, 400);
+    }
+  } catch (err) {
+    console.error("emergency-freeze: failed to claim freeze token", err);
     return jsonResponse({ error: "Security service temporarily unavailable." }, 500);
   }
 

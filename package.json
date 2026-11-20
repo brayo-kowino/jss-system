@@ -13,22 +13,23 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
-    "@netlify/blobs": "^8.2.0",
+    "@netlify/blobs": "^11.1.9",
     "africastalking": "^0.7.9",
-    "chart.js": "^4.5.1",
+    "chart.js": "^4.6.1",
     "flatpickr": "^4.6.13",
-    "html2canvas-pro": "^2.4.5",
+    "html2canvas-pro": "^2.6.4",
     "jspdf": "^4.2.1",
-    "jszip": "^3.10.1",
-    "nodemailer": "^9.0.5",
+    "jszip": "^3.10.2",
+    "nodemailer": "^10.6.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.1",
-    "firebase-admin": "^14.2.0",
-    "happy-dom": "^20.11.2",
-    "javascript-obfuscator": "^4.1.1",
-    "vite": "^5.4.10",
-    "vitest": "^4.1.11"
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "esbuild": "^0.28.2",
+    "firebase-admin": "^14.5.1",
+    "happy-dom": "^21.0.4",
+    "javascript-obfuscator": "^5.10.1",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

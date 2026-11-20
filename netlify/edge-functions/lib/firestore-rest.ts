@@ -412,6 +412,29 @@ export async function getFsDoc(token: string, path: string): Promise<Record<stri
   return fsDocToObject(await res.json());
 }
 
+export async function claimFsDoc(token: string, path: string, fields: Record<string, any>): Promise<boolean> {
+  const getRes = await fetch(`${FIRESTORE_BASE}/${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (getRes.status === 404) return false;
+  if (!getRes.ok) throw new Error(`Firestore get failed: ${getRes.status}`);
+  const existing = await getRes.json();
+  const updateTime = existing.updateTime;
+  if (!updateTime) throw new Error("Firestore document has no update time");
+
+  const mask = Object.keys(fields).map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, fsEncode(v)])) };
+  const res = await fetch(
+    `${FIRESTORE_BASE}/${path}?${mask}&currentDocument.updateTime=${encodeURIComponent(updateTime)}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  if (res.status === 409 || res.status === 412) return false;
+  if (!res.ok) throw new Error(`Firestore claim failed: ${res.status}`);
+  return true;
+}
+
 // Creates (or fully overwrites) a doc with exactly the given fields - only
 // safe to use when every field the doc should ever hold is being passed in
 // (e.g. creating a brand-new subscription_tokens/{jti} record). Never use

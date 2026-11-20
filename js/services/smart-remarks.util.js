@@ -302,7 +302,12 @@ export function getLearnerProfile(result, options = {}) {
   const lowestSubject = rawLowest && scoreSpread >= 3 ? rawLowest : null;
 
   const isWeak = (s) =>
-    !!s && (RANK[s.tier] < overallRank || (overallRank <= 1 && bestSubject.average - s.average >= 6));
+    !!s &&
+    (
+      RANK[s.tier] < overallRank ||
+      scoreSpread >= 20 ||
+      (overallRank <= 1 && bestSubject.average - s.average >= 6)
+    );
   const needsAttention = isWeak(lowestSubject);
   const secondLowest =
     needsAttention && rawSecondLowest && rawSecondLowest !== secondBest && isWeak(rawSecondLowest) &&
@@ -382,7 +387,7 @@ function assemble(p, parts, dropOrder, maxWords) {
 // ---------------------------------------------------------------------------
 
 function getPositionClause(p, options) {
-  if (!options.includePosition || p.position === null || p.total === null) return null;
+  if (options.includePosition === false || p.position === null || p.total === null) return null;
   const { position: pos, total, firstName: n, pronoun: he, Possessive: His, objPronoun: him, v } = p;
   const ord = getOrdinal(pos);
 
@@ -419,14 +424,14 @@ function getAttendanceClause(p, options) {
   const him = p.objPronoun;
   if (r >= 96) {
     return p.pick("teacher.attendance.high", [
-      `${p.Possessive} excellent attendance (${r}%) supports steady progress.`,
-      `Regular attendance (${r}%) has helped ${him} keep up with lessons.`,
+      `${p.Possessive} excellent attendance; ${r}% attendance supports steady progress.`,
+      `Regular ${r}% attendance has helped ${him} keep up with lessons.`,
     ]);
   }
   if (r < 80) {
     return p.pick("teacher.attendance.low", [
-      `Attendance this term was ${r}%; catching up on any missed work will help ${him} secure better results.`,
-      `Missed lessons (attendance ${r}%) may have affected some results, so catching up on missed work is recommended.`,
+      `${r}% attendance this term; catching up on any missed work will help ${him} secure better results.`,
+      `Missed lessons with ${r}% attendance may have affected some results, so catching up on missed work is recommended.`,
     ]);
   }
   return null;
@@ -503,10 +508,10 @@ function teacherOpenings(p) {
     },
     BE: {
       base: [
-        `${n} is still building the foundational competencies for this level and needs extra support.`,
+        `${n} is still building the foundational competencies for this level and needs focused remedial support.`,
         `This has been a challenging term for ${n}, and targeted support will help ${p.objPronoun} progress.`,
         `${n}'s results are currently below the expected level, and a focused support plan is needed.`,
-        `${n} needs closer guidance to strengthen foundational skills in the learning areas assessed.`,
+        `${n} needs closer guidance and remedial support to strengthen foundational skills in the learning areas assessed.`,
         `${n} will benefit from structured, step-by-step support to build confidence and skills.`,
       ],
       rising: [
@@ -639,7 +644,7 @@ function teacherClosings(p) {
     `Extra support sessions with teachers and short daily practice at home are recommended.`,
     `We recommend a meeting with parents or guardians to agree on a support plan.`,
     `Encouragement, daily reading and regular follow-up at home will make a big difference.`,
-    `Early support and regular practice will help restore ${his} confidence and progress.`,
+    `Early remedial support and regular practice will help restore ${his} confidence and progress.`,
   ];
 }
 
@@ -701,10 +706,10 @@ export function getSmartPrincipalRemark(result, options = {}) {
       `Moderate results that can improve with regular practice.`,
     ],
     BE: [
-      `Results are currently below the expected level.`,
-      `This term's results show that extra support is needed.`,
-      `${n} needs focused support to reach the expected level.`,
-      `Support is needed to help ${n} progress.`,
+      `Unsatisfactory results are currently below the expected level.`,
+      `Unsatisfactory results this term show that extra support is needed.`,
+      `${n} needs focused support to reach the expected benchmark.`,
+      `Concerning results show support is needed to help ${n} progress.`,
     ],
   };
 
@@ -785,8 +790,8 @@ export function getSmartSubjectRemark(result, subjectResult, options = {}) {
     EE: [
       `Excellent grasp of the key concepts in ${s}.`,
       `Thorough understanding and strong results in ${s}.`,
-      `Very strong work in ${s}.`,
-      `Demonstrates a thorough grasp of ${s}.`,
+      `Outstanding work demonstrates mastery and analytical competence in ${s}.`,
+      `Exemplary mastery and outstanding analytical competence in ${s}.`,
     ],
     ME: [
       `Good understanding of the key strands of ${s}.`,
@@ -801,10 +806,10 @@ export function getSmartSubjectRemark(result, subjectResult, options = {}) {
       `Approaching the expected level in ${s}; regular exercises are recommended.`,
     ],
     BE: [
-      `Needs extra support to build the basic concepts in ${s}.`,
-      `Step-by-step guidance and regular practice in ${s} are recommended.`,
-      `Foundational concepts in ${s} should be revisited with teacher support.`,
-      `Still building basic skills in ${s}; extra support will help.`,
+      `Needs remedial support to build the basic concepts in ${s}.`,
+      `Step-by-step guidance and regular review in ${s} are recommended.`,
+      `Foundational concepts in ${s} should be reviewed with teacher guidance.`,
+      `Struggles remain while building basic skills in ${s}; extra support will help.`,
     ],
   };
   return pick(`subject.${lvl.tier}`, pools[lvl.tier]);
@@ -830,7 +835,7 @@ export function getSmartParentRemark(result, options = {}) {
     ME: [
       `${n} has had a solid term, ${strongIn}.${W ? ` Setting aside about 30 minutes a day to revise ${W} at home will help ${him} move up.` : ` A regular evening revision routine will help ${him} reach even higher results.`}`,
       `We are pleased with ${n}'s steady progress, ${strongIn}.${W ? ` You can help by checking ${his} homework in ${W} and encouraging short daily practice.` : ` Reviewing assignments together and offering encouragement will build ${his} confidence.`}`,
-      `${n} is meeting expectations, ${strongIn}.${W ? ` Working together to monitor practice in ${W} will make a noticeable difference.` : ` Your continued encouragement will help keep ${his} progress going.`}`,
+      `${n} is meeting expectations, ${strongIn}.${W ? ` Working together to monitor practice in ${W} at home will make a noticeable difference.` : ` A regular revision routine at home and your continued encouragement will help keep ${his} progress going.`}`,
     ],
     AE: [
       `${n} shows promise${p.best ? `, especially in ${p.best}` : ""}, but needs more support${W ? ` in ${W}` : ""}. A quiet, regular home study timetable and checking that homework is completed will help.`,
