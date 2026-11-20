@@ -148,7 +148,7 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
       schoolName: "Green Hill Academy",
       deviceSummary: "Chrome on Windows",
       changedAt: "17 Nov 2026, 14:30 EAT",
-      freezeUrl: "https://eeskia.iskify360.tech/#/emergency-freeze?token=test-freeze-token-123",
+      freezeUrl: "https://eeskia.iskify360.tech/app/#/emergency-freeze?token=test-freeze-token-123",
     });
 
     expect(email.subject).toContain("Security Alert: Password changed for jane@greenhill.ac.ke");
@@ -157,7 +157,7 @@ describe("Eeskia Email Engine - Branded Email Templates", () => {
     expect(email.html).toContain("Green Hill Academy");
     expect(email.html).toContain("Chrome on Windows");
     expect(email.html).toContain("Freeze My Account Immediately");
-    expect(email.html).toContain("https://eeskia.iskify360.tech/#/emergency-freeze?token=test-freeze-token-123");
+    expect(email.html).toContain("https://eeskia.iskify360.tech/app/#/emergency-freeze?token=test-freeze-token-123");
     expect(email.html).toContain("Security Notice");
   });
 });

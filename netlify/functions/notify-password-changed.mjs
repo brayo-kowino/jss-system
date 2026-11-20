@@ -224,7 +224,7 @@ export default async (req) => {
   };
 
   const freezeToken = await signFreezeToken(freezeSecret, freezeTokenPayload);
-  const freezeUrl = `${origin}/#/emergency-freeze?token=${encodeURIComponent(freezeToken)}`;
+  const freezeUrl = `${origin}/app/#/emergency-freeze?token=${encodeURIComponent(freezeToken)}`;
 
   if (!accessToken) {
     return new Response(JSON.stringify({ error: "Security service temporarily unavailable.", emailSent: false }), {
