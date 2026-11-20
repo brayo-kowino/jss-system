@@ -15,15 +15,13 @@
 // ==========================================================================
 
 import type { Context } from "https://edge.netlify.com";
-import { getAccessToken, getFsDoc, putFsDoc, patchFsDoc, addFsDoc, listFsDocs, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
+import { getAccessToken, getFsDoc, patchFsDoc, addFsDoc, listFsDocs, reserveTrustedDeviceSlot, setCustomClaims, claimExpiryIso, claimExpiryMs, verifyFirebaseIdToken, jsonResponse } from "./lib/firestore-rest.ts";
 import { checkRateLimit, rateLimitedResponse } from "./lib/rate-limit.ts";
 
 // Same TTL as device-register.ts - keep the two in sync since they grant
 // the same claim for the same conceptual event ("this device is now on
 // record").
 const DEVICE_CLAIM_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const TRUSTED_DEVICE_LIMIT = 5;
-
 export default async (request: Request, context: Context) => {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed." }, 405);
@@ -73,13 +71,19 @@ export default async (request: Request, context: Context) => {
 
   try {
     const existingDevices = await listFsDocs(accessToken, `users/${uid}/trusted_devices`);
-    const isAlreadyTrusted = existingDevices.some((device) => device.id === fingerprint);
-    if (!isAlreadyTrusted && existingDevices.length >= TRUSTED_DEVICE_LIMIT) {
+    const reservation = await reserveTrustedDeviceSlot(
+      accessToken,
+      uid,
+      fingerprint,
+      { ...deviceInfo, isPrimary: false },
+      existingDevices,
+    );
+    if (!reservation.ok) {
       return jsonResponse(
         {
           error: "Trusted device limit reached. Contact your administrator.",
           code: "DEVICE_LIMIT_REACHED",
-          limit: TRUSTED_DEVICE_LIMIT,
+          limit: 5,
           count: existingDevices.length,
         },
         403,
@@ -113,17 +117,6 @@ export default async (request: Request, context: Context) => {
     } catch (e) {
       console.warn("login-approval-redeem: leftover approval cleanup failed:", e);
     }
-    await putFsDoc(accessToken, `users/${uid}/trusted_devices/${fingerprint}`, {
-      fingerprint,
-      deviceName: String(deviceInfo.deviceName || "Unknown Device"),
-      screenRes: String(deviceInfo.screenRes || "Unknown"),
-      timezone: String(deviceInfo.timezone || "UTC"),
-      browser: String(deviceInfo.browser || "Unknown Browser"),
-      os: String(deviceInfo.os || "Unknown OS"),
-      isPrimary: false,
-      registeredAt: new Date(),
-      lastSeenAt: new Date(),
-    });
     await addFsDoc(accessToken, "audit_logs", {
       userId: uid,
       action: "redeem_login_approval",
