@@ -167,6 +167,22 @@ describe("Publishing a timetable draft", () => {
     button("Generate timetable").click();
     await vi.waitFor(() => expect(button("Preview timetable")).toBeDefined());
     expect(document.querySelector('input[aria-label="Room for Mathematics"]')).toBeNull();
+    const plan = document.querySelector('[aria-label="Weekly lesson allocations"]');
+    expect([...plan.querySelectorAll("thead th")].map((header) => header.textContent))
+      .toEqual(["Subject", "Periods per week", "Double lesson"]);
+    const scope = document.querySelector("#tt-plan-scope");
+    const reset = button("Reset to school-wide plan");
+    const count = document.querySelector('input[aria-label="Weekly periods for Mathematics"]');
+    expect(reset.hidden).toBe(true);
+    scope.value = "0";
+    scope.dispatchEvent(new Event("change"));
+    count.value = "4";
+    count.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(reset.hidden).toBe(false);
+    expect(document.querySelector(".tt-plan-allocation").textContent).toContain("4 of 5 weekly periods planned");
+    reset.click();
+    expect(reset.hidden).toBe(true);
+    expect(count.value).toBe("5");
     button("Preview timetable").closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(button("Replace saved timetable")).toBeDefined());
     expect(document.querySelector(".tt-draft-chart").textContent).toContain("Mathematics");

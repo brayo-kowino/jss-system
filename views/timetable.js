@@ -1712,8 +1712,11 @@ async function openAutoGenerateModal(profile, onComplete) {
     return toast("Add classes, subjects, and teaching periods before generating a timetable.", "error");
   }
 
-  const body = el("div", {}, el("p", { role: "status" }, "Loading saved timetable…"));
-  const close = openModal("Generate master timetable", body, "modal--wide");
+  const body = el("div", { class: "tt-plan-content" }, el("p", { role: "status" }, "Loading lesson plan…"));
+  const close = openModal("Generate master timetable", body, "tt-plan-modal");
+  body.parentElement.setAttribute("role", "dialog");
+  body.parentElement.setAttribute("aria-modal", "true");
+  body.parentElement.setAttribute("aria-label", "Generate master timetable");
   let base;
   try {
     [base, bell] = await Promise.all([loadTimetableDraftInputs(), listPeriods(true)]);
@@ -1733,8 +1736,10 @@ async function openAutoGenerateModal(profile, onComplete) {
   const reservations = cohorts.map(({ grade, stream }) =>
     activities.filter((slot) => slot.grade === grade && (slot.stream || "") === stream).length);
   const preserve = el("input", { type: "checkbox", checked: activities.length ? "true" : undefined });
+  const overrides = new Map();
   let scope = "";
-  const reserved = () => scope ? reservations[Number(scope)] : Math.max(0, ...reservations);
+  const reserved = () => scope ? reservations[Number(scope)] :
+    Math.max(0, ...reservations.filter((_, index) => !overrides.has(String(index))));
   const maxLessons = () => Math.max(0, capacity - (preserve.checked ? reserved() : 0));
   const defaultPlan = () => defaultTimetablePlan(subjects, DAYS.length, maxLessons());
   const mergePlan = (entries, fallback) => {
@@ -1742,31 +1747,36 @@ async function openAutoGenerateModal(profile, onComplete) {
     return fallback.map((item) => bySubject.get(item.code) || item);
   };
   let schoolPlan = mergePlan(base.plan, defaultPlan());
-  const overrides = new Map();
   for (const [index, { grade, stream }] of cohorts.entries()) {
     const saved = base.cohortPlans?.find((item) => item.grade === grade && (item.stream || "") === stream);
     if (saved) overrides.set(String(index), mergePlan(saved.plan, schoolPlan));
   }
-  const allocationStatus = el("p", { class: "text-muted text-sm tt-draft-status", "aria-live": "polite" });
-  const error = el("p", { class: "tt-chart-unstaffed", role: "alert" });
+  const allocationTotal = el("strong");
+  const allocationHint = el("small");
+  const allocationStatus = el("div", { class: "tt-plan-allocation", role: "status" }, [allocationTotal, allocationHint]);
+  const scopeHint = el("p", { class: "tt-plan-scope-hint", id: "tt-plan-scope-hint" });
+  const error = el("p", { class: "tt-plan-error", role: "alert" });
   const rows = subjects.map((subject, index) => {
     const initial = schoolPlan[index];
     const allowed = isDoubleEligibleSubject(subject.code) && canDouble;
     const count = el("input", {
       type: "number", min: "0", max: String(DAYS.length + Number(allowed)), step: "1",
       required: "true", value: initial.count, "aria-label": `Weekly periods for ${subject.name}`,
+      inputmode: "numeric",
     });
     const pair = el("input", {
       type: "checkbox", "aria-label": `Double lesson for ${subject.name}`,
       disabled: allowed ? undefined : "true", checked: allowed && initial.double ? "true" : undefined,
     });
     const room = el("input", {
-      type: "text", value: namedTimetableRoom(initial.room), "aria-label": `Room for ${subject.name}`, placeholder: "Usual classroom",
+      type: "text", value: namedTimetableRoom(initial.room), "aria-label": `Room for ${subject.name}`,
+      placeholder: "Optional", title: "Leave blank for the usual classroom",
     });
     return { subject, count, pair, room, allowed };
   });
   const readPlan = () => rows.map(({ subject, count, pair, room }) =>
     ({ code: subject.code, count: Number(count.value), double: pair.checked && !pair.disabled, room: room.value.trim() }));
+  const differsFromSchoolPlan = (plan) => JSON.stringify(plan) !== JSON.stringify(schoolPlan);
   function writePlan(plan) {
     rows.forEach(({ count, pair, room, allowed }, index) => {
       count.value = String(plan[index].count);
@@ -1778,25 +1788,24 @@ async function openAutoGenerateModal(profile, onComplete) {
   function rememberPlan() {
     const plan = readPlan();
     if (!scope) schoolPlan = plan;
-    else if (JSON.stringify(plan) === JSON.stringify(schoolPlan)) overrides.delete(scope);
-    else overrides.set(scope, plan);
+    else if (differsFromSchoolPlan(plan)) overrides.set(scope, plan);
+    else overrides.delete(scope);
   }
   const useSchoolPlan = el("button", {
     type: "button", class: "btn btn--ghost btn--sm", hidden: "true", onClick: () => {
       overrides.delete(scope);
       writePlan(schoolPlan);
     },
-  }, "Use school-wide plan");
+  }, "Reset to school-wide plan");
   const scopeSelect = el("select", {
-    "aria-label": "Lesson plan scope",
+    id: "tt-plan-scope", "aria-describedby": scopeHint.id,
     onChange: (event) => {
       rememberPlan();
       scope = event.currentTarget.value;
-      useSchoolPlan.hidden = !scope;
       writePlan(overrides.get(scope) || schoolPlan);
     },
   }, [
-    el("option", { value: "" }, "School-wide plan"),
+    el("option", { value: "" }, "All classes (default)"),
     ...cohorts.map((cohort, index) => el("option", { value: index }, cohort.label)),
   ]);
   function updateAllocationStatus() {
@@ -1804,38 +1813,65 @@ async function openAutoGenerateModal(profile, onComplete) {
       pair.disabled = !allowed || Number(count.value) < 2;
       count.max = String(DAYS.length + Number(!pair.disabled && pair.checked));
     }
-    const requested = readPlan().reduce((sum, { count }) => sum + count, 0);
-    allocationStatus.textContent = `${requested} lessons requested${scope ? "" : " per class"} · ${maxLessons()} periods available` +
-      (!scope && preserve.checked && reserved() ? " in the class with the most saved activities" : "");
+    const plan = readPlan();
+    const requested = plan.reduce((sum, { count }) => sum + count, 0);
+    const available = maxLessons();
+    const remaining = available - requested;
+    const hasOverride = !!scope && differsFromSchoolPlan(plan);
+    useSchoolPlan.hidden = !hasOverride;
+    scopeHint.textContent = scope
+      ? (hasOverride ? "This class has its own plan." : "Change a value to set a plan for this class.")
+      : "This plan applies to classes without their own plan.";
+    allocationTotal.textContent = `${requested} of ${available} weekly periods planned${scope ? "" : " per class"}`;
+    allocationHint.textContent = remaining < 0
+      ? `Reduce the plan by ${-remaining} ${remaining === -1 ? "period" : "periods"}.`
+      : remaining > 0
+        ? `${remaining} ${remaining === 1 ? "period remains" : "periods remain"} open.`
+        : (preserve.checked && reserved() ? "Available periods account for saved activities." : "");
+    allocationStatus.toggleAttribute("data-over-capacity", remaining < 0);
   }
 
-  const previewButton = el("button", { type: "submit", class: "btn btn--primary" }, "Preview timetable");
-  const form = el("form", { onInput: updateAllocationStatus }, [
-    el("p", {}, `Set the school-wide plan, then select a class to override its counts${useNamedRooms ? ", rooms," : ""} or doubles. Counts include both periods of a double lesson.`),
-    el("div", { class: "tt-draft-options" }, [
-      scopeSelect,
-      useSchoolPlan,
-      activities.length ? el("label", {}, [preserve, ` Keep ${activities.length} saved activity periods`]) : null,
-      el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => {
-        const suggested = defaultPlan();
-        rows.forEach(({ count, pair, allowed }, index) => {
-          count.value = String(suggested[index].count);
-          pair.checked = allowed && suggested[index].double;
-        });
-        updateAllocationStatus();
-      } }, "Use suggested counts"),
+  const previewButton = el("button", { type: "submit", class: "btn btn--primary" }, ["Preview timetable", icon("arrow_forward", "text-sm")]);
+  const form = el("form", { class: "tt-plan-form", onInput: updateAllocationStatus }, [
+    el("div", { class: "tt-plan-controls" }, [
+      el("div", { class: "tt-plan-scope" }, [
+        el("label", { for: scopeSelect.id }, "Apply plan to"),
+        scopeSelect,
+        scopeHint,
+      ]),
+      el("div", { class: "tt-plan-tools" }, [
+        useSchoolPlan,
+        el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => {
+          const suggested = defaultPlan();
+          rows.forEach(({ count, pair, allowed }, index) => {
+            count.value = String(suggested[index].count);
+            pair.checked = allowed && suggested[index].double;
+          });
+          updateAllocationStatus();
+        } }, "Use suggested counts"),
+      ]),
     ]),
-    el("div", { class: "table-wrap tt-draft-table-wrap" }, el("table", { class: "table" }, [
-      el("thead", {}, el("tr", {}, ["Subject", "Periods / week", "One double", ...(useNamedRooms ? ["Room"] : [])].map((name) =>
-        el("th", { scope: "col" }, name)))),
-      el("tbody", {}, rows.map(({ subject, count, pair, room, allowed }) => el("tr", {}, [
-        el("th", { scope: "row" }, subject.name), el("td", {}, count),
-        el("td", {}, allowed ? pair : "—"), useNamedRooms ? el("td", {}, room) : null,
-      ]))),
-    ])),
-    allocationStatus,
+    el("p", { class: "tt-plan-help" }, [
+      icon("info", "text-sm"),
+      el("span", {}, ["A ", el("strong", {}, "double lesson"), " uses two periods back to back. ",
+        "Five weekly periods with a double means one pair and three singles. Enter 0 to skip a subject."]),
+    ]),
+    el("div", { class: "tt-plan-scroll", tabindex: "0", role: "region", "aria-label": "Weekly lesson allocations" },
+      el("table", { class: `tt-plan-table${useNamedRooms ? " tt-plan-table--rooms" : ""}` }, [
+        el("thead", {}, el("tr", {}, ["Subject", "Periods per week", "Double lesson", ...(useNamedRooms ? ["Room"] : [])].map((name) =>
+          el("th", { scope: "col" }, name)))),
+        el("tbody", {}, rows.map(({ subject, count, pair, room, allowed }) => el("tr", {}, [
+          el("th", { scope: "row" }, subject.name),
+          el("td", {}, count),
+          el("td", allowed ? {} : {
+            class: "tt-plan-single", title: "Single periods only", "aria-label": "Single periods only",
+          }, allowed ? pair : "—"),
+          useNamedRooms ? el("td", {}, room) : null,
+        ]))),
+      ])),
+    activities.length ? el("label", { class: "tt-plan-preserve" }, [preserve, `Keep ${activities.length} saved activity periods`]) : null,
     error,
-    el("div", { class: "tt-draft-actions" }, previewButton),
+    el("div", { class: "tt-plan-footer" }, [allocationStatus, previewButton]),
   ]);
   body.replaceChildren(form);
   updateAllocationStatus();
@@ -1852,7 +1888,7 @@ async function openAutoGenerateModal(profile, onComplete) {
         lockedSlots: preserve.checked ? activities : [], useNamedRooms,
       });
       const conflicts = detectTimetableConflicts(draft.slots, { useNamedRooms });
-      const previewError = el("p", { class: "tt-chart-unstaffed", role: "alert" });
+      const previewError = el("p", { class: "tt-plan-error", role: "alert" });
       const back = el("button", { type: "button", class: "btn btn--ghost", onClick: () => {
         body.replaceChildren(form);
         previewButton.focus();
@@ -1912,19 +1948,21 @@ async function openAutoGenerateModal(profile, onComplete) {
           }
         },
       }, "Download draft PDF");
-      body.replaceChildren(...[
-        el("p", { class: "tt-draft-status" },
-          `${draft.scheduled} of ${draft.target} requested lessons placed · ${draft.staffed} staffed · ${draft.doubles} double blocks` +
-          (draft.keptActivities ? ` · ${draft.keptActivities} activity periods kept` : "")),
-        conflicts.length ? el("ul", { class: "tt-chart-unstaffed" }, conflicts.map(({ message }) => el("li", {}, message))) : null,
-        issues.length ? el("details", { class: "tt-draft-status" }, [
-          el("summary", {}, `Review ${issues.length} class and subject allocations`),
-          el("ul", {}, issues),
-        ]) : null,
-        el("div", { class: "tt-draft-chart" }, renderTimetableChart(grid, letterhead)),
+      body.replaceChildren(el("div", { class: "tt-plan-review" }, [
+        el("div", { class: "tt-plan-review-scroll" }, [
+          el("p", {},
+            `${draft.scheduled} of ${draft.target} requested lessons placed · ${draft.staffed} staffed · ${draft.doubles} double blocks` +
+            (draft.keptActivities ? ` · ${draft.keptActivities} activity periods kept` : "")),
+          conflicts.length ? el("ul", { class: "tt-chart-unstaffed" }, conflicts.map(({ message }) => el("li", {}, message))) : null,
+          issues.length ? el("details", {}, [
+            el("summary", {}, `Review ${issues.length} class and subject allocations`),
+            el("ul", {}, issues),
+          ]) : null,
+          el("div", { class: "tt-draft-chart" }, renderTimetableChart(grid, letterhead)),
+        ]),
         previewError,
-        el("div", { class: "tt-draft-actions" }, [back, download, save]),
-      ].filter(Boolean));
+        el("div", { class: "tt-plan-footer" }, [back, download, save]),
+      ]));
       back.focus();
     } catch (draftError) {
       error.textContent = draftError.message || "Could not build the timetable draft.";

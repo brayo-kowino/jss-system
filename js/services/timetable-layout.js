@@ -48,10 +48,7 @@ export function buildTimetableGrid({
         const conflict = !!slot && (conflictIds.has(slot.id) || (merged && conflictIds.has(next.id)));
         const isStudy = slot?.subjectCode === "STUDY";
         const isUnstaffed = !!slot && !slot.teacherId && !slot.teacherName && !slot.isActivity && !isStudy;
-        const name = slot?.subjectName || slot?.subjectCode || "";
-        const title = kind === "master" && slot?.subjectCode && slot.subjectCode !== name && !isStudy
-          ? `${slot.subjectCode} · ${name}`
-          : name;
+        const title = slot?.subjectName?.trim() || slot?.subjectCode || "";
         const classLabel = [slot?.grade, slot?.stream].filter(Boolean).join(" ");
         const detail = (kind === "teacher" ? classLabel : slot?.teacherName) || (isUnstaffed ? "Teacher needed" : "");
         const category = isStudy ? "study" : slot?.isActivity ? "activity" :

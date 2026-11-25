@@ -107,6 +107,20 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
     ]);
   });
 
+  it("shows subject names without codes in master cells and falls back for older lessons with no name", () => {
+    const periods = DEFAULT_PERIODS.slice(0, 3).map((period, index) => ({ ...period, id: `p${index}` }));
+    const slots = [
+      { subjectCode: "MATH", subjectName: "Mathematics" },
+      { subjectCode: "KIS", subjectName: "Kiswahili" },
+      { subjectCode: "SCI", subjectName: " " },
+    ];
+    const grid = buildTimetableGrid({
+      kind: "master", periods, days: ["Monday"], cohorts: [{ grade: "Grade 7", stream: "East" }],
+      getSlot: (day, id) => slots[Number(id.slice(1))],
+    });
+    expect(grid.groups[0].rows[0].cells.map(({ title }) => title)).toEqual(["Mathematics", "Kiswahili", "SCI"]);
+  });
+
   it("paginates a large landscape PDF while preserving text content", async () => {
     const periods = DEFAULT_PERIODS.map((period, index) => ({ ...period, id: `p${index}` }));
     const cohorts = Array.from({ length: 25 }, (_, index) => ({ grade: `Grade ${index + 1}` }));
