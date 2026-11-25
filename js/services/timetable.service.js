@@ -32,7 +32,7 @@ import { buildDeepLink } from "./deep-link.service.js";
 
 import { createTimetableDraft } from "./timetable-engine.js";
 import {
-  DAYS, areAdjacentTeachingPeriods, isBreakPeriod, namedTimetableRoom, roomBookingKey, timeToMinutes,
+  DAYS, FREE_PERIOD, areAdjacentTeachingPeriods, canMergeLessons, isBreakPeriod, namedTimetableRoom, roomBookingKey, timeToMinutes,
 } from "./timetable-rules.js";
 
 export {
@@ -522,6 +522,7 @@ export async function generateCollisionFreeTimetable(userId, { classes, subjects
     (streams?.length ? streams : [""]).map((stream) => ({ grade, stream })));
   const draft = createTimetableDraft({
     cohorts, instructionalPeriods: periods, periods, days, subjects, teachers, useNamedRooms: base.useNamedRooms === true,
+    lockedSlots: base.slots.filter((slot) => slot.isFree),
   });
   return publishTimetableDraft(userId, draft, base);
 }
@@ -590,6 +591,10 @@ async function saveAssignedSlots(userId, assignments, removePeriodIds = []) {
   if (assignments.length === 2 && !areAdjacentTeachingPeriods(...assignmentPeriods)) {
     throw new Error("A double lesson needs two consecutive teaching periods.");
   }
+  if (assignments.length === 2 && slots.some((slot) => sameClass(slot, assignments[1]) &&
+      lessonKey(slot) === lessonKey(assignments[1]) && slot.isFree)) {
+    throw new Error("The second period is marked free. Edit that period to release it first.");
+  }
   for (const slot of assignments) {
     const conflict = findSlotConflict(slots, slot, useNamedRooms === true);
     if (conflict.hasConflict) throw new Error(conflict.reason);
@@ -602,7 +607,22 @@ async function saveAssignedSlots(userId, assignments, removePeriodIds = []) {
   for (const slot of assignments) {
     const key = lessonKey(slot);
     const previous = week.get(key);
-    const sameLesson = previous && previous.subjectCode === slot.subjectCode && !!previous.isActivity === slot.isActivity;
+    if (slot.isFree && previous) {
+      const index = periods.findIndex(({ id }) => id === slot.periodId);
+      for (const offset of [-1, 1]) {
+        const neighborPeriod = periods[index + offset];
+        if (!neighborPeriod) continue;
+        const neighborKey = lessonKey({ day: slot.day, periodId: neighborPeriod.id });
+        const neighbor = week.get(neighborKey);
+        const mergeOptions = { useNamedRooms: useNamedRooms === true };
+        const linked = offset === -1
+          ? canMergeLessons(neighbor, previous, neighborPeriod, periods[index], mergeOptions)
+          : canMergeLessons(previous, neighbor, periods[index], neighborPeriod, mergeOptions);
+        if (linked && neighbor.isDouble) week.set(neighborKey, { ...neighbor, isDouble: false });
+      }
+    }
+    const sameLesson = previous && previous.subjectCode === slot.subjectCode &&
+      !!previous.isFree === !!slot.isFree && !!previous.isActivity === slot.isActivity;
     const room = useNamedRooms === true ? slot.room : sameLesson ? previous.room || "" : "";
     week.set(key, { ...slot, room });
   }
@@ -633,6 +653,10 @@ function assignedSlot({
 }) {
   return { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName,
     room: namedTimetableRoom(room), isActivity, activityType, isDouble };
+}
+
+export function markSlotFree(userId, { grade, stream, day, periodId }) {
+  return saveAssignedSlots(userId, [{ ...assignedSlot({ grade, stream, day, periodId }), ...FREE_PERIOD }]);
 }
 
 export function assignSlot(userId, assignment, { removePeriodIds = [] } = {}) {
@@ -731,6 +755,7 @@ export async function createSharedTimetable(userId, {
       room: useNamedRooms ? namedTimetableRoom(s.room) : "",
       isActivity: !!s.isActivity,
       isDouble: !!s.isDouble,
+      ...(s.isFree ? { isFree: true } : {}),
       category: s.category || "",
     })),
     teachers: (teachers || []).map((t) => ({

@@ -126,6 +126,17 @@
 .tt-chart-cell-button--empty:hover, .tt-chart-cell-button--empty:focus-visible { opacity: 1; }
 .tt-chart-unstaffed { color: #9a2c27; }
 .tt-chart-free { font-style: italic; opacity: .72; }
+.tt-slot-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+.tt-slot-modes > .btn { padding-inline: 4px; justify-content: center; white-space: normal; }
 
 /* Master timetable generator */
 .modal-backdrop:has(> .tt-plan-modal) { grid-template-columns: minmax(0, 1fr); }

@@ -76,6 +76,8 @@ function createAttempt({ cohorts, teaching, days, pairs, demands, lockedSlots, f
     const time = day * teaching.length + period;
     state.busy.add(time);
     state.daily[day]++;
+    slots.push(slot);
+    if (slot.isFree) return;
     subject.days.add(day);
     const uses = subject.periods.get(period) || 0;
     subject.periods.set(period, uses + 1);
@@ -88,7 +90,6 @@ function createAttempt({ cohorts, teaching, days, pairs, demands, lockedSlots, f
     }
     const room = useNamedRooms ? roomBookingKey(slot.room) : "";
     if (room) roomState(room).add(time);
-    slots.push(slot);
   }
 
   for (const slot of lockedSlots) {
@@ -223,12 +224,18 @@ export function createTimetableDraft({
   const teacherPressure = new Map();
   const roomPressure = new Map();
   for (const cohort of cohorts) {
-    const effectiveRules = rulesByCohort.get(cohortKey(cohort)) || rules;
+    const key = cohortKey(cohort);
+    const reserved = lockedSlots.filter((slot) => cohortKey(slot) === key).length;
+    const available = Math.max(0, capacity - reserved);
+    let effectiveRules = rulesByCohort.get(key) || rules;
+    if (!plan && reserved && !rulesByCohort.has(key)) {
+      effectiveRules = normalizePlan(defaultTimetablePlan(subjects, days.length, available));
+      overrides.push({ ...cohort, stream: cohort.stream || "", plan: effectiveRules });
+    }
     const expected = effectiveRules.reduce((sum, item) => sum + item.count, 0);
-    const reserved = lockedSlots.filter((slot) => cohortKey(slot) === cohortKey(cohort));
-    if (reserved.length + expected > capacity) {
+    if (expected > available) {
       const label = [cohort.grade, cohort.stream].filter(Boolean).join(" ");
-      throw new Error(`${label} requests ${expected} lessons and keeps ${reserved.length} activity periods, with ${capacity} periods available.`);
+      throw new Error(`${label} requests ${expected} lessons with ${available} teaching periods available after ${reserved} reserved periods. Reduce its weekly lesson counts.`);
     }
     for (const item of effectiveRules.filter(({ count }) => count)) {
       const candidates = teacherCandidates(teachers, cohort, item.code);
@@ -262,7 +269,7 @@ export function createTimetableDraft({
   for (const slot of best.slots) {
     const key = JSON.stringify([cohortKey(slot), slot.subjectCode]);
     if (!actual.has(key)) actual.set(key, []);
-    if (!slot.isActivity) actual.get(key).push(slot);
+    if (!slot.isFree && !slot.isActivity) actual.get(key).push(slot);
   }
   const issues = demands.flatMap(({ cohort, item, candidates, name, room }) => {
     const lessons = actual.get(JSON.stringify([cohortKey(cohort), item.code])) || [];
@@ -273,8 +280,9 @@ export function createTimetableDraft({
     const roomOverCapacity = room && roomPressure.get(room) > capacity ? item.room : "";
     return [{ ...cohort, subject: name, unscheduled, unassigned, missingDouble, roomOverCapacity, hasTeacher: candidates.length > 0 }];
   });
+  const keptFreePeriods = lockedSlots.filter((slot) => slot.isFree).length;
   return {
     slots: best.slots, issues, target, plan: rules, cohortPlans: overrides, staffed: best.staffed, scheduled: best.filled,
-    doubles: best.doubles, keptActivities: lockedSlots.length,
+    doubles: best.doubles, keptFreePeriods, keptActivities: lockedSlots.length - keptFreePeriods,
   };
 }

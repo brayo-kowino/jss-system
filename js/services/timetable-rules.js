@@ -2,6 +2,8 @@ export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 export const MAX_TEACHER_WEEKLY_LESSONS = 28;
 export const MAX_TEACHER_DAILY_LESSONS = 6;
 
+export const FREE_PERIOD = { subjectCode: "FREE", subjectName: "Free period", isFree: true };
+
 export const DOUBLE_ELIGIBLE_SUBJECTS = new Set([
   "SCI", "INT_SCI", "INTEGRATED_SCIENCE", "SCIENCE",
   "AGR", "AGRICULTURE",
@@ -41,7 +43,7 @@ export function namedTimetableRoom(room) {
 }
 
 export function canMergeLessons(first, next, period, nextPeriod, { useNamedRooms = true } = {}) {
-  return !!(first && next && first.subjectCode && isDoubleAllowed(first) && isDoubleAllowed(next) &&
+  return !!(first && next && !first.isFree && !next.isFree && first.subjectCode && isDoubleAllowed(first) && isDoubleAllowed(next) &&
     areAdjacentTeachingPeriods(period, nextPeriod) &&
     first.subjectCode === next.subjectCode &&
     (first.subjectName || first.subjectCode) === (next.subjectName || next.subjectCode) &&

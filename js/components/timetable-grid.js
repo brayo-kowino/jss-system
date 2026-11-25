@@ -58,8 +58,8 @@ export function renderTimetableChart(grid, letterhead, { onEdit } = {}) {
           cell.colspan === 2 ? "Double lesson" : "", cell.conflict ? "Booking conflict" : ""].filter(Boolean).join(", ");
         const child = onEdit ? el("button", {
           type: "button", class: `tt-chart-cell-button${cell.slot ? "" : " tt-chart-cell-button--empty"}`,
-          title: description, onClick: () => onEdit(day, period, cell.slot, row.cohort),
-        }, cell.slot ? content : [icon("add", "text-xs"), el("span", { class: "sr-only" }, description)]) : content;
+          title: description, "aria-label": description, onClick: () => onEdit(day, period, cell.slot, row.cohort),
+        }, cell.slot ? content : icon("add", "text-xs")) : content;
         rowNode.append(el("td", {
           colspan: cell.colspan, class: "tt-chart-lesson",
           style: cell.fill ? `--tt-cell-fill:${cell.fill}` : undefined,

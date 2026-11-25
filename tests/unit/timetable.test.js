@@ -19,8 +19,30 @@ import {
 } from "../../js/services/timetable.service.js";
 import { buildTimetableGrid } from "../../js/services/timetable-layout.js";
 import { renderTimetablePdf } from "../../js/services/timetable-pdf.js";
+import { FREE_PERIOD } from "../../js/services/timetable-rules.js";
 
 describe("Timetable Conflict Detection & Scheduling Engine", () => {
+  it.each([2, 3])("spreads %i requested single periods across days and keeps saved free slots", (count) => {
+    const cohort = { grade: "Grade 7", stream: "East" };
+    const periods = DEFAULT_PERIODS.slice(0, 2).map((period, index) => ({ ...period, id: `p${index}` }));
+    const free = { ...cohort, ...FREE_PERIOD, day: "Monday", periodId: "p0" };
+    const draft = createTimetableDraft({
+      cohorts: [cohort], periods, instructionalPeriods: periods, lockedSlots: [free],
+      subjects: [{ code: "MATH", name: "Mathematics" }], plan: [{ code: "MATH", count }],
+    });
+    expect(draft).toMatchObject({ scheduled: count, keptFreePeriods: 1, keptActivities: 0 });
+    expect(draft.slots).toContainEqual(free);
+    const mathLessons = draft.slots.filter((slot) => !slot.isFree);
+    expect(new Set(mathLessons.map(({ day }) => day)).size).toBe(count);
+    expect(mathLessons.some((slot) => slot.day === free.day && slot.periodId === free.periodId)).toBe(false);
+    expect(draft.slots).toHaveLength(count + 1);
+    const grid = buildTimetableGrid({
+      kind: "master", periods, days: DAYS, cohorts: [cohort],
+      getSlot: (day, id) => draft.slots.find((slot) => slot.day === day && slot.periodId === id),
+    });
+    expect(grid.groups[0].rows[0].cells[0]).toMatchObject({ title: "Free period", detail: "", isUnstaffed: false, colspan: 1 });
+  });
+
   it("honours class overrides and keeps a practical block with its assigned teacher and room", () => {
     const [first, second] = [{ grade: "Grade 7", stream: "Blue" }, { grade: "Grade 7", stream: "Green" }];
     const periods = DEFAULT_PERIODS.map((period, index) => ({ ...period, id: `p${index}` }));

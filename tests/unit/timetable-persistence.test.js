@@ -70,7 +70,8 @@ vi.mock("../../js/services/pdf.util.js", async (importOriginal) => ({
 
 import {
   assignDoubleSlot, assignSlot, clearClassTimetableSlots, clearDoubleSlot, createSharedTimetable, getMasterTimetable,
-  getTeacherTimetable, getTimetableRoomMode, listPeriods, loadTimetableDraftInputs, publishTimetableDraft, setTimetableRoomMode,
+  getTeacherTimetable, getTimetableRoomMode, listPeriods, loadTimetableDraftInputs, markSlotFree,
+  publishTimetableDraft, setTimetableRoomMode,
 } from "../../js/services/timetable.service.js";
 import { triggerBlobDownload } from "../../js/services/pdf.util.js";
 import * as timetableView from "../../views/timetable.js";
@@ -199,6 +200,60 @@ describe("Publishing a timetable draft", () => {
       expect(active).toHaveLength(5);
       expect(active.every((slot) => slot.subjectCode === "MATH" && slot.teacherId === "teacher")).toBe(true);
     });
+  });
+
+  it("opens the editor without null text and keeps a marked free slot when previewing", async () => {
+    firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
+    await listPeriods(true);
+    await getMasterTimetable(true);
+    document.body.append(await timetableView.render({ profile: { role: "admin", uid: "admin" }, params: { tab: "master" } }));
+    const lesson = [...document.querySelectorAll(".tt-chart-cell-button")].find((node) => node.textContent.includes("ENG"));
+    lesson.click();
+    await vi.waitFor(() => expect(document.querySelector(".tt-slot-modes")).not.toBeNull());
+    const editor = document.querySelector(".tt-slot-modes").closest("form");
+    expect(editor.textContent).not.toMatch(/\bnull\b/);
+    [...editor.querySelectorAll(".tt-slot-modes button")].find((node) => node.textContent.includes("Free period")).click();
+    expect(editor.querySelector('button[type="submit"]').textContent).toContain("Mark as free");
+    editor.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(document.querySelector(".tt-chart-lesson").textContent).toBe("Free period"));
+    expect((await getMasterTimetable(true))[0]).toMatchObject({
+      isFree: true, subjectName: "Free period", teacherId: "", room: "", periodId: "p1",
+    });
+
+    const button = (label) => [...document.querySelectorAll("button")].find((node) => node.textContent.includes(label));
+    button("Generate timetable").click();
+    await vi.waitFor(() => expect(button("Preview timetable")).toBeDefined());
+    const input = document.querySelector('input[aria-label="Weekly periods for Mathematics"]');
+    input.value = "2";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(document.querySelector(".tt-plan-allocation").textContent).toContain("2 of 4 weekly periods");
+    button("Preview timetable").closest("form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await vi.waitFor(() => expect(document.querySelector(".tt-draft-chart").textContent).toContain("Free period"));
+    expect(document.querySelector(".tt-plan-review").textContent).toContain("2 of 2 requested lessons placed");
+    button("Replace saved timetable").click();
+    await vi.waitFor(async () => {
+      const slots = await getMasterTimetable(true);
+      expect(slots).toHaveLength(3);
+      expect(slots.find((slot) => slot.day === "Monday").isFree).toBe(true);
+    });
+  });
+
+  it("keeps the other half of a double and blocks a double from overwriting a marked free period", async () => {
+    firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
+    firestore.docs.set("periods/p2", { schoolId: "school", name: "Period 2", startTime: "08:40", endTime: "09:20" });
+    await listPeriods(true);
+    const assignment = { grade: legacy.grade, stream: legacy.stream, day: legacy.day, subjectCode: "SCI", subjectName: "Science" };
+    const pair = { ...assignment, period1Id: "p1", period2Id: "p2" };
+    await assignDoubleSlot("admin", pair);
+    await markSlotFree("admin", { ...assignment, periodId: "p2" });
+    const slots = await getMasterTimetable(true);
+    expect(slots).toMatchObject([
+      { periodId: "p1", subjectCode: "SCI", isDouble: false },
+      { periodId: "p2", isFree: true, isDouble: false },
+    ]);
+    await expect(assignDoubleSlot("admin", pair)).rejects.toThrow("The second period is marked free");
+    const { payload } = await createSharedTimetable("admin", { slots });
+    expect(payload.slots[1]).toMatchObject({ periodId: "p2", isFree: true });
   });
 
   it("persists the room switch and brings back room names in the master view", async () => {

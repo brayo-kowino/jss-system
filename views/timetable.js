@@ -27,6 +27,7 @@ import {
   clearClassTimetableSlots,
   assignSlot,
   assignDoubleSlot,
+  markSlotFree,
   clearSlot,
   clearDoubleSlot,
   createSharedTimetable,
@@ -37,7 +38,7 @@ import {
 import { downloadPdfsAsZip, triggerBlobDownload } from "../js/services/pdf.util.js";
 import { renderTimetablePdf } from "../js/services/timetable-pdf.js";
 import { buildTimetableGrid, getTimetableSubjectCategory, timetableLetterhead } from "../js/services/timetable-layout.js";
-import { areAdjacentTeachingPeriods, canMergeLessons, namedTimetableRoom } from "../js/services/timetable-rules.js";
+import { FREE_PERIOD, areAdjacentTeachingPeriods, canMergeLessons, namedTimetableRoom } from "../js/services/timetable-rules.js";
 import { renderTimetableChart } from "../js/components/timetable-grid.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
@@ -816,9 +817,9 @@ async function renderMasterTab(container, profile) {
               class: `tt-pill ${deptClass}`.trim(),
               onClick: () => edit(day, period, cohort),
             }, [
-              el("b", { class: "tt-subject-name" }, slot.subjectName || slot.subjectCode),
-              el("span", { class: "tt-teacher-name" }, slot.teacherName || "Unassigned"),
-              namedRoomsEnabled && namedTimetableRoom(slot.room) ?
+              el("b", { class: "tt-subject-name" }, slot.isFree ? FREE_PERIOD.subjectName : slot.subjectName || slot.subjectCode),
+              slot.isFree ? null : el("span", { class: "tt-teacher-name" }, slot.teacherName || "Unassigned"),
+              !slot.isFree && namedRoomsEnabled && namedTimetableRoom(slot.room) ?
                 el("span", { class: "tt-room-tag" }, namedTimetableRoom(slot.room)) : null,
               hasConflict ? el("span", { class: "tt-conflict-tag" }, [icon("warning", "text-xs"), "Collision"]) : null,
             ].filter(Boolean));
@@ -1224,14 +1225,14 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
   const roomOptions = { useNamedRooms: namedRoomsEnabled };
   const isSecondHalfOfDouble = canMergeLessons(prevSlot, existing, prevPeriod, period, roomOptions);
   const isFirstHalfOfDouble = canMergeLessons(existing, nextSlot, period, nextPeriod, roomOptions);
-  const canDoubleForward = areAdjacentTeachingPeriods(period, nextPeriod);
+  const canDoubleForward = areAdjacentTeachingPeriods(period, nextPeriod) && !nextSlot?.isFree;
 
   // Determine Initial Mode (Subject vs Activity)
-  let currentMode = "subject";
+  let currentMode = existing?.isFree ? "free" : "subject";
   let initialActivityPreset = "PE";
   let initialCustomActivity = "";
 
-  if (existing) {
+  if (existing && !existing.isFree) {
     const isPreset = STANDARD_ACTIVITIES.some((a) => a.code === existing.subjectCode);
     const isSubject = subjects.some((s) => s.code === existing.subjectCode);
     if (existing.isActivity || isPreset || (!isSubject && existing.subjectCode)) {
@@ -1279,29 +1280,19 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
   }
 
   // Segmented Mode Switcher
-  const modeSwitchWrap = el("div", {
-    style: "display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:14px; background:var(--color-cream-dim, #f1f5f9); padding:4px; border-radius:var(--radius-md); border:1px solid var(--color-line);"
-  });
-
-  const btnModeSubject = el("button", {
+  const modes = [
+    ["subject", "Lesson", "school"],
+    ["activity", "Activity", "sports_soccer"],
+    ["free", FREE_PERIOD.subjectName, "event_available"],
+  ];
+  const modeButtons = new Map(modes.map(([mode, label, symbol]) => [mode, el("button", {
     type: "button",
-    class: `btn btn--sm ${currentMode === "subject" ? "btn--primary" : "btn--ghost"}`,
-    style: "justify-content:center; font-size:12px; font-weight:600;",
-    onClick: () => setMode("subject"),
-  }, [icon("school", "text-xs"), "Academic Subject"]);
-
-  const btnModeActivity = el("button", {
-    type: "button",
-    class: `btn btn--sm ${currentMode === "activity" ? "btn--primary" : "btn--ghost"}`,
-    style: "justify-content:center; font-size:12px; font-weight:600;",
-    onClick: () => setMode("activity"),
-  }, [icon("sports_soccer", "text-xs"), "Activity / Co-Curricular"]);
-
-  modeSwitchWrap.append(btnModeSubject, btnModeActivity);
-  body.append(modeSwitchWrap);
+    onClick: () => setMode(mode),
+  }, [icon(symbol, "text-xs"), label])]));
+  body.append(el("div", { class: "tt-slot-modes", role: "group", "aria-label": "Slot type" }, [...modeButtons.values()]));
 
   // --- Subject Mode Fields ---
-  const subjectContainer = el("div", { style: currentMode === "subject" ? "display:block;" : "display:none;" });
+  const subjectContainer = el("div");
 
   const subjectSelect = el("select", {}, [
     el("option", { value: "" }, "Select academic subject"),
@@ -1356,13 +1347,15 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
 
   subjectContainer.append(
     el("div", { class: "field" }, [el("label", {}, "Subject"), subjectSelect]),
-    el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect]),
-    roomInput ? el("div", { class: "field" }, [el("label", { for: roomInput.id }, "Named room (optional)"), roomInput]) : null
+    el("div", { class: "field" }, [el("label", {}, "Teacher"), teacherSelect])
   );
+  if (roomInput) subjectContainer.append(el("div", { class: "field" }, [
+    el("label", { for: roomInput.id }, "Named room (optional)"), roomInput,
+  ]));
   body.append(subjectContainer);
 
   // --- Activity Mode Fields ---
-  const activityContainer = el("div", { style: currentMode === "activity" ? "display:block;" : "display:none;" });
+  const activityContainer = el("div");
 
   const activityPresetSelect = el("select", {}, [
     ...STANDARD_ACTIVITIES.map((act) => el("option", {
@@ -1419,22 +1412,10 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
       el("label", { for: activityRoomInput.id }, "Venue (optional)"), activityRoomInput,
     ]));
   }
-  body.append(activityContainer);
-
-  function setMode(mode) {
-    currentMode = mode;
-    if (mode === "subject") {
-      btnModeSubject.className = "btn btn--sm btn--primary";
-      btnModeActivity.className = "btn btn--sm btn--ghost";
-      subjectContainer.style.display = "block";
-      activityContainer.style.display = "none";
-    } else {
-      btnModeSubject.className = "btn btn--sm btn--ghost";
-      btnModeActivity.className = "btn btn--sm btn--primary";
-      subjectContainer.style.display = "none";
-      activityContainer.style.display = "block";
-    }
-  }
+  const freeDescription = el("p", { class: "text-muted text-sm" },
+    "This class has no lesson during this period. The generator keeps it free.");
+  const doubleControls = el("div");
+  body.append(activityContainer, freeDescription, doubleControls);
 
   // --- Double Lesson Toggle Container ---
   let doubleCheckbox = null;
@@ -1472,16 +1453,18 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
         ].filter(Boolean)),
       ]),
     ]);
-    body.append(doubleBox);
+    doubleControls.append(doubleBox);
+  } else if (nextSlot?.isFree) {
+    doubleControls.append(el("p", { class: "text-muted text-sm" }, "The next period is marked free."));
   } else if (nextPeriod) {
-    body.append(el("div", {
+    doubleControls.append(el("div", {
       style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:8px 12px; margin:12px 0; font-size:11.5px; color:var(--color-ink-soft); display:flex; align-items:center; gap:8px;"
     }, [
       icon("coffee", "text-xs"),
       el("span", {}, `Next period: ${nextPeriod.name} (${nextPeriod.startTime}–${nextPeriod.endTime}). Double lessons require consecutive teaching periods.`),
     ]));
   } else {
-    body.append(el("div", {
+    doubleControls.append(el("div", {
       style: "background:var(--color-cream-dim, #f8fafc); border:1px solid var(--color-line); border-radius:var(--radius-md); padding:8px 12px; margin:12px 0; font-size:11.5px; color:var(--color-ink-soft); display:flex; align-items:center; gap:8px;"
     }, [
       icon("info", "text-xs"),
@@ -1489,7 +1472,7 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
     ]));
   }
 
-  // Submit button
+  const submitLabel = el("span");
   body.append(
     el("button", {
       type: "submit",
@@ -1497,9 +1480,22 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
       style: "margin-top:6px;"
     }, [
       icon(existing ? "save" : "add_task"),
-      existing ? "Save Changes" : "Assign Slot"
+      submitLabel,
     ])
   );
+  function setMode(mode) {
+    currentMode = mode;
+    for (const [value, button] of modeButtons) {
+      button.className = `btn btn--sm ${value === mode ? "btn--primary" : "btn--ghost"}`;
+      button.setAttribute("aria-pressed", String(value === mode));
+    }
+    subjectContainer.hidden = mode !== "subject";
+    activityContainer.hidden = mode !== "activity";
+    freeDescription.hidden = mode !== "free";
+    doubleControls.hidden = mode === "free";
+    submitLabel.textContent = mode === "free" ? "Mark as free" : existing ? "Save Changes" : "Assign Slot";
+  }
+  setMode(currentMode);
 
   const close = openModal(existing ? "Edit Timetable Slot" : "Assign Timetable Slot", body);
 
@@ -1633,7 +1629,7 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
       room = roomInput?.value.trim() || "";
       isActivity = false;
       activityType = "";
-    } else {
+    } else if (currentMode === "activity") {
       const presetCode = activityPresetSelect.value;
       if (presetCode === "CUSTOM") {
         const customName = customActivityInput.value.trim();
@@ -1660,7 +1656,10 @@ async function openAssignModal(profile, day, period, cohort, onSaved) {
     const isDoubleChecked = canDoubleForward && doubleCheckbox && doubleCheckbox.checked;
 
     try {
-      if (isDoubleChecked) {
+      if (currentMode === "free") {
+        await markSlotFree(profile.uid, { grade: cohortGrade, stream: cohortStream, day, periodId: period.id });
+        toast("Period marked free.", "success");
+      } else if (isDoubleChecked) {
         await assignDoubleSlot(profile.uid, {
           grade: cohortGrade,
           stream: cohortStream,
@@ -1730,17 +1729,23 @@ async function openAutoGenerateModal(profile, onComplete) {
   const capacity = teaching.length * DAYS.length;
   const canDouble = bell.some((period, index) => areAdjacentTeachingPeriods(period, bell[index + 1]));
   const teachingIds = new Set(teaching.map(({ id }) => id));
-  const activities = base.slots.filter((slot) => slot.isActivity && DAYS.includes(slot.day) &&
+  const savedReservations = base.slots.filter((slot) => (slot.isFree || slot.isActivity) && DAYS.includes(slot.day) &&
     teachingIds.has(slot.periodId) && cohorts.some(({ grade, stream }) =>
       slot.grade === grade && (slot.stream || "") === stream));
-  const reservations = cohorts.map(({ grade, stream }) =>
-    activities.filter((slot) => slot.grade === grade && (slot.stream || "") === stream).length);
+  const freeSlots = savedReservations.filter((slot) => slot.isFree);
+  const activities = savedReservations.filter((slot) => !slot.isFree);
+  const reservations = cohorts.map(({ grade, stream }) => {
+    const slots = savedReservations.filter((slot) => slot.grade === grade && (slot.stream || "") === stream);
+    const free = slots.filter((slot) => slot.isFree).length;
+    return { free, activity: slots.length - free };
+  });
   const preserve = el("input", { type: "checkbox", checked: activities.length ? "true" : undefined });
   const overrides = new Map();
   let scope = "";
-  const reserved = () => scope ? reservations[Number(scope)] :
-    Math.max(0, ...reservations.filter((_, index) => !overrides.has(String(index))));
-  const maxLessons = () => Math.max(0, capacity - (preserve.checked ? reserved() : 0));
+  const countReserved = ({ free, activity }) => free + (preserve.checked ? activity : 0);
+  const reserved = () => scope ? countReserved(reservations[Number(scope)]) :
+    Math.max(0, ...reservations.filter((_, index) => !overrides.has(String(index))).map(countReserved));
+  const maxLessons = () => Math.max(0, capacity - reserved());
   const defaultPlan = () => defaultTimetablePlan(subjects, DAYS.length, maxLessons());
   const mergePlan = (entries, fallback) => {
     const bySubject = new Map((entries || []).map((item) => [item.code, item]));
@@ -1827,7 +1832,7 @@ async function openAutoGenerateModal(profile, onComplete) {
       ? `Reduce the plan by ${-remaining} ${remaining === -1 ? "period" : "periods"}.`
       : remaining > 0
         ? `${remaining} ${remaining === 1 ? "period remains" : "periods remain"} open.`
-        : (preserve.checked && reserved() ? "Available periods account for saved activities." : "");
+        : (reserved() ? "Available periods exclude reserved slots." : "");
     allocationStatus.toggleAttribute("data-over-capacity", remaining < 0);
   }
 
@@ -1870,6 +1875,8 @@ async function openAutoGenerateModal(profile, onComplete) {
         ]))),
       ])),
     activities.length ? el("label", { class: "tt-plan-preserve" }, [preserve, `Keep ${activities.length} saved activity periods`]) : null,
+    freeSlots.length ? el("p", { class: "text-muted text-xs", style: "margin:0;" },
+      `The draft keeps ${freeSlots.length} marked free ${freeSlots.length === 1 ? "period" : "periods"}.`) : null,
     error,
     el("div", { class: "tt-plan-footer" }, [allocationStatus, previewButton]),
   ]);
@@ -1885,7 +1892,7 @@ async function openAutoGenerateModal(profile, onComplete) {
       const cohortPlans = [...overrides].map(([index, plan]) => ({ ...cohorts[Number(index)], plan }));
       const draft = createTimetableDraft({
         cohorts, periods: bell, instructionalPeriods: teaching, subjects, teachers, plan: schoolPlan, cohortPlans,
-        lockedSlots: preserve.checked ? activities : [], useNamedRooms,
+        lockedSlots: preserve.checked ? savedReservations : freeSlots, useNamedRooms,
       });
       const conflicts = detectTimetableConflicts(draft.slots, { useNamedRooms });
       const previewError = el("p", { class: "tt-plan-error", role: "alert" });
@@ -1952,7 +1959,8 @@ async function openAutoGenerateModal(profile, onComplete) {
         el("div", { class: "tt-plan-review-scroll" }, [
           el("p", {},
             `${draft.scheduled} of ${draft.target} requested lessons placed · ${draft.staffed} staffed · ${draft.doubles} double blocks` +
-            (draft.keptActivities ? ` · ${draft.keptActivities} activity periods kept` : "")),
+            (draft.keptActivities ? ` · ${draft.keptActivities} activity periods kept` : "") +
+            (draft.keptFreePeriods ? ` · ${draft.keptFreePeriods} free periods kept` : "")),
           conflicts.length ? el("ul", { class: "tt-chart-unstaffed" }, conflicts.map(({ message }) => el("li", {}, message))) : null,
           issues.length ? el("details", {}, [
             el("summary", {}, `Review ${issues.length} class and subject allocations`),
@@ -2260,7 +2268,9 @@ async function exportMasterToExcel(e) {
         const row = [day, p.name, `${p.startTime}–${p.endTime}`];
         for (const c of cohorts) {
           const slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
-          if (slot) {
+          if (slot?.isFree) {
+            row.push(FREE_PERIOD.subjectName);
+          } else if (slot) {
             const teacherInit = slot.teacherName ? slot.teacherName.split(" ")[0] : "Unassigned";
             const room = namedRoomsEnabled ? namedTimetableRoom(slot.room) : "";
             row.push(`${slot.subjectCode} (${teacherInit})${room ? " [" + room + "]" : ""}`);

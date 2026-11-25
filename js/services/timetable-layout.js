@@ -1,4 +1,4 @@
-import { DAYS, canMergeLessons, isBreakPeriod, namedTimetableRoom } from "./timetable-rules.js";
+import { DAYS, FREE_PERIOD, canMergeLessons, isBreakPeriod, namedTimetableRoom } from "./timetable-rules.js";
 
 const PALETTE = {
   sciences: "#e2ead9",
@@ -46,16 +46,17 @@ export function buildTimetableGrid({
         const next = nextPeriod && !nextPeriod.isBreak ? getSlot(day, nextPeriod.id, cohort) : null;
         const merged = canMergeLessons(slot, next, period, nextPeriod, { useNamedRooms });
         const conflict = !!slot && (conflictIds.has(slot.id) || (merged && conflictIds.has(next.id)));
+        const isFree = slot?.isFree === true;
         const isStudy = slot?.subjectCode === "STUDY";
-        const isUnstaffed = !!slot && !slot.teacherId && !slot.teacherName && !slot.isActivity && !isStudy;
-        const title = slot?.subjectName?.trim() || slot?.subjectCode || "";
+        const isUnstaffed = !!slot && !slot.teacherId && !slot.teacherName && !slot.isActivity && !isStudy && !isFree;
+        const title = isFree ? FREE_PERIOD.subjectName : slot?.subjectName?.trim() || slot?.subjectCode || "";
         const classLabel = [slot?.grade, slot?.stream].filter(Boolean).join(" ");
         const detail = (kind === "teacher" ? classLabel : slot?.teacherName) || (isUnstaffed ? "Teacher needed" : "");
-        const category = isStudy ? "study" : slot?.isActivity ? "activity" :
+        const category = isStudy || isFree ? "study" : slot?.isActivity ? "activity" :
           slot?.category || subjectCategory?.(slot?.subjectCode);
         cells.push({
           index, period, slot, colspan: merged ? 2 : 1, conflict, isUnstaffed,
-          title, detail: [detail, useNamedRooms && namedTimetableRoom(slot?.room)].filter(Boolean).join(" · "),
+          title, detail: isFree ? "" : [detail, useNamedRooms && namedTimetableRoom(slot?.room)].filter(Boolean).join(" · "),
           fill: conflict ? "#f7dada" : PALETTE[category] || (merged ? "#e8edef" : ""),
           empty: kind === "teacher" ? "FREE / PREP" : "",
         });
