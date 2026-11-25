@@ -419,7 +419,7 @@ export function openShareTimetableModal({
         el("button", {
           type: "button",
           class: "btn btn--ghost btn--xs",
-          title: "Copy link for teachers/staff who have accounts in the system",
+          title: "Copy link for teachers and staff who have accounts in the system",
           onClick: () => {
             const p = { tab: type === "master" ? "master" : type === "class" ? "classes" : "teachers" };
             if (type === "class" && classSelection.grade) {
@@ -501,7 +501,7 @@ export async function render({ profile, params = {} }) {
 
 
   wrap.append(el("div", { class: "tt-module-heading" }, [
-    el("h1", {}, "School Schedules"),
+    el("h1", {}, ""),
     canManage ? el("button", {
       type: "button", class: "btn btn--ghost btn--sm", onClick: () => openWorkflowGuideModal(),
     }, [icon("help", "text-xs"), "Setup guide"]) : null,
