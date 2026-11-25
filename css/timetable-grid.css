@@ -138,9 +138,9 @@
 }
 .tt-slot-modes > .btn { padding-inline: 4px; justify-content: center; white-space: normal; }
 
-/* Master timetable generator */
-.modal-backdrop:has(> .tt-plan-modal) { grid-template-columns: minmax(0, 1fr); }
-.modal.tt-plan-modal {
+/* Timetable dialogs */
+.modal-backdrop:has(> :is(.tt-plan-modal, .tt-workload-modal)) { grid-template-columns: minmax(0, 1fr); }
+.modal:is(.tt-plan-modal, .tt-workload-modal) {
   width: min(94vw, 800px);
   min-width: 0;
   max-height: calc(100dvh - 32px);
@@ -149,8 +149,10 @@
   flex-direction: column;
   overflow: hidden;
 }
-.tt-plan-modal .modal__header { align-items: center; margin-bottom: 14px; flex: 0 0 auto; }
-.tt-plan-modal [hidden] { display: none; }
+:is(.tt-plan-modal, .tt-workload-modal) .modal__header { align-items: center; margin-bottom: 14px; flex: 0 0 auto; }
+:is(.tt-plan-modal, .tt-workload-modal) [hidden] { display: none; }
+
+/* Master timetable generator */
 .tt-plan-content, .tt-plan-form, .tt-plan-review { display: flex; flex-direction: column; min-height: 0; }
 .tt-plan-form, .tt-plan-review { gap: 10px; }
 .tt-plan-controls {
@@ -253,9 +255,121 @@
 .tt-plan-review-scroll > :is(p, details) { margin-block: 0 8px; }
 .tt-plan-review-scroll .tt-chart-scroll { max-height: none; }
 .tt-plan-review .tt-plan-footer { justify-content: flex-end; }
+
+/* Faculty workload */
+.tt-workload-body { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+.tt-workload-body :is(dl, dd) { margin: 0; }
+.tt-workload-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.tt-workload-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+}
+.tt-workload-metrics dt, .tt-workload-days dt { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+.tt-workload-metrics dd {
+  order: -1;
+  color: var(--color-primary-900);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.tt-workload-search { display: grid; gap: 4px; }
+.tt-workload-search-label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.tt-workload-search label { font-weight: 700; font-size: var(--fs-sm); }
+.tt-workload-result { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+.tt-workload-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink-soft);
+}
+.tt-workload-search-field:focus-within { outline: 2px solid var(--color-primary-600); outline-offset: -1px; }
+.tt-workload-search-field input {
+  min-width: 0;
+  flex: 1;
+  padding-block: 8px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--fs-sm);
+}
+.tt-workload-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.tt-workload-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.tt-workload-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  overflow-wrap: anywhere;
+}
+.tt-workload-card-head { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.tt-workload-card-head h4 { margin: 0 0 2px; color: var(--color-primary-900); font-size: var(--fs-base); }
+.tt-workload-card-head small { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+.tt-workload-count { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: var(--fs-sm); }
+.tt-workload-status {
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  color: var(--color-ink-soft);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+}
+.tt-workload-status[data-level="light"] { background: var(--color-primary-100); color: var(--color-primary-900); }
+.tt-workload-status[data-level="in-range"] { background: color-mix(in srgb, var(--color-green) 13%, var(--color-white)); color: var(--color-green); }
+.tt-workload-status[data-level="heavy"] { background: color-mix(in srgb, var(--color-red) 13%, var(--color-white)); color: var(--color-red); }
+.tt-workload-days {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt);
+  text-align: center;
+}
+.tt-workload-days > div { padding: 4px; }
+.tt-workload-days > div + div { border-inline-start: 1px solid var(--color-line); }
+.tt-workload-days dd { font-size: var(--fs-sm); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tt-workload-tags { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-xs); }
+.tt-workload-tags strong { color: var(--color-ink-soft); }
+.tt-workload-tags span { padding: 2px 6px; border-radius: var(--radius-sm); background: var(--color-primary-100); }
+.tt-workload-empty { margin: 0; padding-block: 20px; color: var(--color-ink-soft); text-align: center; font-size: var(--fs-sm); }
+.tt-workload-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+.tt-workload-footer small { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+
+@media (max-height: 540px) {
+  .tt-workload-body { display: block; overflow-y: auto; overscroll-behavior: contain; }
+  .tt-workload-body > * + * { margin-top: 12px; }
+  .tt-workload-scroll { overflow: visible; }
+}
+
 @media (max-width: 640px) {
-  .modal-backdrop:has(> .tt-plan-modal) { inset: 0 auto auto 0; width: 100vw; height: 100dvh; }
-  .modal.tt-plan-modal { width: 100%; max-width: 100vw; max-height: 92dvh; padding: 14px; }
+  .modal-backdrop:has(> :is(.tt-plan-modal, .tt-workload-modal)) { inset: 0 auto auto 0; width: 100vw; height: 100dvh; }
+  .modal:is(.tt-plan-modal, .tt-workload-modal) { width: 100%; max-width: 100vw; max-height: 92dvh; padding: 14px; }
+  .tt-workload-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tt-plan-scope { flex-basis: 100%; }
   .tt-plan-table--rooms { min-width: 365px; }
   .tt-plan-table :is(th, td) { padding-inline: 7px; }

@@ -238,6 +238,41 @@ describe("Publishing a timetable draft", () => {
     });
   });
 
+  it("reports assigned periods separately from unstaffed lessons and searches scheduled subjects", async () => {
+    firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
+    firestore.docs.set("timetable_slots/legacy-slot", { ...legacy, subjectCode: "MATH", teacherId: "teacher" });
+    firestore.docs.set("timetable_slots/arts", {
+      ...legacy, day: "Tuesday", subjectCode: "CRA", subjectName: "Creative Arts", teacherId: "teacher",
+    });
+    firestore.docs.set("timetable_slots/unstaffed", { ...legacy, day: "Wednesday" });
+    firestore.docs.set("timetable_slots/free", { ...legacy, day: "Thursday", subjectCode: "FREE", isFree: true });
+    firestore.docs.set("timetable_slots/study", { ...legacy, day: "Friday", subjectCode: "STUDY" });
+    await listPeriods(true);
+    await getMasterTimetable(true);
+    document.body.append(await timetableView.render({ profile: { role: "admin", uid: "admin" }, params: { tab: "master" } }));
+    [...document.querySelectorAll("button")].find((node) => node.textContent.includes("Workload Analytics")).click();
+
+    const modal = document.querySelector(".tt-workload-modal");
+    expect([...modal.querySelectorAll(".tt-workload-metrics > div")].map((node) => [
+      node.querySelector("dt").textContent, node.querySelector("dd").textContent,
+    ])).toEqual([
+      ["Assigned periods", "2"], ["Need a teacher", "1"],
+      ["Teachers assigned", "1 / 1"], ["Avg per assigned teacher", "2.0"],
+    ]);
+    expect([...modal.querySelectorAll(".tt-workload-days dd")].map((node) => node.textContent))
+      .toEqual(["1", "1", "0", "0", "0"]);
+
+    const search = modal.querySelector("#tt-workload-search");
+    search.value = "Creative Arts Grade 7 Blue";
+    search.dispatchEvent(new Event("input"));
+    expect(modal.querySelector(".tt-workload-card h4").textContent).toBe("A. Mwangi");
+    search.value = "Missing teacher";
+    search.dispatchEvent(new Event("input"));
+    expect(modal.querySelector(".tt-workload-card")).toBeNull();
+    expect(modal.querySelector(".tt-workload-empty").hidden).toBe(false);
+    modal.querySelector('[aria-label="Close"]').click();
+  });
+
   it("keeps the other half of a double and blocks a double from overwriting a marked free period", async () => {
     firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
     firestore.docs.set("periods/p2", { schoolId: "school", name: "Period 2", startTime: "08:40", endTime: "09:20" });

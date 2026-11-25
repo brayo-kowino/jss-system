@@ -2093,150 +2093,123 @@ function downloadAllTeachersZip(button) {
 // --------------------------------------------------- Workload & Excel Export --
 
 function openFacultyWorkloadModal() {
-  const allMasterSlots = masterSlots.length ? masterSlots : [];
-  const instructionalTotal = periods.filter((p) => !p.isBreak).length * DAYS.length;
-  const totalScheduled = allMasterSlots.length;
-  const activeTeachers = teachers.filter((t) => allMasterSlots.some((s) => s.teacherId === t.id));
-  const avgLoad = activeTeachers.length ? (totalScheduled / activeTeachers.length).toFixed(1) : "0.0";
-
-  let searchQuery = "";
-
-  const modalBody = el("div", { class: "workload-modal-body" });
-
-  function renderList(targetMount) {
-    targetMount.innerHTML = "";
-
-    const query = searchQuery.trim().toLowerCase();
-    const filteredTeachers = teachers.filter((t) => {
-      if (!query) return true;
-      const name = (t.fullName || t.name || "").toLowerCase();
-      const tsc = (t.tscNumber || "").toLowerCase();
-      const homeroom = (t.homeroom || "").toLowerCase();
-      const subs = (t.teachingAssignments || []).map((a) => a.subjectCode.toLowerCase()).join(" ");
-      return name.includes(query) || tsc.includes(query) || homeroom.includes(query) || subs.includes(query);
-    });
-
-    if (!filteredTeachers.length) {
-      targetMount.append(el("div", { class: "empty-state", style: "padding:var(--sp-4);" }, [
-        icon("search_off", "empty-state__icon"),
-        el("p", { class: "text-muted text-sm" }, "No faculty members match your search criteria."),
-      ]));
-      return;
+  const instructionalIds = new Set(periods.filter((period) => !isBreakPeriod(period)).map(({ id }) => id));
+  const subjectNamesByCode = new Map(subjects.map(({ code, name }) => [code, name]));
+  const assignments = new Map(teachers.map(({ id }) => [id, []]));
+  const lightLoadThreshold = 18;
+  const heavyLoadThreshold = 27;
+  let needsTeacher = 0;
+  let assignedPeriods = 0;
+  for (const slot of masterSlots) {
+    if (slot.isFree || !instructionalIds.has(slot.periodId) || !DAYS.includes(slot.day)) continue;
+    const teacherSlots = assignments.get(slot.teacherId);
+    if (teacherSlots) {
+      teacherSlots.push(slot);
+      assignedPeriods++;
+    } else if (!slot.isActivity && slot.subjectCode !== "STUDY") {
+      needsTeacher++;
     }
-
-    const list = el("div", { style: "display:flex; flex-direction:column; gap:10px;" });
-
-    for (const t of filteredTeachers) {
-      const assigned = allMasterSlots.filter((s) => s.teacherId === t.id);
-      const count = assigned.length;
-
-      let statusBadge = null;
-      if (count === 0) {
-        statusBadge = el("span", { class: "badge badge--muted" }, "0 Lessons · Unassigned");
-      } else if (count < 18) {
-        statusBadge = el("span", { class: "badge badge--info" }, `${count} Lessons · Light Load`);
-      } else if (count <= 27) {
-        statusBadge = el("span", { class: "badge badge--success" }, `${count} Lessons · Optimal TSC Load`);
-      } else {
-        statusBadge = el("span", { class: "badge badge--danger" }, `${count} Lessons · Heavy Load`);
-      }
-
-      const dayDistribution = DAYS.map((d) => {
-        const c = assigned.filter((s) => s.day === d).length;
-        return `${d.slice(0, 3)}: ${c}`;
-      }).join(" · ");
-
-      const homeroom = t.homeroom ? t.homeroom.replace("|", " ").trim() : null;
-      const distinctClasses = [...new Set(assigned.map((s) => `${s.grade} ${s.stream || ""}`.trim()))];
-      const distinctSubjects = [...new Set(assigned.map((s) => s.subjectName || s.subjectCode))];
-
-      const card = el("div", {
-        style: "border:1px solid var(--color-line); border-radius:var(--radius-md); padding:12px 14px; background:var(--color-surface); transition:all 0.15s ease;"
-      }, [
-        el("div", { style: "display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;" }, [
-          el("div", {}, [
-            el("div", { style: "display:flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
-              el("b", { style: "font-size:14px; color:var(--color-primary-900);" }, t.fullName || t.name),
-              t.tscNumber ? el("span", { style: "font-family:var(--font-mono, monospace); font-size:11px; color:var(--color-ink-soft);" }, `TSC: ${t.tscNumber}`) : null,
-              homeroom ? el("span", { class: "badge badge--warning", style: "font-size:10px;" }, `Class Teacher: ${homeroom}`) : null,
-            ].filter(Boolean)),
-            el("div", { style: "font-size:11px; color:var(--color-ink-soft); margin-top:4px;" }, [
-              `Daily Breakdown: ${dayDistribution}`,
-            ]),
-          ]),
-          statusBadge,
-        ]),
-        distinctSubjects.length ? el("div", { style: "margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;" }, [
-          el("span", { style: "font-size:10px; font-weight:600; color:var(--color-ink-soft); text-transform:uppercase;" }, "Subjects:"),
-          ...distinctSubjects.map((sub) => el("span", { style: "font-size:11px; background:var(--color-primary-100); color:var(--color-primary-900); padding:1px 6px; border-radius:4px; border:1px solid var(--color-line);" }, sub)),
-        ]) : null,
-        distinctClasses.length ? el("div", { style: "margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;" }, [
-          el("span", { style: "font-size:10px; font-weight:600; color:var(--color-ink-soft); text-transform:uppercase;" }, "Classes:"),
-          ...distinctClasses.map((cls) => el("span", { style: "font-size:11px; background:var(--color-cream-dim, #f8fafc); color:var(--color-ink); padding:1px 6px; border-radius:4px; border:1px solid var(--color-line);" }, cls)),
-        ]) : null,
-      ].filter(Boolean));
-
-      list.append(card);
-    }
-
-    targetMount.append(list);
   }
 
-  // Summary Metrics Banner
-  const summaryHeader = el("div", {
-    style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:14px;"
-  }, [
-    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
-      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, String(totalScheduled)),
-      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Total Lessons"),
-    ]),
-    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
-      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, `${activeTeachers.length} / ${teachers.length}`),
-      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Active Faculty"),
-    ]),
-    el("div", { style: "background:var(--color-primary-100); border:1px solid var(--color-line); border-radius:var(--radius-sm); padding:10px; text-align:center;" }, [
-      el("div", { style: "font-size:20px; font-weight:800; color:var(--color-primary-900);" }, `${avgLoad}`),
-      el("div", { style: "font-size:10px; color:var(--color-ink-soft); text-transform:uppercase; font-weight:600;" }, "Avg Lessons/Wk"),
-    ]),
-    el("div", { class: "timetable-metric-box timetable-metric-box--tsc" }, [
-      el("div", { class: "timetable-metric-val" }, "18–27"),
-      el("div", { class: "timetable-metric-label" }, "TSC Standard"),
-    ]),
+  const classLabel = ({ grade, stream }) => [grade, stream].filter(Boolean).join(" ");
+  const faculty = teachers.map((teacher) => {
+    const slots = assignments.get(teacher.id);
+    const name = teacher.fullName || teacher.name || "Unknown teacher";
+    const homeroom = (teacher.homeroom || "").replace("|", " ").trim();
+    const classes = [...new Set(slots.map(classLabel))];
+    const subjectNames = [...new Set(slots.map(({ subjectName, subjectCode }) =>
+      subjectName || subjectNamesByCode.get(subjectCode) || subjectCode).filter(Boolean))];
+    const roster = (teacher.teachingAssignments || []).flatMap((assignment) => [
+      classLabel(assignment), assignment.subjectCode,
+      subjectNamesByCode.get(assignment.subjectCode),
+    ]);
+    const searchable = [name, teacher.tscNumber, homeroom, ...classes, ...subjectNames, ...roster].join(" ").toLowerCase();
+    return { teacher, name, homeroom, classes, subjectNames, slots, searchable };
+  });
+  const activeCount = faculty.filter(({ slots }) => slots.length > 0).length;
+  const avg = activeCount ? (assignedPeriods / activeCount).toFixed(1) : "0.0";
+  const metrics = el("dl", { class: "tt-workload-metrics" }, [
+    ["Assigned periods", assignedPeriods],
+    ["Need a teacher", needsTeacher],
+    ["Teachers assigned", `${activeCount} / ${teachers.length}`],
+    ["Avg per assigned teacher", avg],
+  ].map(([label, value]) => el("div", {}, [el("dt", {}, label), el("dd", {}, value)])));
+
+  const search = el("input", {
+    id: "tt-workload-search", type: "search",
+    placeholder: "Name, subject, class or TSC number", onInput: () => renderList(),
+  });
+  const resultCount = el("span", { class: "tt-workload-result", role: "status" });
+  const list = el("ul", { class: "tt-workload-list" });
+  const message = el("p", { class: "tt-workload-empty", hidden: "" });
+  const scroll = el("div", { class: "tt-workload-scroll", tabindex: "0", role: "region", "aria-label": "Faculty workloads" }, [
+    list, message,
   ]);
 
-  // Search input
-  const searchInput = el("input", {
-    type: "text",
-    placeholder: "Search faculty by name, TSC number, subject, or class…",
-    class: "input input--sm",
-    style: "width:100%; margin-bottom:12px;",
-    onInput: (e) => {
-      searchQuery = e.target.value;
-      renderList(listMount);
-    },
-  });
+  function tagGroup(label, items) {
+    return items.length ? el("div", { class: "tt-workload-tags" }, [
+      el("strong", {}, label),
+      ...items.map((item) => el("span", {}, item)),
+    ]) : null;
+  }
 
-  const listMount = el("div", { style: "max-height:420px; overflow-y:auto; padding-right:4px;" });
+  function renderList() {
+    const query = search.value.toLowerCase().trim();
+    const words = query.split(/\s+/);
+    const matches = faculty.filter(({ searchable }) => words.every((word) => searchable.includes(word)));
+    resultCount.textContent = query ? `${matches.length} of ${faculty.length} teachers` : "";
+    message.hidden = matches.length > 0;
+    message.textContent = faculty.length ? "No teachers match your search." : "No faculty members have been added.";
+    list.replaceChildren(...matches.map(({ teacher, name, homeroom, classes, subjectNames, slots }) => {
+      const count = slots.length;
+      const [status, level] = count === 0 ? ["Unassigned", "none"] : count < lightLoadThreshold ? ["Light load", "light"] :
+        count <= heavyLoadThreshold ? ["Within range", "in-range"] : ["Heavy load", "heavy"];
+      const details = [teacher.tscNumber && `TSC ${teacher.tscNumber}`, homeroom && `Class teacher · ${homeroom}`].filter(Boolean);
+      return el("li", { class: "tt-workload-card" }, [
+        el("div", { class: "tt-workload-card-head" }, [
+          el("div", {}, [
+            el("h4", {}, name),
+            details.length ? el("small", {}, details.join(" · ")) : null,
+          ]),
+          el("div", { class: "tt-workload-count" }, [
+            el("strong", {}, `${count} ${count === 1 ? "period" : "periods"}`),
+            el("span", { class: "tt-workload-status", "data-level": level }, status),
+          ]),
+        ]),
+        el("dl", { class: "tt-workload-days", "aria-label": "Periods by day" }, DAYS.map((day) =>
+          el("div", {}, [
+            el("dt", { title: day }, day.slice(0, 3)),
+            el("dd", {}, slots.filter((slot) => slot.day === day).length),
+          ]))),
+        tagGroup("Subjects", subjectNames),
+        tagGroup("Classes", classes),
+      ]);
+    }));
+    scroll.scrollTop = 0;
+  }
 
-  modalBody.append(summaryHeader, searchInput, listMount);
-  renderList(listMount);
-
-  openModal({
-    title: "Faculty Workload & Lesson Distribution",
-    content: modalBody,
-    actions: [
-      {
-        label: "Export Excel (.xlsx)",
-        variant: "ghost",
-        onClick: (e) => exportMasterToExcel(e),
-      },
-      {
-        label: "Close",
-        variant: "secondary",
-        onClick: () => true,
-      },
-    ],
-  });
+  const modalBody = el("div", { class: "tt-workload-body" }, [
+    metrics,
+    el("div", { class: "tt-workload-search" }, [
+      el("div", { class: "tt-workload-search-label" }, [
+        el("label", { for: search.id }, "Find a teacher"),
+        resultCount,
+      ]),
+      el("div", { class: "tt-workload-search-field" }, [icon("search", "text-sm", { "aria-hidden": "true" }), search]),
+    ]),
+    scroll,
+    el("div", { class: "tt-workload-footer" }, [
+      el("small", {}, `Workload reference · ${lightLoadThreshold}–${heavyLoadThreshold} periods per week`),
+      el("button", {
+        type: "button", class: "btn btn--outline btn--sm", onClick: exportMasterToExcel,
+      }, [icon("download", "text-xs"), "Export Excel"]),
+    ]),
+  ]);
+  renderList();
+  openModal("Faculty workload", modalBody, "tt-workload-modal");
+  modalBody.parentElement.setAttribute("role", "dialog");
+  modalBody.parentElement.setAttribute("aria-modal", "true");
+  modalBody.parentElement.setAttribute("aria-label", "Faculty workload");
 }
 
 async function exportMasterToExcel(e) {
