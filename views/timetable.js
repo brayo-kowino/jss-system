@@ -3032,7 +3032,3 @@ function renderWelcomeDisclaimers(container, mode = "class") {
   ]);
   container.append(welcomeCard);
 }
-
-export function init() {
-  prewarmPdfLibs();
-}

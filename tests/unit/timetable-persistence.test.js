@@ -73,7 +73,7 @@ import {
   getTeacherTimetable, getTimetableRoomMode, listPeriods, loadTimetableDraftInputs, publishTimetableDraft, setTimetableRoomMode,
 } from "../../js/services/timetable.service.js";
 import { triggerBlobDownload } from "../../js/services/pdf.util.js";
-import { render } from "../../views/timetable.js";
+import * as timetableView from "../../views/timetable.js";
 
 const legacy = {
   schoolId: "school", grade: "Grade 7", stream: "Blue", day: "Monday", periodId: "p1", subjectCode: "ENG",
@@ -160,7 +160,9 @@ describe("Publishing a timetable draft", () => {
   it("previews a draft from the module and replaces the old lessons only on save", async () => {
     firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
     await getMasterTimetable(true);
-    document.body.append(await render({ profile: { role: "admin", uid: "admin" }, params: { tab: "master" } }));
+    const context = { profile: { role: "admin", uid: "admin" }, params: { tab: "master" } };
+    document.body.append(await timetableView.render(context));
+    await timetableView.init?.(context);
     const button = (label) => [...document.querySelectorAll("button")].find((node) => node.textContent.includes(label));
     button("Generate timetable").click();
     await vi.waitFor(() => expect(button("Preview timetable")).toBeDefined());
@@ -187,7 +189,7 @@ describe("Publishing a timetable draft", () => {
     firestore.docs.set("periods/p1", { schoolId: "school", name: "Period 1", startTime: "08:00", endTime: "08:40" });
     firestore.docs.set("timetable_slots/legacy-slot", { ...legacy, room: "Science Lab" });
     await getMasterTimetable(true);
-    document.body.append(await render({ profile: { role: "admin", uid: "admin" }, params: { tab: "periods" } }));
+    document.body.append(await timetableView.render({ profile: { role: "admin", uid: "admin" }, params: { tab: "periods" } }));
     const toggle = document.querySelector('[role="switch"]');
     expect(toggle.checked).toBe(false);
     toggle.checked = true;
@@ -199,7 +201,7 @@ describe("Publishing a timetable draft", () => {
     document.querySelector('[data-tab="master"]').click();
     await vi.waitFor(() => expect(document.querySelector(".tt-chart").textContent).toContain("Science Lab"));
     await setTimetableRoomMode("admin", false);
-    document.body.replaceChildren(await render({ profile: { role: "admin", uid: "admin" }, params: { tab: "master" } }));
+    document.body.replaceChildren(await timetableView.render({ profile: { role: "admin", uid: "admin" }, params: { tab: "master" } }));
     expect(document.querySelector(".tt-chart").textContent).not.toContain("Science Lab");
     expect((await getMasterTimetable())[0].room).toBe("Science Lab");
   });
