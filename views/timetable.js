@@ -122,7 +122,7 @@ export function openWorkflowGuideModal() {
   }, [
     icon("alt_route", "text-sm", "style: color:var(--color-primary-800); margin-top:2px; flex-shrink:0;"),
     el("div", {}, [
-      el("strong", {}, "Kenya Junior School · CBC Timetable Implementation Protocol: "),
+      el("strong", {}, "Timetable Implementation Protocol: "),
       "Follow this sequential 6-step roadmap to establish, balance, and distribute verified collision-free timetables across all cohorts and faculty.",
     ]),
   ]);
@@ -501,7 +501,7 @@ export async function render({ profile, params = {} }) {
 
 
   wrap.append(el("div", { class: "tt-module-heading" }, [
-    el("h1", {}, "Timetable"),
+    el("h1", {}, ""),
     canManage ? el("button", {
       type: "button", class: "btn btn--ghost btn--sm", onClick: () => openWorkflowGuideModal(),
     }, [icon("help", "text-xs"), "Setup guide"]) : null,
