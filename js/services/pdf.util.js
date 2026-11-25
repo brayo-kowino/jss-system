@@ -216,7 +216,7 @@ function flattenFilename(name) {
     .trim();
 }
 
-function triggerBlobDownload(blob, filename) {
+export function triggerBlobDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -255,10 +255,10 @@ export async function downloadPdfsAsZip(items, zipFilename, { onProgress, scale 
   const BATCH_SIZE = 20;
   
   for (let i = 0; i < items.length; i++) {
-    const { filename, build } = items[i];
-    const node = await build();
+    const { filename, build, buildBlob } = items[i];
+    const node = buildBlob ? null : await build();
     try {
-      const blob = await renderElementToPdfBlob(node, { scale, orientation });
+      const blob = buildBlob ? await buildBlob() : await renderElementToPdfBlob(node, { scale, orientation });
       let flatName = flattenFilename(filename);
       if (usedNames.has(flatName)) {
         const dot = flatName.lastIndexOf(".");

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   detectTimetableConflicts,
   buildCollisionFreeSchedule,
+  createTimetableDraft,
   DAYS,
   DEFAULT_PERIODS,
   generateSecureShareToken,
@@ -16,8 +17,110 @@ import {
   MAX_TEACHER_WEEKLY_LESSONS,
   MAX_TEACHER_DAILY_LESSONS,
 } from "../../js/services/timetable.service.js";
+import { buildTimetableGrid } from "../../js/services/timetable-layout.js";
+import { renderTimetablePdf } from "../../js/services/timetable-pdf.js";
 
 describe("Timetable Conflict Detection & Scheduling Engine", () => {
+  it("honours class overrides and keeps a practical block with its assigned teacher and room", () => {
+    const [first, second] = [{ grade: "Grade 7", stream: "Blue" }, { grade: "Grade 7", stream: "Green" }];
+    const periods = DEFAULT_PERIODS.map((period, index) => ({ ...period, id: `p${index}` }));
+    const plan = [{ code: "SCI", count: 2, double: true, room: "Science Lab" }];
+    const result = createTimetableDraft({
+      cohorts: [first, second], instructionalPeriods: periods, periods,
+      subjects: [{ code: "SCI", name: "Integrated Science" }],
+      teachers: [{ id: "science", fullName: "A. Mwangi", teachingAssignments: [{ ...first, subjectCode: "SCI" }] }],
+      plan, cohortPlans: [{ ...second, plan: [{ code: "SCI", count: 1, room: "Science Lab" }] }],
+    });
+    expect(result).toMatchObject({ scheduled: 3, staffed: 2, doubles: 1 });
+    expect(result.issues).toMatchObject([{ ...second, hasTeacher: false, unassigned: 1 }]);
+    const science = result.slots.filter(({ stream }) => stream === first.stream);
+    expect(science.every((slot) => slot.isDouble && slot.teacherId === "science" && slot.room === "Science Lab")).toBe(true);
+    expect(science[0].day).toBe(science[1].day);
+    expect(periods.find((p) => p.id === science[0].periodId).endTime)
+      .toBe(periods.find((p) => p.id === science[1].periodId).startTime);
+    expect(detectTimetableConflicts(result.slots)).toEqual([]);
+  });
+
+  it("reports unavoidable room shortages and leaves saved activities in place", () => {
+    const cohorts = [{ grade: "Grade 7" }, { grade: "Grade 8" }];
+    const periods = [{ id: "first", name: "Period 1", startTime: "08:00", endTime: "08:40" },
+      { id: "second", name: "Period 2", startTime: "08:40", endTime: "09:20" }];
+    const activity = { ...cohorts[0], day: "Monday", periodId: "first", subjectCode: "CLUB", isActivity: true };
+    const result = createTimetableDraft({
+      cohorts, periods, instructionalPeriods: periods, days: ["Monday"],
+      subjects: [{ code: "SCI", name: "Science" }, { code: "PTS", name: "Pre-Technical Studies" }],
+      plan: [{ code: "SCI", count: 1, room: "Hall Lab" }],
+      cohortPlans: [{ ...cohorts[1], plan: [
+        { code: "SCI", count: 1, room: "Hall Lab" }, { code: "PTS", count: 1, room: "Hall Lab" },
+      ] }],
+      lockedSlots: [activity],
+    });
+    expect(result.slots).toContainEqual(activity);
+    expect(result.scheduled).toBe(2);
+    expect(result.issues.some((issue) => issue.unscheduled === 1 && issue.roomOverCapacity === "Hall Lab")).toBe(true);
+    expect(detectTimetableConflicts(result.slots)).toEqual([]);
+  });
+
+  it("uses separate usual classrooms when named rooms are off, preserving rooms in the plan", () => {
+    const cohorts = [{ grade: "Grade 7", stream: "East" }, { grade: "Grade 7", stream: "West" }];
+    const periods = [{ id: "first", name: "Period 1", startTime: "08:00", endTime: "08:40" }];
+    const options = {
+      cohorts, periods, instructionalPeriods: periods, days: ["Monday"],
+      subjects: [{ code: "SCI", name: "Science" }],
+      plan: [{ code: "SCI", count: 1, room: "Science Lab" }],
+    };
+    const draft = createTimetableDraft({ ...options, useNamedRooms: false });
+    expect(draft.scheduled).toBe(2);
+    expect(draft.plan[0].room).toBe("Science Lab");
+    expect(detectTimetableConflicts(draft.slots, { useNamedRooms: false })).toEqual([]);
+    const withSameTeacher = draft.slots.map((slot) => ({ ...slot, teacherId: "teacher" }));
+    expect(detectTimetableConflicts(withSameTeacher, { useNamedRooms: false }).map(({ type }) => type)).toEqual(["teacher"]);
+    expect(createTimetableDraft({ ...options, useNamedRooms: true }).scheduled).toBe(1);
+    expect(createTimetableDraft({ ...options, plan: [{ code: "SCI", count: 1, room: "Classroom" }] }).scheduled).toBe(2);
+  });
+
+  it("refuses to generate from overlapping bell periods", () => {
+    const periods = [
+      { id: "a", name: "Period 1", startTime: "08:00", endTime: "08:40" },
+      { id: "b", name: "Period 2", startTime: "08:30", endTime: "09:10" },
+    ];
+    expect(() => createTimetableDraft({ cohorts: [{ grade: "Grade 7" }], instructionalPeriods: periods, periods }))
+      .toThrow(/Period 2 overlaps Period 1/);
+  });
+
+  it("merges adjacent practical lessons in a wall chart and keeps their second-period conflict visible", () => {
+    const periods = DEFAULT_PERIODS.slice(0, 3).map((period, index) => ({ ...period, id: `p${index}` }));
+    const slot = { grade: "Grade 7", subjectCode: "SCI", subjectName: "Science", teacherId: "teacher", room: "Lab A" };
+    const slots = [{ ...slot, id: "first" }, { ...slot, id: "second" }, { ...slot, room: "Lab B" }];
+    const grid = buildTimetableGrid({
+      kind: "master", periods, days: ["Monday"], cohorts: [{ grade: "Grade 7" }],
+      conflictIds: new Set(["second"]), getSlot: (day, id) => slots[Number(id.slice(1))],
+    });
+    expect(grid.groups[0].rows[0].cells).toMatchObject([
+      { colspan: 2, conflict: true, detail: "Lab A" }, { colspan: 1, detail: "Lab B" },
+    ]);
+    const teacherGrid = buildTimetableGrid({
+      kind: "teacher", periods, days: ["Monday"], useNamedRooms: false, getSlot: (day, id) => slots[Number(id.slice(1))],
+    });
+    expect(teacherGrid.groups[0].rows[0].cells).toMatchObject([
+      { colspan: 2, detail: "Grade 7" }, { colspan: 1 },
+    ]);
+  });
+
+  it("paginates a large landscape PDF while preserving text content", async () => {
+    const periods = DEFAULT_PERIODS.map((period, index) => ({ ...period, id: `p${index}` }));
+    const cohorts = Array.from({ length: 25 }, (_, index) => ({ grade: `Grade ${index + 1}` }));
+    const grid = buildTimetableGrid({
+      kind: "master", periods, cohorts, days: DAYS,
+      getSlot: () => ({ subjectName: "Advanced Practical Science", room: "Science Lab", teacherName: "A. Mwangi" }),
+    });
+    const pdf = await renderTimetablePdf(grid, { school: "Kilimani Junior School", title: "Master timetable" });
+    const source = new TextDecoder("windows-1252").decode(await pdf.arrayBuffer());
+    expect(source).toMatch(/^%PDF-/);
+    expect(source.match(/\/Type \/Page\b/g).length).toBeGreaterThan(1);
+    expect(source).toContain("/BaseFont /Times-Bold");
+  });
+
   describe("detectTimetableConflicts()", () => {
     it("reports 0 conflicts when slots are collision-free", () => {
       const slots = [
@@ -578,7 +681,7 @@ describe("Timetable Conflict Detection & Scheduling Engine", () => {
       expect(html).toContain("Mr. Mwangi");
       expect(html).toContain("Short Break");
       expect(html).toContain("Lunch");
-      expect(html).toContain("Games & Clubs");
+      expect(new DOMParser().parseFromString(html, "text/html").body.textContent).toContain("Games & Clubs");
       expect(html).toContain("window.print()");
       expect(html).toContain("@media print");
     });

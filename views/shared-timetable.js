@@ -1,6 +1,9 @@
-import { el, icon, toast, skeleton, busyButton, escapeHtml } from "../js/utils.js";
-import { DAYS, getSharedTimetable, downloadStandaloneTimetableHtml, isDoubleAllowed } from "../js/services/timetable.service.js";
-import { downloadElementAsPdf, prewarmPdfLibs } from "../js/services/pdf.util.js";
+import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
+import { getSharedTimetable, downloadStandaloneTimetableHtml } from "../js/services/timetable.service.js";
+import { triggerBlobDownload } from "../js/services/pdf.util.js";
+import { sharedTimetableDisplay } from "../js/services/timetable-layout.js";
+import { renderTimetableChart } from "../js/components/timetable-grid.js";
+import { renderTimetablePdf } from "../js/services/timetable-pdf.js";
 
 /**
  * Public standalone shared timetable view.
@@ -104,41 +107,8 @@ export async function render({ params = {} }) {
 }
 
 function renderTimetableContent(container, data) {
-  prewarmPdfLibs();
-  const school = data.schoolInfo || {};
-  const periods = data.periods || [];
-  const slots = data.slots || [];
-  const schoolName = school.name || "School Timetable";
-  const motto = school.motto || "";
-  const currentYear = school.academicYear || new Date().getFullYear();
-  const currentTerm = school.term || "Term 1";
-
-  // Header Card
-  const header = el("div", {
-    class: "card",
-    style: "background:var(--color-primary-900, #0f2744); color:#ffffff; padding:20px 24px; margin-bottom:16px; border-radius:var(--radius-lg); box-shadow:0 2px 10px rgba(0,0,0,0.12);",
-  }, [
-    el("div", { style: "display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;" }, [
-      el("div", {}, [
-        school.logoUrl ? el("img", {
-          src: school.logoUrl,
-          alt: "Logo",
-          style: "max-height:48px; max-width:90px; object-fit:contain; margin-bottom:8px; background:#fff; border-radius:4px; padding:2px;",
-        }) : null,
-        el("h1", { style: "font-family:var(--font-heading); font-size:22px; font-weight:800; letter-spacing:0.03em; margin:0; text-transform:uppercase; color:#fff;" }, schoolName),
-        motto ? el("div", { style: "font-size:12px; font-style:italic; opacity:0.85; margin-top:2px;" }, `"${motto}"`) : null,
-        el("div", { style: "font-size:14px; font-weight:700; color:var(--color-gold, #f59e0b); margin-top:8px;" }, data.title),
-        data.subTitle ? el("div", { style: "font-size:12px; opacity:0.9; margin-top:2px;" }, data.subTitle) : null,
-      ].filter(Boolean)),
-      el("div", {
-        style: "background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.25); border-radius:var(--radius-md); padding:10px 16px; text-align:right;",
-      }, [
-        el("div", { style: "font-size:13px; font-weight:700;" }, currentTerm),
-        el("div", { style: "font-size:11px; opacity:0.85;" }, `Academic Year ${currentYear}`),
-        el("div", { style: "font-size:10px; opacity:0.75; margin-top:4px; text-transform:uppercase; letter-spacing:0.04em;" }, "Official Verified Schedule"),
-      ]),
-    ]),
-  ]);
+  const { grid, letterhead } = sharedTimetableDisplay(data);
+  const format = grid.kind === "master" ? "a3" : "a4";
 
   // Actions & Offline Status Bar
   const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
@@ -178,13 +148,13 @@ function renderTimetableContent(container, data) {
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm",
-        title: "Download official A4 landscape PDF",
+        title: "Download landscape timetable PDF",
         onClick: async (e) => {
           const btn = e.currentTarget;
           const restore = busyButton(btn, "Preparing PDF…");
           try {
             const filename = `${(data.title || "Timetable").replace(/[^a-zA-Z0-9_\-]/g, "_")}_${data.schoolInfo?.academicYear || new Date().getFullYear()}.pdf`;
-            await downloadElementAsPdf(container, filename, { orientation: "landscape" });
+            triggerBlobDownload(await renderTimetablePdf(grid, letterhead, { format }), filename);
             toast("Timetable PDF downloaded.", "success");
           } catch (err) {
             console.error("Shared timetable PDF error:", err);
@@ -214,292 +184,7 @@ function renderTimetableContent(container, data) {
     ]),
   ]);
 
-  // Timetable Grid
-  const gridCard = el("div", { class: "card", style: "padding:0; overflow:hidden; border:1px solid var(--color-line); border-radius:var(--radius-lg); margin-bottom:20px;" });
-  const scrollWrap = el("div", { class: "tt-scroll", style: "overflow-x:auto;" });
-
-  const table = el("table", { class: "tt-wall-chart", style: "width:100%; border-collapse:collapse; min-width:840px;" });
-
-  // Map slots
-  const slotMap = new Map();
-  for (const s of slots) {
-    const key = `${s.grade || ""}_${s.stream || ""}_${s.day}_${s.periodId}`;
-    slotMap.set(key, s);
-  }
-
-  const isMaster = data.type === "master";
-
-  // Derive unique cohorts (only needed for institutional master timetable)
-  const cohortKeys = new Set();
-  const cohorts = [];
-  if (isMaster) {
-    for (const s of slots) {
-      const key = `${s.grade || ""}|${s.stream || ""}`;
-      if (!cohortKeys.has(key)) {
-        cohortKeys.add(key);
-        const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
-        cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
-      }
-    }
-    if (!cohorts.length) {
-      cohorts.push({ grade: "", stream: "", label: "All Classes" });
-    }
-  }
-
-  // Table Thead
-  const thead = el("thead", {});
-  const headRow = el("tr", {});
-  headRow.append(
-    el("th", { class: "tt-wall-th-day", style: "width:60px;" }, "DAY")
-  );
-  if (isMaster && cohorts.length > 1) {
-    headRow.append(el("th", { class: "tt-wall-th-class", style: "width:110px;" }, "CLASS"));
-  }
-
-  for (const p of periods) {
-    if (p.isBreak) {
-      headRow.append(
-        el("th", { class: "tt-wall-th-break" }, [
-          el("div", { class: "tt-wall-p-name" }, p.name),
-          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
-        ])
-      );
-    } else {
-      headRow.append(
-        el("th", { class: "tt-wall-th-period" }, [
-          el("div", { class: "tt-wall-p-name" }, p.name),
-          el("div", { class: "tt-wall-p-time" }, `${p.startTime}–${p.endTime}`),
-        ])
-      );
-    }
-  }
-  thead.append(headRow);
-  table.append(thead);
-
-  // Table Tbody
-  const tbody = el("tbody", {});
-
-  if (isMaster && cohorts.length > 1) {
-    // Multi-cohort Master Matrix: Grouped by day with a row per class cohort
-    for (const day of DAYS) {
-      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
-        const cohort = cohorts[cIdx];
-        const isFirst = cIdx === 0;
-        const isLast = cIdx === cohorts.length - 1;
-
-        const row = el("tr", { class: `tt-wall-row ${isLast ? "tt-wall-row--last-in-day" : ""}` });
-
-        if (isFirst) {
-          row.append(
-            el("td", { rowspan: String(cohorts.length), class: "tt-wall-day-cell", style: "width:60px;" }, [
-              el("div", { class: "tt-wall-day-label" }, [
-                el("span", {}, day.substring(0, 4).toUpperCase()),
-              ]),
-            ])
-          );
-        }
-
-        row.append(
-          el("td", { class: "tt-wall-class-cell", style: "width:110px;" }, [
-            el("span", { class: "tt-wall-class-name" }, cohort.label),
-          ])
-        );
-
-        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
-          const p = periods[pIdx];
-
-          if (p.isBreak) {
-            if (isFirst) {
-              row.append(
-                el("td", { rowspan: String(cohorts.length), class: "tt-wall-break-cell" }, [
-                  el("div", { class: "tt-wall-break-text" }, [
-                    icon("coffee", "text-xs"),
-                    `${p.name} (${p.startTime}–${p.endTime})`,
-                  ]),
-                ])
-              );
-            }
-            continue;
-          }
-
-          const slot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${p.id}`) || null;
-
-          // Double lesson check
-          let isMerged = false;
-          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
-            const nextP = periods[pIdx + 1];
-            if (!nextP.isBreak) {
-              const nextSlot = slotMap.get(`${cohort.grade}_${cohort.stream}_${day}_${nextP.id}`);
-              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
-                isMerged = true;
-              }
-            }
-          }
-
-          if (isMerged) {
-            const td = el("td", { colspan: "2", class: "tt-wall-slot-cell tt-wall-slot-cell--merged" }, [
-              el("div", { class: "tt-wall-subj-line" }, [
-                el("span", { class: "tt-wall-subj" }, slot.subjectName || slot.subjectCode),
-                el("span", { class: "tt-wall-tag-double" }, "Double"),
-              ]),
-              el("div", { class: "tt-wall-teacher" }, slot.teacherName || "—"),
-              el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
-            ]);
-            row.append(td);
-            pIdx++;
-            continue;
-          }
-
-          if (slot) {
-            const td = el("td", { class: "tt-wall-slot-cell" }, [
-              el("div", { class: "tt-wall-subj-line" }, [
-                el("span", { class: "tt-wall-subj" }, slot.subjectName || slot.subjectCode),
-              ]),
-              el("div", { class: "tt-wall-teacher" }, slot.teacherName || "—"),
-              el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
-            ]);
-            row.append(td);
-          } else {
-            const td = el("td", { class: "tt-wall-slot-cell" }, [
-              el("div", {
-                style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:var(--color-cream-dim); border-radius:4px; border:1px solid var(--color-line); color:var(--color-ink-soft); font-size:10px; font-weight:600; font-style:italic;",
-              }, "—"),
-            ]);
-            row.append(td);
-          }
-        }
-
-        tbody.append(row);
-      }
-    }
-  } else {
-    // Individual Schedule (Teacher or Single Class): Exactly 1 clean row per Day!
-    for (let dIdx = 0; dIdx < DAYS.length; dIdx++) {
-      const day = DAYS[dIdx];
-      const isFirst = dIdx === 0;
-      const isLast = dIdx === DAYS.length - 1;
-
-      const row = el("tr", { class: `tt-wall-row ${isLast ? "tt-wall-row--last-in-day" : ""}` });
-
-      // Day column (1 row per day)
-      row.append(
-        el("td", { class: "tt-wall-day-cell", style: "width:60px;" }, [
-          el("div", { class: "tt-wall-day-label" }, [
-            el("span", {}, day.substring(0, 4).toUpperCase()),
-          ]),
-        ])
-      );
-
-      for (let pIdx = 0; pIdx < periods.length; pIdx++) {
-        const p = periods[pIdx];
-
-        if (p.isBreak) {
-          if (isFirst) {
-            row.append(
-              el("td", { rowspan: String(DAYS.length), class: "tt-wall-break-cell" }, [
-                el("div", { class: "tt-wall-break-text" }, [
-                  icon("coffee", "text-xs"),
-                  `${p.name} (${p.startTime}–${p.endTime})`,
-                ]),
-              ])
-            );
-          }
-          continue;
-        }
-
-        // Find the slot for this teacher/class on this day and period
-        const slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
-
-        // Check for double lesson
-        let isMerged = false;
-        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
-          const nextP = periods[pIdx + 1];
-          if (!nextP.isBreak) {
-            const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
-            if (nextSlot && nextSlot.subjectCode === slot.subjectCode) {
-              if (data.type === "teacher") {
-                if (nextSlot.grade === slot.grade && (nextSlot.stream || "") === (slot.stream || "")) {
-                  isMerged = true;
-                }
-              } else {
-                if (nextSlot.teacherId === slot.teacherId) {
-                  isMerged = true;
-                }
-              }
-            }
-          }
-        }
-
-        if (isMerged) {
-          const topLabel = data.type === "teacher"
-            ? `${slot.grade} ${slot.stream || ""}`.trim()
-            : (slot.subjectName || slot.subjectCode);
-          const subLabel = data.type === "teacher"
-            ? (slot.subjectName || slot.subjectCode)
-            : (slot.teacherName || "—");
-
-          const td = el("td", { colspan: "2", class: "tt-wall-slot-cell tt-wall-slot-cell--merged" }, [
-            el("div", { class: "tt-wall-subj-line" }, [
-              el("span", { class: "tt-wall-subj", style: data.type === "teacher" ? "font-weight:800; color:var(--color-primary-900);" : "" }, topLabel),
-              el("span", { class: "tt-wall-tag-double" }, "Double"),
-            ]),
-            el("div", { class: "tt-wall-teacher", style: data.type === "teacher" ? "font-weight:600; color:var(--color-ink);" : "" }, subLabel),
-            el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
-          ]);
-          row.append(td);
-          pIdx++;
-          continue;
-        }
-
-        if (slot) {
-          const topLabel = data.type === "teacher"
-            ? `${slot.grade} ${slot.stream || ""}`.trim()
-            : (slot.subjectName || slot.subjectCode);
-          const subLabel = data.type === "teacher"
-            ? (slot.subjectName || slot.subjectCode)
-            : (slot.teacherName || "—");
-
-          const td = el("td", { class: "tt-wall-slot-cell" }, [
-            el("div", { class: "tt-wall-subj-line" }, [
-              el("span", { class: "tt-wall-subj", style: data.type === "teacher" ? "font-weight:800; color:var(--color-primary-900);" : "" }, topLabel),
-            ]),
-            el("div", { class: "tt-wall-teacher", style: data.type === "teacher" ? "font-weight:600; color:var(--color-ink);" : "" }, subLabel),
-            el("div", { class: "tt-wall-room" }, slot.room || "Classroom"),
-          ]);
-          row.append(td);
-        } else {
-          const td = el("td", { class: "tt-wall-slot-cell" }, [
-            el("div", {
-              style: "height:100%; min-height:48px; display:flex; align-items:center; justify-content:center; background:var(--color-cream-dim); border-radius:4px; border:1px solid var(--color-line); color:var(--color-ink-soft); font-size:10px; font-weight:600; font-style:italic;",
-            }, data.type === "teacher" ? "FREE / PREP" : "—"),
-          ]);
-          row.append(td);
-        }
-      }
-
-      tbody.append(row);
-    }
-  }
-
-  table.append(tbody);
-  scrollWrap.append(table);
-  gridCard.append(scrollWrap);
-
-  // Footer & Institutional Verification
-  const footerCard = el("div", {
-    class: "card",
-    style: "padding:16px 22px; font-size:12px; color:var(--color-ink-soft); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;",
-  }, [
-    el("div", {}, [
-      el("strong", { style: "color:var(--color-primary-900);" }, `${schoolName} · ${currentTerm} Academic Year ${currentYear}`),
-      el("div", { style: "font-size:11px; margin-top:2px;" }, "Compiled & certified in accordance with Kenya MOE guidelines and TSC workload standards."),
-    ]),
-    el("div", { style: "font-size:11px; text-align:right;" }, [
-      el("span", { class: "badge badge--outline", style: "font-size:10.5px;" }, "Official CBC Timetable"),
-    ]),
-  ]);
-
-  container.append(header, actionsBar, gridCard, footerCard);
+  container.append(actionsBar, renderTimetableChart(grid, letterhead));
 }
 
 function showAddToHomeScreenDialog() {
@@ -515,6 +200,4 @@ function showAddToHomeScreenDialog() {
   alert(`Save to Your Phone Screen:\n\n${msg}\n\nThe timetable will open instantly without needing a login!`);
 }
 
-export function init() {
-  prewarmPdfLibs();
-}
+export function init() {}

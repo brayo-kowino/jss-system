@@ -1,21 +1,19 @@
 // Timetable.
 // periods/{autoId}: { schoolId, name, startTime, endTime, isBreak, createdAt }
-// timetable_slots/{schoolId__grade_stream_day_periodId}: { schoolId, grade,
-//   stream, day, periodId, subjectCode, subjectName, teacherId, teacherName,
-//   room, updatedBy, updatedAt }
-//
-// One deterministic doc per class per day per period - re-assigning the same
-// cell is a plain upsert. Teacher/room double-booking is checked at write
-// time against every other class's slot in that same day+period.
+// timetable_slots stores a school state document and one weekly document per
+// class or stream in each generation. Older generations can contain individual
+// period documents. Both formats are exposed as the same lesson records.
 import {
   collection,
   doc,
   addDoc,
   setDoc,
   updateDoc,
-  deleteDoc,
   getDoc,
+  getDocFromServer,
+  runTransaction,
   getDocs,
+  getDocsFromServer,
   query,
   where,
   writeBatch,
@@ -25,47 +23,23 @@ import { db } from "../firebase-config.js";
 import { slugify } from "./academic.service.js";
 import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
-import { scopedId } from "../utils.js";
-import { cached, invalidate, invalidatePrefix } from "./query-cache.js";
+import { escapeHtml, scopedId } from "../utils.js";
+import { renderTimetableChart } from "../components/timetable-grid.js";
+import { sharedTimetableDisplay } from "./timetable-layout.js";
+import timetableGridCss from "../../css/timetable-grid.css?raw";
+import { cached, invalidate } from "./query-cache.js";
 import { buildDeepLink } from "./deep-link.service.js";
 
-export const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+import { createTimetableDraft } from "./timetable-engine.js";
+import {
+  DAYS, areAdjacentTeachingPeriods, isBreakPeriod, namedTimetableRoom, roomBookingKey, timeToMinutes,
+} from "./timetable-rules.js";
 
-export const DOUBLE_ELIGIBLE_SUBJECTS = new Set([
-  "SCI", "INT_SCI", "INTEGRATED_SCIENCE", "SCIENCE",
-  "AGR", "AGRICULTURE",
-  "PTS", "PRE_TECH", "PRE_TECHNICAL", "PRE_TECHNICAL_STUDIES",
-  "COMP", "COMPUTER", "COMPUTER_SCIENCE",
-  "HOM", "HOME_SCIENCE",
-  "CRA", "CREATIVE_ARTS", "PA", "PERFORMING_ARTS", "VA", "VISUAL_ARTS",
-  "PE", "PHE", "PHYSICAL_EDUCATION",
-]);
-
-export function isDoubleEligibleSubject(code) {
-  if (!code) return false;
-  return DOUBLE_ELIGIBLE_SUBJECTS.has(String(code).toUpperCase().trim());
-}
-
-export function isDoubleAllowed(slot) {
-  if (!slot) return false;
-  if (slot.isDouble) return true;
-  return isDoubleEligibleSubject(slot.subjectCode);
-}
-
-export const MAX_TEACHER_WEEKLY_LESSONS = 28; // Kenya TSC maximum weekly workload
-export const MAX_TEACHER_DAILY_LESSONS = 6;    // Guarantees at least 2 free/prep periods per day
-
-/**
- * Resolves whether a period is a break/lunch/recess period.
- * Protects against periods named "Lunch", "Break", "Tea", etc. where an admin
- * forgot to check the isBreak checkbox in Period Configuration.
- */
-export function isBreakPeriod(period) {
-  if (!period) return false;
-  if (period.isBreak === true || period.isBreak === "true") return true;
-  const name = (period.name || "").toLowerCase().trim();
-  return /break|lunch|recess|tea\b|interval|games\b|clubs\b|assembly|devotion/i.test(name);
-}
+export {
+  DAYS, DOUBLE_ELIGIBLE_SUBJECTS, MAX_TEACHER_DAILY_LESSONS, MAX_TEACHER_WEEKLY_LESSONS,
+  SHARED_VENUES, isBreakPeriod, isDoubleAllowed, isDoubleEligibleSubject, timeToMinutes,
+} from "./timetable-rules.js";
+export { createTimetableDraft, defaultTimetablePlan } from "./timetable-engine.js";
 
 export const DEFAULT_PERIODS = [
   { name: "Period 1", startTime: "08:00", endTime: "08:40", isBreak: false },
@@ -125,8 +99,7 @@ export async function seedDefaultPeriodsIfEmpty() {
 
   // If duplicate periods exist from a previous concurrent seed, clean up unassigned duplicates
   if (existingDocs.length > DEFAULT_PERIODS.length) {
-    const slotsSnap = await getDocs(query(collection(db, "timetable_slots"), where("schoolId", "==", schoolId)));
-    const usedPeriodIds = new Set(slotsSnap.docs.map((d) => d.data().periodId));
+    const usedPeriodIds = new Set((await readSchedule(schoolId)).slots.map((slot) => slot.periodId));
     
     const seen = new Map();
     const duplicateIdsToDelete = [];
@@ -168,14 +141,6 @@ export async function seedDefaultPeriodsIfEmpty() {
   invalidate(periodsCacheKey());
 }
 
-export function timeToMinutes(timeStr) {
-  if (!timeStr || typeof timeStr !== "string") return 0;
-  const parts = timeStr.trim().split(":");
-  const h = parseInt(parts[0], 10) || 0;
-  const m = parseInt(parts[1], 10) || 0;
-  return h * 60 + m;
-}
-
 export function minutesToTime(totalMins) {
   const normalized = ((totalMins % 1440) + 1440) % 1440;
   const h = Math.floor(normalized / 60);
@@ -212,6 +177,12 @@ export async function addPeriod(userId, { name, startTime, endTime, isBreak }) {
 
 export async function updatePeriod(userId, id, { name, startTime, endTime, isBreak }) {
   const resolvedBreak = isBreakPeriod({ name, isBreak });
+  if (resolvedBreak) {
+    const { slots } = await readSchedule(getCurrentSchoolId(), { fromServer: true });
+    if (slots.some((slot) => slot.periodId === id)) {
+      throw new Error("Move or clear the lessons in this period before converting it to a break.");
+    }
+  }
   await updateDoc(doc(db, "periods", id), {
     name: name.trim(),
     startTime,
@@ -247,79 +218,61 @@ export async function batchUpdatePeriods(userId, updatedPeriods) {
 export async function resetToStandardPeriods(userId) {
   const schoolId = getCurrentSchoolId();
   if (!schoolId) return;
-  const snap = await getDocs(query(collection(db, "periods"), where("schoolId", "==", schoolId)));
-  const batch = writeBatch(db);
-  for (const d of snap.docs) {
-    batch.delete(doc(db, "periods", d.id));
+  const [snap, schedule] = await Promise.all([
+    getDocsFromServer(query(collection(db, "periods"), where("schoolId", "==", schoolId))),
+    readSchedule(schoolId, { fromServer: true }),
+  ]);
+  const standard = new Map(DEFAULT_PERIODS.map((period) => [
+    scopedId(schoolId, slugify(period.name), slugify(period.startTime)), period,
+  ]));
+  if (schedule.slots.some(({ periodId }) => !standard.has(periodId) || isBreakPeriod(standard.get(periodId)))) {
+    throw new Error("The saved timetable uses custom periods. Move or clear those lessons before resetting the bell schedule.");
   }
-  for (const p of DEFAULT_PERIODS) {
-    const periodId = scopedId(schoolId, slugify(p.name), slugify(p.startTime));
-    batch.set(doc(db, "periods", periodId), { ...p, schoolId, createdAt: serverTimestamp() }, { merge: true });
-  }
-  await batch.commit();
+  await commitTimetableChange(schoolId, schedule.revision, (transaction) => {
+    for (const item of snap.docs) {
+      if (!standard.has(item.id)) transaction.delete(item.ref);
+    }
+    for (const [periodId, period] of standard) {
+      transaction.set(doc(db, "periods", periodId), { ...period, schoolId, createdAt: serverTimestamp() }, { merge: true });
+    }
+  });
   invalidate(periodsCacheKey());
   await logAction(userId, "reset_periods", "periods", schoolId);
 }
 
 export async function deletePeriod(userId, id) {
-  const snap = await getDocs(
-    query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("periodId", "==", id))
-  );
-  if (snap.size > 0) {
-    throw new Error(`Cannot delete: ${snap.size} timetable slot(s) still use this period. Clear them first.`);
+  const schoolId = getCurrentSchoolId();
+  const { revision, slots } = await readSchedule(schoolId, { fromServer: true });
+  const used = slots.filter((slot) => slot.periodId === id).length;
+  if (used > 0) {
+    throw new Error(`Cannot delete: ${used} timetable slot(s) still use this period. Clear them first.`);
   }
-  await deleteDoc(doc(db, "periods", id));
+  await commitTimetableChange(schoolId, revision, (transaction) => {
+    transaction.delete(doc(db, "periods", id));
+  });
   invalidate(periodsCacheKey());
   await logAction(userId, "delete_period", "periods", id);
 }
 
 // ------------------------------------------------------------------- Slots --
 
-function slotId(schoolId, grade, stream, day, periodId) {
-  return scopedId(schoolId, slugify(grade), slugify(stream), slugify(day), periodId);
-}
-
-function classTimetableCacheKey(grade, stream) {
-  return `timetable_class:${getCurrentSchoolId()}:${grade}:${stream}`;
-}
-
-function teacherTimetableCacheKey(teacherId) {
-  return `timetable_teacher:${getCurrentSchoolId()}:${teacherId}`;
-}
-
 function masterTimetableCacheKey() {
   return `timetable_master:${getCurrentSchoolId()}`;
 }
 
-/** Returns all timetable slots for the school. */
+/** Returns all currently published slots for the school. */
 export async function getMasterTimetable(forceRefresh = false) {
+  const schoolId = getCurrentSchoolId();
   const key = masterTimetableCacheKey();
   if (forceRefresh) invalidate(key);
-  return cached(key, 60 * 60_000, async () => {
-    const snap = await getDocs(
-      query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()))
-    );
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
+  return cached(key, 60 * 60_000, async () => (await readSchedule(schoolId)).slots);
 }
-
-export const SHARED_VENUES = [
-  "field",
-  "sports field",
-  "pitch",
-  "playground",
-  "assembly ground",
-  "school grounds",
-  "school hall",
-  "hall",
-  "dining hall",
-];
 
 /**
  * Scans a list of slots and identifies any teacher or room double-bookings.
  * Returns an array of detected conflict descriptors.
  */
-export function detectTimetableConflicts(slots) {
+export function detectTimetableConflicts(slots, { useNamedRooms = true } = {}) {
   const conflicts = [];
   const byDayPeriodTeacher = new Map();
   const byDayPeriodRoom = new Map();
@@ -338,9 +291,8 @@ export function detectTimetableConflicts(slots) {
     }
 
     // Check room collision (only if room is specified and not a shared outdoor/assembly venue)
-    const room = (slot.room || "").trim().toLowerCase();
-    const isSharedVenue = room && SHARED_VENUES.some((v) => room.includes(v));
-    if (room && !isSharedVenue) {
+    const room = useNamedRooms ? roomBookingKey(slot.room) : "";
+    if (room) {
       const key = `${slot.day}_${slot.periodId}_${room}`;
       if (!byDayPeriodRoom.has(key)) {
         byDayPeriodRoom.set(key, []);
@@ -391,839 +343,326 @@ export function detectTimetableConflicts(slots) {
  * Pure scheduler that distributes subjects and teachers across instructional periods
  * guaranteeing ZERO teacher collisions and balanced daily distribution.
  */
-function shuffleArray(arr) {
-  const result = [...arr];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
+export function buildCollisionFreeSchedule(options) {
+  return createTimetableDraft(options).slots;
 }
 
-/**
- * Generates one candidate weekly timetable with period-shuffling and collision prevention.
- */
-function generateSingleScheduleAttempt({
-  cohorts,
-  instructionalPeriods,
-  allPeriods = [],
-  days,
-  subjects,
-  teachers,
-}) {
-  const totalPeriodsPerDay = instructionalPeriods.length;
-  const totalSlotsPerWeek = days.length * totalPeriodsPerDay;
-
-  // Standard CBC lessons per week distribution
-  const defaultLessonDistribution = {
-    MATH: 5,
-    ENG: 5,
-    KIS: 4,
-    SCI: 4,
-    AGR: 4,
-    PTS: 4,
-    SST: 3,
-    CRE: 3,
-    IRE: 3,
-    HRE: 3,
-    CRA: 5,
-  };
-
-  const generatedSlots = [];
-  const cohortPools = new Map();
-
-  // Track global lesson assignments across teachers during pool construction
-  const teacherAssignedLessons = new Map();
-
-  for (const cohort of cohorts) {
-    const cohortKey = `${cohort.grade}_${cohort.stream}`;
-    const pool = [];
-
-    for (const subj of subjects) {
-      const count = defaultLessonDistribution[subj.code] || 3;
-
-      // 1. Exact match for this cohort (grade + stream + subject) respecting weekly cap
-      let assignedTeacher = teachers.find((t) =>
-        (t.teachingAssignments || []).some(
-          (a) =>
-            a.subjectCode === subj.code &&
-            a.grade === cohort.grade &&
-            a.stream &&
-            a.stream === cohort.stream
-        ) && (teacherAssignedLessons.get(t.id) || 0) + count <= MAX_TEACHER_WEEKLY_LESSONS
-      );
-
-      // 2. Grade-level match (same grade, no stream specified) respecting weekly cap
-      if (!assignedTeacher) {
-        assignedTeacher = teachers.find((t) =>
-          (t.teachingAssignments || []).some(
-            (a) =>
-              a.subjectCode === subj.code &&
-              a.grade === cohort.grade &&
-              !a.stream
-          ) && (teacherAssignedLessons.get(t.id) || 0) + count <= MAX_TEACHER_WEEKLY_LESSONS
-        );
-      }
-
-      // 3. Fallback: Qualified teacher for this subject who is NOT already over weekly capacity
-      if (!assignedTeacher) {
-        const eligible = teachers.filter((t) => {
-          const teachesSubj = (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code);
-          const currentLoad = teacherAssignedLessons.get(t.id) || 0;
-          return teachesSubj && currentLoad + count <= MAX_TEACHER_WEEKLY_LESSONS;
-        });
-        // Prioritize teacher with lowest workload
-        eligible.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
-        assignedTeacher = eligible[0] || null;
-      }
-
-      // 4. Practical staffing fallback: If all qualified teachers exceed the ideal 28 cap (e.g. understaffed school),
-      // assign the admin's explicitly designated teacher rather than dropping the teacher and leaving slots unassigned
-      if (!assignedTeacher) {
-        const designated = teachers.filter((t) =>
-          (t.teachingAssignments || []).some(
-            (a) =>
-              a.subjectCode === subj.code &&
-              a.grade === cohort.grade &&
-              (!a.stream || a.stream === cohort.stream)
-          )
-        );
-        if (designated.length > 0) {
-          designated.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
-          assignedTeacher = designated[0];
-        } else {
-          const anyQualified = teachers.filter((t) =>
-            (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code)
-          );
-          if (anyQualified.length > 0) {
-            anyQualified.sort((a, b) => (teacherAssignedLessons.get(a.id) || 0) - (teacherAssignedLessons.get(b.id) || 0));
-            assignedTeacher = anyQualified[0];
-          }
-        }
-      }
-
-      const tid = assignedTeacher?.id || "";
-      const tname = assignedTeacher?.fullName || "";
-      if (tid) {
-        teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + count);
-      }
-
-      for (let i = 0; i < count; i++) {
-        pool.push({
-          subjectCode: subj.code,
-          subjectName: subj.name,
-          teacherId: tid,
-          teacherName: tname,
-        });
-      }
-    }
-
-    // Pad pool to match total weekly slots exactly without violating subject caps
-    if (pool.length < totalSlotsPerWeek && subjects.length > 0) {
-      const eligibleForPadding = subjects.filter((s) => {
-        const curCount = pool.filter((c) => c.subjectCode === s.code).length;
-        const maxWeekly = isDoubleEligibleSubject(s.code) ? 5 : Math.min(5, days.length);
-        return curCount < maxWeekly;
-      });
-
-      let padIdx = 0;
-      while (pool.length < totalSlotsPerWeek) {
-        if (eligibleForPadding.length > 0 && padIdx < eligibleForPadding.length * 3) {
-          const subj = eligibleForPadding[padIdx % eligibleForPadding.length];
-          const curCount = pool.filter((c) => c.subjectCode === subj.code).length;
-          const maxWeekly = isDoubleEligibleSubject(subj.code) ? 5 : Math.min(5, days.length);
-
-          if (curCount < maxWeekly) {
-            const assignedTeacher = teachers.find((t) =>
-              (t.teachingAssignments || []).some(
-                (a) =>
-                  a.subjectCode === subj.code &&
-                  a.grade === cohort.grade &&
-                  (!a.stream || a.stream === cohort.stream)
-              ) && (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
-            ) || teachers.find((t) =>
-              (t.teachingAssignments || []).some((a) => a.subjectCode === subj.code) &&
-              (teacherAssignedLessons.get(t.id) || 0) + 1 <= MAX_TEACHER_WEEKLY_LESSONS
-            );
-
-            const tid = assignedTeacher?.id || "";
-            const tname = assignedTeacher?.fullName || "";
-            if (tid) {
-              teacherAssignedLessons.set(tid, (teacherAssignedLessons.get(tid) || 0) + 1);
-            }
-
-            pool.push({
-              subjectCode: subj.code,
-              subjectName: subj.name,
-              teacherId: tid,
-              teacherName: tname,
-            });
-            padIdx++;
-            continue;
-          }
-          padIdx++;
-        } else {
-          // All subjects have reached weekly limit; fill remainder with Library / Study session
-          pool.push({
-            subjectCode: "STUDY",
-            subjectName: "Library / Private Study",
-            teacherId: "",
-            teacherName: "",
-          });
-        }
-      }
-    } else if (pool.length > totalSlotsPerWeek) {
-      // Equitable trim: reduce from subjects with the highest count first
-      while (pool.length > totalSlotsPerWeek) {
-        const counts = new Map();
-        for (const card of pool) {
-          counts.set(card.subjectCode, (counts.get(card.subjectCode) || 0) + 1);
-        }
-        let maxCount = 0;
-        let highestSubjCode = "";
-        for (const [code, count] of counts.entries()) {
-          if (count > maxCount) {
-            maxCount = count;
-            highestSubjCode = code;
-          }
-        }
-        const idxToRemove = pool.findLastIndex((c) => c.subjectCode === highestSubjCode);
-        if (idxToRemove !== -1) {
-          pool.splice(idxToRemove, 1);
-        } else {
-          pool.pop();
-        }
-      }
-    }
-
-    // Shuffle each cohort's card pool so subjects aren't processed in rigid initial array order
-    cohortPools.set(cohortKey, shuffleArray(pool));
-  }
-
-  // Calculate teacher workloads to prioritize highly-loaded teachers
-  const teacherFrequency = new Map();
-  for (const [, pool] of cohortPools.entries()) {
-    for (const card of pool) {
-      if (card.teacherId) {
-        teacherFrequency.set(card.teacherId, (teacherFrequency.get(card.teacherId) || 0) + 1);
-      }
-    }
-  }
-
-  // Tracking maps for diversity, teacher workload, and subject daily limits
-  const cohortDaySubjectCount = new Map();       // `${cohortKey}_${day}_${subjectCode}` -> count
-  const cohortPeriodSubjectCount = new Map();    // `${cohortKey}_${periodId}_${subjectCode}` -> count
-  const teacherPeriodCohortCount = new Map();    // `${teacherId}_${periodId}_${cohortKey}` -> count
-  const teacherDayCount = new Map();             // `${teacherId}_${day}` -> count (guarantees daily free periods)
-  const cohortDoubleDone = new Set();            // `${cohortKey}_${subjectCode}` -> boolean (max 1 double/week)
-  const cohortLastPlacedPeriod = new Map();      // `${cohortKey}_${day}` -> { chronoIdx, subjectCode, teacherId }
-
-  // Iterate over days and instructional periods
-  for (let dIdx = 0; dIdx < days.length; dIdx++) {
-    const day = days[dIdx];
-    const remainingDays = days.length - dIdx;
-
-    // Period rotation shift: e.g. Day 0: 0, Day 1: 3, Day 2: 6...
-    const periodShift = (dIdx * 3) % totalPeriodsPerDay;
-    const rotatedPeriods = [
-      ...instructionalPeriods.slice(periodShift),
-      ...instructionalPeriods.slice(0, periodShift),
-    ];
-
-    for (const period of rotatedPeriods) {
-      const busyTeachersInSlot = new Set();
-
-      // Sort cohorts so cohorts with heavily-loaded teachers are placed first
-      const sortedCohorts = [...cohorts].sort((a, b) => {
-        const poolA = cohortPools.get(`${a.grade}_${a.stream}`) || [];
-        const poolB = cohortPools.get(`${b.grade}_${b.stream}`) || [];
-        const maxWorkloadA = poolA.reduce((max, c) => Math.max(max, teacherFrequency.get(c.teacherId) || 0), 0);
-        const maxWorkloadB = poolB.reduce((max, c) => Math.max(max, teacherFrequency.get(c.teacherId) || 0), 0);
-        return maxWorkloadB - maxWorkloadA;
-      });
-
-      for (const cohort of sortedCohorts) {
-        const cohortKey = `${cohort.grade}_${cohort.stream}`;
-        const pool = cohortPools.get(cohortKey) || [];
-
-        let bestIndex = -1;
-        let bestScore = -Infinity;
-
-        for (let i = 0; i < pool.length; i++) {
-          const card = pool[i];
-
-          // 1. STRICT COLLISION PREVENTION: Skip if this teacher is already teaching in this slot
-          if (card.teacherId && busyTeachersInSlot.has(card.teacherId)) {
-            continue;
-          }
-
-          // 2. TEACHER DAILY WORKLOAD CAP: Guarantee teacher gets at least 2 free/prep periods every day!
-          if (card.teacherId) {
-            const tDaily = teacherDayCount.get(`${card.teacherId}_${day}`) || 0;
-            if (tDaily >= MAX_TEACHER_DAILY_LESSONS) {
-              continue;
-            }
-          }
-
-          const dailyCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
-          const isDoubleEligible = isDoubleEligibleSubject(card.subjectCode);
-
-          // 3. HARD CONSTRAINT: Theory subjects (MATH, ENG, KIS, SST, CRE) CANNOT exceed 1 lesson/day!
-          if (!isDoubleEligible && dailyCount >= 1) {
-            continue;
-          }
-
-          // 4. For double-eligible practical sciences (SCI, AGR, PTS, CRA):
-          // Max 2 lessons per day, and ONLY if consecutive (forming a double lesson) and not already doubled this week!
-          if (isDoubleEligible) {
-            if (dailyCount >= 2) {
-              continue;
-            }
-            if (dailyCount === 1) {
-              const lastPlaced = cohortLastPlacedPeriod.get(`${cohortKey}_${day}`);
-              const alreadyDoubled = cohortDoubleDone.has(`${cohortKey}_${card.subjectCode}`);
-              let isConsecutive = false;
-              if (lastPlaced && lastPlaced.subjectCode === card.subjectCode && card.teacherId === lastPlaced.teacherId) {
-                if (allPeriods && allPeriods.length) {
-                  const p1Idx = allPeriods.findIndex((p) => p.id === lastPlaced.periodId);
-                  const p2Idx = allPeriods.findIndex((p) => p.id === period.id);
-                  isConsecutive = p1Idx !== -1 && p2Idx !== -1 && Math.abs(p2Idx - p1Idx) === 1;
-                } else {
-                  const p1Idx = instructionalPeriods.findIndex((p) => p.id === lastPlaced.periodId);
-                  const p2Idx = instructionalPeriods.findIndex((p) => p.id === period.id);
-                  isConsecutive = p1Idx !== -1 && p2Idx !== -1 && Math.abs(p2Idx - p1Idx) === 1;
-                }
-              }
-              if (!isConsecutive || alreadyDoubled) {
-                continue;
-              }
-            }
-          }
-
-          const periodCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
-          const teacherPeriodCount = card.teacherId ? (teacherPeriodCohortCount.get(`${card.teacherId}_${period.id}_${cohortKey}`) || 0) : 0;
-
-          let score = 0;
-
-          // Remaining cards urgency for subjects with >= remainingDays (e.g. 5-lesson MATH/ENG):
-          // Ensures MATH is scheduled on Monday, Tuesday, Wednesday, Thursday, Friday (1 per day)!
-          const remainingCards = pool.filter((c) => c.subjectCode === card.subjectCode).length;
-          if (dailyCount === 0 && remainingCards >= remainingDays) {
-            score += 300;
-          }
-
-          // Heavy penalty if this subject was already placed at this exact period on another day
-          if (periodCount > 0) {
-            score -= periodCount * 80;
-          } else {
-            score += 35; // Reward placing subject at a fresh period
-          }
-
-          // Consecutive double lesson completion bonus for practical sciences
-          if (isDoubleEligible && dailyCount === 1) {
-            score += 180;
-          }
-
-          // Penalty if teacher already taught this cohort at this period on other days
-          if (teacherPeriodCount > 0) {
-            score -= teacherPeriodCount * 30;
-          }
-
-          // Cognitive load balance (morning focus vs afternoon practical/creative)
-          const pNum = parseInt((period.name || "").replace(/\D/g, ""), 10) || 1;
-          const isMorning = pNum <= 4;
-          const isAfternoon = pNum >= 5;
-          const morningPreferred = ["MATH", "SCI", "ENG", "KIS"];
-          const afternoonPreferred = ["CRA", "AGR", "PTS", "PE", "PHE", "CRE", "IRE", "HRE", "SST"];
-
-          if (isMorning && morningPreferred.includes(card.subjectCode)) {
-            score += 20;
-          } else if (isAfternoon && afternoonPreferred.includes(card.subjectCode)) {
-            score += 20;
-          }
-
-          // Heavily loaded teacher prioritization
-          if (card.teacherId) {
-            score += (teacherFrequency.get(card.teacherId) || 0) * 8;
-          }
-
-          // Random jitter for rich, dynamic shuffling
-          score += Math.random() * 15;
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestIndex = i;
-          }
-        }
-
-        // Fallback: any card that strictly respects daily subject limit and teacher collision
-        if (bestIndex === -1) {
-          let fallbackScore = -Infinity;
-          for (let i = 0; i < pool.length; i++) {
-            const card = pool[i];
-            if (card.teacherId && busyTeachersInSlot.has(card.teacherId)) continue;
-            if (card.teacherId && (teacherDayCount.get(`${card.teacherId}_${day}`) || 0) >= MAX_TEACHER_DAILY_LESSONS) continue;
-            const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${card.subjectCode}`) || 0;
-            const isDouble = isDoubleEligibleSubject(card.subjectCode);
-            if (!isDouble && dCount >= 1) continue;
-            if (dCount >= 2) continue;
-
-            const pCount = cohortPeriodSubjectCount.get(`${cohortKey}_${period.id}_${card.subjectCode}`) || 0;
-            const s = -(pCount * 25) + Math.random() * 5;
-            if (s > fallbackScore) {
-              fallbackScore = s;
-              bestIndex = i;
-            }
-          }
-        }
-
-        // Failsafe: if every card has a busy teacher in this period,
-        // unassign the teacher for this specific slot so students still receive their lesson,
-        // but STILL STRICTLY RESPECT the daily subject limit (never 2 Maths on same day)!
-        let unassignedFallbackCard = null;
-        if (bestIndex === -1 && pool.length > 0) {
-          let candidateIdx = pool.findIndex((c) => {
-            const dCount = cohortDaySubjectCount.get(`${cohortKey}_${day}_${c.subjectCode}`) || 0;
-            const isDouble = isDoubleEligibleSubject(c.subjectCode);
-            return isDouble ? dCount < 2 : dCount === 0;
-          });
-          if (candidateIdx !== -1) {
-            bestIndex = candidateIdx;
-            unassignedFallbackCard = { ...pool[bestIndex], teacherId: "", teacherName: "" };
-            pool.splice(bestIndex, 1);
-          } else {
-            // All remaining pool cards have already reached their daily cap today.
-            // Insert designated Study / Library period rather than repeating a subject!
-            generatedSlots.push({
-              grade: cohort.grade,
-              stream: cohort.stream,
-              day,
-              periodId: period.id,
-              subjectCode: "STUDY",
-              subjectName: "Library / Private Study",
-              teacherId: "",
-              teacherName: "",
-              room: "",
-            });
-            continue;
-          }
-        }
-
-        if (unassignedFallbackCard !== null) {
-          const dKey = `${cohortKey}_${day}_${unassignedFallbackCard.subjectCode}`;
-          const newDCount = (cohortDaySubjectCount.get(dKey) || 0) + 1;
-          cohortDaySubjectCount.set(dKey, newDCount);
-
-          if (isDoubleEligibleSubject(unassignedFallbackCard.subjectCode) && newDCount === 2) {
-            cohortDoubleDone.add(`${cohortKey}_${unassignedFallbackCard.subjectCode}`);
-          }
-
-          const currChronoIdx = instructionalPeriods.findIndex((p) => p.id === period.id);
-          cohortLastPlacedPeriod.set(`${cohortKey}_${day}`, {
-            periodId: period.id,
-            chronoIdx: currChronoIdx,
-            subjectCode: unassignedFallbackCard.subjectCode,
-            teacherId: "",
-          });
-
-          generatedSlots.push({
-            grade: cohort.grade,
-            stream: cohort.stream,
-            day,
-            periodId: period.id,
-            subjectCode: unassignedFallbackCard.subjectCode,
-            subjectName: unassignedFallbackCard.subjectName,
-            teacherId: "",
-            teacherName: "",
-            room: "",
-          });
-          continue;
-        }
-
-        if (bestIndex !== -1) {
-          const [selectedCard] = pool.splice(bestIndex, 1);
-          if (selectedCard.teacherId) {
-            busyTeachersInSlot.add(selectedCard.teacherId);
-            const tdKey = `${selectedCard.teacherId}_${day}`;
-            teacherDayCount.set(tdKey, (teacherDayCount.get(tdKey) || 0) + 1);
-          }
-
-          const dailyKey = `${cohortKey}_${day}_${selectedCard.subjectCode}`;
-          const newDailyCount = (cohortDaySubjectCount.get(dailyKey) || 0) + 1;
-          cohortDaySubjectCount.set(dailyKey, newDailyCount);
-
-          if (isDoubleEligibleSubject(selectedCard.subjectCode) && newDailyCount === 2) {
-            cohortDoubleDone.add(`${cohortKey}_${selectedCard.subjectCode}`);
-          }
-
-          const currChronoIdx = instructionalPeriods.findIndex((p) => p.id === period.id);
-          cohortLastPlacedPeriod.set(`${cohortKey}_${day}`, {
-            periodId: period.id,
-            chronoIdx: currChronoIdx,
-            subjectCode: selectedCard.subjectCode,
-            teacherId: selectedCard.teacherId,
-          });
-
-          const periodKey = `${cohortKey}_${period.id}_${selectedCard.subjectCode}`;
-          cohortPeriodSubjectCount.set(periodKey, (cohortPeriodSubjectCount.get(periodKey) || 0) + 1);
-
-          if (selectedCard.teacherId) {
-            const tpKey = `${selectedCard.teacherId}_${period.id}_${cohortKey}`;
-            teacherPeriodCohortCount.set(tpKey, (teacherPeriodCohortCount.get(tpKey) || 0) + 1);
-          }
-
-          generatedSlots.push({
-            grade: cohort.grade,
-            stream: cohort.stream,
-            day,
-            periodId: period.id,
-            subjectCode: selectedCard.subjectCode,
-            subjectName: selectedCard.subjectName,
-            teacherId: selectedCard.teacherId || "",
-            teacherName: selectedCard.teacherName || "",
-            room: "",
-          });
-        }
-      }
-    }
-  }
-
-  return generatedSlots;
+function timetableRef(schoolId) {
+  return doc(db, "timetable_slots", scopedId(schoolId, "timetable_state"));
 }
 
-/**
- * Pure scheduler that distributes subjects and teachers across instructional periods
- * guaranteeing ZERO teacher collisions, diverse period shuffling across days,
- * and balanced weekly subject distribution.
- */
-export function buildCollisionFreeSchedule({
-  cohorts, // [{ grade, stream }]
-  instructionalPeriods, // [{ id, name, startTime, endTime }]
-  periods, // full list of periods including breaks (optional)
-  days = DAYS,
-  subjects = [],
-  teachers = [],
-  attempts = 12,
-}) {
-  if (!cohorts || !cohorts.length) throw new Error("No classes found to generate timetable for.");
-  if (!instructionalPeriods || !instructionalPeriods.length) throw new Error("No instructional periods found.");
-
-  const totalExpectedSlots = cohorts.length * days.length * instructionalPeriods.length;
-
-  let bestSchedule = null;
-  let bestScore = -Infinity;
-
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const candidate = generateSingleScheduleAttempt({
-      cohorts,
-      instructionalPeriods,
-      allPeriods: periods || instructionalPeriods,
-      days,
-      subjects,
-      teachers,
-    });
-
-    const conflicts = detectTimetableConflicts(candidate);
-    if (conflicts.length > 0) continue; // Collision-free is mandatory
-
-    const completeness = candidate.length / totalExpectedSlots;
-
-    // Calculate period repeat score across cohorts:
-    // We want subjects to be in different periods across days (low repeats)
-    let periodRepeats = 0;
-    const periodMap = new Map();
-    for (const slot of candidate) {
-      const key = `${slot.grade}_${slot.stream}_${slot.periodId}_${slot.subjectCode}`;
-      periodMap.set(key, (periodMap.get(key) || 0) + 1);
-    }
-    for (const count of periodMap.values()) {
-      if (count > 1) periodRepeats += (count - 1);
-    }
-
-    // High completeness + low repeats = high quality shuffled timetable
-    const qualityScore = (completeness * 1000) - (periodRepeats * 15);
-
-    if (qualityScore > bestScore) {
-      bestScore = qualityScore;
-      bestSchedule = candidate;
-      if (completeness >= 1 && periodRepeats === 0) {
-        break; // Perfect schedule found early
-      }
-    }
-  }
-
-  return bestSchedule || [];
+function roomModeCacheKey(schoolId) {
+  return `timetable_room_mode:${schoolId}`;
 }
 
-/**
- * Generates and commits a collision-free master timetable across all classes in the school.
- */
-export async function generateCollisionFreeTimetable(userId, { classes, subjects, teachers, periods, days = DAYS }) {
+export async function getTimetableRoomMode() {
   const schoolId = getCurrentSchoolId();
-  const instructionalPeriods = periods.filter((p) => !isBreakPeriod(p));
-
-  const cohorts = [];
-  for (const c of classes) {
-    if (!c.streams || !c.streams.length) {
-      cohorts.push({ grade: c.grade, stream: "" });
-    } else {
-      for (const s of c.streams) {
-        cohorts.push({ grade: c.grade, stream: s });
-      }
-    }
-  }
-
-  const generated = buildCollisionFreeSchedule({
-    cohorts,
-    instructionalPeriods,
-    periods,
-    days,
-    subjects,
-    teachers,
-  });
-
-  const conflicts = detectTimetableConflicts(generated);
-
-  // CRITICAL: Cleanly wipe all existing timetable slots for the school first
-  // so stale, incomplete, or legacy slots CANNOT bleed through or collide with fresh schedule
-  await clearAllTimetableSlots(userId);
-
-  // Commit in chunks of 450 to respect Firestore batch limits
-  const BATCH_SIZE = 450;
-  for (let i = 0; i < generated.length; i += BATCH_SIZE) {
-    const chunk = generated.slice(i, i + BATCH_SIZE);
-    const batch = writeBatch(db);
-    for (const slot of chunk) {
-      const id = slotId(schoolId, slot.grade, slot.stream, slot.day, slot.periodId);
-      batch.set(
-        doc(db, "timetable_slots", id),
-        {
-          ...slot,
-          schoolId,
-          updatedBy: userId,
-          updatedAt: serverTimestamp(),
-        }
-      );
-    }
-    await batch.commit();
-  }
-
-  invalidatePrefix(`timetable_class:${schoolId}`);
-  invalidatePrefix(`timetable_teacher:${schoolId}`);
-  invalidate(masterTimetableCacheKey());
-  await logAction(userId, "generate_master_timetable", "timetable_slots", schoolId);
-
-  const unassignedCount = generated.filter((s) => !s.teacherId).length;
-  return { totalSlots: generated.length, conflictsCount: conflicts.length, unassignedCount };
+  return cached(roomModeCacheKey(schoolId), 60_000, async () =>
+    (await getDoc(timetableRef(schoolId))).data()?.useNamedRooms === true);
 }
 
-/** Clears all timetable slots for the entire school. */
+export async function setTimetableRoomMode(userId, enabled) {
+  const schoolId = getCurrentSchoolId();
+  const state = (await getDocFromServer(timetableRef(schoolId))).data();
+  await commitTimetableChange(schoolId, state?.revision, () => ({ useNamedRooms: enabled === true }));
+  invalidate(roomModeCacheKey(schoolId));
+  await logAction(userId, "update_timetable_room_mode", "timetable_slots", schoolId);
+}
+
+function classWeekId(schoolId, generation, { grade, stream }) {
+  return scopedId(schoolId, "week", generation, encodeURIComponent(JSON.stringify([grade, stream || ""])));
+}
+
+function lessonKey({ day, periodId }) {
+  return JSON.stringify([day, periodId]);
+}
+
+function sameClass(slot, { grade, stream }) {
+  return slot.grade === grade && (slot.stream || "") === (stream || "");
+}
+
+function lessonId(weekId, slot) {
+  return scopedId(weekId, encodeURIComponent(lessonKey(slot)));
+}
+
+function isClassWeek(data) {
+  return data.kind === "class_week" && Array.isArray(data.lessons);
+}
+
+function classWeekData({ grade, stream }, slots, { schoolId, generation, userId }) {
+  const lessons = slots.map(({ id, grade: slotGrade, stream: slotStream, schoolId: oldSchoolId,
+    generation: oldGeneration, updatedBy, updatedAt, ...lesson }) => lesson);
+  return {
+    kind: "class_week", schoolId, generation, grade, stream: stream || "", lessons,
+    updatedBy: userId, updatedAt: serverTimestamp(),
+  };
+}
+
+function readLessons(record) {
+  const data = record.data();
+  if (!isClassWeek(data)) return [{ ...data, id: record.id }];
+  const { schoolId, generation, grade, stream, lessons, updatedBy, updatedAt } = data;
+  return lessons.map((lesson) => ({
+    ...lesson, id: lessonId(record.id, lesson), schoolId, generation, grade, stream, updatedBy, updatedAt,
+  }));
+}
+
+async function generationDocs(schoolId, generation, { fromServer = false } = {}) {
+  const filters = [where("schoolId", "==", schoolId)];
+  if (generation) filters.push(where("generation", "==", generation));
+  const readSlots = fromServer ? getDocsFromServer : getDocs;
+  const snap = await readSlots(query(collection(db, "timetable_slots"), ...filters));
+  return snap.docs.filter((d) => {
+    const slot = d.data();
+    return (isClassWeek(slot) || slot.periodId) && (slot.generation || "") === generation;
+  });
+}
+
+async function readSchedule(schoolId, { fromServer = false } = {}) {
+  const ref = timetableRef(schoolId);
+  const readState = fromServer ? getDocFromServer : getDoc;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const state = (await readState(ref)).data() || {};
+    const docs = await generationDocs(schoolId, state.generation || "", { fromServer });
+    const latest = (await readState(ref)).data();
+    if (state.revision === latest?.revision) {
+      return { ...state, schoolId, docs, slots: docs.flatMap(readLessons) };
+    }
+  }
+  throw new Error("The timetable is being edited. Try again in a moment.");
+}
+
+export function loadTimetableDraftInputs() {
+  return readSchedule(getCurrentSchoolId(), { fromServer: true });
+}
+
+function invalidateTimetable(schoolId) {
+  invalidate(`timetable_master:${schoolId}`);
+}
+
+async function commitTimetableChange(schoolId, expectedRevision, update) {
+  const stateRef = timetableRef(schoolId);
+  await runTransaction(db, async (transaction) => {
+    const state = (await transaction.get(stateRef)).data() || {};
+    if ((state.revision || "") !== (expectedRevision || "")) {
+      throw new Error("The saved timetable changed while you were working. Refresh and try again.");
+    }
+    const updates = update(transaction) || {};
+    transaction.set(stateRef, { ...updates, schoolId, revision: generateSecureShareToken() }, { merge: true });
+  });
+  invalidateTimetable(schoolId);
+}
+
+async function removeGeneration(schoolId, generation, knownDocs) {
+  try {
+    const docs = knownDocs || await generationDocs(schoolId, generation || "");
+    for (let start = 0; start < docs.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const item of docs.slice(start, start + 450)) batch.delete(item.ref);
+      await batch.commit();
+    }
+  } catch (error) {
+    console.warn("Could not remove superseded timetable slots:", error);
+  }
+}
+
+export async function publishTimetableDraft(userId, draft, base) {
+  const schoolId = getCurrentSchoolId();
+  if (!schoolId || base.schoolId !== schoolId) throw new Error("Open the timetable for your current school.");
+  if (!draft.slots.length) throw new Error("The draft has no lessons to save.");
+  const conflicts = detectTimetableConflicts(draft.slots, { useNamedRooms: base.useNamedRooms === true });
+  if (conflicts.length) throw new Error(conflicts[0].message);
+
+  const generation = generateSecureShareToken();
+  const weeksById = new Map();
+  for (const slot of draft.slots) {
+    const id = classWeekId(schoolId, generation, slot);
+    if (!weeksById.has(id)) weeksById.set(id, new Map());
+    const lessons = weeksById.get(id);
+    const key = lessonKey(slot);
+    if (lessons.has(key)) throw new Error("The draft contains duplicate class periods.");
+    lessons.set(key, slot);
+  }
+  const weeks = [...weeksById].map(([id, lessons]) => ({ id, slots: [...lessons.values()] }));
+  // Stage the whole draft before switching the school's active timetable.
+  // Manual edits and simultaneous publishes change the revision and invalidate this switch.
+  try {
+    for (let start = 0; start < weeks.length; start += 450) {
+      const batch = writeBatch(db);
+      for (const { id, slots } of weeks.slice(start, start + 450)) {
+        batch.set(doc(db, "timetable_slots", id), classWeekData(slots[0], slots, { schoolId, generation, userId }));
+      }
+      await batch.commit();
+    }
+    await commitTimetableChange(schoolId, base.revision, () => ({
+      generation, plan: draft.plan, cohortPlans: draft.cohortPlans || [],
+    }));
+  } catch (error) {
+    // A transport error can follow a successful commit. Check the pointer
+    // before removing staged data, and leave it intact if the server is unreachable.
+    const state = await getDocFromServer(timetableRef(schoolId)).catch(() => null);
+    if (!state) throw error;
+    if (state.data()?.generation !== generation) {
+      await removeGeneration(schoolId, generation);
+      throw error;
+    }
+    invalidateTimetable(schoolId);
+  }
+  await removeGeneration(schoolId, base.generation, base.docs);
+  await logAction(userId, "generate_master_timetable", "timetable_slots", schoolId);
+  return {
+    totalSlots: draft.slots.length, conflictsCount: 0,
+    unassignedCount: draft.issues.reduce((sum, issue) => sum + issue.unassigned, 0),
+  };
+}
+
+export async function generateCollisionFreeTimetable(userId, { classes, subjects, teachers, periods, days = DAYS }) {
+  const base = await loadTimetableDraftInputs();
+  const cohorts = classes.flatMap(({ grade, streams }) =>
+    (streams?.length ? streams : [""]).map((stream) => ({ grade, stream })));
+  const draft = createTimetableDraft({
+    cohorts, instructionalPeriods: periods, periods, days, subjects, teachers, useNamedRooms: base.useNamedRooms === true,
+  });
+  return publishTimetableDraft(userId, draft, base);
+}
+
 export async function clearAllTimetableSlots(userId) {
   const schoolId = getCurrentSchoolId();
-  const snap = await getDocs(
-    query(collection(db, "timetable_slots"), where("schoolId", "==", schoolId))
-  );
-  const docs = snap.docs;
-  const BATCH_SIZE = 450;
-  for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-    const chunk = docs.slice(i, i + BATCH_SIZE);
-    const batch = writeBatch(db);
-    for (const d of chunk) {
-      batch.delete(doc(db, "timetable_slots", d.id));
-    }
-    await batch.commit();
-  }
-
-  invalidatePrefix(`timetable_class:${schoolId}`);
-  invalidatePrefix(`timetable_teacher:${schoolId}`);
-  invalidate(masterTimetableCacheKey());
+  const state = (await getDocFromServer(timetableRef(schoolId))).data() || {};
+  await commitTimetableChange(schoolId, state.revision, () => ({ generation: generateSecureShareToken() }));
+  await removeGeneration(schoolId, state.generation);
   await logAction(userId, "clear_all_timetable_slots", "timetable_slots", schoolId);
 }
 
-/** Clears all timetable slots for a specific class cohort. */
 export async function clearClassTimetableSlots(userId, grade, stream) {
   const schoolId = getCurrentSchoolId();
-  const snap = await getDocs(
-    query(
-      collection(db, "timetable_slots"),
-      where("schoolId", "==", schoolId),
-      where("grade", "==", grade),
-      where("stream", "==", stream)
-    )
-  );
-  const batch = writeBatch(db);
-  for (const d of snap.docs) {
-    batch.delete(doc(db, "timetable_slots", d.id));
-  }
-  await batch.commit();
-
-  invalidate(classTimetableCacheKey(grade, stream));
-  invalidatePrefix(`timetable_teacher:${schoolId}`);
-  invalidate(masterTimetableCacheKey());
+  const schedule = await readSchedule(schoolId, { fromServer: true });
+  const cohort = { grade, stream };
+  if (!schedule.slots.some((slot) => sameClass(slot, cohort))) return;
+  await saveClassWeek(userId, schedule, cohort, []);
   await logAction(userId, "clear_class_timetable_slots", "timetable_slots", `${grade}_${stream}`);
 }
 
-/** Returns a lookup map keyed by "day_periodId" for easy grid rendering. */
+/** Returns a lookup map keyed by day and period. */
 export async function getClassTimetable(grade, stream, forceRefresh = false) {
-  const key = classTimetableCacheKey(grade, stream);
-  if (forceRefresh) invalidate(key);
-  return cached(key, 60 * 60_000, async () => {
-    const snap = await getDocs(
-      query(
-        collection(db, "timetable_slots"),
-        where("schoolId", "==", getCurrentSchoolId()),
-        where("grade", "==", grade),
-        where("stream", "==", stream)
-      )
-    );
-    const byKey = {};
-    for (const d of snap.docs) {
-      const data = d.data();
-      byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
-    }
-    return byKey;
-  });
+  const slots = await getMasterTimetable(forceRefresh);
+  return Object.fromEntries(slots.filter((slot) => sameClass(slot, { grade, stream }))
+    .map((slot) => [`${slot.day}_${slot.periodId}`, slot]));
 }
 
 export async function getTeacherTimetable(teacherId, forceRefresh = false) {
-  const key = teacherTimetableCacheKey(teacherId);
-  if (forceRefresh) invalidate(key);
-  return cached(key, 60 * 60_000, async () => {
-    const snap = await getDocs(
-      query(collection(db, "timetable_slots"), where("schoolId", "==", getCurrentSchoolId()), where("teacherId", "==", teacherId))
-    );
-    const byKey = {};
-    for (const d of snap.docs) {
-      const data = d.data();
-      byKey[`${data.day}_${data.periodId}`] = { id: d.id, ...data };
-    }
-    return byKey;
-  });
+  const slots = await getMasterTimetable(forceRefresh);
+  return Object.fromEntries(slots.filter((slot) => slot.teacherId === teacherId)
+    .map((slot) => [`${slot.day}_${slot.periodId}`, slot]));
 }
 
-/**
- * Validates whether a slot can be assigned without teacher or room collisions.
- */
-export async function checkSlotConflict({ grade, stream, day, periodId, teacherId, teacherName, room }) {
-  const schoolId = getCurrentSchoolId();
-  const id = slotId(schoolId, grade, stream, day, periodId);
-
-  const sameSlotElsewhere = await getDocs(
-    query(
-      collection(db, "timetable_slots"),
-      where("schoolId", "==", schoolId),
-      where("day", "==", day),
-      where("periodId", "==", periodId)
-    )
-  );
-
-  const cleanRoom = (room || "").trim().toLowerCase();
-  const isSharedVenue = cleanRoom && SHARED_VENUES.some((v) => cleanRoom.includes(v));
-
-  for (const d of sameSlotElsewhere.docs) {
-    if (d.id === id) continue;
-    const other = d.data();
+function findSlotConflict(slots, { grade, stream, day, periodId, teacherId, teacherName, room }, useNamedRooms) {
+  const venue = useNamedRooms ? roomBookingKey(room) : "";
+  for (const other of slots) {
+    if (other.day !== day || other.periodId !== periodId ||
+        (other.grade === grade && (other.stream || "") === (stream || ""))) continue;
+    const otherClass = [other.grade, other.stream].filter(Boolean).join(" ");
     if (teacherId && other.teacherId === teacherId) {
-      const otherClass = `${other.grade || ""}${other.stream ? " " + other.stream : ""}`.trim();
-      return {
-        hasConflict: true,
-        reason: `${teacherName || "This teacher"} is already teaching ${otherClass} at that time.`,
-      };
+      return { hasConflict: true, reason: `${teacherName || "This teacher"} is already teaching ${otherClass} at that time.` };
     }
-    if (!isSharedVenue && cleanRoom && other.room && other.room.trim().toLowerCase() === cleanRoom) {
-      const otherClass = `${other.grade || ""}${other.stream ? " " + other.stream : ""}`.trim();
-      return {
-        hasConflict: true,
-        reason: `Room "${room}" is already booked by ${otherClass} at that time.`,
-      };
+    if (venue && venue === roomBookingKey(other.room)) {
+      return { hasConflict: true, reason: `Room "${room}" is already booked by ${otherClass} at that time.` };
     }
   }
-
   return { hasConflict: false };
 }
 
-/**
- * Assigns (or reassigns) a class/day/period slot, blocking the save if the
- * chosen teacher - or, if given, the room - is already booked elsewhere at
- * that exact day+period.
- */
-export async function assignSlot(
-  userId,
-  { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "", isDouble = false }
-) {
+export async function checkSlotConflict(slot) {
+  const { slots, useNamedRooms } = await readSchedule(getCurrentSchoolId());
+  return findSlotConflict(slots, slot, useNamedRooms === true);
+}
+
+async function saveAssignedSlots(userId, assignments, removePeriodIds = []) {
   const schoolId = getCurrentSchoolId();
-  const id = slotId(schoolId, grade, stream, day, periodId);
-
-  const conflict = await checkSlotConflict({ grade, stream, day, periodId, teacherId, teacherName, room });
-  if (conflict.hasConflict) {
-    throw new Error(conflict.reason);
+  const [schedule, periods] = await Promise.all([
+    readSchedule(schoolId, { fromServer: true }), listPeriods(),
+  ]);
+  const { slots, useNamedRooms } = schedule;
+  const assignmentPeriods = assignments.map(({ periodId }) => periods.find((period) => period.id === periodId));
+  if (assignmentPeriods.some((period) => !period || isBreakPeriod(period))) {
+    throw new Error("Select a teaching period.");
   }
-
-  await setDoc(doc(db, "timetable_slots", id), {
-    schoolId,
-    grade,
-    stream,
-    day,
-    periodId,
-    subjectCode,
-    subjectName: subjectName || "",
-    teacherId: teacherId || "",
-    teacherName: teacherName || "",
-    room: room?.trim() || "",
-    isActivity: !!isActivity,
-    activityType: activityType || "",
-    isDouble: !!isDouble,
-    updatedBy: userId,
-    updatedAt: serverTimestamp(),
-  });
-  invalidate(classTimetableCacheKey(grade, stream));
-  invalidate(masterTimetableCacheKey());
-  invalidatePrefix(`timetable_teacher:${schoolId}`);
+  if (assignments.length === 2 && !areAdjacentTeachingPeriods(...assignmentPeriods)) {
+    throw new Error("A double lesson needs two consecutive teaching periods.");
+  }
+  for (const slot of assignments) {
+    const conflict = findSlotConflict(slots, slot, useNamedRooms === true);
+    if (conflict.hasConflict) throw new Error(conflict.reason);
+  }
+  const first = assignments[0];
+  const week = new Map(slots.filter((slot) => sameClass(slot, first)).map((slot) => [lessonKey(slot), slot]));
+  for (const periodId of removePeriodIds) {
+    if (!assignments.some((slot) => slot.periodId === periodId)) week.delete(lessonKey({ day: first.day, periodId }));
+  }
+  for (const slot of assignments) {
+    const key = lessonKey(slot);
+    const previous = week.get(key);
+    const sameLesson = previous && previous.subjectCode === slot.subjectCode && !!previous.isActivity === slot.isActivity;
+    const room = useNamedRooms === true ? slot.room : sameLesson ? previous.room || "" : "";
+    week.set(key, { ...slot, room });
+  }
+  const weekId = await saveClassWeek(userId, schedule, first, [...week.values()]);
+  const id = lessonId(weekId, first);
   await logAction(userId, "assign_timetable_slot", "timetable_slots", id);
   return id;
 }
 
-/**
- * Assigns a 2-period Double Lesson atomically, verifying both periods for collisions first.
- */
-export async function assignDoubleSlot(
-  userId,
-  { grade, stream, day, period1Id, period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity = false, activityType = "" }
-) {
-  // Validate Period 1
-  const c1 = await checkSlotConflict({ grade, stream, day, periodId: period1Id, teacherId, teacherName, room });
-  if (c1.hasConflict) throw new Error(c1.reason);
-
-  // Validate Period 2
-  const c2 = await checkSlotConflict({ grade, stream, day, periodId: period2Id, teacherId, teacherName, room });
-  if (c2.hasConflict) throw new Error(`Period 2 conflict: ${c2.reason}`);
-
-  // Save both periods with isDouble: true
-  await assignSlot(userId, { grade, stream, day, periodId: period1Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType, isDouble: true });
-  await assignSlot(userId, { grade, stream, day, periodId: period2Id, subjectCode, subjectName, teacherId, teacherName, room, isActivity, activityType, isDouble: true });
+async function saveClassWeek(userId, schedule, cohort, slots) {
+  const { schoolId, revision, docs } = schedule;
+  const generation = schedule.generation || "";
+  const id = classWeekId(schoolId, generation, cohort);
+  await commitTimetableChange(schoolId, revision, (transaction) => {
+    for (const record of docs) {
+      if (sameClass(record.data(), cohort) && (!slots.length || record.id !== id)) transaction.delete(record.ref);
+    }
+    if (slots.length) {
+      transaction.set(doc(db, "timetable_slots", id), classWeekData(cohort, slots, { schoolId, generation, userId }));
+    }
+  });
+  return id;
 }
 
-export async function clearSlot(userId, grade, stream, day, periodId) {
+function assignedSlot({
+  grade, stream = "", day, periodId, subjectCode, subjectName = "", teacherId = "",
+  teacherName = "", room = "", isActivity = false, activityType = "", isDouble = false,
+}) {
+  return { grade, stream, day, periodId, subjectCode, subjectName, teacherId, teacherName,
+    room: namedTimetableRoom(room), isActivity, activityType, isDouble };
+}
+
+export function assignSlot(userId, assignment, { removePeriodIds = [] } = {}) {
+  return saveAssignedSlots(userId, [assignedSlot(assignment)], removePeriodIds);
+}
+
+export function assignDoubleSlot(userId, { period1Id, period2Id, ...assignment }) {
+  const pair = [period1Id, period2Id].map((periodId) => assignedSlot({ ...assignment, periodId, isDouble: true }));
+  return saveAssignedSlots(userId, pair);
+}
+
+async function clearSlots(userId, grade, stream, day, periodIds) {
   const schoolId = getCurrentSchoolId();
-  const id = slotId(schoolId, grade, stream, day, periodId);
-  await deleteDoc(doc(db, "timetable_slots", id));
-  invalidate(classTimetableCacheKey(grade, stream));
-  invalidate(masterTimetableCacheKey());
-  invalidatePrefix(`timetable_teacher:${schoolId}`);
-  await logAction(userId, "clear_timetable_slot", "timetable_slots", id);
+  const schedule = await readSchedule(schoolId, { fromServer: true });
+  const cohort = { grade, stream };
+  const week = schedule.slots.filter((slot) => sameClass(slot, cohort));
+  const shouldClear = (slot) => slot.day === day && periodIds.includes(slot.periodId);
+  const first = week.find(shouldClear);
+  if (!first) return;
+  await saveClassWeek(userId, schedule, cohort, week.filter((slot) => !shouldClear(slot)));
+  await logAction(userId, "clear_timetable_slot", "timetable_slots", first.id);
 }
 
-/**
- * Clears both slots of a Double Lesson.
- */
-export async function clearDoubleSlot(userId, grade, stream, day, period1Id, period2Id) {
-  await clearSlot(userId, grade, stream, day, period1Id);
-  if (period2Id) {
-    await clearSlot(userId, grade, stream, day, period2Id);
-  }
+export function clearSlot(userId, grade, stream, day, periodId) {
+  return clearSlots(userId, grade, stream, day, [periodId]);
 }
 
-// ------------------------------------ Secure Shared Public Timetables (No Login) --
+export function clearDoubleSlot(userId, grade, stream, day, period1Id, period2Id) {
+  return clearSlots(userId, grade, stream, day, [period1Id, period2Id]);
+}
 
 export function generateSecureShareToken() {
   if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
@@ -1245,11 +684,13 @@ export async function createSharedTimetable(userId, {
   subTitle = "",
   slots = [],
   periods = [],
+  cohorts = [],
   schoolSettings = {},
   teachers = [],
   pin = null,
 }) {
   const schoolId = getCurrentSchoolId();
+  const useNamedRooms = (await getDocFromServer(timetableRef(schoolId))).data()?.useNamedRooms === true;
   const shareId = `sec_${generateSecureShareToken()}`;
 
   const payload = {
@@ -1259,6 +700,7 @@ export async function createSharedTimetable(userId, {
     targetId,
     title: title || (type === "master" ? "Institutional Master Timetable" : type === "teacher" ? "Teacher Schedule" : "Class Schedule"),
     subTitle: subTitle || "",
+    useNamedRooms,
     schoolInfo: {
       name: schoolSettings.schoolName || schoolSettings.name || "School Timetable",
       motto: schoolSettings.motto || "Excellence in Competency-Based Education",
@@ -1269,12 +711,13 @@ export async function createSharedTimetable(userId, {
       academicYear: schoolSettings.currentAcademicYear || schoolSettings.academicYear || new Date().getFullYear(),
       term: schoolSettings.currentTerm || schoolSettings.term || "Term 1",
     },
+    cohorts: cohorts.map(({ grade, stream = "" }) => ({ grade, stream })),
     periods: (periods || []).map((p) => ({
       id: p.id,
       name: p.name,
       startTime: p.startTime,
       endTime: p.endTime,
-      isBreak: !!p.isBreak,
+      isBreak: isBreakPeriod(p),
     })),
     slots: (slots || []).map((s) => ({
       grade: s.grade || "",
@@ -1285,8 +728,10 @@ export async function createSharedTimetable(userId, {
       subjectName: s.subjectName || "",
       teacherId: s.teacherId || "",
       teacherName: s.teacherName || "",
-      room: s.room || "",
+      room: useNamedRooms ? namedTimetableRoom(s.room) : "",
       isActivity: !!s.isActivity,
+      isDouble: !!s.isDouble,
+      category: s.category || "",
     })),
     teachers: (teachers || []).map((t) => ({
       id: t.id,
@@ -1361,403 +806,42 @@ export async function getSharedTimetable(shareId) {
  * locally to any phone, tablet, or PC and opened offline forever in any browser.
  */
 export function generateStandaloneHtml(data) {
-  const school = data.schoolInfo || {};
-  const periods = data.periods || [];
-  const slots = data.slots || [];
-  const title = data.title || "School Timetable";
-  const subTitle = data.subTitle || "";
-  const schoolName = school.name || "School Timetable";
-  const motto = school.motto || "";
-  const currentYear = school.academicYear || new Date().getFullYear();
-  const currentTerm = school.term || "Term 1";
-
-  const slotMap = new Map();
-  for (const s of slots) {
-    const key = `${s.grade || ""}_${s.stream || ""}_${s.day}_${s.periodId}`;
-    slotMap.set(key, s);
-  }
-
-  const isMaster = data.type === "master";
-
-  // Derive unique cohorts (only for master institutional wall chart)
-  const cohortKeys = new Set();
-  const cohorts = [];
-  if (isMaster) {
-    for (const s of slots) {
-      const key = `${s.grade || ""}|${s.stream || ""}`;
-      if (!cohortKeys.has(key)) {
-        cohortKeys.add(key);
-        const label = `${s.grade || ""}${s.stream ? " " + s.stream : ""}`.trim() || "All Classes";
-        cohorts.push({ grade: s.grade || "", stream: s.stream || "", label });
-      }
-    }
-    if (!cohorts.length) {
-      cohorts.push({ grade: "", stream: "", label: "All Classes" });
-    }
-  }
-
-  const days = DAYS;
-
-  // Build grid HTML
-  let theadHtml = `
-    <thead>
-      <tr>
-        <th style="width:55px;">DAY</th>
-        ${isMaster && cohorts.length > 1 ? '<th style="width:110px;">CLASS</th>' : ''}
-        ${periods.map((p) => {
-          if (p.isBreak) {
-            return `<th class="th-break" style="width:36px;">${p.name}<br/><span style="font-size:7pt; font-family:monospace; font-weight:normal;">${p.startTime}–${p.endTime}</span></th>`;
-          }
-          return `<th>${p.name}<br/><span style="font-size:7pt; font-family:monospace; font-weight:normal;">${p.startTime}–${p.endTime}</span></th>`;
-        }).join("")}
-      </tr>
-    </thead>
-  `;
-
-  let tbodyHtml = "<tbody>";
-  if (isMaster && cohorts.length > 1) {
-    for (const day of days) {
-      for (let cIdx = 0; cIdx < cohorts.length; cIdx++) {
-        const c = cohorts[cIdx];
-        const isFirst = cIdx === 0;
-        const isLast = cIdx === cohorts.length - 1;
-
-        tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
-
-        if (isFirst) {
-          tbodyHtml += `
-            <td rowspan="${cohorts.length}" class="day-cell">
-              <b>${day.substring(0, 4).toUpperCase()}</b>
-            </td>
-          `;
-        }
-
-        tbodyHtml += `
-          <td class="class-cell">
-            <b>${c.label}</b>
-          </td>
-        `;
-
-        for (let pIdx = 0; pIdx < periods.length; pIdx++) {
-          const p = periods[pIdx];
-
-          if (p.isBreak) {
-            if (isFirst) {
-              tbodyHtml += `
-                <td rowspan="${cohorts.length}" class="break-cell">
-                  <div class="vertical-text">${p.name} (${p.startTime}–${p.endTime})</div>
-                </td>
-              `;
-            }
-            continue;
-          }
-
-          const slot = slotMap.get(`${c.grade}_${c.stream}_${day}_${p.id}`);
-
-          let isMerged = false;
-          if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
-            const nextP = periods[pIdx + 1];
-            if (!nextP.isBreak) {
-              const nextSlot = slotMap.get(`${c.grade}_${c.stream}_${day}_${nextP.id}`);
-              if (nextSlot && nextSlot.subjectCode === slot.subjectCode && nextSlot.teacherId === slot.teacherId) {
-                isMerged = true;
-              }
-            }
-          }
-
-          if (isMerged) {
-            tbodyHtml += `
-              <td colspan="2" class="slot-cell slot-cell--merged">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span class="subj-name">${slot.subjectName || slot.subjectCode}</span>
-                  <span class="tag-double">Double</span>
-                </div>
-                <div class="meta-line">${slot.teacherName || "—"} · ${slot.room || "Room"}</div>
-              </td>
-            `;
-            pIdx++;
-            continue;
-          }
-
-          if (slot) {
-            tbodyHtml += `
-              <td class="slot-cell">
-                <div class="subj-name">${slot.subjectName || slot.subjectCode}</div>
-                <div class="meta-line">${slot.teacherName || "—"} · ${slot.room || "Room"}</div>
-              </td>
-            `;
-          } else {
-            tbodyHtml += `<td class="slot-cell empty-cell">—</td>`;
-          }
-        }
-
-        tbodyHtml += "</tr>";
-      }
-    }
-  } else {
-    // Individual Schedule (Teacher or Single Class): 1 clean row per Day!
-    for (let dIdx = 0; dIdx < days.length; dIdx++) {
-      const day = days[dIdx];
-      const isFirst = dIdx === 0;
-      const isLast = dIdx === days.length - 1;
-
-      tbodyHtml += `<tr style="${isLast ? 'border-bottom: 2px solid #0f172a;' : ''}">`;
-
-      tbodyHtml += `
-        <td class="day-cell">
-          <b>${day.substring(0, 4).toUpperCase()}</b>
-        </td>
-      `;
-
-      for (let pIdx = 0; pIdx < periods.length; pIdx++) {
-        const p = periods[pIdx];
-
-        if (p.isBreak) {
-          if (isFirst) {
-            tbodyHtml += `
-              <td rowspan="${days.length}" class="break-cell">
-                <div class="vertical-text">${p.name} (${p.startTime}–${p.endTime})</div>
-              </td>
-            `;
-          }
-          continue;
-        }
-
-        const slot = slots.find((s) => s.day === day && s.periodId === p.id) || null;
-
-        let isMerged = false;
-        if (slot && isDoubleAllowed(slot) && pIdx + 1 < periods.length) {
-          const nextP = periods[pIdx + 1];
-          if (!nextP.isBreak) {
-            const nextSlot = slots.find((s) => s.day === day && s.periodId === nextP.id) || null;
-            if (nextSlot && nextSlot.subjectCode === slot.subjectCode) {
-              if (data.type === "teacher") {
-                if (nextSlot.grade === slot.grade && (nextSlot.stream || "") === (slot.stream || "")) {
-                  isMerged = true;
-                }
-              } else {
-                if (nextSlot.teacherId === slot.teacherId) {
-                  isMerged = true;
-                }
-              }
-            }
-          }
-        }
-
-        if (isMerged) {
-          const topLabel = data.type === "teacher" ? `${slot.grade} ${slot.stream || ""}`.trim() : (slot.subjectName || slot.subjectCode);
-          const subLabel = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
-
-          tbodyHtml += `
-            <td colspan="2" class="slot-cell slot-cell--merged">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="subj-name">${topLabel}</span>
-                <span class="tag-double">Double</span>
-              </div>
-              <div class="meta-line">${subLabel} · ${slot.room || "Room"}</div>
-            </td>
-          `;
-          pIdx++;
-          continue;
-        }
-
-        if (slot) {
-          const topLabel = data.type === "teacher" ? `${slot.grade} ${slot.stream || ""}`.trim() : (slot.subjectName || slot.subjectCode);
-          const subLabel = data.type === "teacher" ? (slot.subjectName || slot.subjectCode) : (slot.teacherName || "—");
-
-          tbodyHtml += `
-            <td class="slot-cell">
-              <div class="subj-name">${topLabel}</div>
-              <div class="meta-line">${subLabel} · ${slot.room || "Room"}</div>
-            </td>
-          `;
-        } else {
-          tbodyHtml += `<td class="slot-cell empty-cell">${data.type === "teacher" ? "FREE / PREP" : "—"}</td>`;
-        }
-      }
-
-      tbodyHtml += "</tr>";
-    }
-  }
-  tbodyHtml += "</tbody>";
-
+  const { grid, letterhead } = sharedTimetableDisplay(data);
+  // A remote crest may require a connection. The saved grid and letterhead are fully embedded.
+  const content = renderTimetableChart(grid, letterhead).outerHTML;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${title} · ${schoolName}</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(letterhead.title)}</title>
 <style>
-  * { box-sizing: border-box; margin:0; padding:0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #f8fafc;
-    color: #0f172a;
-    padding: 20px;
-    font-size: 13px;
-  }
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: #ffffff;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    overflow: hidden;
-  }
-  .header {
-    background: #0f2744;
-    color: #ffffff;
-    padding: 20px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-  .school-title { font-size: 20px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-  .school-motto { font-size: 11px; opacity: 0.85; font-style: italic; margin-top: 2px; }
-  .doc-badge {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-    text-align: right;
-  }
-  .actions-bar {
-    background: #f1f5f9;
-    border-bottom: 1px solid #cbd5e1;
-    padding: 10px 24px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-  }
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #0f2744;
-    color: #ffffff;
-    border: none;
-    border-radius: 6px;
-    padding: 7px 14px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-  }
-  .btn:hover { background: #1e3a8a; }
-  .btn--ghost { background: #ffffff; color: #0f2744; border: 1px solid #cbd5e1; }
-  .btn--ghost:hover { background: #e2e8f0; }
-  .table-wrap { overflow-x: auto; padding: 20px; }
-  table { width: 100%; border-collapse: collapse; min-width: 860px; font-size: 11px; }
-  th, td { border: 1px solid #94a3b8; padding: 6px 8px; vertical-align: middle; }
-  thead th {
-    background: #0f2744;
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    text-align: center;
-    padding: 8px 6px;
-  }
-  thead th.th-break { background: #92400e; }
-  .day-cell { background: #f1f5f9; text-align: center; font-size: 12px; font-weight: 800; }
-  .class-cell { background: #f8fafc; font-weight: 700; white-space: nowrap; }
-  .break-cell {
-    background: #fef3c7;
-    text-align: center;
-    vertical-align: middle;
-    padding: 2px;
-    min-height: 80px;
-  }
-  .vertical-text {
-    writing-mode: vertical-lr;
-    transform: rotate(180deg);
-    font-size: 9px;
-    font-weight: 800;
-    color: #78350f;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-    margin: 0 auto;
-  }
-  .slot-cell { vertical-align: top; background: #ffffff; }
-  .slot-cell--merged { background: #f0fdf4; border-left: 2px solid #0f172a; }
-  .subj-name { font-weight: 700; font-size: 12px; color: #0f172a; display: block; }
-  .meta-line { font-size: 10px; color: #475569; margin-top: 2px; }
-  .empty-cell { text-align: center; color: #94a3b8; font-style: italic; font-size: 10px; }
-  .tag-double { font-size: 8px; font-weight: 800; border: 1px solid #0284c7; color: #0284c7; padding: 0 4px; border-radius: 3px; text-transform: uppercase; }
-  .footer {
-    padding: 16px 24px;
-    background: #f8fafc;
-    border-top: 1px solid #cbd5e1;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11px;
-    color: #64748b;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  @media print {
-    body { padding: 0; background: #ffffff; }
-    .container { border: none; box-shadow: none; max-width: 100%; }
-    .actions-bar { display: none; }
-    .header { background: #0f2744 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    th, td { border: 1px solid #0f172a !important; }
-    thead th { background: #0f2744 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    thead th.th-break { background: #92400e !important; }
-    .break-cell { background: #fef3c7 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-  }
+${timetableGridCss}
+body { margin: clamp(12px, 3vw, 32px); font-family: system-ui, sans-serif; }
+.print-actions { margin: 0 0 18px; text-align: right; }
+.print-actions button { padding: 8px 14px; cursor: pointer; }
+@page { size: ${grid.kind === "master" ? "A3" : "A4"} landscape; margin: 9mm; }
+@media print {
+  * { print-color-adjust: exact; }
+  body { margin: 0; }
+  .print-actions { display: none; }
+  .tt-chart .tt-chart-scroll { overflow: visible; max-height: none; }
+  .tt-chart-table :is(thead, .tt-chart-day, .tt-chart-class) { position: static; }
+  .tt-chart-lesson, .tt-chart-table .tt-chart-break, .tt-chart-table .tt-chart-class { min-width: 0; }
+  .tt-chart-day-col, .tt-chart-break-col, .tt-chart-class-col { width: auto; }
+  .tt-chart-table { min-width: 0; font: 9pt/1.15 Georgia, serif; }
+  .tt-chart-table .tt-chart-cell { min-height: 0; }
+  .tt-chart-table tr { break-inside: avoid; }
+}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <div>
-      <div class="school-title">${schoolName}</div>
-      ${motto ? `<div class="school-motto">"${motto}"</div>` : ''}
-      <div style="font-size:12px; margin-top:6px; opacity:0.9;"><b>${title}</b>${subTitle ? ` · ${subTitle}` : ''}</div>
-    </div>
-    <div class="doc-badge">
-      <div><b>${currentTerm}</b></div>
-      <div>Academic Year ${currentYear}</div>
-      <div style="font-size:10px; opacity:0.8; margin-top:2px;">Official Timetable</div>
-    </div>
-  </div>
-
-  <div class="actions-bar">
-    <div style="display:flex; align-items:center; gap:8px;">
-      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#16a34a;"></span>
-      <span style="font-weight:600; font-size:11.5px; color:#166534;">Saved Offline File · Works Without Internet</span>
-    </div>
-    <div style="display:flex; gap:8px;">
-      <button class="btn" onclick="window.print()">🖨️ Print / Save PDF</button>
-    </div>
-  </div>
-
-  <div class="table-wrap">
-    <table>
-      ${theadHtml}
-      ${tbodyHtml}
-    </table>
-  </div>
-
-  <div class="footer">
-    <div>${schoolName} · Verified CBC JSS Timetable</div>
-    <div>Generated from Official School Record · Offline Ready</div>
-  </div>
-</div>
+<div class="print-actions"><button type="button" onclick="window.print()">Print timetable</button></div>
+${content}
 </body>
 </html>`;
 }
 
-/**
- * Triggers a browser file download of the standalone single-file HTML timetable.
- */
 export function downloadStandaloneTimetableHtml(data) {
   const html = generateStandaloneHtml(data);
   const schoolSlug = ((data.schoolInfo && data.schoolInfo.name) || "School").replace(/[^a-zA-Z0-9_-]/g, "_");
