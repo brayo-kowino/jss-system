@@ -467,7 +467,7 @@ export async function render({ profile, params = {} }) {
     getTimetableRoomMode(),
   ]);
 
-  // Non-admins default to classes or their own teacher tab
+  // Non-admins default to classes and teachers tabs, since they can't see the master or periods tabs. Admins default to master tab.
   if (!canManage) {
     activeTab = "classes";
   }
