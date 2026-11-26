@@ -12,7 +12,6 @@ import { listRecentApprovals } from "../js/services/login-approval.service.js";
 import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
 import { extractLogoPalette } from "../js/services/logo-palette.js";
 import { openSignaturePadModal } from "../js/components/signature-pad-modal.js";
-import "../css/school-settings.css";
 
 let settings = null;
 let activeThemeId = "custom";
