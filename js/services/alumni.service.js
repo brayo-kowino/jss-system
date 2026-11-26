@@ -50,6 +50,25 @@ export async function listAlumni() {
   return mergeGraduateRecords(rows(archive), rows(roster));
 }
 
+export async function loadGraduationRecord(student) {
+  const history = [...(student.statusHistory || [])].reverse().find(({ status }) => status === "graduated");
+  let archive;
+  if (!student.graduationYear || !student.graduationTerm) {
+    const snapshots = await getDocs(query(collection(db, "alumni"),
+      where("schoolId", "==", getCurrentSchoolId()), where("originalStudentId", "==", student.id)));
+    archive = mergeGraduateRecords(snapshots.docs.map((item) => ({ ...item.data(), id: item.id })), [])[0];
+  }
+  const previousYear = history?.reason?.match(/\b(?:academic year\s+(\d{4})|(\d{4})\s+academic year)\b/i);
+  return {
+    year: String(student.graduationYear || archive?.graduationYear || previousYear?.[1] || previousYear?.[2] || ""),
+    term: student.graduationTerm || archive?.graduationTerm || "",
+    date: toDate(student.graduatedAt || archive?.graduatedAt || history?.at),
+    grade: archive?.grade || student.grade || "",
+    stream: archive?.stream ?? student.stream ?? "",
+    feeExpected: student.graduationFeeExpected ?? archive?.graduationFeeExpected ?? null,
+  };
+}
+
 export async function listAlumniCertificates(studentId) {
   const schoolId = officeSchool();
   const certificates = await Promise.all(Object.keys(CERTIFICATE_TYPES).map((type) =>

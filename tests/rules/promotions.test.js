@@ -33,6 +33,7 @@ describe("Promotions against Firestore Rules", () => {
         seedDoc(db, "schools", SCHOOL_A_ID, { currentAcademicYear: "2026", currentTerm: "Term 3" }),
         seedDoc(db, "classes", "grade-8", { schoolId: SCHOOL_A_ID, grade: "Grade 8", streams: ["Blue"] }),
         seedDoc(db, "classes", "grade-9", { schoolId: SCHOOL_A_ID, grade: "Grade 9", streams: [] }),
+        seedDoc(db, "fees", "exit-fee", { schoolId: SCHOOL_A_ID, grade: "Grade 9", academicYear: "2026", term: "Term 3", amount: 9000 }),
         seedDoc(db, "students", "move", { schoolId: SCHOOL_A_ID, status: "active", grade: "Grade 8", stream: "Blue", fullName: "Demo A" }),
         seedDoc(db, "students", "graduate", { schoolId: SCHOOL_A_ID, status: "active", grade: "Grade 9", stream: "", fullName: "Demo B" }),
         seedDoc(db, "results", "archived-result", { schoolId: SCHOOL_A_ID, grade: "Grade 9", academicYear: "2026", studentId: "graduate" }),
@@ -48,8 +49,12 @@ describe("Promotions against Firestore Rules", () => {
 
     expect(result).toMatchObject({ promoted: 1, graduated: 1, status: "complete" });
     expect((await getDoc(doc(session.db, "students", "move"))).data()).toMatchObject({ grade: "Grade 9", stream: "" });
-    expect((await getDoc(doc(session.db, "students", "graduate"))).data()).toMatchObject({ status: "graduated" });
-    expect((await getDoc(doc(session.db, "alumni", "graduate"))).data()).toMatchObject({ originalStudentId: "graduate", graduationYear: "2026" });
+    expect((await getDoc(doc(session.db, "students", "graduate"))).data()).toMatchObject({
+      status: "graduated", graduationYear: "2026", graduationTerm: "Term 3", graduationFeeExpected: 9000,
+    });
+    expect((await getDoc(doc(session.db, "alumni", "graduate"))).data()).toMatchObject({
+      originalStudentId: "graduate", graduationYear: "2026", graduationTerm: "Term 3", graduationFeeExpected: 9000,
+    });
     expect((await getDoc(doc(session.db, "schools", SCHOOL_A_ID))).data()).toMatchObject({ currentAcademicYear: "2027", currentTerm: "Term 1" });
     expect((await getDoc(doc(session.db, "audit_logs", "run"))).data()).toMatchObject({ action: "bulk_promote" });
     expect((await getDoc(doc(session.db, "results", "archived-result"))).data()).toMatchObject({ grade: "Grade 9", academicYear: "2026" });

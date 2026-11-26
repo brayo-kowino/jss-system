@@ -84,7 +84,7 @@ export async function listAttendanceForClassPeriod(grade, stream, academicYear, 
       where("grade", "==", grade),
       where("stream", "==", stream),
       where("academicYear", "==", academicYear),
-      where("term", "==", term)
+      ...(term === undefined ? [] : [where("term", "==", term)])
     )
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? -1 : 1));

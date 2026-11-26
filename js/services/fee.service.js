@@ -8,13 +8,13 @@
 import {
   collection,
   doc,
-  addDoc,
   setDoc,
   deleteDoc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   getAggregateFromServer,
-  getCountFromServer,
+  runTransaction,
   sum,
   query,
   where,
@@ -26,6 +26,10 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { scopedId } from "../utils.js";
 import { listStudents } from "./student.service.js";
+import { loadGraduationRecord } from "./alumni.service.js";
+import { buildGraduateFeeHistory } from "./graduate-fees.js";
+import { listResultsForStudent } from "./grading.service.js";
+import { getSchoolSettings } from "./settings.service.js";
 import { cached, cachedWithFallback, invalidate } from "./query-cache.js";
 
 export const PAYMENT_METHODS = ["Cash", "M-Pesa", "Bank Transfer", "Cheque"];
@@ -38,9 +42,8 @@ function structureId(schoolId, grade, academicYear, term) {
 //   studentId, grade, academicYear, term, expected, paid, balance,
 //   updatedAt } - one summary doc per student per term, kept in sync from
 //   recordPayment() (single student) and saveFeeStructure() (bulk-resynced
-//   for every student in the affected grade). Exists purely so the
-//   dashboard's "students with balances" stat is a single getCountFromServer()
-//   instead of an N+1 getFeeSummary() loop over every active student.
+//   for every student in the affected grade). Retains recorded charges for
+//   graduate profiles and saves per-student reads on the dashboard.
 function feeStatusId(schoolId, studentId, academicYear, term) {
   return scopedId(schoolId, studentId, slugify(academicYear), slugify(term));
 }
@@ -91,34 +94,52 @@ export async function deleteFeeStructure(userId, id) {
 
 // -------------------------------------------------------------- Payments --
 
-export async function recordPayment(userId, { studentId, studentName, grade, stream, academicYear, term, amount, method, reference, date }) {
+export async function recordPayment(userId, { studentId, studentName, grade, stream, academicYear, term, amount, method, reference, date, pastCharge = false }) {
   const n = Number(amount);
-  if (Number.isNaN(n) || n <= 0) throw new Error("Enter a valid payment amount.");
-  const ref_ = await addDoc(collection(db, "fee_payments"), {
-    schoolId: getCurrentSchoolId(),
-    studentId,
-    studentName: studentName || "",
-    grade: grade || "",
-    stream: stream || "",
-    academicYear,
-    term,
-    amount: n,
-    method: method || "Cash",
-    reference: reference || "",
-    date: date || new Date().toISOString().slice(0, 10),
-    recordedBy: userId,
-    createdAt: serverTimestamp(),
+  if (!Number.isFinite(n) || n <= 0) throw new Error("Enter a valid payment amount.");
+  const schoolId = getCurrentSchoolId();
+  const paymentRef = doc(collection(db, "fee_payments"));
+  const isGraduate = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(doc(db, "students", studentId));
+    const student = snapshot.data();
+    if (!student || student.schoolId !== schoolId) throw new Error("The learner record could not be found.");
+    const graduated = student.status === "graduated";
+    let placement = { studentName, grade, stream };
+    if (graduated) {
+      if (!pastCharge) throw new Error("Open the graduate’s Fees History and select a recorded past charge.");
+      const learner = { ...student, id: studentId };
+      const [graduation, reports, settings] = await Promise.all([
+        loadGraduationRecord(learner), listResultsForStudent(studentId), getSchoolSettings(schoolId),
+      ]);
+      const { rows } = await getGraduateFeeHistory(studentId, graduation, reports, settings.terms || []);
+      const charge = rows.find((row) => String(row.academicYear) === String(academicYear) &&
+        row.term === term && !row.needsReview && row.balance > 0);
+      if (!charge) throw new Error("This period has no confirmed past balance. Refresh Fees History and try again.");
+      placement = { studentName: student.fullName, grade: charge.grade, stream: charge.stream ??
+        (charge.grade === graduation.grade ? graduation.stream : "") };
+    } else if (pastCharge) {
+      throw new Error("The learner’s enrollment status changed. Reopen the profile before recording payment.");
+    }
+    transaction.set(paymentRef, {
+      schoolId, studentId, studentName: placement.studentName || "", grade: placement.grade || "", stream: placement.stream || "",
+      academicYear, term, amount: n, method: method || "Cash", reference: reference || "",
+      date: date || new Date().toISOString().slice(0, 10), recordedBy: userId, createdAt: serverTimestamp(),
+    });
+    return graduated;
   });
-  await logAction(userId, "record_payment", "fee_payments", ref_.id);
+  await logAction(userId, "record_payment", "fee_payments", paymentRef.id);
   // Keep the balances summary current for this one student - the cheap,
   // common-case path (a single payment) vs. the grade-wide resync below.
-  // Non-fatal: if summary sync fails, payment is already safely recorded.
-  try {
-    await syncStudentFeeStatus({ studentId, grade: grade || "", academicYear, term });
-  } catch (syncErr) {
-    console.warn("Derived fee status sync skipped:", syncErr);
+  // A graduate's saved expected amount is historical. The ledger adds the
+  // new receipt without recalculating the old charge from today's schedule.
+  if (!isGraduate) {
+    try {
+      await syncStudentFeeStatus({ studentId, grade: grade || "", academicYear, term });
+    } catch (syncErr) {
+      console.warn("Derived fee status sync skipped:", syncErr);
+    }
   }
-  return ref_.id;
+  return paymentRef.id;
 }
 
 export async function listPaymentsForStudent(studentId) {
@@ -126,6 +147,15 @@ export async function listPaymentsForStudent(studentId) {
     query(collection(db, "fee_payments"), where("schoolId", "==", getCurrentSchoolId()), where("studentId", "==", studentId))
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+export async function getGraduateFeeHistory(studentId, graduation, reports, terms) {
+  const [summaries, payments] = await Promise.all([
+    getDocs(query(collection(db, "student_fee_status"),
+      where("schoolId", "==", getCurrentSchoolId()), where("studentId", "==", studentId))),
+    listPaymentsForStudent(studentId),
+  ]);
+  return buildGraduateFeeHistory({ graduation, reports, terms, payments, summaries: summaries.docs.map((item) => item.data()) });
 }
 
 export async function listPaymentsForClassPeriod(grade, stream, academicYear, term) {
@@ -215,16 +245,12 @@ export async function getMonthlyRevenueTrend(months = 6) {
   return { months: results, stale: results.some((m) => m.stale) };
 }
 
-/** For the dashboard's "students with pending balances" insight - a single
- * count aggregate against the student_fee_status summary collection instead
- * of an N+1 getFeeSummary() call per active student. Relies on that
- * collection being kept in sync by syncStudentFeeStatus()/
- * resyncFeeStatusForGrade() below, so it's only as fresh as the last
- * payment or fee-structure change. */
-export async function getStudentsWithBalancesCount(academicYear, term) {
-  const key = `fees:balances-count:${scopedId(getCurrentSchoolId(), academicYear, term)}`;
+/** Join recorded balances to the active roster so a historical summary
+ * stops contributing to the dashboard as soon as a learner graduates. */
+export async function getStudentsWithBalancesCount(academicYear, term, roster = listStudents()) {
+  const key = `fees:active-balances-count:${scopedId(getCurrentSchoolId(), academicYear, term)}`;
   const { value, stale } = await cachedWithFallback(key, async () => {
-    const snap = await getCountFromServer(
+    const balances = getDocsFromServer(
       query(
         collection(db, "student_fee_status"),
         where("schoolId", "==", getCurrentSchoolId()),
@@ -233,7 +259,9 @@ export async function getStudentsWithBalancesCount(academicYear, term) {
         where("balance", ">", 0)
       )
     );
-    return snap.data().count;
+    const [snap, students] = await Promise.all([balances, roster]);
+    const active = new Set(students.filter(({ status }) => status === "active").map(({ id }) => id));
+    return new Set(snap.docs.map((item) => item.data().studentId).filter((id) => active.has(id))).size;
   }, 0);
   return { value, stale };
 }
@@ -317,7 +345,7 @@ export async function syncStudentFeeStatus({ studentId, grade, academicYear, ter
  * action, not on every dashboard load. */
 async function resyncFeeStatusForGrade({ grade, academicYear, term }) {
   if (!grade || !academicYear || !term) return;
-  const students = await listStudents();
+  const students = await listStudents(true);
   const activeInGrade = students.filter((s) => s.status === "active" && s.grade === grade);
   await Promise.all(
     activeInGrade.map((s) => syncStudentFeeStatus({ studentId: s.id, grade, academicYear, term }))
@@ -334,7 +362,7 @@ async function resyncFeeStatusForGrade({ grade, academicYear, term }) {
  * Returns how many students were synced. */
 export async function backfillAllFeeStatuses(academicYear, term) {
   if (!academicYear || !term) throw new Error("Academic year and term are required.");
-  const students = await listStudents();
+  const students = await listStudents(true);
   const eligible = students.filter((s) => s.status === "active" && s.grade);
   await Promise.all(
     eligible.map((s) => syncStudentFeeStatus({ studentId: s.id, grade: s.grade, academicYear, term }))

@@ -202,8 +202,18 @@ export async function commitPromotionPlan(userId, plan, options) {
   const settingsRef = schoolRef(schoolId);
   // Rules hide deleted class documents. Look up existing IDs before the
   // transaction so a deleted class can be reviewed as a conflict.
-  const classSnapshot = await getDocsFromServer(query(collection(db, "classes"), where("schoolId", "==", schoolId)));
+  const schoolFilter = where("schoolId", "==", schoolId);
+  const [classSnapshot, feeSnapshot] = await Promise.all([
+    getDocsFromServer(query(collection(db, "classes"), schoolFilter)),
+    !proposed || proposed.entries.some(({ action }) => action === "graduate")
+      ? getDocsFromServer(query(collection(db, "fees"), schoolFilter)) : null,
+  ]);
   const existingClassIds = new Set(classSnapshot.docs.map(({ id }) => id));
+  const feeKey = (grade, year, term) => JSON.stringify([grade, String(year), term]);
+  const feeIds = new Map(feeSnapshot?.docs.map((snapshot) => {
+    const { grade, academicYear, term } = snapshot.data();
+    return [feeKey(grade, academicYear, term), snapshot.id];
+  }));
   const timestamp = new Date().toISOString();
   let job;
 
@@ -229,11 +239,15 @@ export async function commitPromotionPlan(userId, plan, options) {
       }
       const chunk = getChunk(current);
       const classIds = [...new Set(chunk.map(({ classId }) => classId).filter((id) => existingClassIds.has(id)))];
-      const [learners, destinations] = await Promise.all([
+      const graduationFeeIds = [...new Set(chunk.filter(({ action }) => action === "graduate")
+        .map(({ fromGrade }) => feeIds.get(feeKey(fromGrade, current.year, current.term))).filter(Boolean))];
+      const [learners, destinations, graduationFees] = await Promise.all([
         Promise.all(chunk.map(({ studentId }) => transaction.get(doc(db, "students", studentId)))),
         Promise.all(classIds.map((id) => transaction.get(doc(db, "classes", id)))),
+        Promise.all(graduationFeeIds.map((id) => transaction.get(doc(db, "fees", id)))),
       ]);
       const classById = new Map(destinations.map((snapshot) => [snapshot.id, snapshot.data()]));
+      const feeById = new Map(graduationFees.map((snapshot) => [snapshot.id, snapshot.data()]));
       const conflicts = [];
       const eligible = [];
       let skipped = 0;
@@ -274,12 +288,19 @@ export async function commitPromotionPlan(userId, plan, options) {
         if (entry.action === "promote") {
           transaction.update(snapshot.ref, { grade: entry.toGrade, stream: entry.toStream });
         } else {
+          const fee = feeById.get(feeIds.get(feeKey(entry.fromGrade, current.year, current.term)));
+          const expected = fee?.amount == null || fee.amount === "" ? NaN : Number(fee.amount);
+          const graduation = {
+            status: "graduated", graduationYear: current.year, graduationTerm: current.term,
+            graduatedAt: serverTimestamp(),
+            graduationFeeExpected: Number.isFinite(expected) && expected >= 0 ? expected : null,
+          };
           transaction.update(snapshot.ref, {
-            status: "graduated",
+            ...graduation,
             statusHistory: arrayUnion({ status: "graduated", reason: "Graduated in academic year " + current.year, by: userId, at: timestamp }),
           });
           transaction.set(doc(db, "alumni", entry.studentId), {
-            ...learner, status: "graduated", graduatedAt: serverTimestamp(), graduationYear: current.year,
+            ...learner, ...graduation,
             promotedBy: userId, originalStudentId: entry.studentId,
           });
         }

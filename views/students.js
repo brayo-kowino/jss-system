@@ -6,7 +6,7 @@ import {
   setStudentStatus,
 } from "../js/services/student.service.js";
 import { listParents } from "../js/services/parent.service.js";
-import { ALUMNI_ROLES } from "../js/services/alumni.service.js";
+import { ALUMNI_ROLES, loadGraduationRecord } from "../js/services/alumni.service.js";
 import { listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import {
@@ -14,9 +14,11 @@ import {
   listPaymentsForStudent,
   recordPayment,
   getFeeSummary,
+  getGraduateFeeHistory,
   formatKES,
   PAYMENT_METHODS,
 } from "../js/services/fee.service.js";
+import { isGraduatePeriod } from "../js/services/graduate-fees.js";
 import { listResultsForStudent, reportModeLabel, positionScopeTag, pickHeadlineResult } from "../js/services/grading.service.js";
 import { listAttendanceForClassPeriod, summarizeForRoster } from "../js/services/attendance.service.js";
 import { listLogsForEntity } from "../js/services/audit.service.js";
@@ -626,7 +628,7 @@ function renderPagination(totalItems, totalPages, tableWrap, profile) {
 
 function statusBadge(status) {
   const map = { active: "success", transferred: "gold", suspended: "danger", archived: "muted", graduated: "primary" };
-  return el("span", { class: `badge badge--${map[status] || "muted"}` }, status || "active");
+  return el("span", { class: `badge badge--${map[status] || "muted"}` }, status === "graduated" ? "Graduated" : status || "active");
 }
 
 function rowActions(student, profile) {
@@ -667,21 +669,25 @@ function openStudentProfile(profile, student, initialTab = "overview") {
   const header = el("div", {});
   const tabsNav = el("div", { class: "profile-tabs" });
   const panel = el("div", { class: "profile-tab-panel" });
+  const graduated = student.status === "graduated";
+  const graduation = graduated ? loadGraduationRecord(student).catch(() => null) : null;
+  let closeProfile;
+  let savedResults;
+  const readResults = () => savedResults ||= listResultsForStudent(student.id).catch(() => []);
 
-  // Cache each tab's rendered fetch so switching back and forth doesn't
-  // re-query Firestore every click; a fresh profile open always refetches.
+  // Reuse saved results across the profile's tabs until it is reopened.
   const loaders = {
-    overview: () => renderOverviewTab(panel, profile, student, refreshAll),
-    academic: () => renderAcademicTab(panel, profile, student, refreshAll),
-    fees: () => renderFeesTab(panel, profile, student),
-    attendance: () => renderAttendanceTab(panel, profile, student),
-    activity: () => renderActivityTab(panel, profile, student, refreshAll),
+    overview: (content) => renderOverviewTab(content, student, graduation, readResults),
+    academic: (content) => renderAcademicTab(content, readResults),
+    fees: (content) => renderFeesTab(content, profile, student, graduation, readResults),
+    attendance: (content) => renderAttendanceTab(content, student, graduation, readResults),
+    activity: (content) => renderActivityTab(content, profile, student, refreshAll),
   };
   let activeTab = (initialTab && loaders[initialTab]) ? initialTab : "overview";
 
   function rerenderHeader() {
     header.innerHTML = "";
-    header.append(buildProfileHeader(profile, student, refreshAll));
+    header.append(buildProfileHeader(profile, student, refreshAll, () => closeProfile()));
   }
 
   function renderTabsNav() {
@@ -693,8 +699,9 @@ function openStudentProfile(profile, student, initialTab = "overview") {
         el("button", {
           type: "button",
           class: `profile-tab${isActive ? " profile-tab--active" : ""}`,
-          onClick: () => { activeTab = t.id; renderTabsNav(); panel.innerHTML = ""; panel.append(loadingRow()); loaders[t.id](); },
-        }, [icon(t.icon), t.label, count ? el("span", { class: "badge badge--danger" }, String(count)) : ""])
+          onClick: () => { activeTab = t.id; renderTabsNav(); renderActiveTab(); },
+        }, [icon(t.icon), graduated && t.id === "fees" ? "Fee History" : graduated && t.id === "attendance" ? "Attendance History" : t.label,
+          count ? el("span", { class: "badge badge--danger" }, String(count)) : ""])
       );
     }
   }
@@ -706,34 +713,39 @@ function openStudentProfile(profile, student, initialTab = "overview") {
   function refreshAll() {
     rerenderHeader();
     renderTabsNav();
-    panel.innerHTML = "";
-    panel.append(loadingRow());
-    loaders[activeTab]();
+    renderActiveTab();
+  }
+
+  function renderActiveTab() {
+    // An earlier tab may finish loading after the user switches tabs.
+    const content = el("div");
+    panel.replaceChildren(content);
+    loaders[activeTab](content);
   }
 
   rerenderHeader();
   renderTabsNav();
-  panel.append(loadingRow());
 
   const body = el("div", {}, [header, tabsNav, panel]);
-  openModal(`Student Profile: ${student.fullName}`, body, "modal--wide");
-  loaders[activeTab]();
+  closeProfile = openModal(`Student Profile: ${student.fullName}`, body, "modal--wide");
+  renderActiveTab();
 }
 
 function loadingRow() {
   return el("div", { class: "loading-row" }, [spinner("sm", "dark"), "Loading…"]);
 }
 
-function buildProfileHeader(profile, student, refreshAll) {
+function buildProfileHeader(profile, student, refreshAll, closeProfile) {
   const wrap = el("div", { class: "profile-header" });
   const starterPlan = isStarterPlan(getCurrentSchool());
+  const graduated = student.status === "graduated";
   wrap.append(
     starterPlan
       ? el("div", { class: "profile-photo profile-photo--placeholder" }, [el("span", { class: "material-symbols-rounded" }, "person")])
       : student.photoUrl ? el("img", { class: "profile-photo", src: student.photoUrl }) : el("div", { class: "profile-photo" }),
     el("div", { class: "profile-identity" }, [
       el("h2", {}, student.fullName),
-      el("p", { class: "meta" }, `${student.admissionNumber || "No adm. no."} · ${student.grade || "N/A"} ${student.stream || ""} · ${student.gender || "N/A"}`),
+      el("p", { class: "meta" }, `${student.admissionNumber || "No adm. no."} · ${graduated ? "Final class " : ""}${student.grade || "N/A"} ${student.stream || ""} · ${student.gender || "N/A"}`),
       el("div", { class: "badges" }, [
         statusBadge(student.status),
         student.status === "suspended" && student.suspensionReason
@@ -748,7 +760,12 @@ function buildProfileHeader(profile, student, refreshAll) {
         title: "Copy direct link to this learner's profile",
         onClick: () => copyDeepLink("/students", { id: student.id }, `Student link (${student.fullName})`),
       }, [icon("share", "text-xs"), "Share Link"]),
-      ...(["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
+      graduated && ALUMNI_ROLES.includes(profile.role) ? el("a", {
+        class: "btn btn--ghost btn--sm",
+        href: "#/students?" + new URLSearchParams({ tab: "alumni", q: student.admissionNumber || student.fullName }),
+        onClick: closeProfile,
+      }, [icon("description"), "Alumni Documents"]) : null,
+      ...(!graduated && ["admin", "principal", "deputy_principal", "registrar"].includes(profile.role) ? [
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStudentForm(profile, student, refreshAll) }, [icon("edit"), "Edit Info"]),
         el("button", { class: "btn btn--ghost btn--sm", onClick: () => openTransferForm(profile, student, refreshAll) }, [icon("swap_horiz"), "Transfer/Promote"]),
         student.status !== "suspended"
@@ -758,7 +775,7 @@ function buildProfileHeader(profile, student, refreshAll) {
           ? el("button", { class: "btn btn--ghost btn--sm", onClick: () => openStatusChangeModal(profile, student, "archived", refreshAll) }, [icon("archive"), "Archive"])
           : "",
       ] : []),
-      el("button", { class: "btn btn--danger btn--sm", onClick: () => openIssueForm(profile, student, null, refreshAll) }, [icon("report"), "Raise Issue"]),
+      !graduated ? el("button", { class: "btn btn--danger btn--sm", onClick: () => openIssueForm(profile, student, null, refreshAll) }, [icon("report"), "Raise Issue"]) : null,
     ])
   );
   return wrap;
@@ -768,23 +785,37 @@ function detailItem(label, value) {
   return el("div", { class: "detail-item" }, [el("label", {}, label), el("div", {}, value || "N/A")]);
 }
 
-async function renderOverviewTab(panel, profile, student, refreshAll) {
+async function renderOverviewTab(panel, student, graduation, readResults) {
   panel.innerHTML = "";
   panel.append(loadingRow());
 
-  const [feeSummary, results] = await Promise.all([
-    settings.currentAcademicYear && settings.currentTerm
-      ? getFeeSummary({ studentId: student.id, grade: student.grade, academicYear: settings.currentAcademicYear, term: settings.currentTerm }).catch(() => null)
-      : Promise.resolve(null),
-    listResultsForStudent(student.id).catch(() => []),
+  const resultsRequest = readResults();
+  const [feeSummary, results, exit] = await Promise.all([
+    (graduation
+      ? Promise.all([graduation, resultsRequest]).then(([record, reports]) =>
+        record && getGraduateFeeHistory(student.id, record, reports, settings.terms || []))
+      : settings.currentAcademicYear && settings.currentTerm
+        ? getFeeSummary({ studentId: student.id, grade: student.grade, academicYear: settings.currentAcademicYear, term: settings.currentTerm })
+        : Promise.resolve(null)).catch(() => null),
+    resultsRequest, graduation,
   ]);
   const latestResult = pickHeadlineResult(results);
   const openCount = openIssueCounts.get(student.id) || 0;
 
   panel.innerHTML = "";
+  if (graduation) {
+    const period = [exit?.term, exit?.year].filter(Boolean).join(" ");
+    panel.append(el("p", { class: "text-sm text-muted" }, period
+      ? `Graduated in ${period}. This profile shows historical records.`
+      : "This graduate’s profile shows historical records."));
+  }
 
+  const pastBalance = feeSummary?.totalBalance;
   const stats = el("div", { class: "profile-stats" }, [
-    statChip("Fee Balance (this term)", feeSummary ? formatKES(feeSummary.balance) : "N/A", feeSummary && feeSummary.balance > 0 ? "warn" : "good"),
+    graduation
+      ? statChip("Past Fee Balance", !feeSummary ? "Unavailable" : !pastBalance && feeSummary.hasUnverifiedBalance ? "Needs review"
+        : feeSummary.rows.length ? formatKES(pastBalance) : "No recorded charges", pastBalance ? "warn" : "")
+      : statChip("Fee Balance (this term)", feeSummary ? formatKES(feeSummary.balance) : "N/A", feeSummary && feeSummary.balance > 0 ? "warn" : "good"),
     statChip("Latest Mean Grade", latestResult ? `${latestResult.meanGrade || "N/A"} (${latestResult.meanMarks?.toFixed(1) ?? "N/A"}%)` : "No results yet"),
     statChip("Latest Position", latestResult?.overallPosition ? `${latestResult.overallPosition} / ${latestResult.classSize} (${positionScopeTag(false)})` : "N/A"),
     statChip("Open Issues", String(openCount), openCount ? "warn" : "good"),
@@ -812,7 +843,8 @@ async function renderOverviewTab(panel, profile, student, refreshAll) {
   panel.append(el("h3", { class: "section-title" }, "Parents / Guardians"));
   const parentIds = student.parentIds || [];
   if (!parentIds.length) {
-    panel.append(el("p", { class: "text-sm text-muted" }, "No parents/guardians linked. Edit this student to link one."));
+    panel.append(el("p", { class: "text-sm text-muted" }, graduation
+      ? "No parents or guardians are linked." : "No parents/guardians linked. Edit this student to link one."));
   } else {
     for (const pid of parentIds) {
       const p = parents.find((x) => x.id === pid);
@@ -854,10 +886,10 @@ function statChip(label, value, tone = "") {
   ]);
 }
 
-async function renderAcademicTab(panel, profile, student, refreshAll) {
+async function renderAcademicTab(panel, readResults) {
   panel.innerHTML = "";
   panel.append(loadingRow());
-  const results = await listResultsForStudent(student.id).catch(() => []);
+  const results = await readResults();
   const sorted = [...results].sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term));
 
   panel.innerHTML = "";
@@ -897,21 +929,14 @@ async function renderAcademicTab(panel, profile, student, refreshAll) {
   panel.append(tableWrap);
 }
 
-async function renderFeesTab(panel, profile, student) {
-  panel.innerHTML = "";
-  panel.append(loadingRow());
-  const [structures, payments] = await Promise.all([
-    listFeeStructures().catch(() => []),
-    listPaymentsForStudent(student.id).catch(() => []),
-  ]);
-
+function enrolledFeeRows(grade, structures, payments) {
   const periods = new Map(); // "grade|year|term" -> { grade, academicYear, term, expected, paid }
   for (const p of payments) {
     const key = `${p.grade}|${p.academicYear}|${p.term}`;
     if (!periods.has(key)) periods.set(key, { grade: p.grade, academicYear: p.academicYear, term: p.term, expected: 0, paid: 0 });
     periods.get(key).paid += Number(p.amount) || 0;
   }
-  for (const s of structures.filter((s) => s.grade === student.grade)) {
+  for (const s of structures.filter((s) => s.grade === grade)) {
     const key = `${s.grade}|${s.academicYear}|${s.term}`;
     if (!periods.has(key)) periods.set(key, { grade: s.grade, academicYear: s.academicYear, term: s.term, expected: 0, paid: 0 });
   }
@@ -920,43 +945,83 @@ async function renderFeesTab(panel, profile, student) {
     period.expected = match ? Number(match.amount) || 0 : 0;
     period.balance = period.expected - period.paid;
   }
-  const ledgerRows = [...periods.values()].sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term));
-  const totalBalance = ledgerRows.reduce((sum, r) => sum + Math.max(r.balance, 0), 0);
+  return [...periods.values()].sort((a, b) => (b.academicYear + b.term).localeCompare(a.academicYear + a.term));
+}
+
+async function renderFeesTab(panel, profile, student, graduation, readResults) {
+  panel.replaceChildren(loadingRow());
+  const reload = () => renderFeesTab(panel, profile, student, graduation, readResults);
+  const canRecordPast = Boolean(graduation) && ["admin", "bursar"].includes(profile.role);
+  let ledgerRows;
+  let payments;
+  let totalBalance;
+  let hasUnverifiedBalance = false;
+  try {
+    if (graduation) {
+      const [record, reports] = await Promise.all([graduation, readResults()]);
+      if (!record) throw new Error("Graduation records unavailable");
+      const history = await getGraduateFeeHistory(student.id, record, reports, settings.terms || []);
+      ({ rows: ledgerRows, payments, totalBalance, hasUnverifiedBalance } = history);
+    } else {
+      const [structures, receipts] = await Promise.all([
+        listFeeStructures().catch(() => []), listPaymentsForStudent(student.id).catch(() => []),
+      ]);
+      payments = receipts;
+      ledgerRows = enrolledFeeRows(student.grade, structures, payments);
+      totalBalance = ledgerRows.reduce((sum, row) => sum + Math.max(row.balance, 0), 0);
+    }
+  } catch {
+    panel.replaceChildren(el("p", { class: "text-sm text-muted", role: "alert" }, "Could not load past fees. Try again when the connection is available."),
+      el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: reload }, "Try Again"));
+    return;
+  }
 
   panel.innerHTML = "";
 
   panel.append(
     el("div", { class: "profile-stats" }, [
-      statChip("Total Outstanding", formatKES(totalBalance), totalBalance > 0 ? "warn" : "good"),
+      statChip(graduation ? "Confirmed Past Balance" : "Total Outstanding",
+        graduation && !ledgerRows.length ? "No recorded charges" : !totalBalance && hasUnverifiedBalance ? "Needs review" : formatKES(totalBalance),
+        totalBalance > 0 ? "warn" : ""),
       statChip("Payments Recorded", String(payments.length)),
     ]),
-    el("div", { style: "display:flex; justify-content:flex-end; margin-bottom:12px;" }, [
-      el("button", { class: "btn btn--primary btn--sm", onClick: () => openPaymentForm(profile, student, () => renderFeesTab(panel, profile, student)) }, [icon("add_card"), "Record Payment"]),
-    ])
+    ...(graduation
+      ? [el("p", { class: "text-sm text-muted" }, hasUnverifiedBalance
+        ? "Entries marked Needs review lack a confirmed enrollment period and are excluded from the balance."
+        : "Fees shown here are from the learner’s recorded enrollment.")]
+      : [el("div", { style: "display:flex; justify-content:flex-end; margin-bottom:12px;" }, [
+        el("button", { class: "btn btn--primary btn--sm", onClick: () => openPaymentForm(profile, student, reload) }, [icon("add_card"), "Record Payment"]),
+      ])])
   );
 
   panel.append(el("h3", { class: "section-title" }, "Fee Ledger by Term"));
   if (!ledgerRows.length) {
-    panel.append(el("p", { class: "text-sm text-muted" }, "No fee structure or payments found for this student's grade yet."));
+    panel.append(el("p", { class: "text-sm text-muted" }, graduation
+      ? "No individual fee charges were recorded for this graduate." : "No fee structure or payments found for this student's grade yet."));
   } else {
     const ledgerWrap = el("div", { class: "table-wrap table-wrap--responsive", style: "margin-bottom:20px;" });
     const ledgerTable = el("table", {}, [
       el("thead", {}, el("tr", {}, [
         el("th", {}, "Year"), el("th", {}, "Term"), el("th", {}, "Class"), el("th", {}, "Expected"), el("th", {}, "Paid"), el("th", {}, "Balance"), el("th", {}, "Status"),
+        ...(canRecordPast ? [el("th", {}, "Payment")] : []),
       ])),
     ]);
     const ledgerBody = el("tbody", {});
     for (const r of ledgerRows) {
-      const statusTone = r.balance <= 0 ? "success" : (r.paid > 0 ? "gold" : "danger");
-      const statusLabel = r.balance <= 0 ? "Paid" : (r.paid > 0 ? "Partial" : "Owing");
+      const statusTone = r.needsReview ? "gold" : r.balance <= 0 ? "success" : (r.paid > 0 ? "gold" : "danger");
+      const statusLabel = r.needsReview ? "Needs review" : r.balance <= 0 ? "Paid" : (r.paid > 0 ? "Partial" : "Owing");
       ledgerBody.append(el("tr", {}, [
         el("td", { "data-label": "Year" }, String(r.academicYear || "N/A")),
         el("td", { "data-label": "Term" }, r.term || "N/A"),
         el("td", { "data-label": "Class" }, r.grade || "N/A"),
         el("td", { "data-label": "Expected" }, formatKES(r.expected)),
         el("td", { "data-label": "Paid" }, formatKES(r.paid)),
-        el("td", { "data-label": "Balance" }, formatKES(Math.max(r.balance, 0))),
+        el("td", { "data-label": "Balance" }, r.needsReview ? "—" : formatKES(Math.max(r.balance, 0))),
         el("td", { "data-label": "Status" }, el("span", { class: `badge badge--${statusTone}` }, statusLabel)),
+        ...(canRecordPast ? [el("td", { "data-label": "Payment" }, !r.needsReview && r.balance > 0
+          ? el("button", { type: "button", class: "btn btn--ghost btn--sm",
+            "aria-label": `Record payment for ${r.term} ${r.academicYear}`,
+            onClick: () => openPaymentForm(profile, student, reload, r) }, "Record Payment") : "—")] : []),
       ]));
     }
     ledgerTable.append(ledgerBody);
@@ -991,18 +1056,49 @@ async function renderFeesTab(panel, profile, student) {
   }
 }
 
-async function renderAttendanceTab(panel, profile, student) {
+async function loadGraduateAttendance(student, exit, reports, terms) {
+  const cohorts = new Map();
+  function add(grade, stream, year) {
+    if (!grade || !year) return;
+    const fields = [grade, stream || "", String(year)];
+    cohorts.set(JSON.stringify(fields), fields);
+  }
+  add(exit?.grade, exit?.stream, exit?.year);
+  for (const result of reports) add(result.grade, result.stream, result.academicYear);
+
+  const registers = await Promise.all([...cohorts.values()].map(([grade, stream, year]) =>
+    listAttendanceForClassPeriod(grade, stream, year)));
+  const days = new Map();
+  for (const day of registers.flat()) {
+    if (!Object.hasOwn(day.records || {}, student.id)) continue;
+    if (exit && (isGraduatePeriod(day, exit, terms) === false || (exit.date && new Date(day.date) > exit.date))) continue;
+    days.set(day.date, day);
+  }
+  return [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function renderAttendanceTab(panel, student, graduation, readResults) {
   panel.innerHTML = "";
   panel.append(loadingRow());
   const year = settings.currentAcademicYear || "";
   const term = settings.currentTerm || "";
-  const dayDocs = year && term ? await listAttendanceForClassPeriod(student.grade, student.stream, year, term).catch(() => []) : [];
+  let dayDocs;
+  try {
+    dayDocs = graduation
+      ? await loadGraduateAttendance(student, await graduation, await readResults(), settings.terms || [])
+      : year && term ? await listAttendanceForClassPeriod(student.grade, student.stream, year, term).catch(() => []) : [];
+  } catch {
+    panel.replaceChildren(el("p", { class: "text-sm text-muted", role: "alert" }, "Could not load attendance history."));
+    return;
+  }
   const summary = summarizeForRoster(dayDocs, [student.id]);
   const s = summary.perStudent[student.id] || { present: 0, absent: 0, late: 0, excused: 0, marked: 0, percentage: null };
 
   panel.innerHTML = "";
   panel.append(
-    el("p", { class: "text-sm text-muted", style: "margin-bottom:16px;" }, `Showing ${term || "current term"} ${year || ""} (${student.grade || "N/A"} ${student.stream || ""}).`),
+    el("p", { class: "text-sm text-muted", style: "margin-bottom:16px;" }, graduation
+      ? "Attendance recorded before graduation."
+      : `Showing ${term || "current term"} ${year || ""} (${student.grade || "N/A"} ${student.stream || ""}).`),
     el("div", { class: "profile-stats" }, [
       statChip("Attendance Rate", s.percentage === null ? "N/A" : `${s.percentage}%`, s.percentage !== null && s.percentage < 75 ? "warn" : "good"),
       statChip("Days Marked", String(s.marked)),
@@ -1013,10 +1109,11 @@ async function renderAttendanceTab(panel, profile, student) {
     ])
   );
 
-  panel.append(el("h3", { class: "section-title" }, "Recent Days"));
+  panel.append(el("h3", { class: "section-title" }, graduation ? "Most Recent Recorded Days" : "Recent Days"));
   const recent = [...dayDocs].slice(-15).reverse();
   if (!recent.length) {
-    panel.append(el("p", { class: "text-sm text-muted" }, "No attendance has been marked for this class yet this term."));
+    panel.append(el("p", { class: "text-sm text-muted" }, graduation
+      ? "No historical attendance is available for this graduate." : "No attendance has been marked for this class yet this term."));
     return;
   }
   const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
@@ -1045,7 +1142,8 @@ async function renderActivityTab(panel, profile, student, refreshAll) {
   panel.append(
     el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;" }, [
       el("h3", { class: "section-title", style: "margin:0;" }, "Issues Raised"),
-      el("button", { class: "btn btn--danger btn--sm", onClick: () => openIssueForm(profile, student, null, refreshAll) }, [icon("report"), "Raise Issue"]),
+      student.status === "graduated" ? null
+        : el("button", { class: "btn btn--danger btn--sm", onClick: () => openIssueForm(profile, student, null, refreshAll) }, [icon("report"), "Raise Issue"]),
     ])
   );
   if (!issues.length) {
@@ -1216,7 +1314,7 @@ function openResolveIssueForm(profile, issue, onDone) {
 // Record a fee payment from within the profile
 // ---------------------------------------------------------------------
 
-function openPaymentForm(profile, student, onDone) {
+function openPaymentForm(profile, student, onDone, pastPeriod) {
   const body = el("form", {});
   const yearInput = el("input", { id: "pay-year", type: "text", value: settings?.currentAcademicYear || "" });
   const termSelect = el("select", { id: "pay-term" }, (settings?.terms || []).map((t) =>
@@ -1225,15 +1323,17 @@ function openPaymentForm(profile, student, onDone) {
   const methodSelect = el("select", { id: "pay-method" }, PAYMENT_METHODS.map((m) => el("option", { value: m }, m)));
 
   body.append(
-    el("div", { class: "field" }, [el("label", {}, "Academic Year"), yearInput]),
-    el("div", { class: "field" }, [el("label", {}, "Term"), termSelect]),
+    ...(pastPeriod
+      ? [el("p", { class: "text-sm" }, `${pastPeriod.term} ${pastPeriod.academicYear} · Past balance ${formatKES(pastPeriod.balance)}`)]
+      : [el("div", { class: "field" }, [el("label", { for: yearInput.id }, "Academic Year"), yearInput]),
+        el("div", { class: "field" }, [el("label", { for: termSelect.id }, "Term"), termSelect])]),
     el("div", { class: "field" }, [el("label", {}, "Amount (KES)"), el("input", { id: "pay-amount", type: "number", min: "1", step: "0.01" })]),
     el("div", { class: "field" }, [el("label", {}, "Method"), methodSelect]),
     el("div", { class: "field" }, [el("label", {}, "Reference (optional)"), el("input", { id: "pay-reference", type: "text" })]),
     el("div", { class: "field" }, [el("label", {}, "Date"), datePickerInput({ id: "pay-date", value: new Date().toISOString().slice(0, 10) })]),
     el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("add_card"), "Record Payment"])
   );
-  const close = openModal(`Record Payment: ${student.fullName}`, body);
+  const close = openModal(`${pastPeriod ? "Record Past Payment" : "Record Payment"}: ${student.fullName}`, body);
 
   body.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -1244,8 +1344,9 @@ function openPaymentForm(profile, student, onDone) {
         studentName: student.fullName,
         grade: student.grade,
         stream: student.stream,
-        academicYear: yearInput.value.trim(),
-        term: termSelect.value,
+        academicYear: pastPeriod ? String(pastPeriod.academicYear) : yearInput.value.trim(),
+        term: pastPeriod?.term || termSelect.value,
+        pastCharge: Boolean(pastPeriod),
         amount: document.getElementById("pay-amount").value,
         method: methodSelect.value,
         reference: document.getElementById("pay-reference").value.trim(),

@@ -111,24 +111,22 @@ export async function render({ profile }) {
   const settings = await getSchoolSettings();
   currentSettings = settings;
   activeProfile = profile;
+  const roster = listStudents();
 
   const [teachersResult, attendanceStat, feesCollectedResult, assessments, allStudents, studentsWithBalancesResult, monthlyRevenueResult, classesList] = await Promise.all([
     safeCount("teachers"),
     getTodayAttendanceStat(),
     getTermCollectionTotal(settings.currentAcademicYear, settings.currentTerm),
     listAssessments(),
-    listStudents(),
-    // Single count aggregate against student_fee_status (kept in sync by
-    // fee.service.js on every payment/fee-structure change) instead of a
-    // per-student getFeeSummary() loop over the whole active roster.
-    getStudentsWithBalancesCount(settings.currentAcademicYear, settings.currentTerm),
+    roster,
+    getStudentsWithBalancesCount(settings.currentAcademicYear, settings.currentTerm, roster),
     // 6 bounded server-side sum aggregates, one per month - no payment docs
     // are downloaded to build the revenue trend chart.
     getMonthlyRevenueTrend(6),
     listClasses().catch(() => []),
   ]);
 
-  // These four are all server-only aggregate reads with no offline cache
+  // These four use server-only reads with no offline cache
   // fallback of their own (see fee.service.js/safeCount above) - each one
   // that couldn't refresh comes back as its last known value, tagged
   // stale, rather than a misleading 0. showingStaleData drives the banner
