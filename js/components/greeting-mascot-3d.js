@@ -1,4 +1,4 @@
-export const GREETING_DURATION_MS = 5200;
+export const GREETING_DURATION_MS = 6800;
 
 const vertexSource = `
   attribute vec3 position;
@@ -165,8 +165,8 @@ function renderScholar(draw, colors, time, period) {
   const hop = energy * (0.34 * pulse(1.03, 1.61, time) + 0.26 * pulse(2.09, 2.63, time));
   const bend = 0.14 * (pulse(0.76, 1.03, time) + pulse(1.59, 1.82, time)
     + pulse(1.84, 2.09, time) + pulse(2.61, 2.84, time));
-  const bow = 0.23 * pulse(3.79, 4.72, time);
-  const wave = smooth(0.42, 0.95, time) * (1 - smooth(3.32, 3.94, time));
+  const bow = 0.23 * pulse(5.1, 6.28, time);
+  const wave = smooth(0.42, 0.95, time) * (1 - smooth(4.68, 5.22, time));
   const sway = Math.sin(time * 3.4) * (0.05 + 0.1 * wave);
   const view = frame(IDENTITY, [0, 0, 0], [0.19, 0, 0]);
   const root = frame(view, [sway, hop, 0], [0, -0.19 + 0.35 * wave, 0]);
@@ -208,7 +208,7 @@ function renderScholar(draw, colors, time, period) {
       -0.05 - raisingHand * 0.25, 0, side * (0.24 + raisingHand * 1.24 + hop * 0.45),
     ]);
     const elbow = frame(shoulder, [0, -0.41, 0], [
-      -0.28, 0, side * (0.09 + raisingHand * (1.49 + 0.36 * Math.sin(time * TAU * 1.65))),
+      -0.28, 0, side * (0.09 + raisingHand * (1.49 + 0.36 * Math.sin(time * TAU * 1.4))),
     ]);
     shape("sphere", shoulder, [0, -0.178, 0], [0.15, 0.286, 0.148], robe);
     shape("sphere", elbow, [0, -0.123, 0], [0.128, 0.236, 0.132], robe);
@@ -221,7 +221,7 @@ function renderScholar(draw, colors, time, period) {
   const head = frame(torso, [0, 1.065, 0.013], [0.1 * bow, 0.09 * Math.sin(time * 2.4), -0.11 * wave + 0.08 * Math.sin(time * 3.4)]);
   shape("sphere", head, [0, 0, 0], [0.56, 0.59, 0.48], skin);
 
-  const blink = 1 - 0.93 * Math.max(pulse(0.78, 0.96, time), pulse(3.05, 3.25, time), pulse(4.2, 4.44, time));
+  const blink = 1 - 0.93 * Math.max(pulse(0.78, 0.96, time), pulse(3.05, 3.25, time), pulse(5.55, 5.79, time));
   for (const side of [-1, 1]) {
     const x = side * 0.194;
     const eye = frame(head, [x, 0.079, 0.44], [0, side * 0.15, 0]);

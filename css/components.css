@@ -56,7 +56,7 @@
 
 .dashboard-greeting-mascot-slot {
   flex: none;
-  inline-size: clamp(88px, 9vw, 122px);
+  inline-size: clamp(92px, 9.8vw, 134px);
   aspect-ratio: 6 / 5;
   pointer-events: none;
 }
@@ -119,7 +119,7 @@
 
 @keyframes dashboard-greeting-appear {
   0% { opacity: 0; transform: translateY(10px) scale(.84); }
-  9%, 85% { opacity: 1; transform: none; }
+  7%, 88% { opacity: 1; transform: none; }
   100% { opacity: 0; transform: translateY(8px) scale(.9); }
 }
 
