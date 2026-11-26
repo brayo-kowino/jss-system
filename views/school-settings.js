@@ -12,20 +12,25 @@ import { listRecentApprovals } from "../js/services/login-approval.service.js";
 import { generate2FASetup, enable2FA, disable2FA, is2FAEnabled } from "../js/services/two-factor.service.js";
 import { extractLogoPalette } from "../js/services/logo-palette.js";
 import { openSignaturePadModal } from "../js/components/signature-pad-modal.js";
+import "../css/school-settings.css";
 
 let settings = null;
 let activeThemeId = "custom";
-let gradingRowSeq = 0;
-
-const TABS = [
-  { id: "profile", label: "Profile", icon: "domain" },
-  { id: "branding", label: "Branding", icon: "palette" },
-  { id: "leadership", label: "Leadership", icon: "badge" },
-  { id: "calendar", label: "Calendar", icon: "event" },
-  { id: "grading", label: "Grading", icon: "grading" },
-  { id: "notifications", label: "Notifications", icon: "notifications_active" },
-  { id: "security", label: "Security", icon: "shield" },
-  { id: "subscription", label: "Subscription", icon: "workspace_premium" },
+const SETTINGS_GROUPS = [
+  { label: "School", sections: [
+    { id: "profile", label: "School profile", icon: "domain", description: "Manage school details, contact information and the sign-in link.", terms: "identity institution name address email phone motto stationery letterhead portal URL slug code" },
+    { id: "branding", label: "Appearance", icon: "palette", description: "Set the school logo and preview your workspace colors.", terms: "branding theme presets palette crest emblem primary accent colors" },
+    { id: "leadership", label: "Leadership & signatures", icon: "badge", description: "Manage leadership details and signatures for school documents.", terms: "principal head teacher deputy designations signatories report cards signature upload" },
+  ] },
+  { label: "Academics", sections: [
+    { id: "calendar", label: "Academic calendar", icon: "event", description: "Set the active academic period and term dates.", terms: "year term opening closing reopening school dates schedule" },
+    { id: "grading", label: "Grading scale", icon: "grading", description: "Set percentage bands, points and remarks used in saved results.", terms: "CBC grade range minimum maximum levels competency marks assessment points remarks" },
+  ] },
+  { label: "Administration", sections: [
+    { id: "notifications", label: "Email & SMS", icon: "notifications_active", description: "Configure the email and SMS providers used for school messages.", terms: "notifications communication Gmail Google Workspace SMTP password Africa's Talking api key sender" },
+    { id: "security", label: "Security & access", icon: "shield", description: "Manage sign-in protection, trusted devices and administrator access.", terms: "2FA two-factor authenticator device approvals trusted login requests revoke ownership transfer" },
+    { id: "subscription", label: "Subscription", icon: "workspace_premium", description: "Check your plan and activate a renewal token.", terms: "billing license expiry payment renewal pricing token activation plan support" },
+  ] },
 ];
 
 /**
@@ -57,13 +62,12 @@ function field(id, label, value = "", type = "text", full = false, tooltip = nul
   if (type === "date") {
     return datePickerField(id, label, value, {}, full);
   }
-  const labelChildren = [label];
-  if (tooltip) {
-    labelChildren.push(infoTooltip(tooltip.title, tooltip.text, tooltip.align));
-  }
   return el("div", { class: `field${full ? " field--full" : ""}` }, [
-    el("label", { for: id }, labelChildren),
-    el("input", { id, type, value: value || "" }),
+    el("div", { class: "settings-field-label" }, [
+      el("label", { for: id }, label),
+      tooltip ? infoTooltip(tooltip.title, tooltip.text, tooltip.align) : null,
+    ]),
+    el("input", { id, type, value: value || "", ...(type === "tel" ? { autocomplete: "tel" } : {}) }),
   ]);
 }
 
@@ -71,10 +75,6 @@ function field(id, label, value = "", type = "text", full = false, tooltip = nul
  * Password field equipped with a show/hide toggle.
  */
 function passwordField(id, label, value = "", tooltip = null, placeholder = "") {
-  const labelChildren = [label];
-  if (tooltip) {
-    labelChildren.push(infoTooltip(tooltip.title, tooltip.text, tooltip.align));
-  }
   const input = el("input", {
     id,
     type: "password",
@@ -85,96 +85,127 @@ function passwordField(id, label, value = "", tooltip = null, placeholder = "") 
   const toggleBtn = el("button", {
     type: "button",
     class: "input-with-action__btn",
-    title: "Toggle visibility",
-    tabindex: "-1",
+    title: "Show value",
+    "aria-label": "Show " + label,
     onClick: () => {
       const isPass = input.type === "password";
       input.type = isPass ? "text" : "password";
+      toggleBtn.title = isPass ? "Hide value" : "Show value";
+      toggleBtn.setAttribute("aria-label", (isPass ? "Hide " : "Show ") + label);
       toggleBtn.innerHTML = "";
       toggleBtn.append(icon(isPass ? "visibility_off" : "visibility"));
     },
   }, [icon("visibility")]);
 
   return el("div", { class: "field" }, [
-    el("label", { for: id }, labelChildren),
+    el("div", { class: "settings-field-label" }, [
+      el("label", { for: id }, label),
+      tooltip ? infoTooltip(tooltip.title, tooltip.text, tooltip.align) : null,
+    ]),
     el("div", { class: "input-with-action" }, [input, toggleBtn]),
   ]);
 }
 
-function getActiveTabFromUrl() {
-  const hash = location.hash || "";
-  const queryIndex = hash.indexOf("?");
-  if (queryIndex !== -1) {
-    const params = new URLSearchParams(hash.slice(queryIndex));
-    const tab = params.get("tab");
-    if (tab && TABS.some((t) => t.id === tab)) {
-      return tab;
-    }
-  }
-  return "profile";
-}
-
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   settings = await getSchoolSettings();
   activeThemeId = settings.themeId || matchThemeId(settings.themeColor, settings.secondaryColor);
 
-  const wrap = el("div", { class: "settings-page" });
+  const canManageSecurity = ["admin", "super_admin"].includes(profile.role);
+  const groups = SETTINGS_GROUPS.map((group) => ({
+    ...group, sections: group.sections.filter(({ id }) => id !== "security" || canManageSecurity),
+  }));
+  const sections = groups.flatMap(({ sections }) => sections);
+  const urlTab = new URLSearchParams(location.hash.split("?")[1]).get("tab");
+  const active = sections.find(({ id }) => id === (params.tab || urlTab))?.id || "profile";
+  const builders = {
+    profile: buildProfileTab,
+    branding: buildBrandingTab,
+    leadership: () => buildLeadershipTab(profile),
+    calendar: buildCalendarTab,
+    grading: buildGradingTab,
+    notifications: buildNotificationsTab,
+    security: () => buildSecurityPanel(profile),
+    subscription: buildSubscriptionTab,
+  };
 
-  const panels = {};
-  const tabsNav = el("div", { class: "profile-tabs no-print", style: "margin-bottom:var(--sp-4);" });
-  const activeTab = getActiveTabFromUrl();
+  const workspace = el("div", { class: "settings-workspace" });
+  const navigation = el("aside", { class: "settings-navigation no-print" });
+  const content = el("div", { class: "settings-content" });
+  const panels = new Map();
+  const search = el("input", { type: "search", placeholder: "Search settings", "aria-label": "Search settings" });
+  const feedback = el("p", { class: "settings-search-feedback", role: "status", hidden: "" });
+  const sectionPicker = el("select", { class: "settings-section-picker", "aria-label": "Settings section" },
+    groups.map(({ label, sections }) => el("optgroup", { label },
+      sections.map(({ id, label }) => el("option", { value: id }, label)))));
+  const menu = el("nav", { class: "settings-menu", "aria-label": "Settings sections" });
 
-  for (const t of TABS) {
-    panels[t.id] = el("div", { class: "settings-tab-panel", id: `panel-${t.id}` });
-    tabsNav.append(
-      el(
-        "button",
-        {
-          type: "button",
-          class: `profile-tab${t.id === activeTab ? " profile-tab--active" : ""}`,
-          "data-tab": t.id,
-          onClick: () => switchTab(t.id, tabsNav, panels),
-        },
-        [icon(t.icon), t.label]
-      )
-    );
-  }
-
-  for (const t of TABS) panels[t.id].style.display = t.id === activeTab ? "" : "none";
-
-  panels.profile.append(buildProfileTab());
-  panels.branding.append(buildBrandingTab());
-  panels.leadership.append(buildLeadershipTab(profile));
-  panels.calendar.append(buildCalendarTab());
-  panels.grading.append(buildGradingTab());
-  panels.notifications.append(buildNotificationsTab());
-
-  // Security tab - only for admin/super_admin
-  if (profile.role === "admin" || profile.role === "super_admin") {
-    panels.security.append(buildSecurityPanel(profile));
-  }
-
-  panels.subscription.append(buildSubscriptionTab());
-
-  wrap.append(tabsNav);
-  for (const t of TABS) wrap.append(panels[t.id]);
-
-  return wrap;
-}
-
-function switchTab(tabId, tabsNav, panels) {
-  for (const btn of tabsNav.querySelectorAll(".profile-tab")) {
-    btn.classList.toggle("profile-tab--active", btn.dataset.tab === tabId);
-  }
-  for (const t of TABS) panels[t.id].style.display = t.id === tabId ? "" : "none";
-  try {
-    const newHash = `#/settings?tab=${encodeURIComponent(tabId)}`;
-    if (location.hash !== newHash) {
-      history.replaceState(null, "", newHash);
+  for (const group of groups) {
+    const groupNode = el("div", { class: "settings-menu-group" }, el("p", {}, group.label));
+    for (const section of group.sections) {
+      const { id, label, description, terms } = section;
+      const button = el("button", {
+        type: "button", class: "settings-menu-button", "data-tab": id, "aria-controls": `panel-${id}`,
+        onClick: () => selectSection(id),
+      }, [icon(section.icon, "", { "aria-hidden": "true" }), el("span", {}, label)]);
+      const heading = el("h2", { id: `settings-heading-${id}`, tabindex: "-1" }, label);
+      const panel = el("section", { class: "settings-tab-panel", id: `panel-${id}`, "aria-labelledby": heading.id }, [
+        el("header", { class: "settings-section-header" }, [heading, el("p", {}, description)]),
+        builders[id](),
+      ]);
+      panels.set(id, { button, panel, heading, keywords: `${group.label} ${label} ${description} ${terms}`.toLowerCase() });
+      groupNode.append(button);
+      content.append(panel);
     }
-  } catch {
-    // ignore
+    menu.append(groupNode);
   }
+
+  function filterMenu() {
+    const words = search.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const matching = [];
+    for (const [id, { button, keywords }] of panels) {
+      button.hidden = !words.every((word) => keywords.includes(word));
+      if (!button.hidden) matching.push(id);
+    }
+    for (const group of menu.children) group.hidden = !group.querySelector("button:not([hidden])");
+    navigation.classList.toggle("settings-navigation--searching", words.length > 0);
+    feedback.hidden = !words.length;
+    feedback.textContent = matching.length ? `${matching.length} matching ${matching.length === 1 ? "section" : "sections"}` : "No matching settings";
+    return matching;
+  }
+
+  function selectSection(id, initial = false) {
+    for (const [key, { button, panel }] of panels) {
+      panel.hidden = key !== id;
+      if (key === id) button.setAttribute("aria-current", "location");
+      else button.removeAttribute("aria-current");
+    }
+    sectionPicker.value = id;
+    if (initial) return;
+    search.value = "";
+    filterMenu();
+    const query = new URLSearchParams(location.hash.split("?")[1]);
+    query.set("tab", id);
+    const hash = "#/settings?" + query.toString();
+    if (location.hash !== hash) history.replaceState(history.state, "", hash);
+    panels.get(id).heading.focus();
+  }
+
+  search.addEventListener("input", filterMenu);
+  search.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      search.value = "";
+      filterMenu();
+    }
+    if (event.key !== "Enter" || !search.value.trim()) return;
+    const [first] = filterMenu();
+    if (first) selectSection(first);
+  });
+  sectionPicker.addEventListener("change", () => selectSection(sectionPicker.value));
+  navigation.append(el("div", { class: "settings-navigation-search" },
+    [icon("search", "", { "aria-hidden": "true" }), search]), sectionPicker, feedback, menu);
+  workspace.append(navigation, content);
+  selectSection(active, true);
+  return el("div", { class: "settings-page" }, workspace);
 }
 
 // ===========================================================================
@@ -182,35 +213,27 @@ function switchTab(tabId, tabsNav, panels) {
 // ===========================================================================
 
 function buildStationeryPreviewCard() {
-  const card = el("div", { class: "card settings-card" });
+  const card = el("div", { class: "card settings-card settings-preview-card" });
   card.append(
     el("h3", {}, [
       icon("badge"),
-      "Document Letterhead & Stationery",
-      infoTooltip(
-        "Stationery Preview",
-        "Live preview of how your school's official identity and contact details are composed on printed report cards, certificates, and invoices."
-      ),
+      "Letterhead preview",
     ]),
-    el("p", { class: "settings-card__sub" }, "Real-time layout as rendered atop official transcripts, receipts, and parent bulletins.")
+    el("p", { class: "settings-card__sub" }, "See how your school details will appear on a letterhead.")
   );
 
   const preview = el("div", { class: "stationery-preview" }, [
     el("div", { class: "stationery-preview__header" }, [
-      settings.logoUrl
-        ? el("img", { src: settings.logoUrl, alt: "School Emblem", class: "stationery-preview__logo" })
-        : el("div", { class: "stationery-preview__logo", style: "display:flex;align-items:center;justify-content:center;background:var(--color-primary-100);color:var(--color-primary-700);" }, [
-            icon("school", "text-xl"),
-          ]),
+      el("div", { id: "letterhead-logo" }, letterheadLogo(settings.logoUrl)),
       el("div", {}, [
-        el("div", { class: "stationery-preview__name", id: "preview-school-name" }, settings.schoolName || "Institution Name"),
-        el("div", { class: "stationery-preview__motto", id: "preview-school-motto" }, settings.motto ? `“${settings.motto}”` : "“Excellence in Education”"),
+        el("div", { class: "stationery-preview__name", id: "preview-school-name" }, settings.schoolName || "School name"),
+        el("div", { class: "stationery-preview__motto", id: "preview-school-motto", hidden: settings.motto ? null : "" }, settings.motto || ""),
       ]),
     ]),
-    el("div", { class: "stationery-preview__meta" }, [
-      el("span", { id: "preview-school-address" }, [icon("location_on", "text-xs"), ` ${settings.address || "P.O. Box Address"}`]),
-      el("span", { id: "preview-school-phone" }, [icon("call", "text-xs"), ` ${settings.phone || "Telephone Line"}`]),
-      el("span", { id: "preview-school-email" }, [icon("mail", "text-xs"), ` ${settings.email || "official@school.com"}`]),
+    el("div", { class: "stationery-preview__meta", id: "preview-school-contacts", hidden: settings.address || settings.phone || settings.email ? null : "" }, [
+      el("span", { id: "preview-school-address", hidden: settings.address ? null : "" }, [icon("location_on", "text-xs"), ` ${settings.address || ""}`]),
+      el("span", { id: "preview-school-phone", hidden: settings.phone ? null : "" }, [icon("call", "text-xs"), ` ${settings.phone || ""}`]),
+      el("span", { id: "preview-school-email", hidden: settings.email ? null : "" }, [icon("mail", "text-xs"), ` ${settings.email || ""}`]),
     ]),
   ]);
 
@@ -218,49 +241,49 @@ function buildStationeryPreviewCard() {
   return card;
 }
 
+function letterheadLogo(url) {
+  return url
+    ? el("img", { src: url, alt: "School logo", class: "stationery-preview__logo" })
+    : el("div", { class: "stationery-preview__logo settings-letterhead-placeholder" }, icon("school", "text-xl"));
+}
+
 function buildProfileTab() {
   const form = el("form", { id: "settings-form" });
-  const grid = el("div", { class: "settings-grid-2col" });
+  const grid = el("div", { class: "settings-main-and-preview" });
 
   // 1. General Institution Details Card (Left Column)
   const infoCard = el("div", { class: "card settings-card" }, [
-    el("h3", {}, [icon("account_balance"), "Institution Profile"]),
-    el("p", { class: "settings-card__sub" }, "Official school identity and contact details printed on terminal report cards, fee receipts, and newsletters."),
+    el("h3", {}, [icon("account_balance"), "School details"]),
+    el("p", { class: "settings-card__sub" }, "These details appear on school documents and communications."),
     el("div", { class: "settings-form-grid" }, [
-      field("schoolName", "School Name", settings.schoolName, "text", false, {
+      field("schoolName", "School name", settings.schoolName, "text", true, {
         title: "Official Name",
         text: "The full legal name of your institution as recognized by educational authorities.",
       }),
-      field("motto", "Motto / Slogan", settings.motto, "text", false, {
+      field("motto", "Motto", settings.motto, "text", true, {
         title: "School Motto",
         text: "Featured on report card letterheads, student newsletters, and certificates.",
       }),
-      field("address", "Physical & Postal Address", settings.address, "text", true, {
+      field("address", "Physical or postal address", settings.address, "text", true, {
         title: "Official Address",
         text: "P.O. Box, county, town, or street address displayed on official documents.",
       }),
-      field("phone", "Telephone Contact", settings.phone, "text", false, {
+      field("phone", "Phone", settings.phone, "tel", false, {
         title: "Administrative Phone",
         text: "Primary contact phone number for parent communications.",
       }),
-      field("email", "Official Email", settings.email, "email", false, {
+      field("email", "School email", settings.email, "email", false, {
         title: "Administrative Email",
         text: "Official email address used for administrative dispatches and parent replies.",
       }),
     ]),
   ]);
 
-  // 2. Right Column: Branded Portal URL + Live Letterhead Preview
-  const rightCol = el("div", { class: "settings-stack" }, [
-    buildLoginLinkCard(),
-    buildStationeryPreviewCard(),
-  ]);
-
-  grid.append(infoCard, rightCol);
+  grid.append(el("div", { class: "settings-stack" }, [infoCard, buildLoginLinkCard()]), buildStationeryPreviewCard());
 
   form.append(
     grid,
-    el("div", { class: "settings-form-actions" }, [
+    el("div", { class: "settings-form-actions settings-save-bar" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Profile"]),
     ])
   );
@@ -299,13 +322,9 @@ function buildLoginLinkCard() {
   card.append(
     el("h3", {}, [
       icon("link"),
-      "School Sign-In Portal URL",
-      infoTooltip(
-        "Custom Sign-in URL",
-        "Provides a direct link with your school's branding preloaded. Staff and parents skip generic login pages and land immediately on your branded portal."
-      ),
+      "School sign-in link",
     ]),
-    el("p", { class: "settings-card__sub" }, "Share this custom address with staff and parents. Each code starts with “ees-” to guarantee unique global identification.")
+    el("p", { class: "settings-card__sub" }, "Share this link with staff and parents so they land on your school’s sign-in page.")
   );
 
   const initialSuffix = settings.slug ? slugSuffix(settings.slug) : slugify(settings.schoolName || "");
@@ -319,12 +338,12 @@ function buildLoginLinkCard() {
   });
   const inputGroup = el("div", { class: "slug-input-group" }, [prefixBadge, codeInput]);
 
-  const availabilityMsg = el("div", { class: "text-sm", id: "slug-availability", style: "min-height:20px;margin-top:4px;" });
-  const unsavedMsg = el("div", { class: "text-sm", id: "slug-unsaved", style: "min-height:20px;color:var(--color-gold);display:none;" }, [
-    icon("info", "text-sm"), " Code changed — click “Save Profile” below to activate this URL.",
+  const availabilityMsg = el("div", { class: "text-sm settings-slug-feedback", id: "slug-availability", role: "status" });
+  const unsavedMsg = el("div", { class: "text-sm text-muted", id: "slug-unsaved", hidden: "" }, [
+    "Save your profile to activate this link.",
   ]);
-  const linkPreview = el("div", { class: "slug-preview-chip", id: "slug-link-preview", style: "margin-top:8px;" });
-  const copyBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm", id: "copy-login-link" }, [icon("content_copy"), "Copy URL"]);
+  const linkPreview = el("div", { class: "slug-preview-chip", id: "slug-link-preview" });
+  const copyBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm", id: "copy-login-link" }, [icon("content_copy"), "Copy Link"]);
 
   function loginLinkFor(slug) {
     return `${location.origin}${location.pathname}?school=${slug}`;
@@ -340,7 +359,8 @@ function buildLoginLinkCard() {
     linkPreview.textContent = full ? loginLinkFor(full) : "Enter a school code above to generate your portal URL.";
   }
   function refreshDirtyState() {
-    unsavedMsg.style.display = isDirty() && currentFullSlug() ? "" : "none";
+    unsavedMsg.hidden = !isDirty() || !currentFullSlug();
+    copyBtn.disabled = !currentFullSlug() || isDirty();
   }
   refreshPreview();
   refreshDirtyState();
@@ -361,9 +381,11 @@ function buildLoginLinkCard() {
     }
     availabilityMsg.textContent = "Checking code availability…";
     availabilityMsg.style.color = "var(--color-ink-soft)";
-    const available = await isSlugAvailable(full, getCurrentSchoolId()).catch(() => false);
-    availabilityMsg.textContent = available ? "Code is available." : "That code is already claimed by another institution.";
-    availabilityMsg.style.color = available ? "var(--color-green)" : "var(--color-red)";
+    const available = await isSlugAvailable(full, getCurrentSchoolId()).catch(() => null);
+    if (full !== currentFullSlug() || full === settings.slug) return;
+    availabilityMsg.textContent = available === null ? "Couldn’t check availability. Try saving again."
+      : available ? "Code is available." : "This code is already in use.";
+    availabilityMsg.style.color = available === null ? "var(--color-ink-soft)" : available ? "var(--color-green)" : "var(--color-red)";
   });
 
   copyBtn.addEventListener("click", async () => {
@@ -386,15 +408,12 @@ function buildLoginLinkCard() {
 
   card.append(
     el("div", { class: "field" }, [
-      el("label", { for: "school-slug" }, [
-        "Unique School Code",
-        infoTooltip("School Code Prefix", "The prefix 'ees-' is automatically prepended to ensure conflict-free global routing across all schools."),
-      ]),
+      el("label", { for: "school-slug" }, "School code"),
       inputGroup,
       availabilityMsg,
       unsavedMsg,
     ]),
-    el("div", { style: "display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:8px;" }, [
+    el("div", { class: "settings-portal-actions" }, [
       linkPreview,
       copyBtn,
     ])
@@ -411,32 +430,29 @@ function buildLoginLinkCard() {
 function buildBrandingTab() {
   const form = el("form", { id: "branding-form", class: "settings-stack" });
 
-  const topGrid = el("div", { class: "settings-grid-2col" });
+  const topGrid = el("div", { class: "settings-main-and-preview" });
 
   // 1. School Crest / Logo Card (Left Column)
   const logoCard = el("div", { class: "card settings-card" });
   logoCard.append(
     el("h3", {}, [
       icon("photo_camera"),
-      "School Crest & Logo",
-      infoTooltip("Official Emblem", "Appears in high-resolution on the navigation sidebar, student report cards, leaving certificates, and official receipts."),
+      "School logo",
     ]),
-    el("p", { class: "settings-card__sub" }, "PNG or JPG with transparent or light background recommended (min 200×200px).")
+    el("p", { class: "settings-card__sub" }, "Use a clear PNG or JPEG. A square image of at least 200 × 200 pixels works best.")
   );
 
   const logoRow = el("div", { class: "brand-logo-row" });
   const logoPreview = el(
     "div",
     { class: "brand-logo-preview", id: "logo-preview" },
-    settings.logoUrl
-      ? el("img", { src: settings.logoUrl, alt: "School Crest" })
-      : el("span", { class: "material-symbols-rounded" }, "photo_camera")
+    brandingLogo(settings.logoUrl)
   );
   logoRow.append(
     logoPreview,
-    el("div", { style: "flex:1; min-width:200px;" }, [
+    el("div", { class: "field settings-logo-field" }, [
+      el("label", { for: "logo-input" }, "Choose a logo"),
       el("input", { type: "file", id: "logo-input", accept: "image/*" }),
-      el("p", { class: "text-sm text-muted", style: "margin-top:6px;" }, "Select an image file from your computer."),
     ])
   );
   logoCard.append(logoRow);
@@ -447,10 +463,9 @@ function buildBrandingTab() {
     el("div", { style: "flex:1; min-width:180px;" }, [
       el("div", { style: "display:flex; align-items:center; gap:6px; font-weight:600; font-size:var(--fs-sm); color:var(--color-primary-900);" }, [
         el("span", { class: "material-symbols-rounded", style: "font-size:18px; color:var(--color-gold);" }, "auto_awesome"),
-        "Smart Theme Extractor",
-        infoTooltip("Color Extraction", "Uses color clustering to sample the primary hue and matching accent tone directly from your school emblem."),
+        "Colors from your logo",
       ]),
-      el("p", { class: "text-sm text-muted", style: "margin:2px 0 0;" }, "Detect dominant brand colors from your crest."),
+      el("p", { class: "text-sm text-muted", style: "margin:2px 0 0;" }, "Use your logo to suggest a primary and accent color."),
     ]),
     el("button", {
       type: "button",
@@ -459,7 +474,7 @@ function buildBrandingTab() {
       ...(hasLogoNow ? {} : { disabled: true, title: "Upload a logo first, then extract palette." }),
     }, [
       icon("colorize"),
-      "Extract Palette",
+      "Suggest Colors",
     ]),
   ]);
   logoCard.append(smartThemeBox);
@@ -469,37 +484,36 @@ function buildBrandingTab() {
   paletteCard.append(
     el("h3", {}, [
       icon("tune"),
-      "Color Palette & Live Preview",
-      infoTooltip("Theme Colors", "Primary color is applied to the main navigation, headers, and major buttons. Accent color provides high-contrast badges, chips, and progress indicators."),
+      "Theme colors",
     ]),
-    el("p", { class: "settings-card__sub" }, "Fine-tune specific hex shades to match your institution's official brand guidelines.")
+    el("p", { class: "settings-card__sub" }, "Choose colors for navigation, buttons, and highlights.")
   );
 
-  const brandingRow = el("div", { style: "display:flex; gap:16px; flex-wrap:wrap; margin-bottom:var(--sp-4);" }, [
-    el("div", { class: "field", style: "flex:1; min-width:140px;" }, [
-      el("label", { for: "themeColor" }, "Primary Color"),
+  const brandingRow = el("div", { class: "settings-form-grid" }, [
+    el("div", { class: "field" }, [
+      el("label", { for: "themeColor" }, "Primary color"),
       el("input", { id: "themeColor", type: "color", value: settings.themeColor || "#14538A" }),
     ]),
-    el("div", { class: "field", style: "flex:1; min-width:140px;" }, [
-      el("label", { for: "secondaryColor" }, "Accent Color"),
+    el("div", { class: "field" }, [
+      el("label", { for: "secondaryColor" }, "Accent color"),
       el("input", { id: "secondaryColor", type: "color", value: settings.secondaryColor || "#C9A227" }),
     ]),
   ]);
-  paletteCard.append(
-    brandingRow,
-    buildThemePreview()
-  );
-
-  topGrid.append(logoCard, paletteCard);
+  paletteCard.append(brandingRow);
+  topGrid.append(el("div", { class: "settings-stack" }, [logoCard, paletteCard]),
+    el("div", { class: "card settings-card settings-preview-card" }, [
+      el("h3", {}, [icon("desktop_windows"), "Workspace preview"]),
+      el("p", { class: "settings-card__sub" }, "Colors update here as you make changes."),
+      buildThemePreview(),
+    ]));
 
   // 3. Full-width Curated Theme Presets Gallery Card (Spanning whole width)
   const galleryCard = el("div", { class: "card settings-card" }, [
     el("h3", {}, [
       icon("style"),
-      "Curated Theme Presets",
-      infoTooltip("Presets Gallery", "Pre-tuned institutional palettes configured for high readability and official contrast. Click any preset to apply it immediately."),
+      "Color presets",
     ]),
-    el("p", { class: "settings-card__sub" }, "Pre-tuned institutional palettes. Click any preset to apply it immediately."),
+    el("p", { class: "settings-card__sub" }, "Select a palette and save it when you’re ready."),
   ]);
   const gallery = el("div", { class: "theme-gallery", id: "theme-gallery" });
   for (const t of THEME_PRESETS) gallery.append(themeCard(t));
@@ -508,7 +522,7 @@ function buildBrandingTab() {
   form.append(
     topGrid,
     galleryCard,
-    el("div", { class: "settings-form-actions" }, [
+    el("div", { class: "settings-form-actions settings-save-bar" }, [
       el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Branding"]),
     ])
   );
@@ -524,6 +538,7 @@ function themeCard(t) {
       type: "button",
       class: `theme-card${isActive ? " theme-card--active" : ""}`,
       "data-theme-id": t.id,
+      "aria-pressed": String(isActive),
       onClick: () => applyThemePreset(t),
     },
     [
@@ -535,26 +550,32 @@ function themeCard(t) {
         el("div", { class: "theme-card__name" }, t.name),
         el("div", { class: "theme-card__desc" }, t.description),
       ]),
-      el("span", { class: "theme-card__status" }, isActive ? [icon("check_circle"), "Installed"] : "Apply"),
+      el("span", { class: "theme-card__status", hidden: isActive ? null : "" }, [icon("check_circle"), "Selected"]),
     ]
   );
   return card;
 }
 
 function applyThemePreset(t) {
-  activeThemeId = t.id;
   document.getElementById("themeColor").value = t.primary;
   document.getElementById("secondaryColor").value = t.secondary;
-  for (const c of document.querySelectorAll(".theme-card")) {
-    const active = c.dataset.themeId === t.id;
-    c.classList.toggle("theme-card--active", active);
-    const status = c.querySelector(".theme-card__status");
-    status.innerHTML = "";
-    status.append(...(active ? [icon("check_circle")] : []), active ? "Installed" : "Apply");
-  }
+  selectThemeCard(t.id);
   updateThemePreview(t.primary, t.secondary);
   applyBranding({ themeColor: t.primary, secondaryColor: t.secondary });
-  toast(`${t.name} theme ready to save.`, "info", 2500);
+}
+
+function brandingLogo(url) {
+  return url ? el("img", { src: url, alt: "School logo" }) : icon("photo_camera");
+}
+
+function selectThemeCard(themeId) {
+  activeThemeId = themeId;
+  for (const c of document.querySelectorAll(".theme-card")) {
+    const active = c.dataset.themeId === themeId;
+    c.classList.toggle("theme-card--active", active);
+    c.setAttribute("aria-pressed", String(active));
+    c.querySelector(".theme-card__status").hidden = !active;
+  }
 }
 
 function buildThemePreview() {
@@ -619,19 +640,15 @@ function updateThemePreview(primary, secondary) {
 // ===========================================================================
 
 function buildLeadershipTab(profile) {
-  const wrap = el("div", { class: "settings-grid-2col" });
+  const wrap = el("div", { class: "settings-stack" });
 
   const card = el("div", { class: "card settings-card" });
   card.append(
     el("h3", {}, [
       icon("badge"),
-      "School Leadership & Signatories",
-      infoTooltip(
-        "Official Signatories",
-        "Names and designated titles appear on terminal student report cards, certificates of completion, official newsletters, and disciplinary notices."
-      ),
+      "Leadership details",
     ]),
-    el("p", { class: "settings-card__sub" }, "Designate the executive officers authorized to sign institutional documents and report cards.")
+    el("p", { class: "settings-card__sub" }, "Use the names and titles you want shown on school documents.")
   );
 
   const form = el("form", { id: "leadership-form" });
@@ -639,24 +656,24 @@ function buildLeadershipTab(profile) {
   const grid = el("div", { class: "leadership-grid" });
 
   const principalGroup = el("div", { class: "leadership-group" }, [
-    el("div", { class: "leadership-group__title" }, [icon("military_tech"), "School Head / Principal"]),
-    field("principalName", "Full Legal Name", settings.principalName, "text", false, {
+    el("h4", { class: "leadership-group__title" }, "Principal"),
+    field("principalName", "Full name", settings.principalName, "text", false, {
       title: "Principal Name",
       text: "Full name as it should appear above the official signature line.",
     }),
-    field("principalTitle", "Official Designation / Title", settings.principalTitle || "Principal", "text", false, {
+    field("principalTitle", "Official title", settings.principalTitle || "Principal", "text", false, {
       title: "Designation",
       text: "Title printed on official documents, e.g. 'Principal', 'Head Teacher', or 'Director'.",
     }),
   ]);
 
   const deputyGroup = el("div", { class: "leadership-group" }, [
-    el("div", { class: "leadership-group__title" }, [icon("school"), "Deputy Principal / Academic Head"]),
-    field("deputyPrincipalName", "Full Legal Name", settings.deputyPrincipalName, "text", false, {
+    el("h4", { class: "leadership-group__title" }, "Deputy principal"),
+    field("deputyPrincipalName", "Full name", settings.deputyPrincipalName, "text", false, {
       title: "Deputy Name",
       text: "Full name of the Deputy Principal or Dean of Studies.",
     }),
-    field("deputyPrincipalTitle", "Official Designation / Title", settings.deputyPrincipalTitle || "Deputy Principal", "text", false, {
+    field("deputyPrincipalTitle", "Official title", settings.deputyPrincipalTitle || "Deputy Principal", "text", false, {
       title: "Designation",
       text: "Title printed on academic transcripts and attendance notices.",
     }),
@@ -677,13 +694,9 @@ function buildLeadershipTab(profile) {
   const sigCard = el("div", { class: "card settings-card" }, [
     el("h3", {}, [
       icon("draw"),
-      "Report Card Signatures & Touchscreen Studio",
-      infoTooltip(
-        "Digital Signatures",
-        "Draw or upload official signatures for the School Head / Principal and Class Teachers using any touchscreen phone, tablet, or PC mouse. If left blank, the system automatically prints an authentic cursive digital signature with the closing date."
-      ),
+      "Report card signatures",
     ]),
-    el("p", { class: "settings-card__sub" }, "Collect and manage digital signatures printed automatically on all terminal report cards."),
+    el("p", { class: "settings-card__sub" }, "Draw or upload the principal’s signature and a default class teacher signature."),
     buildSignatureStudioGrid(profile),
   ]);
 
@@ -692,128 +705,55 @@ function buildLeadershipTab(profile) {
 }
 
 function buildSignatureStudioGrid(profile) {
-  const grid = el("div", { class: "leadership-grid", style: "margin-top:var(--sp-4);" });
+  const signers = [
+    { role: "principal", key: "principalSignatureUrl", label: "Principal" },
+    { role: "teacher", key: "teacherSignatureUrl", label: "Default class teacher" },
+  ];
+  return el("div", { class: "leadership-grid" }, signers.map(({ role, key, label }) => {
+    const preview = el("div", { class: "settings-signature-image" });
+    const edit = el("button", {
+      type: "button", class: "btn btn--outline btn--sm",
+      onClick: () => openSignaturePadModal({
+        settings, profile, activeRole: role,
+        onSaved: ({ dataUrl }) => {
+          settings[key] = dataUrl;
+          refresh();
+        },
+      }),
+    }, [icon("draw", "text-xs"), "Draw or Upload"]);
+    const clear = el("button", {
+      type: "button", class: "btn btn--ghost btn--sm",
+      onClick: async () => {
+        if (!confirm("Remove this uploaded signature and use the automatic name signature?")) return;
+        const restore = busyButton(clear, "Removing…");
+        try {
+          await saveSchoolSettings(profile.uid, { [key]: "" });
+          settings[key] = "";
+          invalidateSchoolSettingsCache();
+          toast("Signature removed.", "success");
+        } catch (error) {
+          toast(error.message || "Could not remove the signature.", "error");
+        } finally {
+          restore();
+          refresh();
+        }
+      },
+    }, "Remove");
 
-  // 1. Principal Signature Box
-  const principalBox = el("div", { class: "leadership-group", style: "display:flex; flex-direction:column; gap:10px;" });
-  const principalTitle = el("div", { class: "leadership-group__title" }, [icon("military_tech"), "School Head / Principal Signature"]);
-
-  const pPreviewWrap = el("div", {
-    style: "background:var(--color-surface); border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
-  });
-  const pImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
-  const pFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [
-    icon("stylus", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
-    "Using automatic cursive name signature"
-  ]);
-
-  function refreshPrincipalPreview() {
-    pPreviewWrap.innerHTML = "";
-    if (settings.principalSignatureUrl) {
-      pImg.src = settings.principalSignatureUrl;
-      pPreviewWrap.append(pImg);
-    } else {
-      pPreviewWrap.append(pFallback);
+    function refresh() {
+      const image = settings[key];
+      preview.replaceChildren(image
+        ? el("img", { src: image, alt: label + " signature" })
+        : el("span", { class: "text-sm text-muted" }, "Automatic name signature"));
+      clear.disabled = !image;
     }
-  }
-  refreshPrincipalPreview();
-
-  const pBtnRow = el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" });
-  const pSignBtn = el("button", {
-    type: "button",
-    class: "btn btn--outline btn--sm",
-    onClick: () => openSignaturePadModal({
-      settings,
-      profile,
-      activeRole: "principal",
-      onSaved: ({ dataUrl }) => {
-        settings.principalSignatureUrl = dataUrl;
-        refreshPrincipalPreview();
-      }
-    })
-  }, [icon("draw", "text-xs"), "Draw / Upload Signature"]);
-
-  const pClearBtn = el("button", {
-    type: "button",
-    class: "btn btn--ghost btn--sm",
-    onClick: async () => {
-      if (!settings.principalSignatureUrl) {
-        toast("No custom signature is set (already using automatic cursive signature).", "info");
-        return;
-      }
-      if (!confirm("Clear the Principal's custom signature? It will revert to the automatic cursive signature.")) return;
-      settings.principalSignatureUrl = "";
-      await saveSchoolSettings(profile.uid, { principalSignatureUrl: "" });
-      invalidateSchoolSettingsCache();
-      refreshPrincipalPreview();
-      toast("Principal signature cleared.", "info");
-    }
-  }, [icon("delete", "text-xs"), "Clear"]);
-
-  pBtnRow.append(pSignBtn, pClearBtn);
-  principalBox.append(principalTitle, pPreviewWrap, pBtnRow);
-
-  // 2. Class Teacher Signature Box
-  const teacherBox = el("div", { class: "leadership-group", style: "display:flex; flex-direction:column; gap:10px;" });
-  const teacherTitle = el("div", { class: "leadership-group__title" }, [icon("school"), "Class Teacher Signature (Default)"]);
-
-  const tPreviewWrap = el("div", {
-    style: "background:var(--color-surface); border:1px solid var(--color-line); border-radius:8px; padding:12px; height:80px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;"
-  });
-  const tImg = el("img", { style: "max-height:60px; max-width:200px; object-fit:contain;" });
-  const tFallback = el("span", { class: "text-muted text-xs", style: "text-align:center;" }, [
-    icon("stylus", "text-xs", "style: vertical-align:middle; margin-right:4px;"),
-    "Using automatic cursive name signature"
-  ]);
-
-  function refreshTeacherPreview() {
-    tPreviewWrap.innerHTML = "";
-    if (settings.teacherSignatureUrl) {
-      tImg.src = settings.teacherSignatureUrl;
-      tPreviewWrap.append(tImg);
-    } else {
-      tPreviewWrap.append(tFallback);
-    }
-  }
-  refreshTeacherPreview();
-
-  const tBtnRow = el("div", { style: "display:flex; gap:8px; flex-wrap:wrap;" });
-  const tSignBtn = el("button", {
-    type: "button",
-    class: "btn btn--outline btn--sm",
-    onClick: () => openSignaturePadModal({
-      settings,
-      profile,
-      activeRole: "teacher",
-      onSaved: ({ dataUrl }) => {
-        settings.teacherSignatureUrl = dataUrl;
-        refreshTeacherPreview();
-      }
-    })
-  }, [icon("draw", "text-xs"), "Draw / Upload Signature"]);
-
-  const tClearBtn = el("button", {
-    type: "button",
-    class: "btn btn--ghost btn--sm",
-    onClick: async () => {
-      if (!settings.teacherSignatureUrl) {
-        toast("No custom signature is set (already using automatic cursive signature).", "info");
-        return;
-      }
-      if (!confirm("Clear the Class Teacher's custom signature? It will revert to the automatic cursive signature.")) return;
-      settings.teacherSignatureUrl = "";
-      await saveSchoolSettings(profile.uid, { teacherSignatureUrl: "" });
-      invalidateSchoolSettingsCache();
-      refreshTeacherPreview();
-      toast("Class Teacher signature cleared.", "info");
-    }
-  }, [icon("delete", "text-xs"), "Clear"]);
-
-  tBtnRow.append(tSignBtn, tClearBtn);
-  teacherBox.append(teacherTitle, tPreviewWrap, tBtnRow);
-
-  grid.append(principalBox, teacherBox);
-  return grid;
+    refresh();
+    return el("div", { class: "leadership-group settings-signature-tile" }, [
+      el("h4", { class: "leadership-group__title" }, label),
+      preview,
+      el("div", { class: "settings-inline-actions" }, [edit, clear]),
+    ]);
+  }));
 }
 
 // ===========================================================================
@@ -821,112 +761,55 @@ function buildSignatureStudioGrid(profile) {
 // ===========================================================================
 
 function buildCalendarTab() {
-  const calForm = el("form", { id: "calendar-form" });
-  const grid = el("div", { class: "settings-grid-2col" });
-
-  // Column 1: Academic Schedule & Key Dates Form Card
-  const card = el("div", { class: "card settings-card" });
-  card.append(
-    el("h3", {}, [
-      icon("event_note"),
-      "Academic Schedule & Term Milestones",
-      infoTooltip(
-        "Reporting Term",
-        "Configuring the active term controls where new marks, attendance records, and fee allocations are recorded. Reopening dates automatically appear on report cards."
-      ),
+  const form = el("form", { id: "calendar-form" });
+  const terms = settings.terms || ["Term 1", "Term 2", "Term 3"];
+  const activeTerm = el("select", { id: "currentTerm" }, terms.map((term) =>
+    el("option", { value: term, selected: term === settings.currentTerm ? "" : null }, term)));
+  const yearField = field("currentAcademicYear", "Academic year", settings.currentAcademicYear || new Date().getFullYear().toString());
+  const milestones = [
+    ["termBegins", "Current term begins"],
+    ["closingDate", "School closes"],
+    ["openingDate", "Next term begins"],
+  ];
+  const dates = milestones.map(([id, label]) => field(id, label, settings[id], "date"));
+  const dateInputs = dates.map((date) => date.querySelector("input"));
+  const dateLabels = dates.map(() => el("dd"));
+  const period = el("p", { class: "settings-calendar-period" });
+  const controls = el("div", { class: "card settings-card" }, [
+    el("h3", {}, [icon("event_note"), "Active period"]),
+    el("p", { class: "settings-card__sub" }, "New marks, attendance, and fee records default to this period."),
+    el("div", { class: "settings-form-grid" }, [
+      yearField,
+      el("div", { class: "field" }, [el("label", { for: activeTerm.id }, "Active term"), activeTerm]),
     ]),
-    el("p", { class: "settings-card__sub" }, "Set the active operational term and schedule key milestone dates.")
-  );
+    el("div", { class: "settings-dates" }, [
+      el("h4", {}, "Term dates"),
+      el("div", { class: "settings-form-grid" }, dates),
+    ]),
+  ]);
+  const preview = el("div", { class: "card settings-card settings-preview-card" }, [
+    el("h3", {}, [icon("calendar_month"), "Calendar preview"]),
+    period,
+    el("dl", { class: "settings-calendar-list" }, milestones.map(([, label], index) =>
+      el("div", {}, [el("dt", {}, label), dateLabels[index]]))),
+  ]);
 
-  const termSelect = el("select", { id: "currentTerm" });
-  for (const term of settings.terms || ["Term 1", "Term 2", "Term 3"]) {
-    termSelect.append(el("option", { value: term, ...(term === settings.currentTerm ? { selected: "true" } : {}) }, term));
+  function updatePreview() {
+    period.textContent = [activeTerm.value, yearField.querySelector("input").value.trim()].filter(Boolean).join(" · ") || "Period not set";
+    dateLabels.forEach((label, index) => {
+      label.textContent = dateInputs[index].value ? formatDate(dateInputs[index].value) : "Not set";
+    });
   }
-
-  const topRow = el("div", { class: "settings-form-grid" }, [
-    field("currentAcademicYear", "Academic Year", settings.currentAcademicYear || new Date().getFullYear().toString(), "text", false, {
-      title: "Academic Year",
-      text: "The current operational calendar year (e.g. 2026).",
-    }),
-    el("div", { class: "field" }, [
-      el("label", { for: "currentTerm" }, [
-        "Active Reporting Term",
-        infoTooltip("Active Term", "All new marks entries, attendance sheets, and fee invoices default to this active term."),
-      ]),
-      termSelect,
+  form.addEventListener("input", updatePreview);
+  form.addEventListener("change", updatePreview);
+  updatePreview();
+  form.append(
+    el("div", { class: "settings-main-and-preview" }, [controls, preview]),
+    el("div", { class: "settings-form-actions settings-save-bar" }, [
+      el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save calendar"]),
     ]),
-  ]);
-
-  const dateRow = el("div", { class: "settings-form-grid", style: "margin-top:16px;" }, [
-    field("termBegins", "Current Term Begins", settings.termBegins, "date"),
-    field("closingDate", "Term Closing Date", settings.closingDate, "date"),
-    field("openingDate", "Next Term Begins", settings.openingDate, "date"),
-  ]);
-
-  card.append(topRow, dateRow);
-
-  // Column 2: Milestone Roadmap & Status Card
-  const roadmapCard = el("div", { class: "card settings-card" });
-  roadmapCard.append(
-    el("h3", {}, [
-      icon("flag"),
-      "Milestone Roadmap & Progress",
-      infoTooltip(
-        "Term Roadmap",
-        "Chronological visual milestone progression for the current reporting term."
-      ),
-    ]),
-    el("p", { class: "settings-card__sub" }, "Sequential operational timeline automatically printed on official report cards.")
   );
-
-  const timeline = el("div", { class: "settings-timeline" }, [
-    el("div", { class: "settings-timeline__step" }, [
-      el("span", { class: "settings-timeline__icon material-symbols-rounded" }, "login"),
-      el("span", { class: "settings-timeline__label" }, "Term Begins"),
-      el("span", { class: "settings-timeline__date" }, settings.termBegins ? formatDate(settings.termBegins) : "Not set"),
-    ]),
-    el("div", { class: "settings-timeline__connector" }),
-    el("div", { class: "settings-timeline__step" }, [
-      el("span", { class: "settings-timeline__icon material-symbols-rounded" }, "school"),
-      el("span", { class: "settings-timeline__label" }, "School Closes"),
-      el("span", { class: "settings-timeline__date" }, settings.closingDate ? formatDate(settings.closingDate) : "Not set"),
-    ]),
-    el("div", { class: "settings-timeline__connector" }),
-    el("div", { class: "settings-timeline__step" }, [
-      el("span", { class: "settings-timeline__icon material-symbols-rounded" }, "event_upcoming"),
-      el("span", { class: "settings-timeline__label" }, "Next Term Opens"),
-      el("span", { class: "settings-timeline__date" }, settings.openingDate ? formatDate(settings.openingDate) : "Not set"),
-    ]),
-  ]);
-
-  const roadmapSummary = el("div", { class: "calendar-milestones-summary", style: "margin-top:20px;" }, [
-    el("div", { class: "calendar-summary-stat" }, [
-      el("div", {}, [
-        el("strong", { style: "display:block;font-size:var(--fs-sm);" }, "Automated Report Card Synchronization"),
-        el("span", { class: "text-xs text-muted" }, "Reopening and closing dates are stamped onto terminal report cards automatically."),
-      ]),
-      el("span", { class: "badge badge--success" }, "Active"),
-    ]),
-    el("div", { class: "calendar-summary-stat" }, [
-      el("div", {}, [
-        el("strong", { style: "display:block;font-size:var(--fs-sm);" }, "Active Reporting Scope"),
-        el("span", { class: "text-xs text-muted" }, `${settings.currentTerm || "Term 1"} · Year ${settings.currentAcademicYear || new Date().getFullYear()}`),
-      ]),
-      el("span", { class: "badge badge--primary" }, "Current"),
-    ]),
-  ]);
-
-  roadmapCard.append(timeline, roadmapSummary);
-  grid.append(card, roadmapCard);
-
-  calForm.append(
-    grid,
-    el("div", { class: "settings-form-actions" }, [
-      el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Calendar"]),
-    ])
-  );
-
-  return calForm;
+  return form;
 }
 
 // ===========================================================================
@@ -941,16 +824,12 @@ function buildGradingTab() {
   card.append(
     el("h3", {}, [
       icon("grading"),
-      "CBC Grading Scale",
-      infoTooltip(
-        "CBC Evaluation Engine",
-        "Maps student percentages to performance levels. Points feed cumulative position calculations."
-      ),
+      "Grade bands",
     ]),
-    el("p", { class: "settings-card__sub" }, "Configure performance level thresholds, point weights, and official remarks for report cards.")
+    el("p", { class: "settings-card__sub" }, "Each band assigns a grade, points, and a report card remark to a percentage range.")
   );
 
-  const tableWrap = el("div", { class: "grading-table-wrap", style: "margin-top:16px;" });
+  const tableWrap = el("div", { class: "grading-table-wrap" });
   const table = el("table", { class: "grading-scale-table" }, [
     el("colgroup", {}, [
       el("col", { style: "width:62px;" }),
@@ -966,7 +845,7 @@ function buildGradingTab() {
       el("th", { class: "col-grade" }, "Grade"),
       el("th", { class: "col-points" }, "Points"),
       el("th", { class: "col-remark" }, "Official Remark"),
-      el("th", { class: "col-action", style: "text-align:center;" }, ""),
+      el("th", { class: "col-action", "aria-label": "Remove grade band" }, ""),
     ])),
   ]);
 
@@ -977,72 +856,35 @@ function buildGradingTab() {
   card.append(tableWrap);
 
   card.append(
-    el("div", { class: "settings-form-actions", style: "margin-top:16px;" }, [
-      el("button", { type: "button", id: "add-grading-row", class: "btn btn--ghost btn--sm" }, [icon("add"), "Add Grade Band"]),
-      el("button", { type: "button", id: "save-grading", class: "btn btn--primary" }, [icon("save"), "Save Grading Scale"]),
+    el("div", { class: "settings-form-actions settings-save-bar" }, [
+      el("button", { type: "button", id: "add-grading-row", class: "btn btn--ghost btn--sm" }, [icon("add"), "Add grade band"]),
+      el("button", { type: "button", id: "save-grading", class: "btn btn--primary" }, [icon("save"), "Save grading scale"]),
     ])
   );
 
-  // 2. CBC Assessment Standards Reference Card (Right Column)
-  const standardsCard = el("div", { class: "card settings-card" });
-  standardsCard.append(
-    el("h3", {}, [
-      icon("menu_book"),
-      "CBC Assessment Framework",
-      infoTooltip(
-        "CBC Evaluation Standards",
-        "Kenya National Examinations Council (KNEC) 4-level competency evaluation framework utilized across Junior and Senior School reporting."
-      ),
-    ]),
-    el("p", { class: "settings-card__sub" }, "Standard 4-tier competency descriptors informing cumulative points, GPA, and term positions.")
-  );
-
-  const standardsList = el("div", { class: "cbc-standards-list" }, [
-    el("div", { class: "cbc-standard-item" }, [
-      el("div", { class: "cbc-standard-header" }, [
-        el("strong", { style: "font-size:var(--fs-sm);" }, "Exceeding Expectations (EE)"),
-        el("span", { class: "cbc-standard-badge cbc-standard-badge--ee" }, "Level 4 · 4 Pts"),
-      ]),
-      el("p", { class: "cbc-standard-desc" }, "Exemplary mastery of core competencies. Applies learning critically and independently solves novel problems."),
-    ]),
-    el("div", { class: "cbc-standard-item" }, [
-      el("div", { class: "cbc-standard-header" }, [
-        el("strong", { style: "font-size:var(--fs-sm);" }, "Meeting Expectations (ME)"),
-        el("span", { class: "cbc-standard-badge cbc-standard-badge--me" }, "Level 3 · 3 Pts"),
-      ]),
-      el("p", { class: "cbc-standard-desc" }, "Achieves intended learning outcomes with proficient consistency and clear conceptual grasp."),
-    ]),
-    el("div", { class: "cbc-standard-item" }, [
-      el("div", { class: "cbc-standard-header" }, [
-        el("strong", { style: "font-size:var(--fs-sm);" }, "Approaching Expectations (AE)"),
-        el("span", { class: "cbc-standard-badge cbc-standard-badge--ae" }, "Level 2 · 2 Pts"),
-      ]),
-      el("p", { class: "cbc-standard-desc" }, "Emerging competency demonstration. Requires periodic scaffolding and guided practice."),
-    ]),
-    el("div", { class: "cbc-standard-item" }, [
-      el("div", { class: "cbc-standard-header" }, [
-        el("strong", { style: "font-size:var(--fs-sm);" }, "Below Expectations (BE)"),
-        el("span", { class: "cbc-standard-badge cbc-standard-badge--be" }, "Level 1 · 1 Pt"),
-      ]),
-      el("p", { class: "cbc-standard-desc" }, "Noticeable learning gaps across fundamental areas. Requires diagnostic remediation and support."),
-    ]),
+  const reference = el("details", { class: "card settings-card settings-reference" }, [
+    el("summary", {}, "CBC performance levels"),
+    el("ul", {}, [
+      "EE · Exceeding Expectations",
+      "ME · Meeting Expectations",
+      "AE · Approaching Expectations",
+      "BE · Below Expectations",
+    ].map((label) => el("li", {}, label))),
   ]);
-
-  standardsCard.append(standardsList);
-  grid.append(card, standardsCard);
+  grid.append(card, reference);
 
   return grid;
 }
 
 function gradingRow(row = {}) {
   const tr = el("tr", {}, [
-    el("td", { class: "col-min", "data-label": "Min %" }, el("input", { type: "number", value: row.min ?? "", class: "grade-min", min: "0", max: "100" })),
-    el("td", { class: "col-max", "data-label": "Max %" }, el("input", { type: "number", value: row.max ?? "", class: "grade-max", min: "0", max: "100" })),
-    el("td", { class: "col-grade", "data-label": "Grade" }, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", maxlength: "6" })),
-    el("td", { class: "col-points", "data-label": "Points" }, el("input", { type: "number", value: row.points ?? "", class: "grade-points", min: "0" })),
-    el("td", { class: "col-remark", "data-label": "Remark" }, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark" })),
+    el("td", { class: "col-min", "data-label": "Min %" }, el("input", { type: "number", value: row.min ?? "", class: "grade-min", min: "0", max: "100", "aria-label": "Minimum percentage" })),
+    el("td", { class: "col-max", "data-label": "Max %" }, el("input", { type: "number", value: row.max ?? "", class: "grade-max", min: "0", max: "100", "aria-label": "Maximum percentage" })),
+    el("td", { class: "col-grade", "data-label": "Grade" }, el("input", { type: "text", value: row.grade ?? "", class: "grade-code", maxlength: "6", "aria-label": "Grade code" })),
+    el("td", { class: "col-points", "data-label": "Points" }, el("input", { type: "number", value: row.points ?? "", class: "grade-points", min: "0", "aria-label": "Points" })),
+    el("td", { class: "col-remark", "data-label": "Remark" }, el("input", { type: "text", value: row.remark ?? "", class: "grade-remark", "aria-label": "Official remark" })),
     el("td", { class: "col-action", "data-label": "Remove", style: "text-align:center;" }, el("button", {
-      type: "button", class: "btn btn--ghost btn--sm grade-del-btn", title: "Remove row",
+      type: "button", class: "btn btn--ghost btn--sm grade-del-btn", title: "Remove grade band", "aria-label": "Remove grade band",
       onClick: (e) => e.currentTarget.closest("tr").remove(),
     }, icon("delete", "text-sm"))),
   ]);
@@ -1064,20 +906,16 @@ function buildNotificationsTab() {
   emailCard.append(
     el("h3", {}, [
       icon("mail"),
-      "Email Service (Google Workspace / Gmail)",
-      infoTooltip(
-        "Email Dispatch",
-        "Dispatches student report cards, fee payment receipts, attendance notifications, and event announcements directly to parent inboxes."
-      ),
+      "Email provider",
     ]),
-    el("p", { class: "settings-card__sub" }, "Connect an official Google account to dispatch academic report cards via secure SMTP."),
-    field("gmail-address", "Gmail Sender Address", p.gmail?.address, "email", false, {
+    el("p", { class: "settings-card__sub" }, "Use a Google Workspace or Gmail account to send school email."),
+    field("gmail-address", "Sender email", p.gmail?.address, "email", false, {
       title: "Sender Email",
       text: "The official Google email address sending messages to parents.",
     }),
-    passwordField("gmail-app-password", "Google App Password (16 chars)", p.gmail?.appPassword, {
+    passwordField("gmail-app-password", "Google app password", p.gmail?.appPassword, {
       title: "Google App Password",
-      text: "Requires a 16-character Google App Password created under Google Account > Security > 2-Step Verification > App Passwords. Do NOT use your standard account password.",
+      text: "Create a 16-character app password in your Google Account security settings after enabling 2-Step Verification.",
     }, "•••• •••• •••• ••••")
   );
 
@@ -1086,22 +924,18 @@ function buildNotificationsTab() {
   smsCard.append(
     el("h3", {}, [
       icon("sms"),
-      "SMS Gateway (Africa's Talking)",
-      infoTooltip(
-        "SMS Dispatch",
-        "Dispatches real-time SMS alerts and exam results directly to parent mobile numbers."
-      ),
+      "SMS provider",
     ]),
-    el("p", { class: "settings-card__sub" }, "Connect Africa's Talking telecom gateway for real-time mobile SMS delivery."),
-    field("at-username", "API Username", p.africasTalking?.username, "text", false, {
+    el("p", { class: "settings-card__sub" }, "Use Africa's Talking to send school SMS messages."),
+    field("at-username", "API username", p.africasTalking?.username, "text", false, {
       title: "Africa's Talking Username",
       text: "Your registered Africa's Talking application username (default is 'sandbox' for testing).",
     }),
-    passwordField("at-apikey", "Live API Key", p.africasTalking?.apiKey, {
+    passwordField("at-apikey", "API key", p.africasTalking?.apiKey, {
       title: "Africa's Talking API Key",
       text: "Generated from the Africa's Talking developer console under Settings > API Key.",
     }, "Paste API key"),
-    field("at-senderid", "Alphanumeric Sender ID (Optional)", p.africasTalking?.senderId, "text", false, {
+    field("at-senderid", "Sender ID (optional)", p.africasTalking?.senderId, "text", false, {
       title: "Custom Sender ID",
       text: "Approved 11-character telecom sender name (e.g. 'GREENHILL'). Leave empty to use Africa's Talking shared shortcode.",
     })
@@ -1110,8 +944,8 @@ function buildNotificationsTab() {
   grid.append(emailCard, smsCard);
   form.append(
     grid,
-    el("div", { class: "settings-form-actions" }, [
-      el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save Notifications"]),
+    el("div", { class: "settings-form-actions settings-save-bar" }, [
+      el("button", { type: "submit", class: "btn btn--primary" }, [icon("save"), "Save providers"]),
     ])
   );
 
@@ -1123,13 +957,12 @@ function buildNotificationsTab() {
 // ===========================================================================
 
 function buildSubscriptionTab() {
-  const grid = el("div", { class: "settings-grid-2col" });
+  const grid = el("div", { class: "settings-main-and-preview" });
 
   // Column 1: Current License Status Card
   const statusCard = el("div", { class: "card settings-card" });
   statusCard.append(
-    el("h3", {}, [icon("workspace_premium"), "License & Subscription"]),
-    el("p", { class: "settings-card__sub" }, "Review your institution's active subscription tier, validity window, and module entitlements.")
+    el("h3", {}, [icon("workspace_premium"), "Current plan"])
   );
 
   const { active, daysRemaining, revoked, revokeReason, trial } = getSubscriptionState(settings);
@@ -1144,7 +977,7 @@ function buildSubscriptionTab() {
   } else if (active) {
     const isStarter = isStarterPlan(settings) && !trial;
     const bannerContent = el("span", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
-      el("strong", {}, trial ? "Trial License" : `${planLabel} Plan`),
+      el("strong", {}, trial ? "Trial" : `${planLabel || "School"} plan`),
       el("span", {}, `· ${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining (valid through ${formatDate(trial ? settings.trialExpiresAt : settings.subscriptionExpiresAt)}).`),
     ]);
     if (isStarter) {
@@ -1177,36 +1010,19 @@ function buildSubscriptionTab() {
   }
   statusCard.append(statusBanner);
 
-  const featuresList = el("div", { class: "sub-features-list" }, [
-    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Core CBC Academic Engine & Automated Grading"]),
-    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Terminal Report Card & Official Transcripts Generator"]),
-    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Student Fee Accounting & Mobile Receipting"]),
-    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Multi-Role Staff Access with 2FA Security"]),
-    el("div", { class: "sub-feature-item" }, [icon("check_circle"), "Multi-Tab Cloud Synchronization with Offline Persistence"]),
-  ]);
-  statusCard.append(featuresList);
-
-  // Column 2: License Key Activation Studio Card
   const activationCard = el("div", { class: "card settings-card" });
   activationCard.append(
-    el("h3", {}, [
-      icon("key"),
-      "License Activation Studio",
-      infoTooltip(
-        "Activation Key",
-        "Cryptographically signed token provided by platform administrators or through support renewal."
-      ),
-    ]),
-    el("p", { class: "settings-card__sub" }, "Paste your cryptographic token to renew or upgrade your institution's subscription.")
+    el("h3", {}, [icon("key"), "Activate or renew"]),
+    el("p", { class: "settings-card__sub" }, "Paste the activation token you received from support.")
   );
 
   const form = el("form", { id: "subscription-form", style: "display:flex; flex-direction:column; gap:16px;" }, [
     el("div", { class: "field" }, [
-      el("label", { for: "sub-token" }, "License Activation Token"),
+      el("label", { for: "sub-token" }, "Activation token"),
       el("textarea", {
         id: "sub-token",
         rows: "4",
-        placeholder: "Paste your signed activation token here…",
+        spellcheck: "false",
         style: "font-family:var(--font-mono); font-size:0.85rem; padding:10px; resize:vertical;",
       }),
     ]),
@@ -1214,8 +1030,8 @@ function buildSubscriptionTab() {
       el("a", {
         href: "mailto:iskify360.tech@gmail.com?subject=License%20Renewal%20Inquiry",
         class: "btn btn--ghost btn--sm",
-      }, [icon("help"), "Contact Support for Token"]),
-      el("button", { type: "submit", class: "btn btn--primary" }, [icon("key"), "Activate Subscription"]),
+      }, [icon("help"), "Contact support"]),
+      el("button", { type: "submit", class: "btn btn--primary" }, [icon("key"), "Activate subscription"]),
     ]),
   ]);
 
@@ -1238,17 +1054,16 @@ export function init({ profile }) {
       }
       const schoolName = val("schoolName");
       const motto = val("motto");
-      await saveSchoolSettings(profile.uid, {
+      const updatedProfile = {
         schoolName,
         motto,
         address: val("address"),
         phone: val("phone"),
         email: val("email"),
         slug: cleanSlug,
-      });
-      settings.schoolName = schoolName;
-      settings.motto = motto;
-      settings.slug = cleanSlug;
+      };
+      await saveSchoolSettings(profile.uid, updatedProfile);
+      Object.assign(settings, updatedProfile);
       if (cleanSlug) {
         await publishSchoolBranding(getCurrentSchoolId(), {
           slug: cleanSlug,
@@ -1271,25 +1086,17 @@ export function init({ profile }) {
     }
   });
 
-  // Live Stationery Letterhead Preview Update
   const updateStationeryPreview = () => {
-    const nameEl = document.getElementById("preview-school-name");
-    const mottoEl = document.getElementById("preview-school-motto");
-    const addressEl = document.getElementById("preview-school-address");
-    const phoneEl = document.getElementById("preview-school-phone");
-    const emailEl = document.getElementById("preview-school-email");
-
-    const schoolNameInput = document.getElementById("schoolName");
-    const mottoInput = document.getElementById("motto");
-    const addressInput = document.getElementById("address");
-    const phoneInput = document.getElementById("phone");
-    const emailInput = document.getElementById("email");
-
-    if (nameEl && schoolNameInput) nameEl.textContent = schoolNameInput.value || "Institution Name";
-    if (mottoEl && mottoInput) mottoEl.textContent = mottoInput.value ? `“${mottoInput.value}”` : "“Excellence in Education”";
-    if (addressEl && addressInput) addressEl.replaceChildren(icon("location_on", "text-xs"), ` ${addressInput.value || "P.O. Box Address"}`);
-    if (phoneEl && phoneInput) phoneEl.replaceChildren(icon("call", "text-xs"), ` ${phoneInput.value || "Telephone Line"}`);
-    if (emailEl && emailInput) emailEl.replaceChildren(icon("mail", "text-xs"), ` ${emailInput.value || "official@school.com"}`);
+    document.getElementById("preview-school-name").textContent = val("schoolName") || "School name";
+    for (const [id, symbol] of [["motto"], ["address", "location_on"], ["phone", "call"], ["email", "mail"]]) {
+      const value = val(id);
+      const preview = document.getElementById(`preview-school-${id}`);
+      preview.hidden = !value;
+      if (symbol) preview.replaceChildren(icon(symbol, "text-xs"), ` ${value}`);
+      else preview.textContent = value;
+    }
+    const contacts = document.getElementById("preview-school-contacts");
+    contacts.hidden = !contacts.querySelector("span:not([hidden])");
   };
 
   ["schoolName", "motto", "address", "phone", "email"].forEach((id) => {
@@ -1301,57 +1108,62 @@ export function init({ profile }) {
   if (themeInput && secondaryInput) {
     const onColorChange = () => {
       updateThemePreview(themeInput.value, secondaryInput.value);
+      selectThemeCard(matchThemeId(themeInput.value, secondaryInput.value));
       applyBranding({ themeColor: themeInput.value, secondaryColor: secondaryInput.value });
     };
     themeInput.addEventListener("input", onColorChange);
     secondaryInput.addEventListener("input", onColorChange);
   }
 
-  // Enable Smart Theme button when a new logo file is selected
   const logoInput = document.getElementById("logo-input");
-  if (logoInput) {
-    logoInput.addEventListener("change", () => {
-      const btn = document.getElementById("smart-theme-btn");
-      if (btn && logoInput.files[0]) {
-        btn.disabled = false;
-        btn.title = "";
-      }
-    });
-  }
-
-  // Smart Theme: extract palette from logo and fill in the color pickers
+  const logoPreview = document.getElementById("logo-preview");
   const smartBtn = document.getElementById("smart-theme-btn");
+  let extractingPalette = false;
+  const refreshPaletteButton = () => {
+    const hasLogo = !!(logoInput.files[0] || settings.logoUrl);
+    smartBtn.disabled = extractingPalette || !hasLogo;
+    smartBtn.title = hasLogo ? "" : "Choose a logo first";
+  };
+  logoInput.addEventListener("change", () => {
+    const file = logoInput.files[0];
+    refreshPaletteButton();
+    logoPreview.replaceChildren(brandingLogo(settings.logoUrl));
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (logoInput.files[0] === file) logoPreview.replaceChildren(brandingLogo(reader.result));
+    };
+    reader.readAsDataURL(file);
+  });
+
   if (smartBtn) {
     smartBtn.addEventListener("click", async () => {
-      const logoFile = document.getElementById("logo-input")?.files[0];
+      const logoFile = logoInput.files[0];
       const source = logoFile || settings.logoUrl;
       if (!source) {
         toast("Upload a logo first, then use Smart Theme.", "error");
         return;
       }
       const originalContent = smartBtn.innerHTML;
-      smartBtn.disabled = true;
+      extractingPalette = true;
+      refreshPaletteButton();
       smartBtn.innerHTML = `<span class="material-symbols-rounded" style="animation:spin 1s linear infinite;">autorenew</span> Scanning…`;
       try {
         const { primary, accent } = await extractLogoPalette(source);
+        if ((logoInput.files[0] || settings.logoUrl) !== source) return;
         const themeEl = document.getElementById("themeColor");
         const accentEl = document.getElementById("secondaryColor");
         if (themeEl) themeEl.value = primary;
         if (accentEl) accentEl.value = accent;
         updateThemePreview(primary, accent);
         applyBranding({ themeColor: primary, secondaryColor: accent });
-        // Deselect any active preset — colors are now "custom"
-        for (const c of document.querySelectorAll(".theme-card")) {
-          c.classList.remove("theme-card--active");
-          const status = c.querySelector(".theme-card__status");
-          if (status) { status.innerHTML = "Apply"; }
-        }
-        activeThemeId = "custom";
+        selectThemeCard(matchThemeId(primary, accent));
         toast("Colors extracted from your logo — click Save branding to apply.", "success", 4000);
       } catch (err) {
         toast(err.message || "Could not extract colors from logo.", "error");
       } finally {
-        smartBtn.disabled = false;
+        extractingPalette = false;
+        refreshPaletteButton();
         smartBtn.innerHTML = originalContent;
       }
     });
@@ -1361,7 +1173,7 @@ export function init({ profile }) {
     e.preventDefault();
     const restore = busyButton(e.submitter, "Saving…");
     try {
-      const logoFile = document.getElementById("logo-input").files[0];
+      const logoFile = logoInput.files[0];
       let logoUrl = settings.logoUrl;
       if (logoFile) logoUrl = await uploadSchoolLogo(logoFile);
       const themeColor = document.getElementById("themeColor").value;
@@ -1384,6 +1196,12 @@ export function init({ profile }) {
         });
       }
       await refreshSchoolChrome();
+      if (logoInput.files[0] === logoFile) {
+        logoInput.value = "";
+        logoPreview.replaceChildren(brandingLogo(logoUrl));
+      }
+      document.getElementById("letterhead-logo")?.replaceChildren(letterheadLogo(logoUrl));
+      refreshPaletteButton();
       toast("Branding saved.", "success");
     } catch (err) {
       toast(err.message || "Could not save branding.", "error");
@@ -1590,37 +1408,47 @@ function buildSecurityPanel(profile) {
   tfaCard.append(
     el("h3", {}, [
       icon("lock"),
-      "Two-Factor Authentication (2FA)",
-      infoTooltip(
-        "TOTP Authentication",
-        "Adds an extra layer of defense by requiring a 6-digit verification code from authenticator apps (Google Authenticator, Microsoft Authenticator, Authy) on every login."
-      ),
+      "Two-factor authentication",
     ]),
-    el("p", { class: "settings-card__sub" }, "Protect your administrative account with time-based verification codes.")
+    el("p", { class: "settings-card__sub" }, "Use an authenticator app to verify sign-ins to your account.")
   );
-  const tfaContent = el("div", { id: "tfa-content" });
+  const tfaContent = el("div", { id: "tfa-content", "aria-live": "polite" });
   tfaCard.append(tfaContent);
   authCol.append(tfaCard);
 
-  // Load 2FA state
-  (async () => {
-    const enabled = await is2FAEnabled(profile.uid).catch(() => false);
+  async function loadTwoFactorStatus() {
+    tfaContent.replaceChildren(el("p", { class: "settings-quiet" }, "Checking two-factor authentication…"));
+    let enabled;
+    try {
+      enabled = await is2FAEnabled(profile.uid);
+    } catch {
+      tfaContent.replaceChildren(el("div", { class: "settings-inline-actions" }, [
+        el("p", { class: "settings-quiet" }, "Could not check two-factor authentication."),
+        el("button", { type: "button", class: "btn btn--outline btn--sm", onClick: loadTwoFactorStatus }, "Retry"),
+      ]));
+      return;
+    }
+    tfaContent.replaceChildren();
     if (enabled) {
-      tfaContent.innerHTML = "";
-      const badge = el("div", { class: "badge badge--success", style: "margin-bottom:12px;display:inline-flex;align-items:center;gap:6px;" }, [
-        icon("verified_user"), "2FA is active and protecting this account",
-      ]);
-      const disableBtn = el("button", { class: "btn btn--outline btn--sm", style: "margin-left:12px;" }, "Disable 2FA");
+      const badge = el("span", { class: "badge badge--success" }, "Enabled");
+      const disableBtn = el("button", { type: "button", class: "btn btn--outline btn--sm" }, "Disable 2FA");
       disableBtn.addEventListener("click", () => {
-        const codeInput = el("input", { type: "text", placeholder: "6-digit code", maxlength: "6", style: "width:140px;text-align:center;font-family:monospace;font-size:16px;" });
-        const confirmBtn = el("button", { class: "btn btn--danger btn--sm" }, "Confirm Disable");
-        const row = el("div", { style: "display:flex;gap:8px;align-items:center;margin-top:12px;" }, [codeInput, confirmBtn]);
+        disableBtn.disabled = true;
+        const codeInput = el("input", { type: "text", inputmode: "numeric", autocomplete: "one-time-code", placeholder: "6-digit code", maxlength: "6", "aria-label": "Verification code", class: "settings-code-input" });
+        const confirmBtn = el("button", { type: "button", class: "btn btn--danger btn--sm" }, "Confirm disable");
+        const cancelBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: () => {
+          row.remove();
+          disableBtn.disabled = false;
+          disableBtn.focus();
+        } }, "Cancel");
+        const row = el("div", { class: "settings-inline-actions settings-security-actions" }, [codeInput, confirmBtn, cancelBtn]);
         tfaContent.append(row);
         codeInput.focus();
         confirmBtn.addEventListener("click", async () => {
           const code = codeInput.value.trim();
           if (!code) return;
           const restore = busyButton(confirmBtn, "Disabling…");
+          cancelBtn.disabled = true;
           try {
             await disable2FA(profile.uid, code);
             toast("Two-factor authentication disabled.", "success");
@@ -1629,27 +1457,24 @@ function buildSecurityPanel(profile) {
           } catch (err) {
             toast(err.message || "Invalid code.", "error");
             restore();
+            cancelBtn.disabled = false;
           }
         });
       });
-      tfaContent.append(badge, disableBtn);
+      tfaContent.append(el("div", { class: "settings-inline-actions" }, [badge, disableBtn]));
     } else {
       renderSetup2FA(tfaContent, profile);
     }
-  })();
+  }
+  loadTwoFactorStatus();
 
   // 2. Device Approval Policy Card
   const policyCard = el("div", { class: "card settings-card" });
   policyCard.append(
     el("h3", {}, [
       icon("policy"),
-      "Device Authorization Policy",
-      infoTooltip(
-        "Strict Device Verification",
-        "When enabled, unrecognized browsers or computers cannot log in with just passwords alone — an active trusted device must first approve the access request."
-      ),
+      "New device approval",
     ]),
-    el("p", { class: "settings-card__sub" }, "Require existing devices to authorize any sign-in from new browsers.")
   );
 
   let requireApproval = settings.requireDeviceApproval !== false;
@@ -1659,10 +1484,10 @@ function buildSecurityPanel(profile) {
   if (requireApproval) toggleInput.checked = true;
 
   const toggleText = el("div", {});
-  const toggleTitle = el("span", { style: "font-weight:600;display:block;font-size:var(--fs-sm);" }, "Require authorization for new browsers");
+  const toggleTitle = el("span", { style: "font-weight:600;display:block;font-size:var(--fs-sm);" }, "Require approval for new browsers");
   const toggleSub = el("p", { class: "text-muted text-sm", style: "margin:4px 0 0;" }, requireApproval
-    ? "Active: Logins from unrecognized browsers remain pending until approved by an existing authorized device."
-    : "Disabled: New devices can sign in immediately upon providing valid credentials."
+    ? "A trusted device must approve each new browser."
+    : "New browsers can sign in with valid credentials."
   );
   toggleText.append(toggleTitle, toggleSub);
   toggleLabel.append(toggleInput, toggleText);
@@ -1677,8 +1502,8 @@ function buildSecurityPanel(profile) {
       settings.requireDeviceApproval = newValue;
       requireApproval = newValue;
       toggleSub.textContent = newValue
-        ? "Active: Logins from unrecognized browsers remain pending until approved by an existing authorized device."
-        : "Disabled: New devices can sign in immediately upon providing valid credentials.";
+        ? "A trusted device must approve each new browser."
+        : "New browsers can sign in with valid credentials.";
       toast(
         newValue
           ? "Device approval enabled. New logins will require approval."
@@ -1694,12 +1519,9 @@ function buildSecurityPanel(profile) {
   authCol.append(policyCard);
 
   // 5. Transfer Administrator Ownership Card
-  const transferCard = el("div", { class: "card settings-card", style: "border-top: 3px solid var(--color-red);" });
+  const transferCard = el("details", { class: "card settings-card settings-ownership", open: settings.pendingTransfer ? "" : null });
   transferCard.append(
-    el("h3", { style: "color:var(--color-red);" }, [
-      icon("swap_horiz"),
-      "Transfer Administrator Ownership"
-    ])
+    el("summary", {}, "Transfer school ownership")
   );
 
   if (settings.pendingTransfer) {
@@ -1734,7 +1556,7 @@ function buildSecurityPanel(profile) {
     );
   } else {
     transferCard.append(
-      el("p", { class: "settings-card__sub" }, "Hand over complete administrative control of this school. This initiates a 24-hour cooling-off period.")
+      el("p", { class: "settings-card__sub" }, "Transfer full administrative control to someone else. Requests have a 24-hour waiting period and require platform approval.")
     );
     const transferForm = el("form", { id: "transfer-ownership-form", class: "settings-form-grid", style: "margin-top:16px;" }, [
       field("transferFullName", "New Admin Full Name", "", "text", true, { title: "Full Name", text: "Name of the new administrator." }),
@@ -1746,7 +1568,6 @@ function buildSecurityPanel(profile) {
     ]);
     transferCard.append(transferForm);
   }
-  authCol.append(transferCard);
 
   // ---------------------------------------------------------------------------
   // Column 2: Trusted Devices & Audit Activity
@@ -1760,16 +1581,14 @@ function buildSecurityPanel(profile) {
       el("div", {}, [
         el("h3", {}, [
           icon("devices"),
-          "Authorized Devices",
-          infoTooltip("Authorized Sessions", "Browsers and workstations authenticated and trusted to access your school workspace without secondary prompts."),
+          "Trusted devices",
         ]),
-        el("p", { class: "settings-card__sub", style: "margin-bottom:0;" }, "Registered hardware sessions."),
       ]),
-      el("button", { class: "btn btn--outline btn--sm", id: "btn-reset-devices" }, [icon("delete_sweep"), "Revoke All"]),
+      el("button", { type: "button", class: "btn btn--outline btn--sm", id: "btn-reset-devices", disabled: "" }, [icon("delete_sweep"), "Revoke all"]),
     ])
   );
 
-  const devicesList = el("div", { class: "device-list", id: "devices-list", style: "margin-top:12px;" });
+  const devicesList = el("div", { class: "device-list settings-device-list", id: "devices-list", "aria-live": "polite" });
   devicesCard.append(devicesList);
   devicesCol.append(devicesCard);
 
@@ -1780,21 +1599,26 @@ function buildSecurityPanel(profile) {
     try {
       await resetAllTrustedDevices(profile.uid);
       toast("All trusted devices revoked.", "success");
-      loadDevices();
     } catch {
       toast("Failed to revoke devices.", "error");
+      restore();
+      return;
     }
     restore();
+    await loadDevices();
   });
 
   async function loadDevices() {
-    devicesList.innerHTML = "";
+    resetAllBtn.disabled = true;
+    devicesList.replaceChildren(el("p", { class: "settings-quiet" }, "Loading trusted devices…"));
     try {
       const devices = await listTrustedDevices(profile.uid);
+      devicesList.replaceChildren();
       if (devices.length === 0) {
         devicesList.append(el("p", { class: "text-muted text-sm", style: "padding:8px 0;" }, "No trusted devices registered yet."));
         return;
       }
+      resetAllBtn.disabled = false;
       for (const d of devices) {
         const lastSeen = d.lastSeenAt?.toDate ? d.lastSeenAt.toDate().toLocaleDateString() : "—";
         const registered = d.registeredAt?.toDate ? d.registeredAt.toDate().toLocaleDateString() : "—";
@@ -1805,17 +1629,25 @@ function buildSecurityPanel(profile) {
               d.deviceName || "Authorized Device",
               d.isPrimary ? el("span", { class: "device-card__badge", style: "margin-left:8px;" }, "Primary") : "",
             ]),
-            el("div", { class: "device-card__detail" }, `${d.screenRes || ""} · ${d.timezone || ""} · Last active: ${lastSeen} · Added: ${registered}`),
+            el("div", { class: "device-card__detail" }, [d.screenRes, d.timezone, `Last active ${lastSeen}`, `Added ${registered}`].filter(Boolean).join(" · ")),
           ]),
           el("div", { class: "device-card__actions" }, [
             el("button", {
+              type: "button",
               class: "btn btn--outline btn--sm",
               title: "Revoke device",
-              onClick: async () => {
+              "aria-label": `Revoke ${d.deviceName || "trusted device"}`,
+              onClick: async (event) => {
                 if (!confirm(`Revoke device "${d.deviceName}"?`)) return;
-                await removeTrustedDevice(profile.uid, d.id);
-                toast("Device revoked.", "success");
-                loadDevices();
+                const restore = busyButton(event.currentTarget, "Revoking…");
+                try {
+                  await removeTrustedDevice(profile.uid, d.id);
+                  toast("Device revoked.", "success");
+                  await loadDevices();
+                } catch (err) {
+                  toast(err.message || "Could not revoke this device.", "error");
+                  restore();
+                }
               },
             }, [icon("delete")]),
           ]),
@@ -1823,7 +1655,7 @@ function buildSecurityPanel(profile) {
         devicesList.append(card);
       }
     } catch {
-      devicesList.append(el("p", { class: "text-muted text-sm" }, "Failed to load trusted devices."));
+      devicesList.replaceChildren(el("p", { class: "settings-quiet" }, "Could not load trusted devices."));
     }
   }
   loadDevices();
@@ -1833,10 +1665,8 @@ function buildSecurityPanel(profile) {
   activityCard.append(
     el("h3", {}, [
       icon("history"),
-      "Recent Login Requests",
-      infoTooltip("Access Audit", "Log of browser login attempts, including incoming device verification requests and outcomes."),
+      "Recent sign-in requests",
     ]),
-    el("p", { class: "settings-card__sub" }, "Recent sign-in attempts and authorization outcomes.")
   );
   const activityTable = el("div", { id: "login-activity", class: "table-wrap table-wrap--responsive", style: "border:none;" });
   activityCard.append(activityTable);
@@ -1875,9 +1705,9 @@ function buildSecurityPanel(profile) {
         }
         tbody.append(
           el("tr", {}, [
-            el("td", {}, a.deviceName || "Browser Session"),
-            el("td", {}, time),
-            el("td", {}, statusContent),
+            el("td", { "data-label": "Device" }, a.deviceName || "Browser session"),
+            el("td", { "data-label": "Time" }, time),
+            el("td", { "data-label": "Status" }, statusContent),
           ])
         );
       }
@@ -1889,7 +1719,7 @@ function buildSecurityPanel(profile) {
   })();
 
   grid.append(authCol, devicesCol);
-  wrap.append(grid);
+  wrap.append(grid, transferCard);
   return wrap;
 }
 
