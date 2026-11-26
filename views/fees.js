@@ -19,7 +19,7 @@ import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput, makeCopyable, renderEmptyState } from "../js/utils.js";
 import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
-import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
 
 let classes = [];
@@ -58,12 +58,9 @@ export { buildFinanceMascotSvg } from "../js/components/mascot.js";
 export async function render({ profile, params = {} }) {
   feeRequest++;
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);
-  const remembered = restoreWorkspaceSelection(profile, "fees");
   const linkedGrade = params.grade ?? params.class;
-  const grade = workspaceOption(classes.map((item) => item.grade), linkedGrade ?? remembered.grade,
-    linkedGrade == null && remembered.grade !== "");
-  const preferredStream = params.stream ?? (linkedGrade == null && remembered.grade === grade ? remembered.stream : undefined);
-  const stream = workspaceOption(streamOptions(grade), preferredStream, params.stream == null && preferredStream !== "");
+  const grade = workspaceOption(classes.map((item) => item.grade), linkedGrade);
+  const stream = workspaceOption(streamOptions(grade), params.stream);
   const { academicYear, term, terms } = workspacePeriod(settings, params);
   selection = { grade, stream, academicYear, term };
   balanceRows = [];
@@ -377,7 +374,6 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
 
   function updateSelection() {
     selection = { grade: gradeSelect.value, stream: streamSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
-    rememberWorkspaceSelection(profile, "fees", { grade: selection.grade, stream: selection.stream });
     loadBalances(profile, balancesMount, paymentsMount, receiptMount, { sync: false });
   }
   gradeSelect.addEventListener("change", () => {

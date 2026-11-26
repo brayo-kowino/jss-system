@@ -17,7 +17,7 @@ import { isStarterPlan } from "../js/services/subscription.service.js";
 import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
 import { buildAttendanceMascotSvg } from "../js/components/mascot.js";
 import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
-import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort } from "../js/services/workspace-selection.js";
+import { workspaceCohort } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
 
 export { buildAttendanceMascotSvg };
@@ -81,11 +81,9 @@ export async function render({ profile, params = {} }) {
   }
 
   const linkedGrade = params.grade ?? params.class;
-  const remembered = restoreWorkspaceSelection(profile, "attendance");
   const linkedDate = params.date;
   selection = {
-    classKey: workspaceCohort(classOptions().map(({ value }) => value),
-      linkedGrade != null ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey, linkedGrade != null),
+    classKey: workspaceCohort(classOptions().map(({ value }) => value), linkedGrade, params.stream),
     date: typeof linkedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)
       && !Number.isNaN(Date.parse(linkedDate)) && linkedDate <= today ? linkedDate : today,
   };
@@ -214,7 +212,6 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
 
   classSelect.addEventListener("change", () => {
     selection.classKey = classSelect.value;
-    rememberWorkspaceSelection(profile, "attendance", { classKey: selection.classKey });
     maybeLoad(profile, bodyMount, summaryMount);
   });
 }

@@ -6,7 +6,7 @@ import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
-import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
 
 let classes = [];
@@ -31,11 +31,10 @@ export async function render({ profile, params = {} }) {
   }
 
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  const remembered = restoreWorkspaceSelection(profile, "release-results");
   const linkedGrade = params.grade ?? params.class;
   const { academicYear, term, terms } = workspacePeriod(settings, params);
   selection = {
-    grade: workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade, linkedGrade == null && remembered.grade !== ""),
+    grade: workspaceOption(gradeOptions(), linkedGrade),
     academicYear, term,
   };
 
@@ -78,7 +77,6 @@ function renderPicker(container, bodyMount, profile, terms) {
 
   function updateSelection() {
     selection = { grade: gradeSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
-    rememberWorkspaceSelection(profile, "release-results", { grade: selection.grade });
     loadModes(bodyMount, profile);
   }
   for (const control of [gradeSelect, yearInput, termSelect]) control.addEventListener("change", updateSelection);

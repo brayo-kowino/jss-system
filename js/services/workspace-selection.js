@@ -24,26 +24,30 @@ export function rememberWorkspaceSelection(profile, workspace, selection) {
   }
 }
 
-export function workspaceOption(choices, preferred, autoSelect = true) {
-  if (choices.includes(preferred)) return preferred;
-  return autoSelect && choices.length === 1 ? choices[0] : "";
+export function workspaceOption(choices, requested) {
+  if (requested == null) return choices[0] ?? "";
+  return choices.includes(requested) ? requested : "";
 }
 
-// A grade-only link may resolve to a stream when that grade has one valid cohort.
-export function workspaceCohort(choices, preferred, linked = false) {
-  if (linked && typeof preferred === "string" && preferred.endsWith("|")) {
-    const gradeChoices = choices.filter((value) => value.startsWith(preferred));
-    return workspaceOption(gradeChoices, preferred);
+export function workspaceCohort(choices, grade, stream) {
+  if (grade == null) {
+    if (stream == null) return workspaceOption(choices);
+    return choices.find((value) => value.split("|")[1] === stream) ?? "";
   }
-  return workspaceOption(choices, preferred, !linked && preferred !== "");
+  if (stream == null) {
+    return choices.find((value) => value.startsWith(`${grade}|`)) ?? "";
+  }
+  return workspaceOption(choices, `${grade}|${stream}`);
 }
 
 export function workspacePeriod(settings, params = {}) {
-  const terms = settings.terms?.length ? settings.terms : [settings.currentTerm].filter(Boolean);
-  const term = params.term ?? settings.currentTerm ?? terms[0];
+  const configuredTerms = settings.terms?.length ? settings.terms : [settings.currentTerm].filter(Boolean);
+  const terms = configuredTerms.includes(settings.currentTerm)
+    ? [settings.currentTerm, ...configuredTerms.filter((term) => term !== settings.currentTerm)]
+    : configuredTerms;
   return {
     academicYear: String(params.academicYear ?? params.year ?? settings.currentAcademicYear ?? ""),
-    term: workspaceOption(terms, term, !params.term) || (params.term ? "" : terms[0] || ""),
+    term: workspaceOption(terms, params.term),
     terms,
   };
 }

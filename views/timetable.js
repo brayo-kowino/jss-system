@@ -472,17 +472,17 @@ export async function render({ profile, params = {} }) {
   const remembered = restoreWorkspaceSelection(profile, "timetable");
   const linkedGrade = params.grade ?? params.class;
   const linkedTab = params.tab ?? (params.teacherId ? "teachers" : linkedGrade ? "classes" : (params.day || params.view) && canManage ? "master" : undefined);
-  activeTab = workspaceOption(["classes", "teachers", ...(canManage ? ["master", "periods"] : [])], linkedTab ?? remembered.tab)
-    || (canManage ? "master" : "classes");
+  const defaultTab = canManage ? "master" : "classes";
+  activeTab = workspaceOption(["classes", "teachers", ...(canManage ? ["master", "periods"] : [])],
+    linkedTab ?? remembered.tab ?? defaultTab) || defaultTab;
   masterDayFilter = workspaceOption(["All", ...DAYS], params.day) || "All";
   masterViewMode = workspaceOption(["wall", "cards"], params.view) || "wall";
   const cohortKey = workspaceCohort(getAllCohorts().map(({ grade, stream }) => `${grade}|${stream}`),
-    linkedGrade != null ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey, linkedGrade != null);
+    linkedGrade, params.stream);
   const [grade, stream = ""] = cohortKey.split("|");
   classSelection = { grade, stream };
   teacherSelection = {
-    teacherId: workspaceOption(teachers.map(({ id }) => id), params.teacherId ?? remembered.teacherId,
-      params.teacherId == null && remembered.teacherId !== ""),
+    teacherId: workspaceOption(teachers.map(({ id }) => id), params.teacherId),
   };
 
   const wrap = el("div", { class: "timetable-view-wrap" });
@@ -510,7 +510,7 @@ export async function render({ profile, params = {} }) {
           "aria-pressed": String(activeTab === tab.id),
           onClick: () => {
             activeTab = tab.id;
-            rememberTimetable(profile, { tab: activeTab });
+            rememberWorkspaceSelection(profile, "timetable", { tab: activeTab });
             renderTabs();
             switchTab(activeTab);
           },
@@ -524,7 +524,7 @@ export async function render({ profile, params = {} }) {
   globalGoToTab = (tabId) => {
     if (!tabsConfig.some(({ id }) => id === tabId)) return;
     activeTab = tabId;
-    rememberTimetable(profile, { tab: activeTab });
+    rememberWorkspaceSelection(profile, "timetable", { tab: activeTab });
     renderTabs();
     switchTab(activeTab);
   };
@@ -559,10 +559,6 @@ export async function render({ profile, params = {} }) {
   await switchTab(activeTab);
 
   return wrap;
-}
-
-function rememberTimetable(profile, updates) {
-  rememberWorkspaceSelection(profile, "timetable", { ...restoreWorkspaceSelection(profile, "timetable"), ...updates });
 }
 
 // -------------------------------------------------------- Master Timetable --
@@ -901,7 +897,6 @@ function renderClassPicker(container, profile, gridMount) {
   select.addEventListener("change", async () => {
     const [grade, stream] = select.value.split("|");
     classSelection = { grade: grade || "", stream: stream || "" };
-    rememberTimetable(profile, { classKey: select.value });
     updateClassTeacherBanner();
     if (!classSelection.grade) {
       renderUnselectedTimetable(gridMount, "class");
@@ -1049,7 +1044,6 @@ async function renderTeacherPicker(container, profile, gridMount) {
 
     select.addEventListener("change", async () => {
       teacherSelection.teacherId = select.value;
-      rememberTimetable(profile, { teacherId: select.value });
       updateTeacherMeta();
       if (!teacherSelection.teacherId) {
         renderUnselectedTimetable(gridMount, "teacher");

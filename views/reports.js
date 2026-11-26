@@ -17,7 +17,7 @@ import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { getTeacherByUserId, getTeacherByEmail, listTeachers } from "../js/services/teacher.service.js";
 import { getSmartTeacherRemark, getSmartPrincipalRemark } from "../js/services/smart-remarks.util.js";
-import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
@@ -137,7 +137,6 @@ export async function render({ profile, params = {} }) {
     listTeachers().catch(() => []),
   ]);
   allTeachers = schoolTeachers || [];
-  let homeroom = "";
 
   if (profile.role === "class_teacher") {
     let teacher = null;
@@ -150,7 +149,6 @@ export async function render({ profile, params = {} }) {
       } catch (err) {}
     }
     const assignments = teacher?.teachingAssignments || [];
-    homeroom = teacher?.homeroom || "";
     const managedGrades = new Set();
       if (profile.role === 'class_teacher' && teacher?.homeroom) {
         managedGrades.add(teacher.homeroom.split('|')[0]);
@@ -168,18 +166,12 @@ export async function render({ profile, params = {} }) {
         }
         return c;
       });
-
   }
 
-  const remembered = restoreWorkspaceSelection(profile, "reports");
-  const [homeGrade, homeStream] = homeroom.split("|");
   const linkedGrade = params.grade ?? params.class;
   const { academicYear, term, terms } = workspacePeriod(settings, params);
-  const grade = workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade ?? homeGrade,
-    linkedGrade == null && remembered.grade !== "");
-  const preferredStream = params.stream ?? (linkedGrade == null
-    ? (remembered.grade === grade ? remembered.stream : grade === homeGrade ? homeStream : "") : "");
-  const stream = workspaceOption(streamOptions(grade), preferredStream, false);
+  const grade = workspaceOption(gradeOptions(), linkedGrade);
+  const stream = workspaceOption(["", ...streamOptions(grade)], params.stream);
   selection = { grade: params.stream && !stream ? "" : grade, stream, academicYear, term };
   activeMode = params.reportMode || null;
 
@@ -229,7 +221,6 @@ function renderPicker(container, bodyMount, profile, terms) {
 
   function updateSelection() {
     selection = { grade: gradeSelect.value, stream: streamSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
-    rememberWorkspaceSelection(profile, "reports", { grade: selection.grade, stream: selection.stream });
     loadList(bodyMount, profile);
   }
   gradeSelect.addEventListener("change", () => { selection.stream = ""; refreshStreams(); updateSelection(); });

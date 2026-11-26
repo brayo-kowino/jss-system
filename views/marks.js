@@ -7,7 +7,6 @@ import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 import { setDirty } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
-import { getSchoolSettings } from "../js/services/settings.service.js";
 import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort, workspaceOption } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
 
@@ -19,7 +18,6 @@ let allAssessments = [];
 let allowedSubjectCodes = null; // null = unrestricted (admin/academic_master)
 let allowedClassKeys = null; // null = unrestricted (admin/academic_master)
 let teachingAssignments = null;
-let currentPeriod = null;
 let marksRequest = 0;
 let selection = { classKey: "", subjectCode: "", assessmentId: "" };
 let loadedSelection = { classKey: "", subjectCode: "", assessmentId: "" };
@@ -77,9 +75,7 @@ export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
   currentProfile = profile;
   startAutoSaveLoop();
-  [classes, allSubjects, allAssessments, currentPeriod] = await Promise.all([
-    listClasses(), listSubjects(), listAssessments(), getSchoolSettings().catch(() => null),
-  ]);
+  [classes, allSubjects, allAssessments] = await Promise.all([listClasses(), listSubjects(), listAssessments()]);
 
   const linkedGrade = params.grade ?? params.class;
   const linkedSubject = params.subject ?? params.subjectCode;
@@ -110,12 +106,11 @@ export async function render({ profile, params = {} }) {
     allowedSubjectCodes = new Set(teachingAssignments.map((a) => a.subjectCode));
     allowedClassKeys = new Set(teachingAssignments.map((a) => `${a.grade}|${a.stream || ""}`));
   }
-  const remembered = linkedEntry ? {} : restoreWorkspaceSelection(profile, "marks-entry");
   selection = {
     classKey: workspaceCohort(classOptions().map(({ value }) => value),
-      linkedEntry ? (linkedGrade ? `${linkedGrade}|${params.stream || ""}` : undefined) : remembered.classKey, linkedEntry),
-    subjectCode: (linkedEntry ? linkedSubject : remembered.subjectCode) ?? "",
-    assessmentId: (linkedEntry ? linkedAssessment : remembered.assessmentId) ?? "",
+      linkedEntry ? linkedGrade : undefined, linkedEntry ? params.stream : undefined),
+    subjectCode: linkedEntry ? linkedSubject : undefined,
+    assessmentId: linkedEntry ? linkedAssessment : undefined,
   };
 
   const wrap = el("div", { class: "marks-view-wrap" });
@@ -152,7 +147,7 @@ export async function render({ profile, params = {} }) {
   const bodyMount = el("div", { id: "marks-body-mount" });
   entryPanel.append(bodyMount);
 
-  renderPicker(pickerCard, profile, bodyMount, { autoSelect: !linkedEntry, load: activeTab === "entry" });
+  renderPicker(pickerCard, profile, bodyMount, { load: activeTab === "entry" });
   wrap.append(entryPanel);
 
   // ---- Review panel (new) ----
@@ -334,14 +329,7 @@ function subjectsForClass(classKey) {
   return allSubjects.filter((subject) => codes.has(subject.code));
 }
 
-function defaultAssessment(assessments) {
-  if (!currentPeriod?.currentAcademicYear || !currentPeriod.currentTerm) return "";
-  const current = assessments.filter((assessment) => String(assessment.academicYear) === String(currentPeriod.currentAcademicYear)
-    && assessment.term === currentPeriod.currentTerm);
-  return workspaceOption(current.map(({ id }) => id));
-}
-
-function renderPicker(container, profile, bodyMount, { autoSelect = true, load = true } = {}) {
+function renderPicker(container, profile, bodyMount, { load = true } = {}) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid marks-picker-grid" });
 
@@ -353,16 +341,16 @@ function renderPicker(container, profile, bodyMount, { autoSelect = true, load =
 
   const subjectSelect = el("select", { id: "m-subject" });
 
-  function refreshSubjects(chooseDefault) {
+  function refreshSubjects(requested) {
     const choices = subjectsForClass(classSelect.value);
-    selection.subjectCode = workspaceOption(choices.map(({ code }) => code), selection.subjectCode, chooseDefault);
+    selection.subjectCode = workspaceOption(choices.map(({ code }) => code), classSelect.value ? requested : requested ?? "");
     subjectSelect.replaceChildren(
       el("option", { value: "" }, "Select subject"),
       ...choices.map((s) => el("option", { value: s.code }, s.name)),
     );
     subjectSelect.value = selection.subjectCode;
   }
-  refreshSubjects(autoSelect);
+  refreshSubjects(selection.subjectCode);
 
   const assessmentSelect = el("select", { id: "m-assessment" }, [el("option", { value: "" }, "Select assessment")]);
   const shareSheet = el("button", {
@@ -439,7 +427,7 @@ function renderPicker(container, profile, bodyMount, { autoSelect = true, load =
     container.append(emptyNotice);
   }
 
-  function refreshAssessmentOptions(chooseDefault = true) {
+  function refreshAssessmentOptions(requested) {
     const grade = classSelect.value.split("|")[0] || "";
     const subjectCode = subjectSelect.value || "";
     assessmentSelect.innerHTML = "";
@@ -449,8 +437,7 @@ function renderPicker(container, profile, bodyMount, { autoSelect = true, load =
         (!grade || !a.grades?.length || a.grades.includes(grade)) &&
         (!subjectCode || !a.subjects?.length || a.subjects.includes(subjectCode))
     );
-    selection.assessmentId = workspaceOption(relevant.map(({ id }) => id), selection.assessmentId, false);
-    if (!selection.assessmentId && chooseDefault && grade && subjectCode) selection.assessmentId = defaultAssessment(relevant);
+    selection.assessmentId = workspaceOption(relevant.map(({ id }) => id), grade && subjectCode ? requested : requested ?? "");
     for (const a of relevant) {
       assessmentSelect.append(
         el("option", { value: a.id, ...(a.id === selection.assessmentId ? { selected: "true" } : {}) },
@@ -465,27 +452,23 @@ function renderPicker(container, profile, bodyMount, { autoSelect = true, load =
   }
   selection.classKey = classSelect.value;
   selection.subjectCode = subjectSelect.value;
-  refreshAssessmentOptions(autoSelect);
+  refreshAssessmentOptions(selection.assessmentId);
 
-  function rememberAndLoad() {
-    rememberWorkspaceSelection(profile, "marks-entry", selection);
-    return maybeLoad(profile, bodyMount);
-  }
   classSelect.addEventListener("change", () => {
     selection.classKey = classSelect.value;
-    refreshSubjects(true);
+    refreshSubjects();
     refreshAssessmentOptions();
-    rememberAndLoad();
+    maybeLoad(profile, bodyMount);
   });
   subjectSelect.addEventListener("change", () => {
     selection.subjectCode = subjectSelect.value;
     refreshAssessmentOptions();
-    rememberAndLoad();
+    maybeLoad(profile, bodyMount);
   });
   assessmentSelect.addEventListener("change", () => {
     selection.assessmentId = assessmentSelect.value;
     updateShareSheet();
-    rememberAndLoad();
+    maybeLoad(profile, bodyMount);
   });
 
   if (load && !shareSheet.disabled) return maybeLoad(profile, bodyMount);
@@ -1357,20 +1340,17 @@ function renderReviewPanel(container, profile, params = {}) {
   const classChoices = classOptions();
   const linkedGrade = params.grade ?? params.class;
   const linkedAssessment = params.assessment ?? params.assessmentId;
-  const linked = linkedGrade != null || linkedAssessment != null || params.stream != null;
-  const remembered = linked ? {} : restoreWorkspaceSelection(profile, "marks-review");
-  const preferredClass = linkedGrade ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey;
   const reviewClassSelect = el("select", { id: "review-class" }, [
     el("option", { value: "" }, "Select class / grade"),
     ...classChoices.map((o) => el("option", { value: o.value }, o.label)),
   ]);
-  reviewClassSelect.value = workspaceCohort(classChoices.map(({ value }) => value), preferredClass, linked);
+  reviewClassSelect.value = workspaceCohort(classChoices.map(({ value }) => value), linkedGrade, params.stream);
 
   const reviewAssessmentSelect = el("select", { id: "review-assessment" }, [
     el("option", { value: "" }, "Select assessment"),
   ]);
 
-  function refreshReviewAssessments(preferred, chooseDefault = true) {
+  function refreshReviewAssessments(requested) {
     const grade = reviewClassSelect.value.split("|")[0] || "";
     reviewAssessmentSelect.innerHTML = "";
     reviewAssessmentSelect.append(el("option", { value: "" }, "Select assessment"));
@@ -1383,10 +1363,9 @@ function renderReviewPanel(container, profile, params = {}) {
           `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
       );
     }
-    reviewAssessmentSelect.value = workspaceOption(relevant.map(({ id }) => id), preferred, false)
-      || (chooseDefault && grade ? defaultAssessment(relevant) : "");
+    reviewAssessmentSelect.value = workspaceOption(relevant.map(({ id }) => id), grade ? requested : requested ?? "");
   }
-  refreshReviewAssessments(linkedAssessment ?? remembered.assessmentId, !linked);
+  refreshReviewAssessments(linkedAssessment);
 
   row.append(
     el("div", { class: "field" }, [
@@ -1464,18 +1443,11 @@ function renderReviewPanel(container, profile, params = {}) {
     }
   }
 
-  function rememberReview() {
-    rememberWorkspaceSelection(profile, "marks-review", {
-      classKey: reviewClassSelect.value,
-      assessmentId: reviewAssessmentSelect.value,
-    });
-    loadReview();
-  }
   reviewClassSelect.addEventListener("change", () => {
     refreshReviewAssessments();
-    rememberReview();
+    loadReview();
   });
-  reviewAssessmentSelect.addEventListener("change", rememberReview);
+  reviewAssessmentSelect.addEventListener("change", loadReview);
   loadReview();
 }
 
@@ -1505,8 +1477,7 @@ async function switchToEntryTab({ classKey, subjectCode, assessmentId, studentId
   selection.assessmentId = assessmentId;
 
   if (tabElements.bodyMount && tabElements.pickerCard && currentProfile) {
-    rememberWorkspaceSelection(currentProfile, "marks-entry", selection);
-    await renderPicker(tabElements.pickerCard, currentProfile, tabElements.bodyMount, { autoSelect: false });
+    await renderPicker(tabElements.pickerCard, currentProfile, tabElements.bodyMount);
     if (studentId) {
       setTimeout(() => {
         const input = tabElements.bodyMount.querySelector(`input[data-student-id="${studentId}"]`);

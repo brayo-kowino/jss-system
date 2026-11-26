@@ -15,7 +15,7 @@ import {
 import { openModal } from "../js/components/modal.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
-import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
 import { el, icon, toast, spinner, busyButton } from "../js/utils.js";
 
 const CAN_SAVE = ["admin", "academic_master"];
@@ -58,14 +58,13 @@ export { buildGradingMascotSvg } from "../js/components/mascot.js";
 export async function render({ profile, params = {} }) {
   resultsRequest++;
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  const remembered = restoreWorkspaceSelection(profile, "grading");
   const linkedGrade = params.grade ?? params.class;
   const { academicYear, term, terms } = workspacePeriod(settings, params);
   selection = {
-    grade: workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade, linkedGrade == null && remembered.grade !== ""),
+    grade: workspaceOption(gradeOptions(), linkedGrade),
     academicYear,
     term,
-    reportMode: workspaceOption(REPORT_MODES, params.reportMode ?? remembered.reportMode) || "average",
+    reportMode: workspaceOption(REPORT_MODES, params.reportMode ?? "average") || "average",
   };
   lastResult = null;
 
@@ -125,19 +124,18 @@ function renderPicker(container, profile, resultMount, terms) {
     computeButton.disabled = computing || !gradeSelect.value || !yearInput.value.trim() || !termSelect.value;
   }
 
-  function updateSelection({ remember = false } = {}) {
+  function updateSelection() {
     selection = {
       grade: gradeSelect.value,
       academicYear: yearInput.value.trim(),
       term: termSelect.value,
       reportMode: reportModeSelect.value,
     };
-    if (remember) rememberWorkspaceSelection(profile, "grading", { grade: selection.grade, reportMode: selection.reportMode });
     updateComputeButton();
     showSavedResults(resultMount, reportModeSelect, updateSelection);
   }
   for (const control of [gradeSelect, yearInput, termSelect, reportModeSelect]) {
-    control.addEventListener("change", () => updateSelection({ remember: true }));
+    control.addEventListener("change", updateSelection);
   }
 
   row.append(
@@ -219,7 +217,7 @@ async function showSavedResults(container, modeSelect, updateSelection) {
         onSelect(mode) {
           if (mode !== modeSelect.value) {
             modeSelect.value = mode;
-            updateSelection({ remember: true });
+            updateSelection();
           }
         },
       }));
