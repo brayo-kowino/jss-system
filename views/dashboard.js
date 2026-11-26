@@ -12,6 +12,7 @@ import { navigate } from "../js/router.js";
 import { el, formatDate, getBrandColors, hexToRgba, animateNumber } from "../js/utils.js";
 import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
 import { buildMascotSvg } from "../js/components/mascot.js";
+import { animateGreetingMascot, GREETING_DURATION_MS } from "../js/components/greeting-mascot-3d.js";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
@@ -49,19 +50,34 @@ function playDashboardGreeting(profile) {
   const session = `${profile.uid}:${auth.currentUser?.metadata.lastSignInTime || ""}`;
   if (greetedSession === session) return;
 
+  let stopMascot;
+  const canvas = el("canvas");
   const mascot = el("div", {
     class: "dashboard-greeting-mascot",
-    innerHTML: buildMascotSvg({ type: "greeting", width: 110, height: 100 }),
+    style: `--dashboard-greeting-duration: ${GREETING_DURATION_MS}ms;`,
     onAnimationEnd: (event) => {
       if (event.target !== mascot) return;
       greetedSession = session;
+      stopMascot?.();
       mascot.remove();
     },
     onAnimationCancel: (event) => {
-      if (event.target === mascot) mascot.remove();
+      if (event.target !== mascot) return;
+      stopMascot?.();
+      mascot.remove();
     },
-  });
+  }, canvas);
   slot.append(mascot);
+
+  const showFallback = () => {
+    if (mascot.isConnected) mascot.innerHTML = buildMascotSvg({ type: "greeting", width: 110, height: 100 });
+  };
+  stopMascot = animateGreetingMascot(canvas, {
+    ...getBrandColors(),
+    period: slot.dataset.greetingPeriod,
+    onContextLost: showFallback,
+  });
+  if (!stopMascot) showFallback();
 }
 
 function getGradePalette() {

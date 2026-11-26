@@ -153,15 +153,22 @@ export function buildMascotSvg({ type = "academics", width = 165, height = 150, 
 
       <!-- Floating Mascot Body -->
       <g class="support-mascot__body">
-        <!-- Educational Textbooks Stack Base -->
-        <g class="support-mascot__books">
-          <rect x="54" y="174" width="112" height="13" rx="3" fill="var(--color-primary-700)" stroke="var(--color-primary-900)" stroke-width="1.2" />
-          <rect x="58" y="177" width="104" height="2" fill="var(--color-primary-100)" opacity="0.85" />
-          <rect x="60" y="161" width="100" height="13" rx="3" fill="var(--color-green)" stroke="var(--color-primary-900)" stroke-width="1.2" />
-          <rect x="64" y="164" width="92" height="2" fill="var(--color-white)" opacity="0.4" />
-          <rect x="66" y="148" width="88" height="13" rx="3" fill="var(--color-gold)" stroke="var(--color-primary-900)" stroke-width="1.2" />
-          <rect x="70" y="151" width="80" height="2" fill="var(--color-gold-soft)" opacity="0.9" />
-        </g>
+        ${type === "greeting" ? `
+          <g class="greeting-mascot__legs">
+            <path d="M99,152 Q98,167 96,182 M121,152 Q122,167 124,182" stroke="var(--color-primary-900)" stroke-width="12" stroke-linecap="round" fill="none" />
+            <ellipse cx="92" cy="184" rx="13" ry="6" fill="var(--color-primary-700)" stroke="var(--color-primary-900)" />
+            <ellipse cx="128" cy="184" rx="13" ry="6" fill="var(--color-primary-700)" stroke="var(--color-primary-900)" />
+          </g>
+        ` : `
+          <g class="support-mascot__books">
+            <rect x="54" y="174" width="112" height="13" rx="3" fill="var(--color-primary-700)" stroke="var(--color-primary-900)" stroke-width="1.2" />
+            <rect x="58" y="177" width="104" height="2" fill="var(--color-primary-100)" opacity="0.85" />
+            <rect x="60" y="161" width="100" height="13" rx="3" fill="var(--color-green)" stroke="var(--color-primary-900)" stroke-width="1.2" />
+            <rect x="64" y="164" width="92" height="2" fill="var(--color-white)" opacity="0.4" />
+            <rect x="66" y="148" width="88" height="13" rx="3" fill="var(--color-gold)" stroke="var(--color-primary-900)" stroke-width="1.2" />
+            <rect x="70" y="151" width="80" height="2" fill="var(--color-gold-soft)" opacity="0.9" />
+          </g>
+        `}
 
         <!-- Academic Scholar Robe -->
         <path d="M84,124 C78,142 76,154 80,160 L140,160 C144,154 142,142 136,124 Z" fill="var(--color-primary-700)" stroke="var(--color-primary-900)" stroke-width="1.5" />

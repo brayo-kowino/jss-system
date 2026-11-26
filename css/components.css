@@ -56,20 +56,21 @@
 
 .dashboard-greeting-mascot-slot {
   flex: none;
-  inline-size: clamp(76px, 7.5vw, 110px);
-  aspect-ratio: 11 / 10;
+  inline-size: clamp(88px, 9vw, 122px);
+  aspect-ratio: 6 / 5;
   pointer-events: none;
 }
 
 .dashboard-greeting-mascot {
-  --dashboard-greeting-duration: 5.2s;
   --dashboard-greeting-lift: -36px;
   inline-size: 100%;
   block-size: 100%;
   animation: dashboard-greeting-appear var(--dashboard-greeting-duration) ease-in-out both;
 }
 
-.dashboard-greeting-mascot .greeting-mascot-svg {
+.dashboard-greeting-mascot .greeting-mascot-svg,
+.dashboard-greeting-mascot canvas {
+  display: block;
   inline-size: 100%;
   block-size: 100%;
 }
