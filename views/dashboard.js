@@ -1,6 +1,6 @@
 import { listClasses } from "../js/services/academic.service.js";
 import { collection, getCountFromServer, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../js/firebase-config.js";
+import { auth, db } from "../js/firebase-config.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import { getTodayAttendanceStat } from "../js/services/attendance.service.js";
 import { getTermCollectionTotal, getMonthlyRevenueTrend, getStudentsWithBalancesCount, formatKES } from "../js/services/fee.service.js";
@@ -11,6 +11,9 @@ import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
 import { el, formatDate, getBrandColors, hexToRgba, animateNumber } from "../js/utils.js";
 import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
+import morningOwl from "../assets/dashboard-owl-morning.webp";
+import afternoonOwl from "../assets/dashboard-owl-afternoon.webp";
+import eveningOwl from "../assets/dashboard-owl-evening.webp";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
@@ -38,6 +41,37 @@ let chartDataCache = {
 };
 let currentSettings = null;
 let activeProfile = null;
+let greetedSession = null;
+
+const DASHBOARD_GREETING_KEY = "eeskia_dashboard_greeting";
+const greetingOwls = { morning: morningOwl, afternoon: afternoonOwl, evening: eveningOwl };
+
+function playDashboardGreeting(profile) {
+  const slot = document.querySelector(".dashboard-greeting-mascot-slot");
+  if (!profile?.uid || !slot?.getClientRects().length) return;
+
+  const session = `${profile.uid}:${auth.currentUser?.metadata.lastSignInTime || ""}`;
+  if (greetedSession === session) return;
+  try {
+    if (sessionStorage.getItem(DASHBOARD_GREETING_KEY) === session) return;
+  } catch { /* The in-memory guard still covers this page. */ }
+
+  const mascot = el("img", {
+    class: "dashboard-greeting-mascot",
+    alt: "",
+    onLoad: () => {
+      if (!slot.isConnected || !slot.getClientRects().length || greetedSession === session) return;
+      greetedSession = session;
+      try {
+        sessionStorage.setItem(DASHBOARD_GREETING_KEY, session);
+      } catch { /* The in-memory guard still covers this page. */ }
+      slot.append(mascot);
+    },
+    onAnimationEnd: () => mascot.remove(),
+    onAnimationCancel: () => mascot.remove(),
+  });
+  mascot.src = greetingOwls[slot.dataset.greetingPeriod];
+}
 
 function getGradePalette() {
   const isDark = typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark";
@@ -102,20 +136,18 @@ export async function render({ profile }) {
   const activeStudents = allStudents.filter(s => s.status === 'active');
   const studentsCount = activeStudents.length;
 
-  // Turn the raw marked/present counts into a percentage of the WHOLE
-  // active roster, not just the students whose class happened to be
-  // marked already. A percentage of only who's-marked-so-far reads as
-  // final-for-the-day attendance and is easy to misread (mark one small
-  // class all-present early in the morning and it claimed "100%" for the
-  // whole school). "N/A" only when literally nothing has been marked yet.
-  let attendanceToday = "N/A";
-  let attendanceCoverageNote = null;
-  if (attendanceStat.marked > 0) {
-    const denominator = studentsCount > 0 ? studentsCount : attendanceStat.marked;
-    attendanceToday = `${Math.round((attendanceStat.present / denominator) * 100)}%`;
-    if (studentsCount > 0 && attendanceStat.marked < studentsCount) {
-      attendanceCoverageNote = `Only ${attendanceStat.marked} of ${studentsCount} student(s) marked so far today.`;
-    }
+  // Report attendance against the active roster and show roll call coverage alongside it.
+  const { marked, present, failed: attendanceUnavailable } = attendanceStat;
+  const attendanceTotal = studentsCount || marked;
+  const attendancePct = marked > 0 ? Math.round((present / attendanceTotal) * 100) : null;
+  const rollCallPending = !attendanceUnavailable && marked < studentsCount;
+  let attendanceCoverage = "No active students";
+  if (attendanceUnavailable) {
+    attendanceCoverage = "Attendance unavailable";
+  } else if (attendanceTotal > 0) {
+    attendanceCoverage = studentsCount > 0 && marked <= studentsCount
+      ? `${marked} of ${studentsCount} marked`
+      : `${marked} marked`;
   }
 
   // 1. Revenue Trend (oldest-first months, straight from getMonthlyRevenueTrend)
@@ -219,76 +251,7 @@ export async function render({ profile }) {
   }
 
   const hour = new Date().getHours();
-  let greeting = "Good evening";
-  if (hour < 12) greeting = "Good morning";
-  else if (hour < 16) greeting = "Good afternoon";
-
-  const waveStyle = el("style", {}, `
-    @keyframes waveAnimation {
-      0% { transform: rotate(0deg); }
-      15% { transform: rotate(14deg); }
-      30% { transform: rotate(-8deg); }
-      45% { transform: rotate(14deg); }
-      60% { transform: rotate(-4deg); }
-      75% { transform: rotate(10deg); }
-      90% { transform: rotate(0deg); }
-      100% { transform: rotate(0deg); }
-    }
-    @keyframes slideHide {
-      0% { width: 1.2em; opacity: 1; transform: translateX(0) scale(1); margin-right: 8px; }
-      100% { width: 0; opacity: 0; transform: translateX(-10px) scale(0); margin-right: 0; }
-    }
-    .waving-hand {
-      display: inline-block;
-      transform-origin: 70% 70%;
-      animation: waveAnimation 2s ease-in-out, slideHide 0.5s ease-in-out 2.5s forwards;
-      white-space: nowrap;
-      overflow: hidden;
-    }
-    
-    .dashboard-hero {
-      align-items: stretch !important;
-      justify-content: flex-start !important;
-    }
-    .hero-left-content {
-      display: flex;
-      flex-direction: column;
-      gap: var(--sp-4);
-      flex: 1;
-      justify-content: center;
-      min-width: 0;
-    }
-    .hero-term-progress {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      justify-content: center;
-      text-align: left;
-      min-width: 180px;
-    }
-    .hero-progress-track {
-      width: 140px; 
-      height: 6px; 
-      background: var(--color-line); 
-      border-radius: 4px; 
-      overflow: hidden; 
-      margin-top: 4px;
-    }
-    
-    @media (max-width: 768px) {
-      .hero-divider { display: none !important; }
-      .dashboard-hero { 
-         flex-direction: column !important; 
-         align-items: stretch !important; 
-         gap: var(--sp-6) !important;
-      }
-      .hero-left-content { width: 100%; }
-      .hero-term-progress { width: 100%; min-width: auto; align-items: stretch; }
-      .hero-progress-track { width: 100%; }
-      .dashboard-hero .md3-hero__actions { width: 100%; }
-      .dashboard-hero .md3-hero__actions .btn { flex: 1 1 100%; justify-content: center; }
-    }
-  `);
+  const greetingPeriod = hour < 12 ? "morning" : hour < 16 ? "afternoon" : "evening";
 
   let termProgress = el("div", { class: "hero-term-progress" }, [
     el("span", { style: "font-size: var(--fs-sm); color: var(--color-ink-soft); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;" }, "Term Progress")
@@ -343,27 +306,28 @@ export async function render({ profile }) {
     el("div", { style: "width: 3px; background: var(--color-primary-700); border-radius: 2px; height: 100%; opacity: 0.3;" })
   ]);
 
-// Hero Section
+  // Hero Section
   const header = el("div", { class: "md3-hero dashboard-hero" }, [
-    waveStyle,
     el("div", { class: "hero-left-content" }, [
-      el("div", { class: "md3-hero__text" }, [
-        el("h1", { style: "margin: 0; display: flex; align-items: center;" }, [
-          el("span", { class: "material-symbols-rounded waving-hand", style: "font-size: 1.1em; color: var(--color-primary-700);" }, "waving_hand"),
-          el("span", {}, `${greeting}, ${profile.fullName || profile.email}`)
+      el("div", { class: "dashboard-greeting-copy" }, [
+        el("h1", {}, `Good ${greetingPeriod}, ${profile.fullName || profile.email}`),
+        el("div", { class: "md3-hero__actions" }, [
+          el("button", { class: "btn btn--primary", onClick: () => navigate("/students") }, [
+            el("span", { class: "material-symbols-rounded" }, "person_add"), "New Admission"
+          ]),
+          el("button", { class: "btn btn--tonal", onClick: () => navigate("/fees") }, [
+            el("span", { class: "material-symbols-rounded" }, "payments"), "Record Fee"
+          ]),
+          el("button", { class: "btn btn--tonal", onClick: () => navigate("/attendance") }, [
+            el("span", { class: "material-symbols-rounded" }, "fact_check"), "Roll Call"
+          ])
         ])
       ]),
-      el("div", { class: "md3-hero__actions" }, [
-        el("button", { class: "btn btn--primary", onClick: () => navigate("/students") }, [
-          el("span", { class: "material-symbols-rounded" }, "person_add"), "New Admission"
-        ]),
-        el("button", { class: "btn btn--tonal", onClick: () => navigate("/fees") }, [
-          el("span", { class: "material-symbols-rounded" }, "payments"), "Record Fee"
-        ]),
-        el("button", { class: "btn btn--tonal", onClick: () => navigate("/attendance") }, [
-          el("span", { class: "material-symbols-rounded" }, "fact_check"), "Roll Call"
-        ])
-      ])
+      el("div", {
+        class: "dashboard-greeting-mascot-slot",
+        "data-greeting-period": greetingPeriod,
+        "aria-hidden": "true",
+      }),
     ]),
     divider,
     termProgress
@@ -465,7 +429,8 @@ export async function render({ profile }) {
     },
     {
       label: "Attendance Today",
-      displayValue: attendanceToday && attendanceToday !== "N/A" ? attendanceToday : "—",
+      displayValue: attendancePct === null ? "—" : `${attendancePct}%`,
+      note: attendanceCoverage,
       icon: "how_to_reg",
       color: "green",
     },
@@ -500,7 +465,8 @@ export async function render({ profile }) {
         ]),
         el("div", { class: "md3-kpi-chip__data" }, [
           el("div", { class: "md3-kpi-chip__label" }, kpi.label),
-          valContent
+          valContent,
+          kpi.note ? el("span", { class: "md3-kpi-chip__note" }, kpi.note) : null,
         ])
       ])
     );
@@ -608,50 +574,57 @@ export async function render({ profile }) {
     // --- Left Column ---
     const leftCol = el("div", { class: "md3-col" });
 
-    const attendancePct = attendanceToday && attendanceToday !== "N/A" ? parseInt(attendanceToday, 10) : null;
+    let attendanceInsight = null;
+    if (rollCallPending) {
+      attendanceInsight = {
+        icon: "how_to_reg",
+        color: "gold",
+        text: marked > 0 ? "Finish today’s roll call" : "Start today’s roll call",
+        targetRoute: "/attendance",
+      };
+    } else if (attendancePct !== null && attendancePct < 90) {
+      attendanceInsight = {
+        icon: "how_to_reg",
+        color: attendancePct < 75 ? "red" : "gold",
+        text: attendancePct < 75 ? "Low attendance today" : "Attendance below 90%",
+        targetRoute: "/attendance",
+      };
+    }
 
     const insightCandidates = [
+      attendanceInsight,
+
       studentsWithBalancesCount > 0
         ? {
             icon: "warning",
             color: "gold",
-            text: `${studentsWithBalancesCount} of ${studentsCount} student(s) have pending fee balances.`,
+            text: `${studentsWithBalancesCount} ${studentsWithBalancesCount === 1 ? "student" : "students"} with fee balances`,
             targetRoute: "/fees",
             targetParams: { status: "pending" },
           }
-        : studentsCount
-        ? {
-            icon: "check_circle",
-            color: "green",
-            text: "All enrolled students are up to date on fees.",
-            targetRoute: "/fees",
-            targetParams: { status: "cleared" },
-          }
         : null,
 
-      attendancePct != null
+      openAssessmentsCount > 0
         ? {
-            icon: "how_to_reg",
-            color: attendancePct >= 90 ? "green" : (attendancePct >= 75 ? "gold" : "red"),
-            text: attendancePct >= 90
-              ? `Attendance today is strong at ${attendanceToday}${attendanceCoverageNote ? ` - but ${attendanceCoverageNote.toLowerCase()}` : "."}`
-              : (attendancePct >= 75
-                ? `Attendance today is ${attendanceToday} - a bit below usual.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`
-                : `Attendance today is low at ${attendanceToday}.${attendanceCoverageNote ? ` ${attendanceCoverageNote}` : ""}`),
-            targetRoute: "/attendance",
+            icon: "assignment",
+            color: "gold",
+            text: `${openAssessmentsCount} ${openAssessmentsCount === 1 ? "assessment" : "assessments"} awaiting marks`,
+            targetRoute: "/marks",
+            targetParams: { tab: "entry" },
           }
         : null,
 
       settings.openingDate
-        ? { icon: "event_available", color: "blue", text: `Next term begins on ${formatDate(settings.openingDate)}.` }
+        ? { icon: "event_available", color: "blue", text: `Next term starts ${formatDate(settings.openingDate)}` }
         : null,
 
-      boysCount + girlsCount > 0
+      !studentsWithBalancesCount && studentsCount
         ? {
-            icon: "groups",
-            color: "blue",
-            text: `${boysCount} boys and ${girlsCount} girls enrolled (${Math.round((girlsCount / (boysCount + girlsCount)) * 100)}% girls).`,
-            targetRoute: "/students",
+            icon: "check_circle",
+            color: "green",
+            text: "All student fees up to date",
+            targetRoute: "/fees",
+            targetParams: { status: "cleared" },
           }
         : null,
 
@@ -659,7 +632,7 @@ export async function render({ profile }) {
         ? {
             icon: revenueTrend.pct >= 0 ? "trending_up" : "trending_down",
             color: revenueTrend.pct >= 0 ? "green" : "red",
-            text: `Revenue in ${revenueTrend.label} is ${revenueTrend.pct >= 0 ? "up" : "down"} ${Math.abs(revenueTrend.pct)}% vs ${revenueTrend.prevLabel}.`,
+            text: `${revenueTrend.label} revenue ${revenueTrend.pct >= 0 ? "up" : "down"} ${Math.abs(revenueTrend.pct)}% vs ${revenueTrend.prevLabel}`,
             targetRoute: "/fees",
           }
         : null,
@@ -668,25 +641,26 @@ export async function render({ profile }) {
         ? {
             icon: "person_add",
             color: "green",
-            text: `${newAdmissionsCount} new student(s) admitted in the last 30 days.`,
+            text: `${newAdmissionsCount} ${newAdmissionsCount === 1 ? "admission" : "admissions"} in the last 30 days`,
             targetRoute: "/students",
             targetParams: { status: "active" },
           }
         : null,
 
-      openAssessmentsCount > 0
+      boysCount + girlsCount > 0
         ? {
-            icon: "assignment",
-            color: "gold",
-            text: `${openAssessmentsCount} assessment(s) open and awaiting marks entry.`,
-            targetRoute: "/marks",
-            targetParams: { tab: "entry" },
+            icon: "groups",
+            color: "blue",
+            text: `${boysCount} ${boysCount === 1 ? "boy" : "boys"} and ${girlsCount} ${girlsCount === 1 ? "girl" : "girls"} enrolled`,
+            targetRoute: "/students",
           }
-        : lockedAssessmentsCount > 0
+        : null,
+
+      !openAssessmentsCount && lockedAssessmentsCount > 0
         ? {
             icon: "lock",
             color: "blue",
-            text: `${lockedAssessmentsCount} assessment(s) are locked.`,
+            text: `${lockedAssessmentsCount} locked ${lockedAssessmentsCount === 1 ? "assessment" : "assessments"}`,
             targetRoute: "/assessments",
           }
         : null,
@@ -695,7 +669,7 @@ export async function render({ profile }) {
         ? {
             icon: "school",
             color: "blue",
-            text: `${topGrade.grade} has the largest enrollment (${topGrade.count} students).`,
+            text: `Largest cohort · ${topGrade.grade} (${topGrade.count})`,
             targetRoute: "/students",
             targetParams: { grade: topGrade.grade },
           }
@@ -705,37 +679,26 @@ export async function render({ profile }) {
     let insightsBody;
     if (insightCandidates.length) {
       insightsBody = el("ul", { class: "md3-alerts-list" }, insightCandidates.map((item) => {
-        if (item.targetRoute) {
-          return el("li", {
-            class: "md3-insight-item--clickable",
-            role: "button",
-            tabindex: "0",
-            title: `Jump to ${item.targetRoute}`,
-            onClick: () => navigateDeepLink(item.targetRoute, item.targetParams || {}),
-            onKeydown: (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                navigateDeepLink(item.targetRoute, item.targetParams || {});
-              }
-            },
-          }, [
-            el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
-            el("span", { style: "flex:1; line-height:1.4;" }, item.text),
-            el("span", { class: "md3-insight-arrow", "aria-hidden": "true" }, "↗"),
-          ]);
-        }
-        return el("li", {}, [
-          el("span", { class: `material-symbols-rounded text-${item.color}`, style: "flex-shrink:0;" }, item.icon),
-          el("span", { style: "flex:1; line-height:1.4;" }, item.text),
-        ]);
+        const content = [
+          el("span", { class: `material-symbols-rounded text-${item.color}`, "aria-hidden": "true" }, item.icon),
+          el("span", { class: "md3-insight-text" }, item.text),
+        ];
+        const row = item.targetRoute
+          ? el("button", {
+              class: "md3-insight-row md3-insight-item--clickable",
+              type: "button",
+              onClick: () => navigateDeepLink(item.targetRoute, item.targetParams),
+            }, [...content, el("span", { class: "md3-insight-arrow", "aria-hidden": "true" }, "↗")])
+          : el("div", { class: "md3-insight-row" }, content);
+        return el("li", {}, row);
       }));
     } else {
       insightsBody = el("div", { class: "card-empty-state" }, [
         el("div", { class: "card-empty-state__halo card-empty-state__halo--blue" }, [
           el("span", { class: "material-symbols-rounded" }, "insights")
         ]),
-        el("p", { class: "card-empty-state__title" }, "Operational Insights Standby"),
-        el("p", { class: "card-empty-state__sub" }, "Real-time fee balances, attendance anomalies, and assessment alerts will dynamically highlight here as school operations begin."),
+        el("p", { class: "card-empty-state__title" }, "No insights yet"),
+        el("p", { class: "card-empty-state__sub" }, "Updates appear as you record attendance, fees, and marks."),
         el("button", {
           class: "btn btn--outline btn--xs card-empty-state__btn",
           onClick: () => navigate("/school-analytics")
@@ -749,16 +712,7 @@ export async function render({ profile }) {
       el("div", { class: "md3-card__header" }, [
         el("h3", { class: "md3-card__title" }, "Quick Insights"),
       ]),
-      el("div", { class: "md3-card__body", style: "flex: 1;" }, [
-        insightsBody
-      ]),
-      el("div", { class: "md3-card__footer", style: "border-top-color: rgba(20, 83, 138, 0.15);" }, [
-        el("span", { style: "color: var(--color-primary-900); font-weight: 500;" }, "Operational Highlights"),
-        el("span", { style: "display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--color-green);" }, [
-          el("span", { style: "width: 7px; height: 7px; border-radius: 50%; background: var(--color-green); display: inline-block;" }),
-          "Live"
-        ])
-      ])
+      el("div", { class: "md3-card__body", style: "flex: 1;" }, insightsBody),
     ]);
     leftCol.append(alertsCard);
 
@@ -1095,6 +1049,7 @@ function showSetupNudgeModal({ profile, settings, missingItems, schoolId }) {
 
 export function init({ profile } = {}) {
   const p = profile || activeProfile;
+  playDashboardGreeting(p);
   const isAdmin = p?.role === "admin" || p?.role === "super_admin";
   const schoolId = getCurrentSchoolId();
 

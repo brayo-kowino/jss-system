@@ -26,6 +26,76 @@
 .md3-hero p { margin: 0; color: var(--color-ink-soft); font-size: var(--fs-sm); }
 .md3-hero__actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
 
+.dashboard-hero {
+  align-items: stretch;
+  justify-content: flex-start;
+  padding-block: var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+
+.hero-left-content {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-greeting-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.dashboard-greeting-copy h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-greeting-mascot-slot {
+  flex: none;
+  inline-size: clamp(52px, 6vw, 76px);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.dashboard-greeting-mascot {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  animation: dashboard-greeting-appear 2.2s ease-in-out both;
+}
+
+@keyframes dashboard-greeting-appear {
+  0% { opacity: 0; transform: translateY(8px) scale(.88); }
+  16%, 78% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(5px) scale(.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-greeting-mascot-slot { display: none; }
+}
+
+.hero-term-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  min-width: 180px;
+}
+
+.hero-progress-track {
+  width: 140px;
+  height: 6px;
+  background: var(--color-line);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
 /* Tonal Buttons for MD3 */
 .btn--tonal {
   background: var(--color-primary-100);
@@ -107,6 +177,17 @@
   color: var(--color-ink);
   line-height: 1.15;
   word-break: break-word;
+}
+
+.dashboard-container .md3-kpi-chip__value,
+.dashboard-container .md3-card__title {
+  font-family: 'Manrope', var(--font-body);
+}
+
+.md3-kpi-chip__note {
+  color: var(--color-ink-soft);
+  font-size: var(--fs-xs);
+  line-height: 1.3;
 }
 
 /* KPI Color Variations — color-mix() creates a 12-15% tint with white so the
@@ -858,15 +939,24 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  gap: var(--sp-1);
 }
-.md3-alerts-list li {
+.md3-insight-row {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: var(--sp-1) var(--sp-2);
   font-size: var(--fs-sm);
   color: var(--color-primary-900);
-  font-weight: 500;
+  line-height: 1.35;
+}
+.md3-insight-row .material-symbols-rounded {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+.md3-insight-text {
+  flex: 1;
 }
 .text-gold { color: #D97706; }
 .text-accent { color: #D97706; }
@@ -2819,24 +2909,22 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 /* Clickable Dashboard Insight Items */
 .md3-insight-item--clickable {
+  width: 100%;
   cursor: pointer;
+  background: transparent;
+  border: 0;
   border-radius: var(--radius-sm);
-  padding: 6px 8px;
-  margin: -2px -4px;
-  transition: background 0.15s ease, transform 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s ease;
 }
 
 .md3-insight-item--clickable:hover {
   background: rgba(20, 83, 138, 0.08);
-  transform: translateX(2px);
 }
 
 .md3-insight-item--clickable:focus-visible {
-  outline: 2px solid var(--color-primary-500);
+  outline: 2px solid var(--color-primary-700);
   outline-offset: 2px;
 }
 
