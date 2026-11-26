@@ -6,6 +6,15 @@
 
 function getPropsForType(type) {
   switch (type) {
+    case "greeting":
+      return `
+        <path d="M84,128 C73,135 72,144 80,148" stroke="var(--color-primary-700)" stroke-width="6.5" stroke-linecap="round" fill="none" />
+        <circle cx="80" cy="148" r="5" fill="var(--color-cream)" stroke="var(--color-primary-700)" stroke-width="1.2" />
+        <g class="support-mascot__hand-wave">
+          <path d="M136,128 C148,130 155,116 157,105" stroke="var(--color-primary-700)" stroke-width="6.5" stroke-linecap="round" fill="none" />
+          <path d="M153,106 L151,101 Q150,98 153,98 L155,101 L155,94 Q155,91 158,93 L159,99 L162,95 Q164,93 166,96 L163,103 Q162,110 157,110 Z" fill="var(--color-cream)" stroke="var(--color-primary-700)" stroke-width="1.5" stroke-linejoin="round" />
+        </g>
+      `;
     case "academics":
       return `
         <!-- Left Hand Holding CBC Chalkboard Slate -->
@@ -183,7 +192,13 @@ export function buildMascotSvg({ type = "academics", width = 165, height = 150, 
         </g>
 
         <!-- Warm Smile -->
-        <path d="M102,106 Q110,114 118,106" stroke="var(--color-primary-900)" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        <path class="support-mascot__smile" d="M102,106 Q110,114 118,106" stroke="var(--color-primary-900)" stroke-width="2.4" stroke-linecap="round" fill="none" />
+        ${type === "greeting" ? `
+          <g class="greeting-mascot__grin">
+            <path d="M98,104 Q110,110 122,104 Q120,119 110,119 Q100,119 98,104 Z" fill="var(--color-primary-900)" />
+            <path d="M104,115 Q110,110 116,115 Q110,120 104,115 Z" fill="var(--color-gold)" />
+          </g>
+        ` : ""}
 
         <!-- Graduation Cap (Mortarboard) -->
         <g transform="rotate(-5 110 58)">

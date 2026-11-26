@@ -11,9 +11,7 @@ import { cachedWithFallback } from "../js/services/query-cache.js";
 import { navigate } from "../js/router.js";
 import { el, formatDate, getBrandColors, hexToRgba, animateNumber } from "../js/utils.js";
 import { navigateDeepLink, internalLink } from "../js/services/deep-link.service.js";
-import morningOwl from "../assets/dashboard-owl-morning.webp";
-import afternoonOwl from "../assets/dashboard-owl-afternoon.webp";
-import eveningOwl from "../assets/dashboard-owl-evening.webp";
+import { buildMascotSvg } from "../js/components/mascot.js";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
@@ -43,34 +41,27 @@ let currentSettings = null;
 let activeProfile = null;
 let greetedSession = null;
 
-const DASHBOARD_GREETING_KEY = "eeskia_dashboard_greeting";
-const greetingOwls = { morning: morningOwl, afternoon: afternoonOwl, evening: eveningOwl };
-
 function playDashboardGreeting(profile) {
   const slot = document.querySelector(".dashboard-greeting-mascot-slot");
-  if (!profile?.uid || !slot?.getClientRects().length) return;
+  if (!profile?.uid || !slot?.getClientRects().length || slot.firstElementChild) return;
 
+  // Keep playback state in this document so a reload plays the greeting again.
   const session = `${profile.uid}:${auth.currentUser?.metadata.lastSignInTime || ""}`;
   if (greetedSession === session) return;
-  try {
-    if (sessionStorage.getItem(DASHBOARD_GREETING_KEY) === session) return;
-  } catch { /* The in-memory guard still covers this page. */ }
 
-  const mascot = el("img", {
+  const mascot = el("div", {
     class: "dashboard-greeting-mascot",
-    alt: "",
-    onLoad: () => {
-      if (!slot.isConnected || !slot.getClientRects().length || greetedSession === session) return;
+    innerHTML: buildMascotSvg({ type: "greeting", width: 110, height: 100 }),
+    onAnimationEnd: (event) => {
+      if (event.target !== mascot) return;
       greetedSession = session;
-      try {
-        sessionStorage.setItem(DASHBOARD_GREETING_KEY, session);
-      } catch { /* The in-memory guard still covers this page. */ }
-      slot.append(mascot);
+      mascot.remove();
     },
-    onAnimationEnd: () => mascot.remove(),
-    onAnimationCancel: () => mascot.remove(),
+    onAnimationCancel: (event) => {
+      if (event.target === mascot) mascot.remove();
+    },
   });
-  mascot.src = greetingOwls[slot.dataset.greetingPeriod];
+  slot.append(mascot);
 }
 
 function getGradePalette() {

@@ -56,22 +56,106 @@
 
 .dashboard-greeting-mascot-slot {
   flex: none;
-  inline-size: clamp(52px, 6vw, 76px);
-  aspect-ratio: 1;
+  inline-size: clamp(76px, 7.5vw, 110px);
+  aspect-ratio: 11 / 10;
   pointer-events: none;
 }
 
 .dashboard-greeting-mascot {
-  display: block;
+  --dashboard-greeting-duration: 5.2s;
+  --dashboard-greeting-lift: -36px;
   inline-size: 100%;
   block-size: 100%;
-  animation: dashboard-greeting-appear 2.2s ease-in-out both;
+  animation: dashboard-greeting-appear var(--dashboard-greeting-duration) ease-in-out both;
+}
+
+.dashboard-greeting-mascot .greeting-mascot-svg {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+[data-greeting-period="morning"] .dashboard-greeting-mascot {
+  --dashboard-greeting-lift: -42px;
+}
+
+[data-greeting-period="evening"] .dashboard-greeting-mascot {
+  --dashboard-greeting-lift: -30px;
+}
+
+.dashboard-greeting-mascot .support-mascot__body {
+  transform-box: view-box;
+  transform-origin: 110px 178px;
+  animation: dashboard-greeting-bounce var(--dashboard-greeting-duration) ease-in-out both;
+}
+
+.dashboard-greeting-mascot .support-mascot__shadow {
+  animation: dashboard-greeting-shadow var(--dashboard-greeting-duration) ease-in-out both;
+}
+
+.dashboard-greeting-mascot .support-mascot__hand-wave {
+  transform-box: view-box;
+  transform-origin: 136px 128px;
+  animation: dashboard-greeting-wave var(--dashboard-greeting-duration) ease-in-out both;
+}
+
+.dashboard-greeting-mascot .support-mascot__eyes {
+  animation: dashboard-greeting-blink var(--dashboard-greeting-duration) ease-in-out both;
+}
+
+.dashboard-greeting-mascot .support-mascot__smile {
+  animation: dashboard-greeting-smile var(--dashboard-greeting-duration) steps(1) both;
+}
+
+.dashboard-greeting-mascot .greeting-mascot__grin {
+  animation: dashboard-greeting-grin var(--dashboard-greeting-duration) steps(1) both;
+}
+
+[data-greeting-period="evening"] .greeting-mascot__grin {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(.7);
 }
 
 @keyframes dashboard-greeting-appear {
-  0% { opacity: 0; transform: translateY(8px) scale(.88); }
-  16%, 78% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(5px) scale(.94); }
+  0% { opacity: 0; transform: translateY(10px) scale(.84); }
+  9%, 85% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translateY(8px) scale(.9); }
+}
+
+@keyframes dashboard-greeting-bounce {
+  0%, 8%, 31%, 51%, 79%, 100% { transform: none; }
+  13%, 35% { transform: translateY(5px) scale(1.12, .88); }
+  21% { transform: translate(-8px, var(--dashboard-greeting-lift)) rotate(-12deg) scale(.97, 1.06); }
+  27%, 47% { transform: translateY(4px) scale(1.08, .93); }
+  42% { transform: translate(8px, calc(var(--dashboard-greeting-lift) + 7px)) rotate(10deg); }
+  59% { transform: rotate(-8deg); }
+  69% { transform: rotate(6deg); }
+}
+
+@keyframes dashboard-greeting-shadow {
+  0%, 13%, 27%, 35%, 47%, 100% { transform: scale(1); opacity: .22; }
+  21%, 42% { transform: scale(.68); opacity: .08; }
+}
+
+@keyframes dashboard-greeting-wave {
+  0%, 10%, 81%, 100% { transform: rotate(0deg); }
+  20%, 37%, 54%, 70% { transform: rotate(-27deg); }
+  28%, 45%, 62% { transform: rotate(14deg); }
+}
+
+@keyframes dashboard-greeting-blink {
+  0%, 16%, 20%, 61%, 65%, 100% { transform: scaleY(1); }
+  18%, 63% { transform: scaleY(.08); }
+}
+
+@keyframes dashboard-greeting-smile {
+  0%, 78%, 100% { opacity: 1; }
+  15% { opacity: 0; }
+}
+
+@keyframes dashboard-greeting-grin {
+  0%, 78%, 100% { opacity: 0; }
+  15% { opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
