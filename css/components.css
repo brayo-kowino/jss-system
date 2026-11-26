@@ -2300,6 +2300,22 @@ tbody tr:hover { background: var(--color-primary-100); }
   border-radius: var(--radius-md);
   font-size: var(--fs-sm);
 }
+.workspace-results {
+  padding: var(--sp-4);
+}
+.workspace-results__body {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-height: 84px;
+  margin-top: var(--sp-3);
+  padding: var(--sp-3);
+  border-top: 1px solid var(--color-line);
+  color: var(--color-ink-soft);
+}
+.workspace-results__body p { flex: 1 1 170px; margin: 0; font-size: var(--fs-sm); }
+.workspace-results__icon { color: var(--color-primary-700); }
 .module-help {
   color: var(--color-ink-soft);
   font-size: var(--fs-sm);

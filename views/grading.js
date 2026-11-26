@@ -6,11 +6,16 @@ import {
   saveResults,
   getPreviousResult,
   listSavedModesForPeriod,
+  listResultsByPeriod,
+  summarizeSavedModes,
+  REPORT_MODES,
   reportModeLabel,
   positionScopeLabel,
 } from "../js/services/grading.service.js";
 import { openModal } from "../js/components/modal.js";
 import { savedModesPanel } from "../js/components/saved-modes-panel.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
 import { el, icon, toast, spinner, busyButton } from "../js/utils.js";
 
 const CAN_SAVE = ["admin", "academic_master"];
@@ -22,6 +27,7 @@ let lastResult = null; // { students, subjectsUsed, meta }
 let lastSavedModes = []; // listSavedModesForPeriod() result
 let studentSearchQuery = "";
 let selectedStreamFilter = "All";
+let resultsRequest = 0;
 
 /**
  * Contextual help tooltip using dark-slate bubble styling.
@@ -49,11 +55,19 @@ export { buildGradingMascotSvg } from "../js/components/mascot.js";
 
 // ------------------------------------------------------------------ Render --
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
+  resultsRequest++;
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
-  selection.reportMode = "average";
+  const remembered = restoreWorkspaceSelection(profile, "grading");
+  const linkedGrade = params.grade ?? params.class;
+  const { academicYear, term, terms } = workspacePeriod(settings, params);
+  selection = {
+    grade: workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade, linkedGrade == null && remembered.grade !== ""),
+    academicYear,
+    term,
+    reportMode: workspaceOption(REPORT_MODES, params.reportMode ?? remembered.reportMode) || "average",
+  };
+  lastResult = null;
 
   const wrap = el("div", { class: "grading-view-wrap" });
 
@@ -64,8 +78,7 @@ export async function render({ profile }) {
   const resultMount = el("div", { id: "grading-result-mount" });
   wrap.append(resultMount);
 
-  renderPicker(pickerCard, profile, resultMount);
-  renderUnselectedResults(resultMount);
+  renderPicker(pickerCard, profile, resultMount, terms);
 
   return wrap;
 }
@@ -74,7 +87,7 @@ function gradeOptions() {
   return classes.map((c) => c.grade);
 }
 
-function renderPicker(container, profile, resultMount) {
+function renderPicker(container, profile, resultMount, terms) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid" });
 
@@ -83,19 +96,49 @@ function renderPicker(container, profile, resultMount) {
     ...gradeOptions().map((g) => el("option", { value: g, ...(g === selection.grade ? { selected: "true" } : {}) }, g)),
   ]);
   const yearInput = el("input", { type: "text", value: selection.academicYear, placeholder: "2026" });
-  const termSelect = el("select", {}, (settings.terms || []).map((t) =>
-    el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)
-  ));
+  const termSelect = el("select", {}, [
+    el("option", { value: "" }, "Select term"),
+    ...terms.map((t) => el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)),
+  ]);
   const reportModeSelect = el("select", {}, [
     el("option", { value: "average", ...(selection.reportMode === "average" ? { selected: "true" } : {}) }, "Final (Average All)"),
     el("option", { value: "midterm", ...(selection.reportMode === "midterm" ? { selected: "true" } : {}) }, "Midterm Report Only"),
     el("option", { value: "endterm", ...(selection.reportMode === "endterm" ? { selected: "true" } : {}) }, "Endterm Report Only"),
   ]);
 
-  gradeSelect.addEventListener("change", () => { selection.grade = gradeSelect.value; });
-  yearInput.addEventListener("change", () => { selection.academicYear = yearInput.value.trim(); });
-  termSelect.addEventListener("change", () => { selection.term = termSelect.value; });
-  reportModeSelect.addEventListener("change", () => { selection.reportMode = reportModeSelect.value; });
+  let computing = false;
+  const computeButton = el("button", {
+    type: "button",
+    class: "btn btn--primary btn--sm",
+    onClick: async (e) => {
+      computing = true;
+      try {
+        await runCompute(profile, resultMount, e.currentTarget);
+      } finally {
+        computing = false;
+        updateComputeButton();
+      }
+    },
+  }, [icon("analytics", "text-xs"), "Compute Results"]);
+
+  function updateComputeButton() {
+    computeButton.disabled = computing || !gradeSelect.value || !yearInput.value.trim() || !termSelect.value;
+  }
+
+  function updateSelection({ remember = false } = {}) {
+    selection = {
+      grade: gradeSelect.value,
+      academicYear: yearInput.value.trim(),
+      term: termSelect.value,
+      reportMode: reportModeSelect.value,
+    };
+    if (remember) rememberWorkspaceSelection(profile, "grading", { grade: selection.grade, reportMode: selection.reportMode });
+    updateComputeButton();
+    showSavedResults(resultMount, reportModeSelect, updateSelection);
+  }
+  for (const control of [gradeSelect, yearInput, termSelect, reportModeSelect]) {
+    control.addEventListener("change", () => updateSelection({ remember: true }));
+  }
 
   row.append(
     el("div", { class: "field" }, [el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("school", "text-xs"), "Grade"]), gradeSelect]),
@@ -115,12 +158,7 @@ function renderPicker(container, profile, resultMount) {
   ));
 
   container.append(
-    el("div", { class: "module-actions module-picker__footer" }, [
-      el("button", {
-        class: "btn btn--primary btn--sm",
-        onClick: (e) => runCompute(profile, resultMount, e.currentTarget),
-      }, [icon("analytics", "text-xs"), "Compute Results"]),
-    ])
+    el("div", { class: "module-actions module-picker__footer" }, computeButton)
   );
   container.append(el("details", { class: "module-help" }, [
     el("summary", {}, "Grading Guide"),
@@ -131,12 +169,67 @@ function renderPicker(container, profile, resultMount) {
       el("li", {}, "Students with equal totals share a rank. The next rank skips the tied positions."),
     ]),
   ]));
+  updateSelection();
 }
 
 function renderUnselectedResults(container) {
-  container.replaceChildren(el("p", { class: "module-empty-note" },
-    "Choose a grade, year, term, and report mode, then select Compute Results."
-  ));
+  const message = !classes.length ? "Add a grade before calculating results."
+    : !selection.grade ? "Select a grade to view saved results."
+    : "Select the academic year and term to view saved results.";
+  container.replaceChildren(workspaceResults("Saved Results", message, {
+    action: !classes.length ? el("a", { class: "btn btn--outline btn--sm", href: "#/academics" }, "Classes & Streams") : null,
+  }));
+}
+
+async function showSavedResults(container, modeSelect, updateSelection) {
+  const request = ++resultsRequest;
+  if (!selection.grade || !selection.academicYear || !selection.term) {
+    renderUnselectedResults(container);
+    return;
+  }
+  const context = { ...selection };
+  container.replaceChildren(workspaceResults("Saved Results", "Checking for saved results…"));
+  try {
+    const results = await listResultsByPeriod({
+      grade: context.grade, academicYear: context.academicYear, term: context.term,
+    });
+    if (request !== resultsRequest) return;
+    const saved = results.filter((row) => (row.reportMode || "average") === context.reportMode);
+    const period = `${context.grade} · ${context.term} ${context.academicYear}`;
+    const modes = summarizeSavedModes(results);
+    const columns = ["Position", "Student", "Mean Mark", "Grade", "Points"];
+    const panel = saved.length
+      ? el("section", { class: "card workspace-results" }, [
+          el("h2", { class: "module-section-title" }, "Saved Results"),
+          el("p", { class: "module-field-note" }, `${period} · ${reportModeLabel(context.reportMode)}`),
+          el("div", { class: "table-wrap table-wrap--responsive" }, [
+            el("table", {}, [
+              el("thead", {}, el("tr", {}, columns.map((label) => el("th", { scope: "col" }, label)))),
+              el("tbody", {}, saved.map((row) => el("tr", {}, [
+                row.overallPosition, row.fullName || row.admissionNumber, row.meanMarks, row.meanGrade, row.totalPoints,
+              ].map((value, index) => el("td", { "data-label": columns[index] }, String(value ?? "—")))))),
+            ]),
+          ]),
+        ])
+      : workspaceResults("Saved Results", `No ${reportModeLabel(context.reportMode)} results saved for ${period}. Select Compute Results to preview them.`);
+    container.replaceChildren(panel);
+    if (modes.length > 1 || (!saved.length && modes.length)) {
+      container.prepend(savedModesPanel(modes, {
+        activeMode: context.reportMode,
+        onSelect(mode) {
+          if (mode !== modeSelect.value) {
+            modeSelect.value = mode;
+            updateSelection({ remember: true });
+          }
+        },
+      }));
+    }
+  } catch {
+    if (request !== resultsRequest) return;
+    container.replaceChildren(workspaceResults("Saved Results", "Could not load saved results.", {
+      action: el("button", { type: "button", class: "btn btn--outline btn--sm", onClick: () => showSavedResults(container, modeSelect, updateSelection) }, "Retry"),
+    }));
+  }
 }
 
 // ---------------------------------------------------------------- Compute --
@@ -206,6 +299,8 @@ function renderArrearsNotice(amountOwed) {
 
 
 async function runCompute(profile, resultMount, computeBtn = null) {
+  const request = ++resultsRequest;
+  const context = { ...selection };
   const school = getCurrentSchool();
   if (school && school.canComputeOrGenerate === false) {
     resultMount.innerHTML = "";
@@ -226,20 +321,19 @@ async function runCompute(profile, resultMount, computeBtn = null) {
   try {
     const [result, savedModes] = await Promise.all([
       computeClassResults({
-        grade: selection.grade,
-        academicYear: selection.academicYear,
-        term: selection.term,
-        reportMode: selection.reportMode,
+        ...context,
         gradingScale: settings.gradingScale,
       }),
-      listSavedModesForPeriod(selection),
+      listSavedModesForPeriod(context),
     ]);
+    if (request !== resultsRequest) return;
     lastResult = result;
     lastSavedModes = savedModes;
     studentSearchQuery = "";
     selectedStreamFilter = "All";
     renderResult(resultMount, profile);
   } catch (err) {
+    if (request !== resultsRequest) return;
     resultMount.innerHTML = "";
     toast(err.message || "Could not compute results.", "error");
     renderUnselectedResults(resultMount);
@@ -491,6 +585,9 @@ function renderResult(container, profile) {
 // ------------------------------------------------------------------- Save --
 
 async function handleSave(profile, resultMount, saveBtn = null) {
+  const request = resultsRequest;
+  const context = { ...selection };
+  const students = lastResult.students;
   const incompleteCount = lastResult.students.filter((s) => s.hasIncompleteSubject).length;
   if (incompleteCount > 0) {
     const proceed = confirm(
@@ -500,9 +597,11 @@ async function handleSave(profile, resultMount, saveBtn = null) {
   }
   const restore = busyButton(saveBtn, "Saving…");
   try {
-    await saveResults(profile.uid, selection, lastResult.students);
-    toast(`${reportModeLabel(selection.reportMode)} results saved. They are now published for Report Cards.`, "success");
-    lastSavedModes = await listSavedModesForPeriod(selection);
+    await saveResults(profile.uid, context, students);
+    toast(`${reportModeLabel(context.reportMode)} results saved. They are now published for Report Cards.`, "success");
+    const modes = await listSavedModesForPeriod(context);
+    if (request !== resultsRequest) return;
+    lastSavedModes = modes;
     renderResult(resultMount, profile);
   } catch (err) {
     toast(err.message || "Could not save results.", "error");

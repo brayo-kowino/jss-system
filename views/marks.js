@@ -7,6 +7,9 @@ import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 import { setDirty } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
+import { getSchoolSettings } from "../js/services/settings.service.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort, workspaceOption } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -15,6 +18,9 @@ let allSubjects = [];
 let allAssessments = [];
 let allowedSubjectCodes = null; // null = unrestricted (admin/academic_master)
 let allowedClassKeys = null; // null = unrestricted (admin/academic_master)
+let teachingAssignments = null;
+let currentPeriod = null;
+let marksRequest = 0;
 let selection = { classKey: "", subjectCode: "", assessmentId: "" };
 let loadedSelection = { classKey: "", subjectCode: "", assessmentId: "" };
 let roster = []; // students in the selected class
@@ -62,28 +68,30 @@ export { buildMarksMascotSvg } from "../js/components/mascot.js";
 // ------------------------------------------------------------------ Render --
 
 export async function render({ profile, params = {} }) {
+  marksRequest++;
+  if (currentProfile && (currentProfile.uid !== profile.uid || currentProfile.schoolId !== profile.schoolId)) {
+    dirty.clear();
+    pendingValues = {};
+    loadedSelection = { classKey: "", subjectCode: "", assessmentId: "" };
+  }
   await seedDefaultsIfEmpty();
   currentProfile = profile;
   startAutoSaveLoop();
-  [classes, allSubjects, allAssessments] = await Promise.all([listClasses(), listSubjects(), listAssessments()]);
+  [classes, allSubjects, allAssessments, currentPeriod] = await Promise.all([
+    listClasses(), listSubjects(), listAssessments(), getSchoolSettings().catch(() => null),
+  ]);
 
-  // Resolve dynamic deep link parameters
-  if (params.tab && ["entry", "review"].includes(params.tab)) {
-    activeTab = params.tab;
-  }
-  if (params.grade || params.class) {
-    const g = params.grade || params.class;
-    selection.classKey = params.stream ? `${g}|${params.stream}` : `${g}|`;
-  }
-  if (params.subject || params.subjectCode) {
-    selection.subjectCode = params.subject || params.subjectCode;
-  }
-  if (params.assessment || params.assessmentId) {
-    selection.assessmentId = params.assessment || params.assessmentId;
-  }
+  const linkedGrade = params.grade ?? params.class;
+  const linkedSubject = params.subject ?? params.subjectCode;
+  const linkedAssessment = params.assessment ?? params.assessmentId;
+  const hasContext = [linkedGrade, linkedSubject, linkedAssessment, params.stream].some((value) => value != null);
+  const linkedEntry = hasContext && params.tab !== "review";
+  const rememberedTab = restoreWorkspaceSelection(profile, "marks").tab;
+  activeTab = workspaceOption(["entry", "review"], params.tab ?? (linkedEntry ? "entry" : rememberedTab)) || "entry";
 
   allowedSubjectCodes = null;
   allowedClassKeys = null;
+  teachingAssignments = null;
   if (!CAN_MANAGE.includes(profile.role)) {
     let teacher = null;
     try {
@@ -98,9 +106,17 @@ export async function render({ profile, params = {} }) {
         console.warn("Could not fetch teacher profile by email:", err);
       }
     }
-    allowedSubjectCodes = new Set((teacher?.teachingAssignments || []).map(a => a.subjectCode));
-    allowedClassKeys = new Set((teacher?.teachingAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
+    teachingAssignments = teacher?.teachingAssignments || [];
+    allowedSubjectCodes = new Set(teachingAssignments.map((a) => a.subjectCode));
+    allowedClassKeys = new Set(teachingAssignments.map((a) => `${a.grade}|${a.stream || ""}`));
   }
+  const remembered = linkedEntry ? {} : restoreWorkspaceSelection(profile, "marks-entry");
+  selection = {
+    classKey: workspaceCohort(classOptions().map(({ value }) => value),
+      linkedEntry ? (linkedGrade ? `${linkedGrade}|${params.stream || ""}` : undefined) : remembered.classKey, linkedEntry),
+    subjectCode: (linkedEntry ? linkedSubject : remembered.subjectCode) ?? "",
+    assessmentId: (linkedEntry ? linkedAssessment : remembered.assessmentId) ?? "",
+  };
 
   const wrap = el("div", { class: "marks-view-wrap" });
 
@@ -136,12 +152,12 @@ export async function render({ profile, params = {} }) {
   const bodyMount = el("div", { id: "marks-body-mount" });
   entryPanel.append(bodyMount);
 
-  renderPicker(pickerCard, profile, bodyMount);
+  renderPicker(pickerCard, profile, bodyMount, { autoSelect: !linkedEntry, load: activeTab === "entry" });
   wrap.append(entryPanel);
 
   // ---- Review panel (new) ----
   const reviewPanel = el("div", { class: "marks-tab-panel", style: activeTab === "review" ? "" : "display:none;" });
-  renderReviewPanel(reviewPanel, profile);
+  if (activeTab === "review") renderReviewPanel(reviewPanel, profile, params);
   wrap.append(reviewPanel);
 
   tabElements = {
@@ -149,6 +165,7 @@ export async function render({ profile, params = {} }) {
     reviewTab,
     entryPanel,
     reviewPanel,
+    pickerCard,
     bodyMount,
     profile,
   };
@@ -157,16 +174,19 @@ export async function render({ profile, params = {} }) {
   entryTab.addEventListener("click", () => {
     if (activeTab === "entry") return;
     activeTab = "entry";
+    rememberWorkspaceSelection(profile, "marks", { tab: activeTab });
     entryTab.classList.add("profile-tab--active");
     reviewTab.classList.remove("profile-tab--active");
     entryTab.setAttribute("aria-pressed", "true");
     reviewTab.setAttribute("aria-pressed", "false");
     entryPanel.style.display = "";
     reviewPanel.style.display = "none";
+    maybeLoad(profile, bodyMount);
   });
   reviewTab.addEventListener("click", () => {
     if (activeTab === "review") return;
     activeTab = "review";
+    rememberWorkspaceSelection(profile, "marks", { tab: activeTab });
     reviewTab.classList.add("profile-tab--active");
     entryTab.classList.remove("profile-tab--active");
     reviewTab.setAttribute("aria-pressed", "true");
@@ -306,7 +326,22 @@ function classOptions() {
   return opts;
 }
 
-function renderPicker(container, profile, bodyMount) {
+function subjectsForClass(classKey) {
+  if (!teachingAssignments) return allSubjects;
+  const codes = classKey
+    ? new Set(teachingAssignments.filter((a) => `${a.grade}|${a.stream || ""}` === classKey).map((a) => a.subjectCode))
+    : allowedSubjectCodes;
+  return allSubjects.filter((subject) => codes.has(subject.code));
+}
+
+function defaultAssessment(assessments) {
+  if (!currentPeriod?.currentAcademicYear || !currentPeriod.currentTerm) return "";
+  const current = assessments.filter((assessment) => String(assessment.academicYear) === String(currentPeriod.currentAcademicYear)
+    && assessment.term === currentPeriod.currentTerm);
+  return workspaceOption(current.map(({ id }) => id));
+}
+
+function renderPicker(container, profile, bodyMount, { autoSelect = true, load = true } = {}) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid marks-picker-grid" });
 
@@ -316,11 +351,18 @@ function renderPicker(container, profile, bodyMount) {
     ...classChoices.map((o) => el("option", { value: o.value, ...(o.value === selection.classKey ? { selected: "true" } : {}) }, o.label)),
   ]);
 
-  const subjectChoices = allSubjects.filter((s) => !allowedSubjectCodes || allowedSubjectCodes.has(s.code));
-  const subjectSelect = el("select", { id: "m-subject" }, [
-    el("option", { value: "" }, "Select subject"),
-    ...subjectChoices.map((s) => el("option", { value: s.code, ...(s.code === selection.subjectCode ? { selected: "true" } : {}) }, s.name)),
-  ]);
+  const subjectSelect = el("select", { id: "m-subject" });
+
+  function refreshSubjects(chooseDefault) {
+    const choices = subjectsForClass(classSelect.value);
+    selection.subjectCode = workspaceOption(choices.map(({ code }) => code), selection.subjectCode, chooseDefault);
+    subjectSelect.replaceChildren(
+      el("option", { value: "" }, "Select subject"),
+      ...choices.map((s) => el("option", { value: s.code }, s.name)),
+    );
+    subjectSelect.value = selection.subjectCode;
+  }
+  refreshSubjects(autoSelect);
 
   const assessmentSelect = el("select", { id: "m-assessment" }, [el("option", { value: "" }, "Select assessment")]);
   const shareSheet = el("button", {
@@ -380,7 +422,7 @@ function renderPicker(container, profile, bodyMount) {
     container.append(emptyClassNotice);
   }
 
-  if (!subjectChoices.length) {
+  if (!subjectsForClass("").length) {
     const emptyNotice = el("div", {
       class: "callout callout--warning",
       style: "margin-top:var(--sp-3); padding:10px 14px; font-size:var(--fs-xs);",
@@ -397,7 +439,7 @@ function renderPicker(container, profile, bodyMount) {
     container.append(emptyNotice);
   }
 
-  function refreshAssessmentOptions() {
+  function refreshAssessmentOptions(chooseDefault = true) {
     const grade = classSelect.value.split("|")[0] || "";
     const subjectCode = subjectSelect.value || "";
     assessmentSelect.innerHTML = "";
@@ -407,9 +449,8 @@ function renderPicker(container, profile, bodyMount) {
         (!grade || !a.grades?.length || a.grades.includes(grade)) &&
         (!subjectCode || !a.subjects?.length || a.subjects.includes(subjectCode))
     );
-    if (selection.assessmentId && !relevant.some((a) => a.id === selection.assessmentId)) {
-      selection.assessmentId = "";
-    }
+    selection.assessmentId = workspaceOption(relevant.map(({ id }) => id), selection.assessmentId, false);
+    if (!selection.assessmentId && chooseDefault && grade && subjectCode) selection.assessmentId = defaultAssessment(relevant);
     for (const a of relevant) {
       assessmentSelect.append(
         el("option", { value: a.id, ...(a.id === selection.assessmentId ? { selected: "true" } : {}) },
@@ -424,41 +465,46 @@ function renderPicker(container, profile, bodyMount) {
   }
   selection.classKey = classSelect.value;
   selection.subjectCode = subjectSelect.value;
-  refreshAssessmentOptions();
+  refreshAssessmentOptions(autoSelect);
 
-  if (!shareSheet.disabled) {
-    maybeLoad(profile, bodyMount);
-  } else {
-    renderUnselectedScoresheet(bodyMount);
+  function rememberAndLoad() {
+    rememberWorkspaceSelection(profile, "marks-entry", selection);
+    return maybeLoad(profile, bodyMount);
   }
-
   classSelect.addEventListener("change", () => {
     selection.classKey = classSelect.value;
+    refreshSubjects(true);
     refreshAssessmentOptions();
-    maybeLoad(profile, bodyMount);
+    rememberAndLoad();
   });
   subjectSelect.addEventListener("change", () => {
     selection.subjectCode = subjectSelect.value;
     refreshAssessmentOptions();
-    maybeLoad(profile, bodyMount);
+    rememberAndLoad();
   });
   assessmentSelect.addEventListener("change", () => {
     selection.assessmentId = assessmentSelect.value;
     updateShareSheet();
-    maybeLoad(profile, bodyMount);
+    rememberAndLoad();
   });
+
+  if (load && !shareSheet.disabled) return maybeLoad(profile, bodyMount);
+  renderUnselectedScoresheet(bodyMount);
 }
 
 function renderUnselectedScoresheet(container) {
-  container.replaceChildren(el("p", { class: "module-empty-note" },
-    "Select a class, subject, and assessment to open the marks sheet."
-  ));
+  const message = !selection.classKey ? "Select a class to open the marks sheet."
+    : !selection.subjectCode ? "Select a subject for this class."
+    : "Select an assessment to open the student roster.";
+  container.replaceChildren(workspaceResults("Marks Sheet", message, { symbol: "edit_note" }));
 }
 
 // ------------------------------------------------------------------ Loading --
 
 async function maybeLoad(profile, bodyMount) {
+  const request = ++marksRequest;
   await flushDirtyMarks();
+  if (request !== marksRequest) return;
 
   const { classKey, subjectCode, assessmentId } = selection;
   if (!classKey || !subjectCode || !assessmentId) {
@@ -473,6 +519,7 @@ async function maybeLoad(profile, bodyMount) {
 
   try {
     const [students, marks] = await Promise.all([listStudents(), listMarks(assessmentId, subjectCode)]);
+    if (request !== marksRequest) return;
     roster = students.filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
     marksByStudent = {};
@@ -483,6 +530,7 @@ async function maybeLoad(profile, bodyMount) {
 
     renderRoster(bodyMount, profile);
   } catch (err) {
+    if (request !== marksRequest) return;
     bodyMount.innerHTML = "";
     bodyMount.append(el("div", { class: "card" }, [
       el("div", { class: "empty-state" }, [
@@ -1299,7 +1347,7 @@ async function toggleLock(profile, assessment, container) {
  * and assessment. Flags missing marks with a visual indicator so teachers
  * and administrators can quickly spot gaps before grading.
  */
-function renderReviewPanel(container, profile) {
+function renderReviewPanel(container, profile, params = {}) {
   container.innerHTML = "";
 
   // Picker row for the review panel — needs grade and assessment only
@@ -1307,16 +1355,22 @@ function renderReviewPanel(container, profile) {
   const row = el("div", { class: "filter-grid" });
 
   const classChoices = classOptions();
+  const linkedGrade = params.grade ?? params.class;
+  const linkedAssessment = params.assessment ?? params.assessmentId;
+  const linked = linkedGrade != null || linkedAssessment != null || params.stream != null;
+  const remembered = linked ? {} : restoreWorkspaceSelection(profile, "marks-review");
+  const preferredClass = linkedGrade ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey;
   const reviewClassSelect = el("select", { id: "review-class" }, [
     el("option", { value: "" }, "Select class / grade"),
     ...classChoices.map((o) => el("option", { value: o.value }, o.label)),
   ]);
+  reviewClassSelect.value = workspaceCohort(classChoices.map(({ value }) => value), preferredClass, linked);
 
   const reviewAssessmentSelect = el("select", { id: "review-assessment" }, [
     el("option", { value: "" }, "Select assessment"),
   ]);
 
-  function refreshReviewAssessments() {
+  function refreshReviewAssessments(preferred, chooseDefault = true) {
     const grade = reviewClassSelect.value.split("|")[0] || "";
     reviewAssessmentSelect.innerHTML = "";
     reviewAssessmentSelect.append(el("option", { value: "" }, "Select assessment"));
@@ -1329,8 +1383,10 @@ function renderReviewPanel(container, profile) {
           `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
       );
     }
+    reviewAssessmentSelect.value = workspaceOption(relevant.map(({ id }) => id), preferred, false)
+      || (chooseDefault && grade ? defaultAssessment(relevant) : "");
   }
-  refreshReviewAssessments();
+  refreshReviewAssessments(linkedAssessment ?? remembered.assessmentId, !linked);
 
   row.append(
     el("div", { class: "field" }, [
@@ -1349,14 +1405,15 @@ function renderReviewPanel(container, profile) {
   container.append(reviewBody);
 
   function renderUnselectedReview() {
-    reviewBody.replaceChildren(el("p", { class: "module-empty-note" },
-      "Select a class and assessment to review marks across subjects."
-    ));
+    reviewBody.replaceChildren(workspaceResults("Marks Review", reviewClassSelect.value
+      ? "Select an assessment to review marks across subjects."
+      : "Select a class to review its marks.", { symbol: "fact_check" }));
   }
 
-  renderUnselectedReview();
+  let reviewRequest = 0;
 
   async function loadReview() {
+    const request = ++reviewRequest;
     const classKey = reviewClassSelect.value;
     const assessmentId = reviewAssessmentSelect.value;
     if (!classKey || !assessmentId) {
@@ -1375,6 +1432,7 @@ function renderReviewPanel(container, profile) {
         listStudents(),
         listMarksByAssessment(assessmentId),
       ]);
+      if (request !== reviewRequest) return;
       const assessment = allAssessments.find((a) => a.id === assessmentId);
       const rosterStudents = students
         .filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
@@ -1394,6 +1452,7 @@ function renderReviewPanel(container, profile) {
 
       renderReviewMatrix(reviewBody, rosterStudents, applicableSubjects, marksMap, assessment, classKey);
     } catch (err) {
+      if (request !== reviewRequest) return;
       reviewBody.innerHTML = "";
       reviewBody.append(el("div", { class: "card" }, [
         el("div", { class: "empty-state" }, [
@@ -1405,13 +1464,19 @@ function renderReviewPanel(container, profile) {
     }
   }
 
+  function rememberReview() {
+    rememberWorkspaceSelection(profile, "marks-review", {
+      classKey: reviewClassSelect.value,
+      assessmentId: reviewAssessmentSelect.value,
+    });
+    loadReview();
+  }
   reviewClassSelect.addEventListener("change", () => {
     refreshReviewAssessments();
-    loadReview();
+    rememberReview();
   });
-  reviewAssessmentSelect.addEventListener("change", () => {
-    loadReview();
-  });
+  reviewAssessmentSelect.addEventListener("change", rememberReview);
+  loadReview();
 }
 
 /**
@@ -1420,13 +1485,14 @@ function renderReviewPanel(container, profile) {
  * scrolling to and focusing a specific student's score input.
  */
 async function switchToEntryTab({ classKey, subjectCode, assessmentId, studentId = "" }) {
-  if (allowedSubjectCodes && !allowedSubjectCodes.has(subjectCode)) {
+  if (!subjectsForClass(classKey).some(({ code }) => code === subjectCode)) {
     const subj = allSubjects.find((s) => s.code === subjectCode);
     toast(`You are not assigned to teach ${subj?.name || subjectCode}. Contact your school administrator.`, "warning");
     return;
   }
 
   activeTab = "entry";
+  rememberWorkspaceSelection(currentProfile, "marks", { tab: activeTab });
   if (tabElements.entryTab) tabElements.entryTab.classList.add("profile-tab--active");
   if (tabElements.reviewTab) tabElements.reviewTab.classList.remove("profile-tab--active");
   tabElements.entryTab?.setAttribute("aria-pressed", "true");
@@ -1438,33 +1504,9 @@ async function switchToEntryTab({ classKey, subjectCode, assessmentId, studentId
   selection.subjectCode = subjectCode;
   selection.assessmentId = assessmentId;
 
-  const classSelect = document.getElementById("m-class");
-  const subjectSelect = document.getElementById("m-subject");
-  const assessmentSelect = document.getElementById("m-assessment");
-
-  if (classSelect) classSelect.value = classKey;
-  if (subjectSelect) subjectSelect.value = subjectCode;
-
-  const grade = classKey.split("|")[0] || "";
-  if (assessmentSelect) {
-    assessmentSelect.innerHTML = "";
-    assessmentSelect.append(el("option", { value: "" }, "Select assessment"));
-    const relevant = allAssessments.filter(
-      (a) =>
-        (!grade || !a.grades?.length || a.grades.includes(grade)) &&
-        (!subjectCode || !a.subjects?.length || a.subjects.includes(subjectCode))
-    );
-    for (const a of relevant) {
-      assessmentSelect.append(
-        el("option", { value: a.id, ...(a.id === assessmentId ? { selected: "true" } : {}) },
-          `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
-      );
-    }
-    assessmentSelect.value = assessmentId;
-  }
-
-  if (tabElements.bodyMount && currentProfile) {
-    await maybeLoad(currentProfile, tabElements.bodyMount);
+  if (tabElements.bodyMount && tabElements.pickerCard && currentProfile) {
+    rememberWorkspaceSelection(currentProfile, "marks-entry", selection);
+    await renderPicker(tabElements.pickerCard, currentProfile, tabElements.bodyMount, { autoSelect: false });
     if (studentId) {
       setTimeout(() => {
         const input = tabElements.bodyMount.querySelector(`input[data-student-id="${studentId}"]`);

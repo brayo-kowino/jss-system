@@ -19,6 +19,8 @@ import { datePickerInput } from "../js/components/datepicker.js";
 import { el, icon, toast, formatDate, skeleton, busyButton, attachSearchClear, attachCurrencyInput, makeCopyable, renderEmptyState } from "../js/utils.js";
 import { trackForm } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 let classes = [];
 let settings = null;
@@ -27,6 +29,7 @@ let selection = { grade: "", stream: "", academicYear: "", term: "" };
 let balanceRows = []; // [{ student, expected, paid, balance }]
 let searchQuery = "";
 let statusFilter = "all"; // "all" | "pending" | "cleared"
+let feeRequest = 0;
 
 /**
  * Contextual help tooltip using dark-slate bubble styling.
@@ -53,21 +56,19 @@ function infoTooltip(title, text, align = "center") {
 export { buildFinanceMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile, params = {} }) {
+  feeRequest++;
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);
-  selection.academicYear = params.academicYear || params.year || selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = params.term || selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
-  if (params.grade || params.class) {
-    selection.grade = params.grade || params.class;
-  }
-  if (params.stream) {
-    selection.stream = params.stream;
-  }
-  if (params.status && ["all", "pending", "cleared"].includes(params.status)) {
-    statusFilter = params.status;
-  }
-  if (params.q || params.search) {
-    searchQuery = (params.q || params.search).toLowerCase().trim();
-  }
+  const remembered = restoreWorkspaceSelection(profile, "fees");
+  const linkedGrade = params.grade ?? params.class;
+  const grade = workspaceOption(classes.map((item) => item.grade), linkedGrade ?? remembered.grade,
+    linkedGrade == null && remembered.grade !== "");
+  const preferredStream = params.stream ?? (linkedGrade == null && remembered.grade === grade ? remembered.stream : undefined);
+  const stream = workspaceOption(streamOptions(grade), preferredStream, params.stream == null && preferredStream !== "");
+  const { academicYear, term, terms } = workspacePeriod(settings, params);
+  selection = { grade, stream, academicYear, term };
+  balanceRows = [];
+  statusFilter = workspaceOption(["all", "pending", "cleared"], params.status) || "all";
+  searchQuery = (params.q || params.search || "").toLowerCase().trim();
 
   const wrap = el("div", { class: "fees-page" });
   const startsInStructures = params.tab === "structures" || params.action === "new-structure";
@@ -78,7 +79,11 @@ export async function render({ profile, params = {} }) {
     type: "button",
     class: "profile-tab",
     "aria-controls": balancesPanel.id,
-    onClick: () => selectFeesTab(false),
+    onClick: () => {
+      if (!balancesPanel.classList.contains("hidden")) return;
+      selectFeesTab(false);
+      if (!balancesMount.hasChildNodes()) loadBalances(profile, balancesMount, paymentsMount, receiptMount, { sync: false });
+    },
   }, [icon("account_balance_wallet", "text-xs"), "Balances & Payments"]);
   const structuresTab = el("button", {
     type: "button",
@@ -107,26 +112,17 @@ export async function render({ profile, params = {} }) {
   const receiptMount = el("div", { style: "margin-top:var(--sp-4);" });
   balancesPanel.append(pickerCard, balancesMount, paymentsMount, receiptMount);
 
-  renderPicker(pickerCard, profile, balancesMount, paymentsMount, receiptMount);
+  renderPicker(pickerCard, profile, balancesMount, paymentsMount, receiptMount, terms);
 
   // Auto-action if triggered via deep link
   if (params.action === "new-structure") {
     setTimeout(() => {
-      openStructureModal(profile, null, structuresCard);
+      if (wrap.isConnected) openStructureModal(profile, null, structuresCard);
     }, 150);
-  } else if (!startsInStructures && selection.grade) {
-    const validStreams = streamOptions(selection.grade);
-    if (!selection.stream && validStreams.length > 0) {
-      if (params.stream && validStreams.includes(params.stream)) {
-        selection.stream = params.stream;
-      } else {
-        selection.stream = validStreams[0];
-      }
-    }
-    setTimeout(async () => {
-      await loadBalances(profile, balancesMount, paymentsMount, receiptMount);
+  } else if (!startsInStructures) {
+    loadBalances(profile, balancesMount, paymentsMount, receiptMount, { sync: false }).then((loaded) => {
       const targetStudentId = params.studentId || params.id || params.admNo;
-      if (targetStudentId && balanceRows.length) {
+      if (loaded && wrap.isConnected && !balancesPanel.classList.contains("hidden") && targetStudentId) {
         const found = balanceRows.find((r) =>
           r.student.id === targetStudentId ||
           r.student.admissionNumber === targetStudentId
@@ -135,7 +131,7 @@ export async function render({ profile, params = {} }) {
           openPaymentModal(profile, found, balancesMount, paymentsMount, receiptMount);
         }
       }
-    }, 120);
+    });
   }
 
   return wrap;
@@ -337,7 +333,7 @@ function streamOptions(grade) {
   return classes.find((c) => c.grade === grade)?.streams || [];
 }
 
-function renderPicker(container, profile, balancesMount, paymentsMount, receiptMount) {
+function renderPicker(container, profile, balancesMount, paymentsMount, receiptMount, terms) {
   container.innerHTML = "";
 
   const header = el("div", { style: "margin-bottom:var(--sp-4);" }, [
@@ -358,9 +354,10 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   ]);
   const streamSelect = el("select", { "aria-label": "Select Stream" }, [el("option", { value: "" }, "Select stream")]);
   const yearInput = el("input", { type: "text", value: selection.academicYear, placeholder: "2026", "aria-label": "Academic Year" });
-  const termSelect = el("select", { "aria-label": "Select Term" }, (settings.terms || []).map((t) =>
-    el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)
-  ));
+  const termSelect = el("select", { "aria-label": "Select Term" }, [
+    el("option", { value: "" }, "Select term"),
+    ...terms.map((t) => el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)),
+  ]);
 
   function refreshStreams() {
     streamSelect.innerHTML = "";
@@ -378,14 +375,18 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   }
   refreshStreams();
 
+  function updateSelection() {
+    selection = { grade: gradeSelect.value, stream: streamSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
+    rememberWorkspaceSelection(profile, "fees", { grade: selection.grade, stream: selection.stream });
+    loadBalances(profile, balancesMount, paymentsMount, receiptMount, { sync: false });
+  }
   gradeSelect.addEventListener("change", () => {
     selection.grade = gradeSelect.value;
-    selection.stream = "";
+    selection.stream = workspaceOption(streamOptions(gradeSelect.value));
     refreshStreams();
+    updateSelection();
   });
-  streamSelect.addEventListener("change", () => { selection.stream = streamSelect.value; });
-  yearInput.addEventListener("change", () => { selection.academicYear = yearInput.value.trim(); });
-  termSelect.addEventListener("change", () => { selection.term = termSelect.value; });
+  for (const control of [streamSelect, yearInput, termSelect]) control.addEventListener("change", updateSelection);
 
   form.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
@@ -418,25 +419,31 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   container.append(actions);
 }
 
-async function loadBalances(profile, balancesMount, paymentsMount, receiptMount) {
+async function loadBalances(profile, balancesMount, paymentsMount, receiptMount, { sync = true } = {}) {
+  const request = ++feeRequest;
   const { grade, stream, academicYear, term } = selection;
   const hasStreams = streamOptions(grade).length > 0;
+  paymentsMount.replaceChildren();
+  receiptMount.replaceChildren();
+  balanceRows = [];
   if (!grade || (hasStreams && !stream) || !academicYear || !term) {
-    return toast("Pick grade, stream, academic year, and term first.", "error");
+    balancesMount.replaceChildren(workspaceResults("Balances & Payments", !classes.length ? "Add a class before viewing fee balances."
+      : !grade ? "Select a grade to view its fee balances and payments."
+      : hasStreams && !stream ? "Select a stream to open its fee ledger."
+      : "Choose the academic year and term for this ledger.", { symbol: "payments" }));
+    return false;
   }
 
   balancesMount.innerHTML = "";
   balancesMount.append(el("div", { class: "skeleton-rows", style: "padding:var(--sp-4);" }, [
     skeleton("", "30%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "80%"),
   ]));
-  paymentsMount.innerHTML = "";
-  receiptMount.innerHTML = "";
-
   try {
     const students = (await listStudents()).filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
 
-    balanceRows = (
+    if (request !== feeRequest) return false;
+    const rows = (
       await Promise.all(
         students.map(async (student) => ({
           student,
@@ -444,7 +451,10 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
         }))
       )
     );
+    if (request !== feeRequest) return false;
+    balanceRows = rows;
   } catch (err) {
+    if (request !== feeRequest) return false;
     balancesMount.innerHTML = "";
     balancesMount.append(el("div", { class: "card" }, [
       el("div", { class: "empty-state", style: "padding:var(--sp-6);" }, [
@@ -453,18 +463,23 @@ async function loadBalances(profile, balancesMount, paymentsMount, receiptMount)
         el("p", { class: "text-muted text-sm" }, err.message || "Please check your internet connection and try again.")
       ])
     ]));
-    return;
+    return false;
   }
 
   // Background fire-and-forget sync
-  Promise.all(
+  if (sync) Promise.all(
     balanceRows.map(({ student, expected, paid, balance }) =>
       syncStudentFeeStatus({ studentId: student.id, grade, academicYear, term, summary: { expected, paid, balance } }).catch(() => {})
     )
   );
 
   renderBalances(balancesMount, profile, paymentsMount, receiptMount);
-  await renderPaymentsHistory(paymentsMount, profile, receiptMount);
+  try {
+    await renderPaymentsHistory(paymentsMount, profile, receiptMount, request);
+  } catch {
+    if (request === feeRequest) paymentsMount.replaceChildren(workspaceResults("Payment History", "Could not load payment history for this class."));
+  }
+  return request === feeRequest;
 }
 
 function exportClassFeeSheetCsv() {
@@ -930,10 +945,11 @@ function renderPaymentMethodBadge(method) {
 
 // -------------------------------------------------------- Payment History --
 
-async function renderPaymentsHistory(container, profile, receiptMount) {
+async function renderPaymentsHistory(container, profile, receiptMount, request) {
   container.innerHTML = "";
   const { grade, stream, academicYear, term } = selection;
   const payments = await listPaymentsForClassPeriod(grade, stream, academicYear, term);
+  if (request !== feeRequest) return;
   if (!payments.length) return;
 
   const card = el("div", { class: "card" });

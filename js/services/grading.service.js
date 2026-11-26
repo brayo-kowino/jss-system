@@ -569,6 +569,10 @@ export async function listResultsByPeriod({ grade, stream, academicYear, term, r
 // ever one "saved" state per grade/year/term/mode to report on.
 export async function listSavedModesForPeriod({ grade, academicYear, term }) {
   const results = await listResultsByPeriod({ grade, academicYear, term });
+  return summarizeSavedModes(results);
+}
+
+export function summarizeSavedModes(results) {
   const groups = {};
   for (const r of results) {
     const mode = r.reportMode || "average";

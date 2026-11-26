@@ -43,6 +43,8 @@ import { renderTimetableChart } from "../js/components/timetable-grid.js";
 import { openModal } from "../js/components/modal.js";
 import { el, icon, toast, skeleton, busyButton } from "../js/utils.js";
 import { copyDeepLink } from "../js/services/deep-link.service.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort, workspaceOption } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 const CAN_SEE_ALL_TEACHERS = ["admin", "academic_master", "principal", "deputy_principal"];
@@ -467,35 +469,21 @@ export async function render({ profile, params = {} }) {
     getTimetableRoomMode(),
   ]);
 
-  // Non-admins default to classes and teachers tabs, since they can't see the master or periods tabs. Admins default to master tab.
-  if (!canManage) {
-    activeTab = "classes";
-  }
-
-  // Resolve dynamic deep link parameters
-  if (["classes", "teachers", ...(canManage ? ["master", "periods"] : [])].includes(params.tab)) {
-    activeTab = params.tab;
-  }
-  if (params.day && ["All", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].includes(params.day)) {
-    masterDayFilter = params.day;
-  }
-  if (params.view && ["wall", "cards"].includes(params.view)) {
-    masterViewMode = params.view;
-  }
-  if (params.grade || params.class) {
-    classSelection = {
-      grade: params.grade || params.class,
-      stream: params.stream || "",
-    };
-  }
-  const availableCohorts = getAllCohorts();
-  if (!availableCohorts.some(({ grade, stream }) => classSelection.grade === grade && classSelection.stream === stream)) {
-    const first = availableCohorts[0];
-    classSelection = { grade: first?.grade || "", stream: first?.stream || "" };
-  }
-  if (params.teacherId) {
-    teacherSelection = { teacherId: params.teacherId };
-  }
+  const remembered = restoreWorkspaceSelection(profile, "timetable");
+  const linkedGrade = params.grade ?? params.class;
+  const linkedTab = params.tab ?? (params.teacherId ? "teachers" : linkedGrade ? "classes" : (params.day || params.view) && canManage ? "master" : undefined);
+  activeTab = workspaceOption(["classes", "teachers", ...(canManage ? ["master", "periods"] : [])], linkedTab ?? remembered.tab)
+    || (canManage ? "master" : "classes");
+  masterDayFilter = workspaceOption(["All", ...DAYS], params.day) || "All";
+  masterViewMode = workspaceOption(["wall", "cards"], params.view) || "wall";
+  const cohortKey = workspaceCohort(getAllCohorts().map(({ grade, stream }) => `${grade}|${stream}`),
+    linkedGrade != null ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey, linkedGrade != null);
+  const [grade, stream = ""] = cohortKey.split("|");
+  classSelection = { grade, stream };
+  teacherSelection = {
+    teacherId: workspaceOption(teachers.map(({ id }) => id), params.teacherId ?? remembered.teacherId,
+      params.teacherId == null && remembered.teacherId !== ""),
+  };
 
   const wrap = el("div", { class: "timetable-view-wrap" });
 
@@ -522,6 +510,7 @@ export async function render({ profile, params = {} }) {
           "aria-pressed": String(activeTab === tab.id),
           onClick: () => {
             activeTab = tab.id;
+            rememberTimetable(profile, { tab: activeTab });
             renderTabs();
             switchTab(activeTab);
           },
@@ -535,6 +524,7 @@ export async function render({ profile, params = {} }) {
   globalGoToTab = (tabId) => {
     if (!tabsConfig.some(({ id }) => id === tabId)) return;
     activeTab = tabId;
+    rememberTimetable(profile, { tab: activeTab });
     renderTabs();
     switchTab(activeTab);
   };
@@ -569,6 +559,10 @@ export async function render({ profile, params = {} }) {
   await switchTab(activeTab);
 
   return wrap;
+}
+
+function rememberTimetable(profile, updates) {
+  rememberWorkspaceSelection(profile, "timetable", { ...restoreWorkspaceSelection(profile, "timetable"), ...updates });
 }
 
 // -------------------------------------------------------- Master Timetable --
@@ -907,6 +901,7 @@ function renderClassPicker(container, profile, gridMount) {
   select.addEventListener("change", async () => {
     const [grade, stream] = select.value.split("|");
     classSelection = { grade: grade || "", stream: stream || "" };
+    rememberTimetable(profile, { classKey: select.value });
     updateClassTeacherBanner();
     if (!classSelection.grade) {
       renderUnselectedTimetable(gridMount, "class");
@@ -1054,6 +1049,7 @@ async function renderTeacherPicker(container, profile, gridMount) {
 
     select.addEventListener("change", async () => {
       teacherSelection.teacherId = select.value;
+      rememberTimetable(profile, { teacherId: select.value });
       updateTeacherMeta();
       if (!teacherSelection.teacherId) {
         renderUnselectedTimetable(gridMount, "teacher");
@@ -3028,8 +3024,8 @@ async function handleDeletePeriod(profile, period, container) {
 // ----------------------------------------------------------- Shared Grid UI --
 
 function renderUnselectedTimetable(container, mode = "class") {
-  container.replaceChildren(el("p", { class: "module-empty-note" }, mode === "teacher"
+  container.replaceChildren(workspaceResults(mode === "teacher" ? "Teacher Schedule" : "Class Schedule", mode === "teacher"
     ? "Select a teacher to view their classes and free periods."
-    : "Select a class and stream to view its lessons and breaks."
+    : "Select a class and stream to view its lessons and breaks.", { symbol: "calendar_month" }
   ));
 }

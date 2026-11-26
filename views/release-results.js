@@ -6,12 +6,16 @@ import { el, icon, toast, formatDateTime, busyButton, toDate } from "../js/utils
 import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 let classes = [];
 let settings = null;
 let selection = { grade: "", academicYear: "", term: "" };
+let releaseRequest = 0;
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
+  releaseRequest++;
   if (isStarterPlan(getCurrentSchool())) {
     return renderModuleUpgrade({
       profile,
@@ -27,8 +31,13 @@ export async function render({ profile }) {
   }
 
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  selection.academicYear = selection.academicYear || settings.currentAcademicYear || "";
-  selection.term = selection.term || settings.currentTerm || (settings.terms || [])[0] || "";
+  const remembered = restoreWorkspaceSelection(profile, "release-results");
+  const linkedGrade = params.grade ?? params.class;
+  const { academicYear, term, terms } = workspacePeriod(settings, params);
+  selection = {
+    grade: workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade, linkedGrade == null && remembered.grade !== ""),
+    academicYear, term,
+  };
 
   const wrap = el("div", {});
   wrap.append(
@@ -39,12 +48,13 @@ export async function render({ profile }) {
     ])
   );
 
-  const pickerCard = el("div", { class: "card" });
+  const pickerCard = el("div", { class: "card module-picker" });
   wrap.append(pickerCard);
-  const bodyMount = el("div", { style: "margin-top:16px;" });
+  const bodyMount = el("div");
   wrap.append(bodyMount);
 
-  renderPicker(pickerCard, bodyMount, profile);
+  renderPicker(pickerCard, bodyMount, profile, terms);
+  loadModes(bodyMount, profile);
   return wrap;
 }
 
@@ -52,7 +62,7 @@ function gradeOptions() {
   return classes.map((c) => c.grade);
 }
 
-function renderPicker(container, bodyMount, profile) {
+function renderPicker(container, bodyMount, profile, terms) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid" });
 
@@ -61,13 +71,17 @@ function renderPicker(container, bodyMount, profile) {
     ...gradeOptions().map((g) => el("option", { value: g, ...(g === selection.grade ? { selected: "true" } : {}) }, g)),
   ]);
   const yearInput = el("input", { type: "text", value: selection.academicYear, placeholder: "2026" });
-  const termSelect = el("select", {}, (settings.terms || []).map((t) =>
-    el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)
-  ));
+  const termSelect = el("select", {}, [
+    el("option", { value: "" }, "Select term"),
+    ...terms.map((t) => el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)),
+  ]);
 
-  gradeSelect.addEventListener("change", () => { selection.grade = gradeSelect.value; });
-  yearInput.addEventListener("change", () => { selection.academicYear = yearInput.value.trim(); });
-  termSelect.addEventListener("change", () => { selection.term = termSelect.value; });
+  function updateSelection() {
+    selection = { grade: gradeSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
+    rememberWorkspaceSelection(profile, "release-results", { grade: selection.grade });
+    loadModes(bodyMount, profile);
+  }
+  for (const control of [gradeSelect, yearInput, termSelect]) control.addEventListener("change", updateSelection);
 
   row.append(
     el("div", { class: "field" }, [el("label", {}, "Grade"), gradeSelect]),
@@ -76,35 +90,43 @@ function renderPicker(container, bodyMount, profile) {
   );
   container.append(row);
   container.append(
-    el("div", { class: "filter-actions" }, [
-      el("button", { class: "btn btn--primary", onClick: () => loadModes(bodyMount, profile) }, [icon("visibility"), "Load saved results"]),
+    el("div", { class: "module-actions module-picker__footer" }, [
+      el("button", { class: "btn btn--outline btn--sm", onClick: () => loadModes(bodyMount, profile) }, [icon("refresh"), "Refresh Status"]),
     ])
   );
 }
 
 async function loadModes(bodyMount, profile) {
-  if (!selection.grade || !selection.academicYear || !selection.term) {
-    return toast("Choose grade, academic year, and term first.", "error");
+  const request = ++releaseRequest;
+  const context = { ...selection };
+  if (!context.grade || !context.academicYear || !context.term) {
+    bodyMount.replaceChildren(workspaceResults("Release Status", !context.grade ? "Select a grade to see which results are available to release."
+      : "Choose the academic year and term for the results.", { symbol: "visibility" }));
+    return;
   }
   bodyMount.innerHTML = "";
   bodyMount.append(el("div", { class: "skeleton-rows" }, [el("div", { class: "skeleton", style: "height:80px;" })]));
 
-  const savedModes = await listSavedModesForPeriod(selection);
-  if (!savedModes.length) {
-    bodyMount.innerHTML = "";
-    bodyMount.append(el("div", { class: "empty-state" }, [
-      icon("visibility_off", "empty-state__icon"),
-      el("h3", {}, "No saved results for this period"),
-      el("p", {}, "Compute and save results for this class under Grading & Positions first, then come back here to release them."),
-    ]));
-    return;
-  }
-
-  bodyMount.innerHTML = "";
-  for (const mode of savedModes) {
-    const key = { grade: selection.grade, academicYear: selection.academicYear, term: selection.term, reportMode: mode.reportMode };
-    const release = await getRelease(key);
-    bodyMount.append(renderModeCard(profile, key, mode, release));
+  try {
+    const savedModes = await listSavedModesForPeriod(context);
+    if (request !== releaseRequest) return;
+    if (!savedModes.length) {
+      const params = new URLSearchParams(context);
+      bodyMount.replaceChildren(workspaceResults("Release Status",
+        `No results saved for ${context.grade} · ${context.term} ${context.academicYear}. Save them in Grading & Positions before release.`,
+        { symbol: "visibility_off", action: el("a", { class: "btn btn--outline btn--sm", href: `#/grading?${params}` }, "Open Grading") }));
+      return;
+    }
+    const cards = await Promise.all(savedModes.map(async (mode) => {
+      const key = { ...context, reportMode: mode.reportMode };
+      return renderModeCard(profile, key, mode, await getRelease(key));
+    }));
+    if (request === releaseRequest) bodyMount.replaceChildren(...cards);
+  } catch {
+    if (request !== releaseRequest) return;
+    bodyMount.replaceChildren(workspaceResults("Release Status", "Could not load release status for this period.", {
+      action: el("button", { type: "button", class: "btn btn--outline btn--sm", onClick: () => loadModes(bodyMount, profile) }, "Retry"),
+    }));
   }
 }
 

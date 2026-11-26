@@ -4,7 +4,7 @@ import { getSchoolSettings, DEFAULT_GRADING_SCALE } from "../js/services/setting
 import {
   listResultsByPeriod,
   listResultsForStudent,
-  listSavedModesForPeriod,
+  summarizeSavedModes,
   updateResultRemarks,
   reportModeLabel,
   positionScopeLabel,
@@ -17,6 +17,8 @@ import { getCurrentSchool } from "../js/services/auth.service.js";
 import { isStarterPlan } from "../js/services/subscription.service.js";
 import { getTeacherByUserId, getTeacherByEmail, listTeachers } from "../js/services/teacher.service.js";
 import { getSmartTeacherRemark, getSmartPrincipalRemark } from "../js/services/smart-remarks.util.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceOption, workspacePeriod } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 const CAN_EDIT_TEACHER_REMARK = ["admin", "academic_master", "class_teacher"];
 const CAN_EDIT_PRINCIPAL_REMARK = ["admin", "principal", "deputy_principal"];
@@ -29,6 +31,7 @@ let selection = { grade: "", stream: "", academicYear: "", term: "" };
 let activeMode = null; // which saved report mode is currently being viewed
 let studentSearchQuery = "";
 let selectedStreamFilter = "All";
+let reportsRequest = 0;
 
 function getTeacherInitials(subjectCode, grade, stream) {
   if (!allTeachers || !allTeachers.length) return "—";
@@ -116,7 +119,8 @@ function infoTooltip(title, text, align = "center") {
 
 export { buildReportsMascotSvg } from "../js/components/mascot.js";
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
+  reportsRequest++;
   prewarmPdfLibs();
   if (profile.role === "subject_teacher" || NO_PORTAL_YET.includes(profile.role)) {
     return el("div", { class: "empty-state", style: "padding:var(--sp-8) var(--sp-4);" }, [
@@ -133,6 +137,7 @@ export async function render({ profile }) {
     listTeachers().catch(() => []),
   ]);
   allTeachers = schoolTeachers || [];
+  let homeroom = "";
 
   if (profile.role === "class_teacher") {
     let teacher = null;
@@ -145,6 +150,7 @@ export async function render({ profile }) {
       } catch (err) {}
     }
     const assignments = teacher?.teachingAssignments || [];
+    homeroom = teacher?.homeroom || "";
     const managedGrades = new Set();
       if (profile.role === 'class_teacher' && teacher?.homeroom) {
         managedGrades.add(teacher.homeroom.split('|')[0]);
@@ -163,14 +169,19 @@ export async function render({ profile }) {
         return c;
       });
 
-    if (assignments.length > 0 && (!selection.grade || !managedGrades.has(selection.grade))) {
-      selection.grade = assignments[0].grade || "";
-      selection.stream = assignments[0].stream || "";
-    }
   }
 
-  selection.academicYear = selection.academicYear || settings?.currentAcademicYear || "";
-  selection.term = selection.term || settings?.currentTerm || (settings?.terms || [])[0] || "";
+  const remembered = restoreWorkspaceSelection(profile, "reports");
+  const [homeGrade, homeStream] = homeroom.split("|");
+  const linkedGrade = params.grade ?? params.class;
+  const { academicYear, term, terms } = workspacePeriod(settings, params);
+  const grade = workspaceOption(gradeOptions(), linkedGrade ?? remembered.grade ?? homeGrade,
+    linkedGrade == null && remembered.grade !== "");
+  const preferredStream = params.stream ?? (linkedGrade == null
+    ? (remembered.grade === grade ? remembered.stream : grade === homeGrade ? homeStream : "") : "");
+  const stream = workspaceOption(streamOptions(grade), preferredStream, false);
+  selection = { grade: params.stream && !stream ? "" : grade, stream, academicYear, term };
+  activeMode = params.reportMode || null;
 
   const wrap = el("div", { class: "reports-view-wrap" });
 
@@ -180,10 +191,8 @@ export async function render({ profile }) {
   const bodyMount = el("div", { id: "reports-body-mount" });
   wrap.append(bodyMount);
 
-  renderPicker(pickerCard, bodyMount, profile);
-  bodyMount.append(el("p", { class: "module-empty-note" },
-    "Choose a grade and academic period, then select Load Report Cards."
-  ));
+  renderPicker(pickerCard, bodyMount, profile, terms);
+  loadList(bodyMount, profile);
   return wrap;
 }
 
@@ -194,7 +203,7 @@ function streamOptions(grade) {
   return classes.find((c) => c.grade === grade)?.streams || [];
 }
 
-function renderPicker(container, bodyMount, profile) {
+function renderPicker(container, bodyMount, profile, terms) {
   container.innerHTML = "";
   const row = el("div", { class: "filter-grid" });
 
@@ -204,9 +213,10 @@ function renderPicker(container, bodyMount, profile) {
   ]);
   const streamSelect = el("select", {}, [el("option", { value: "" }, "All streams")]);
   const yearInput = el("input", { type: "text", value: selection.academicYear, placeholder: "2026" });
-  const termSelect = el("select", {}, (settings.terms || []).map((t) =>
-    el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)
-  ));
+  const termSelect = el("select", {}, [
+    el("option", { value: "" }, "Select term"),
+    ...terms.map((t) => el("option", { value: t, ...(t === selection.term ? { selected: "true" } : {}) }, t)),
+  ]);
 
   function refreshStreams() {
     streamSelect.innerHTML = "";
@@ -217,10 +227,13 @@ function renderPicker(container, bodyMount, profile) {
   }
   refreshStreams();
 
-  gradeSelect.addEventListener("change", () => { selection.grade = gradeSelect.value; selection.stream = ""; refreshStreams(); });
-  streamSelect.addEventListener("change", () => { selection.stream = streamSelect.value; });
-  yearInput.addEventListener("change", () => { selection.academicYear = yearInput.value.trim(); });
-  termSelect.addEventListener("change", () => { selection.term = termSelect.value; });
+  function updateSelection() {
+    selection = { grade: gradeSelect.value, stream: streamSelect.value, academicYear: yearInput.value.trim(), term: termSelect.value };
+    rememberWorkspaceSelection(profile, "reports", { grade: selection.grade, stream: selection.stream });
+    loadList(bodyMount, profile);
+  }
+  gradeSelect.addEventListener("change", () => { selection.stream = ""; refreshStreams(); updateSelection(); });
+  for (const control of [streamSelect, yearInput, termSelect]) control.addEventListener("change", updateSelection);
 
   row.append(
     el("div", { class: "field" }, [el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("school", "text-xs"), "Grade"]), gradeSelect]),
@@ -235,7 +248,7 @@ function renderPicker(container, bodyMount, profile) {
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm",
-        onClick: () => loadList(bodyMount, profile)
+        onClick: () => loadList(bodyMount, profile, { scroll: true })
       }, [
         icon("description", "text-xs"),
         "Load Report Cards"
@@ -316,18 +329,23 @@ function renderArrearsNotice(amountOwed) {
 }
 
 
-async function loadList(bodyMount, profile) {
+async function loadList(bodyMount, profile, { scroll = false } = {}) {
+  const request = ++reportsRequest;
+  const context = { ...selection };
+  if (!context.grade || !context.academicYear || !context.term) {
+    bodyMount.replaceChildren(workspaceResults("Report Cards", !classes.length ? "No grades are available for your account."
+      : !context.grade ? "Select a grade to view its saved report cards."
+      : "Choose the academic year and term for the report cards.", { symbol: "description" }));
+    return;
+  }
     const school = getCurrentSchool();
     if (school && school.canComputeOrGenerate === false) {
       bodyMount.innerHTML = "";
       const notice = renderArrearsNotice(school.amountOwed);
       bodyMount.append(notice);
-      notice.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (scroll) notice.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-  if (!selection.grade || !selection.academicYear || !selection.term) {
-    return toast("Choose grade, academic year, and term first.", "error");
-  }
   studentSearchQuery = "";
   selectedStreamFilter = selection.stream || "All";
   bodyMount.innerHTML = "";
@@ -335,21 +353,14 @@ async function loadList(bodyMount, profile) {
     skeleton("", "90%"), skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%"),
   ]));
   try {
-    const savedModes = await listSavedModesForPeriod(selection);
+    const results = await listResultsByPeriod({ grade: context.grade, academicYear: context.academicYear, term: context.term });
+    if (request !== reportsRequest) return;
+    const savedModes = summarizeSavedModes(results);
     if (!savedModes.length) {
-      bodyMount.innerHTML = "";
-      bodyMount.append(el("div", { class: "card", style: "padding:var(--sp-6);" }, [
-        el("div", { class: "empty-state" }, [
-          icon("description", "empty-state__icon", "style: font-size:48px; color:var(--color-ink-soft);"),
-          el("h3", { style: "color:var(--color-primary-900); margin:8px 0 4px;" }, "No saved results for this period"),
-          el("p", { class: "text-muted text-sm", style: "max-width:440px; margin:0 auto 16px;" },
-            `No computed rankings have been saved for ${selection.grade} (${selection.academicYear} · ${selection.term}) yet. Compute rankings in Grading & Positions first.`),
-          el("a", { class: "btn btn--primary btn--sm", href: "#/grading" }, [
-            icon("analytics", "text-xs"),
-            "Go to Grading & Positions",
-          ]),
-        ]),
-      ]));
+      const params = new URLSearchParams({ grade: context.grade, academicYear: context.academicYear, term: context.term });
+      bodyMount.replaceChildren(workspaceResults("Report Cards",
+        `No report cards saved for ${context.grade} · ${context.term} ${context.academicYear}. Save the results in Grading & Positions first.`,
+        { symbol: "description", action: el("a", { class: "btn btn--outline btn--sm", href: `#/grading?${params}` }, "Open Grading") }));
       return;
     }
     // Keep whichever mode is already selected if it's still valid (e.g.
@@ -360,8 +371,9 @@ async function loadList(bodyMount, profile) {
       activeMode = savedModes.find((m) => m.reportMode === "average")?.reportMode
         || [...savedModes].sort((a, b) => (b.latestComputedAt || 0) - (a.latestComputedAt || 0))[0].reportMode;
     }
-    renderPeriodBody(bodyMount, profile, savedModes);
+    renderPeriodBody(bodyMount, profile, savedModes, results);
   } catch (err) {
+    if (request !== reportsRequest) return;
     bodyMount.innerHTML = "";
     bodyMount.append(el("div", { class: "card" }, [
       el("div", { class: "empty-state" }, [
@@ -377,19 +389,18 @@ async function loadList(bodyMount, profile) {
 // plus the student list for whichever mode is currently active, so
 // clicking a different saved mode swaps the list in place without
 // re-picking grade/stream/year/term.
-function renderPeriodBody(bodyMount, profile, savedModes) {
+function renderPeriodBody(bodyMount, profile, savedModes, results) {
   bodyMount.innerHTML = "";
   bodyMount.append(savedModesPanel(savedModes, {
     activeMode,
-    onSelect: (mode) => { activeMode = mode; renderPeriodBody(bodyMount, profile, savedModes); },
+    onSelect: (mode) => { activeMode = mode; renderPeriodBody(bodyMount, profile, savedModes, results); },
   }));
   const listMount = el("div", { style: "margin-top:16px;" });
   bodyMount.append(listMount);
-  listMount.append(el("div", { class: "skeleton-rows" }, [skeleton("", "90%"), skeleton("", "90%"), skeleton("", "60%")]));
-  listResultsByPeriod({ ...selection, reportMode: activeMode }).then((results) => {
-    listMount.innerHTML = "";
-    renderList(listMount, results, profile, bodyMount);
-  });
+  const matched = results.filter((row) => (row.reportMode || "average") === activeMode
+    && (!selection.stream || (row.stream || "") === selection.stream));
+  if (selection.stream) matched.sort((a, b) => (a.classPosition ?? 999) - (b.classPosition ?? 999));
+  renderList(listMount, matched, profile, bodyMount);
 }
 
 function renderList(container, results, profile, bodyMount) {

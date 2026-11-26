@@ -17,6 +17,8 @@ import { isStarterPlan } from "../js/services/subscription.service.js";
 import { renderModuleUpgrade } from "../js/components/module-upgrade.js";
 import { buildAttendanceMascotSvg } from "../js/components/mascot.js";
 import { copyDeepLink, buildDeepLink } from "../js/services/deep-link.service.js";
+import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort } from "../js/services/workspace-selection.js";
+import { workspaceResults } from "../js/components/workspace-results.js";
 
 export { buildAttendanceMascotSvg };
 
@@ -35,8 +37,10 @@ let allowedClassKeys = null; // null = unrestricted
 let selection = { classKey: "", date: "" };
 let roster = [];
 let currentStatuses = {}; // studentId -> status
+let registerRequest = 0;
 
 export async function render({ profile, params = {} }) {
+  registerRequest++;
   if (isStarterPlan(getCurrentSchool())) {
     return renderModuleUpgrade({
       profile,
@@ -52,16 +56,7 @@ export async function render({ profile, params = {} }) {
   }
 
   [classes, settings] = await Promise.all([listClasses(), getSchoolSettings()]);
-  selection.date = selection.date || todayStr();
-
-  // Resolve dynamic deep link parameters
-  if (params.grade || params.class) {
-    const g = params.grade || params.class;
-    selection.classKey = params.stream ? `${g}|${params.stream}` : `${g}|`;
-  }
-  if (params.date) {
-    selection.date = params.date;
-  }
+  const today = todayStr();
 
   allowedClassKeys = null;
   if (!CAN_MARK_ANY_CLASS.includes(profile.role)) {
@@ -84,6 +79,16 @@ export async function render({ profile, params = {} }) {
       allowedClassKeys = new Set((teacher?.teachingAssignments || []).map((a) => `${a.grade}|${a.stream || ""}`));
     }
   }
+
+  const linkedGrade = params.grade ?? params.class;
+  const remembered = restoreWorkspaceSelection(profile, "attendance");
+  const linkedDate = params.date;
+  selection = {
+    classKey: workspaceCohort(classOptions().map(({ value }) => value),
+      linkedGrade != null ? `${linkedGrade}|${params.stream || ""}` : remembered.classKey, linkedGrade != null),
+    date: typeof linkedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(linkedDate)
+      && !Number.isNaN(Date.parse(linkedDate)) && linkedDate <= today ? linkedDate : today,
+  };
 
   const wrap = el("div", { class: "attendance-page" });
 
@@ -205,23 +210,26 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
     }
   }
 
-  if (selection.classKey && selection.date) {
-    maybeLoad(profile, bodyMount, summaryMount);
-  }
+  maybeLoad(profile, bodyMount, summaryMount);
 
   classSelect.addEventListener("change", () => {
     selection.classKey = classSelect.value;
+    rememberWorkspaceSelection(profile, "attendance", { classKey: selection.classKey });
     maybeLoad(profile, bodyMount, summaryMount);
   });
 }
 
 async function maybeLoad(profile, bodyMount, summaryMount) {
-  if (!selection.classKey || !selection.date) {
-    bodyMount.innerHTML = "";
+  const request = ++registerRequest;
+  const { classKey, date } = selection;
+  if (!classKey || !date) {
+    bodyMount.replaceChildren(workspaceResults("Attendance Register", !classOptions().length
+      ? "A class must be available to open the register."
+      : !classKey ? "Select a class to open its attendance register." : "Choose a date for the register.", { symbol: "fact_check" }));
     summaryMount.innerHTML = "";
     return;
   }
-  const [grade, stream] = selection.classKey.split("|");
+  const [grade, stream] = classKey.split("|");
   bodyMount.innerHTML = "";
   bodyMount.append(el("div", { class: "skeleton-rows", style: "padding:var(--sp-4);" }, [
     skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "95%"), skeleton("", "70%"),
@@ -231,15 +239,19 @@ async function maybeLoad(profile, bodyMount, summaryMount) {
   try {
     const [students, existing] = await Promise.all([
       listStudents(),
-      getAttendanceForClassDate(grade, stream, selection.date),
+      getAttendanceForClassDate(grade, stream, date),
     ]);
+    if (request !== registerRequest) return;
     roster = students.filter((s) => s.grade === grade && (s.stream || "") === stream && s.status === "active")
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
     currentStatuses = { ...(existing?.records || {}) };
 
     renderRoster(bodyMount, profile);
-    renderSummary(summaryMount, grade, stream);
+    await renderSummary(summaryMount, grade, stream, request).catch(() => {
+      if (request === registerRequest) summaryMount.replaceChildren(workspaceResults("Term Summary", "Could not load this term’s attendance summary."));
+    });
   } catch (err) {
+    if (request !== registerRequest) return;
     bodyMount.innerHTML = "";
     bodyMount.append(el("div", { class: "card" }, [
       el("div", { class: "empty-state" }, [
@@ -525,12 +537,12 @@ function exportAttendanceCsv(grade, stream, term, academicYear, daysMarked, perS
   toast("Attendance CSV downloaded.", "success");
 }
 
-async function renderSummary(container, grade, stream) {
+async function renderSummary(container, grade, stream, request) {
   container.innerHTML = "";
   const academicYear = settings.currentAcademicYear || "";
   const term = settings.currentTerm || "";
   const days = await listAttendanceForClassPeriod(grade, stream, academicYear, term);
-  if (!days.length) return;
+  if (request !== registerRequest || !days.length) return;
 
   const studentIds = roster.map((s) => s.id);
   const { daysMarked, perStudent, classAveragePercentage } = summarizeForRoster(days, studentIds);
