@@ -5755,6 +5755,121 @@ tbody tr:hover { background: var(--color-primary-100); }
 /* Guidance cards dark mode rules */
 
 /* Marks Guide Modal Cards */
+.modal--marks-import { width: min(94vw, 600px); }
+.modal--marks-import:has(.marks-import__review) { width: min(94vw, 860px); }
+.marks-import,
+.marks-import__step {
+  display: grid;
+  min-width: 0;
+  gap: var(--sp-3);
+}
+.marks-import p,
+.marks-import__heading { margin: 0; }
+.marks-import__context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+  padding: var(--sp-3);
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+.marks-import__context dt {
+  color: var(--color-ink-soft);
+  font-size: var(--fs-xs);
+}
+.marks-import__context dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.marks-import__review .marks-import__summary { font-weight: 600; }
+.marks-import__example {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-self: start;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  font-size: var(--fs-xs);
+}
+.marks-import__example > * { padding: var(--sp-1) var(--sp-3); }
+.marks-import__example > span {
+  background: var(--color-cream-dim);
+  border-bottom: 1px solid var(--color-line);
+}
+.marks-import__example > :nth-child(even) { border-left: 1px solid var(--color-line); }
+.marks-import__paste { margin: 0; }
+.marks-import__paste textarea { resize: vertical; min-height: 6rem; }
+.marks-import__table { max-height: min(42vh, 24rem); }
+.marks-import__table th,
+.marks-import__table td { padding: var(--sp-2) var(--sp-3); }
+.marks-import__table td { white-space: normal; overflow-wrap: anywhere; }
+.marks-import__error { color: var(--color-red); }
+.marks-import__replace {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+.marks-import__replace input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+.marks-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--color-line);
+}
+@media (max-width: 640px) {
+  .modal--marks-import,
+  .modal--marks-import:has(.marks-import__review) { width: 100%; }
+  .table-wrap--responsive.marks-import__table { max-height: none; }
+  .marks-import__table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .marks-import__table tbody td { grid-column: 1 / -1; }
+  .marks-import__table tbody td:nth-child(3),
+  .marks-import__table tbody td:nth-child(4) {
+    grid-column: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+  }
+  .marks-import__table tbody td:nth-child(4) {
+    border-left: 1px solid var(--color-line);
+    padding-left: var(--sp-2);
+  }
+  .marks-import__actions > .btn { flex: 1; }
+}
+@media (max-width: 640px) and (min-height: 520px) {
+  .modal--marks-import:has(.marks-import__review) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal--marks-import:has(.marks-import__review) .marks-import,
+  .marks-import__review {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .modal--marks-import .modal__header,
+  .marks-import__context,
+  .marks-import__review > :not(.marks-import__table) { flex-shrink: 0; }
+  .table-wrap--responsive.marks-import__table {
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
 .marks-guide-card {
   border: 1px solid var(--color-line);
   border-radius: var(--radius-md);

@@ -17,6 +17,7 @@ import { logAction } from "./audit.service.js";
 import { getCurrentSchoolId } from "./auth.service.js";
 import { sanitizeInput } from "../utils.js";
 import { invalidateStudentsCache } from "./student.service.js";
+import { parseDelimitedText } from "./delimited-text.js";
 
 // Column order doubles as the template's header row and the accepted
 // (case/spacing-insensitive) input headers. Streamlined to focus on
@@ -130,38 +131,6 @@ export async function downloadTemplateXlsx(filename, classes = []) {
 // Parsing (text / workbook -> raw rows)
 // ---------------------------------------------------------------------
 
-// Small RFC4180-ish CSV parser (handles quoted fields, escaped quotes,
-// commas inside quotes, and \r\n or \n line endings) so we don't need an
-// external library just to read a spreadsheet export.
-function parseCsvText(text) {
-  const rows = [];
-  let row = [];
-  let field = "";
-  let inQuotes = false;
-  const s = text.replace(/^\uFEFF/, ""); // strip BOM from Excel exports
-  for (let i = 0; i < s.length; i++) {
-    const c = s[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (s[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ",") {
-      row.push(field); field = "";
-    } else if (c === "\n" || c === "\r") {
-      if (c === "\r" && s[i + 1] === "\n") i++;
-      row.push(field); field = "";
-      rows.push(row); row = [];
-    } else {
-      field += c;
-    }
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows.filter((r) => !(r.length === 1 && r[0] === ""));
-}
-
 function normalizeHeader(h) {
   return String(h || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -229,7 +198,7 @@ export function parseStudentTable(table) {
 
 // text -> { rows: [{ rowNumber, raw: {key: value} }], error }
 export function parseStudentsCsv(text) {
-  const table = parseCsvText(text);
+  const table = parseDelimitedText(text);
   return parseStudentTable(table);
 }
 

@@ -9,6 +9,7 @@ import { setDirty } from "../js/services/unsaved-changes.service.js";
 import { copyDeepLink, buildDeepLink, internalLink, navigateDeepLink } from "../js/services/deep-link.service.js";
 import { rememberWorkspaceSelection, restoreWorkspaceSelection, workspaceCohort, workspaceOption } from "../js/services/workspace-selection.js";
 import { workspaceResults } from "../js/components/workspace-results.js";
+import { openMarksImport } from "../js/components/marks-import.js";
 
 const CAN_MANAGE = ["admin", "academic_master"];
 
@@ -38,6 +39,7 @@ let tabElements = {
 const AUTO_SAVE_INTERVAL_MS = 7000;
 let autoSaveTimer = null;
 let autoSaveToastShown = false;
+let marksSaveInFlight = null;
 
 /**
  * Contextual help tooltip using dark-slate bubble styling.
@@ -232,8 +234,8 @@ function showMarksInstructionsModal() {
         "Select your Class & Stream, Subject, and Assessment from the top dropdowns.",
         "Enter each learner's score into the input field (supports decimals, e.g. 28.5).",
         "Scores auto-save in the background every 7 seconds. You can also click 'Save All Now'.",
-        "Use 'Paste Bulk Scores' to copy and paste entire spreadsheets of 'AdmNo, Score'.",
-        "Check admission numbers before saving a pasted scoresheet.",
+        "Use 'Import Scores' to paste the Admission Number and Score columns from Excel or Google Sheets.",
+        "Review student matches, then choose which existing scores to replace before applying.",
         "A gold badge indicates unsaved edits. Check your connection before leaving the sheet.",
       ],
     },
@@ -892,8 +894,8 @@ function renderRoster(container, profile) {
         el("button", {
           type: "button",
           class: "btn btn--ghost btn--sm",
-          onClick: () => openBulkPaste(container),
-        }, [icon("content_paste", "text-xs"), "Paste Bulk Scores"]),
+          onClick: (event) => openScoreImport(container, assessment, subject, maxScore, event.currentTarget),
+        }, [icon("content_paste", "text-xs"), "Import Scores"]),
         el("button", {
           type: "button",
           class: "btn btn--primary btn--sm",
@@ -1021,7 +1023,7 @@ function renderRoster(container, profile) {
       existing ? "Saved" : "Not entered"
     );
 
-    input.addEventListener("input", () => {
+    input.addEventListener("input", (event) => {
       const rawVal = input.value.trim();
       const n = Number(rawVal);
 
@@ -1033,7 +1035,7 @@ function renderRoster(container, profile) {
         pctCell.textContent = "Invalid";
         levelCell.className = "badge badge--danger";
         levelCell.textContent = "Invalid";
-        updateDistributionUI(rosterCard, maxScore, isDirect);
+        if (!event.detail?.deferDistribution) updateDistributionUI(rosterCard, maxScore, isDirect);
         return;
       }
 
@@ -1053,7 +1055,7 @@ function renderRoster(container, profile) {
         levelCell.className = "badge badge--muted";
         levelCell.textContent = "—";
       }
-      updateDistributionUI(rosterCard, maxScore, isDirect);
+      if (!event.detail?.deferDistribution) updateDistributionUI(rosterCard, maxScore, isDirect);
     });
 
     input.addEventListener("keydown", (e) => {
@@ -1140,7 +1142,7 @@ function startAutoSaveLoop() {
   if (typeof window !== "undefined" && window.__eeskiaEmergencyLockdown) return;
   if (autoSaveTimer) return;
   autoSaveTimer = setInterval(() => {
-    flushDirtyMarks().catch(() => {});
+    if (!marksSaveInFlight) flushDirtyMarks().catch(() => {});
   }, AUTO_SAVE_INTERVAL_MS);
 }
 
@@ -1157,9 +1159,21 @@ if (typeof window !== "undefined") {
 }
 
 async function flushDirtyMarks() {
+  while (marksSaveInFlight) await marksSaveInFlight;
+  marksSaveInFlight = savePendingMarks();
+  try {
+    await marksSaveInFlight;
+  } finally {
+    marksSaveInFlight = null;
+  }
+}
+
+async function savePendingMarks() {
   if (typeof window !== "undefined" && window.__eeskiaEmergencyLockdown) return;
   if (!dirty.size || !currentProfile) return;
-  const { classKey, subjectCode, assessmentId } = loadedSelection;
+  const sheet = loadedSelection;
+  const savedMarks = marksByStudent;
+  const { classKey, subjectCode, assessmentId } = sheet;
   if (!classKey || !subjectCode || !assessmentId) return;
 
   const assessment = allAssessments.find((a) => a.id === assessmentId);
@@ -1187,7 +1201,10 @@ async function flushDirtyMarks() {
     const entries = validIds.map((studentId) => ({ studentId, grade, stream, score: pendingValues[studentId], maxScore }));
     const results = await bulkUpsertMarks(currentProfile.uid, assessmentId, subjectCode, entries);
     const failedIds = new Set((results.failed || []).map((f) => f.studentId));
-    for (const id of validIds) {
+    for (const { studentId: id, score } of entries) {
+      if (!failedIds.has(id)) savedMarks[id] = { ...savedMarks[id], score: Number(score) };
+      // A newer edit or a different sheet may be active when this write finishes.
+      if (loadedSelection !== sheet || pendingValues[id] !== score) continue;
       if (failedIds.has(id)) {
         markBadge(id, "badge--danger", "Retry pending");
         continue;
@@ -1196,10 +1213,15 @@ async function flushDirtyMarks() {
       delete pendingValues[id];
       markBadge(id, "badge--success", "Saved");
     }
-    setDirty(dirty.size > 0, `Marks Entry (${dirty.size} unsaved student score${dirty.size === 1 ? "" : "s"})`);
+    if (loadedSelection === sheet) {
+      setDirty(dirty.size > 0, `Marks Entry (${dirty.size} unsaved student score${dirty.size === 1 ? "" : "s"})`);
+    }
     autoSaveToastShown = false;
   } catch (err) {
-    for (const id of validIds) markBadge(id, "badge--danger", "Retry pending");
+    if (loadedSelection !== sheet) return;
+    for (const id of validIds) {
+      if (dirty.has(id)) markBadge(id, "badge--danger", "Retry pending");
+    }
     if (!autoSaveToastShown) {
       autoSaveToastShown = true;
       toast(err.message || "Could not save some scores — will retry automatically.", "error");
@@ -1232,80 +1254,44 @@ async function saveAllDirty(profile, button) {
   }
 }
 
-// ------------------------------------------------------------- Bulk Paste --
+// -------------------------------------------------------------- Import Scores --
 
-function openBulkPaste(container) {
-  const assessment = allAssessments.find((a) => a.id === selection.assessmentId);
-  const maxScore = getAssessmentMaxScore(assessment, selection.subjectCode);
-  const isDirect = (assessment?.contributionMode || "weighted") === "direct";
+function openScoreImport(container, assessment, subject, maxScore, trigger) {
+  const sheet = loadedSelection;
+  const request = marksRequest;
+  const savedMarks = marksByStudent;
+  const inputs = new Map(Array.from(container.querySelectorAll("input[data-student-id]"), (input) =>
+    [input.dataset.studentId, input]
+  ));
+  const classLabel = classOptions().find(({ value }) => value === sheet.classKey)?.label;
+  const assessmentPeriod = [assessment?.term, assessment?.academicYear].filter(Boolean).join(" ");
+  const assessmentLabel = assessmentPeriod ? `${assessment.name} (${assessmentPeriod})` : assessment?.name;
 
-  const body = el("form", {});
-  body.append(
-    el("div", {
-      class: "callout callout--info",
-      style: "margin-bottom:var(--sp-3); font-size:var(--fs-xs);",
-    }, [
-      icon("info", "text-primary"),
-      el("span", {}, `Paste two columns: Admission Number, then Score (out of ${maxScore}). Decimal scores supported.`),
-    ]),
-    el("div", { class: "field" }, [
-      el("label", {}, "Raw Scores (Copy & Paste from Excel/Sheets)"),
-      el("textarea", {
-        id: "bulk-text",
-        rows: "8",
-        style: "width:100%; padding:8px 10px; border:1px solid var(--color-line); border-radius:6px; font-family:var(--font-mono, monospace); font-size:var(--fs-xs);",
-        placeholder: "ADM001, 85.5\nADM002, 92\nADM003, 78",
-      }),
-    ]),
-    el("div", {
-      class: "callout callout--warning",
-      style: "margin-bottom:var(--sp-4); font-size:11px; padding:8px 12px;",
-    }, [
-      icon("warning", "text-amber"),
-      el("span", {}, "Notice: Mismatched admission numbers or scores exceeding max score will be flagged and skipped."),
-    ]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block" }, [icon("table_chart"), "Populate Table"])
-  );
-
-  const close = openModal("Paste Bulk Scores", body);
-
-  body.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const lines = document.getElementById("bulk-text").value.split("\n").map((l) => l.trim()).filter(Boolean);
-    let filled = 0;
-    let overMaxCount = 0;
-    let notFoundCount = 0;
-
-    for (const line of lines) {
-      const parts = line.split(/[, \t]+/).filter(Boolean);
-      if (parts.length < 2) continue;
-      const [admNo, rawScore] = parts;
-      const scoreNum = Number(rawScore);
-
-      const student = roster.find((s) => (s.admissionNumber || "").toLowerCase() === admNo.toLowerCase());
-      if (!student) {
-        notFoundCount++;
-        continue;
+  openMarksImport({
+    classLabel,
+    subjectLabel: subject?.name || sheet.subjectCode,
+    assessmentLabel,
+    maxScore,
+    students: roster,
+    getCurrentScore: (studentId) => inputs.get(studentId)?.value || String(savedMarks[studentId]?.score ?? ""),
+    async applyScores(entries) {
+      if (request !== marksRequest || sheet !== loadedSelection || activeTab !== "entry" || !trigger.isConnected ||
+          entries.some(({ studentId }) => !container.contains(inputs.get(studentId)))) {
+        throw new Error("The marks sheet has changed. Reopen Import Scores on the sheet you want to update.");
       }
-
-      if (!Number.isNaN(scoreNum) && scoreNum > maxScore) {
-        overMaxCount++;
+      if (window.__eeskiaEmergencyLockdown || assessment?.status === "locked") {
+        throw new Error("Marks entry is locked. Try again when editing is available.");
       }
-
-      const input = container.querySelector(`input[data-student-id="${student.id}"]`);
-      if (input) {
-        input.value = rawScore;
-        input.dispatchEvent(new Event("input"));
-        filled += 1;
+      for (const { studentId, score } of entries) {
+        const input = inputs.get(studentId);
+        input.value = String(score);
+        input.dispatchEvent(new CustomEvent("input", { detail: { deferDistribution: true } }));
       }
-    }
-
-    if (overMaxCount > 0) {
-      toast(`Filled ${filled} row(s), but ${overMaxCount} score(s) exceed Max Score (${maxScore}).`, "error");
-    } else {
-      toast(`Filled ${filled} of ${lines.length} student row(s). Review and click 'Save All' to store.`, filled ? "success" : "info");
-    }
-    close();
+      updateDistributionUI(container, maxScore, assessment?.contributionMode === "direct");
+      await flushDirtyMarks();
+      return entries.filter(({ studentId, score }) => savedMarks[studentId]?.score === score).length;
+    },
+    trigger,
   });
 }
 

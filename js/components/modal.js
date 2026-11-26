@@ -17,6 +17,7 @@ export function openModal(titleOrConfig, bodyNode, extraClass = "") {
   let cls = extraClass || "";
   let customStyle = "";
   let actions = null;
+  let onClose;
 
   if (titleOrConfig && typeof titleOrConfig === "object" && !(titleOrConfig instanceof HTMLElement)) {
     title = titleOrConfig.title || "";
@@ -29,6 +30,7 @@ export function openModal(titleOrConfig, bodyNode, extraClass = "") {
       customStyle += titleOrConfig.style;
     }
     actions = titleOrConfig.actions || null;
+    onClose = titleOrConfig.onClose;
   }
 
   const backdrop = el("div", { class: "modal-backdrop" });
@@ -120,11 +122,13 @@ export function openModal(titleOrConfig, bodyNode, extraClass = "") {
 
     if (isTest || prefersReducedMotion || options.immediate) {
       backdrop.remove();
+      onClose?.();
       return;
     }
 
     backdrop.classList.add("modal-backdrop--closing");
     modal.classList.add("modal--closing");
+    onClose?.();
 
     setTimeout(() => {
       backdrop.remove();
