@@ -50,8 +50,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildFinanceMascotSvg } from "../js/components/mascot.js";
-export { buildFinanceMascotSvg };
+export { buildFinanceMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile, params = {} }) {
   [classes, settings, structures] = await Promise.all([listClasses(), getSchoolSettings(), listFeeStructures()]);
@@ -71,68 +70,42 @@ export async function render({ profile, params = {} }) {
   }
 
   const wrap = el("div", { class: "fees-page" });
+  const startsInStructures = params.tab === "structures" || params.action === "new-structure";
+  const balancesPanel = el("div", { id: "fees-balances-panel" });
+  const structuresCard = el("div", { id: "fees-structures-panel", class: "card" });
 
-  // 1. Executive Finance Hero Banner
-  const mascotWrap = el("div", {
-    class: "fees-hero__mascot-wrap",
-    style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;",
-    "aria-hidden": "true",
-  });
-  mascotWrap.innerHTML = buildFinanceMascotSvg({ width: 125, height: 110 });
+  const balancesTab = el("button", {
+    type: "button",
+    class: "profile-tab",
+    "aria-controls": balancesPanel.id,
+    onClick: () => selectFeesTab(false),
+  }, [icon("account_balance_wallet", "text-xs"), "Balances & Payments"]);
+  const structuresTab = el("button", {
+    type: "button",
+    class: "profile-tab",
+    "aria-controls": structuresCard.id,
+    onClick: () => selectFeesTab(true),
+  }, [icon("price_change", "text-xs"), "Fee Structures"]);
 
-  const currentYear = settings.currentAcademicYear || new Date().getFullYear();
-  const currentTerm = settings.currentTerm || "Term 3";
+  function selectFeesTab(showStructures) {
+    balancesPanel.classList.toggle("hidden", showStructures);
+    structuresCard.classList.toggle("hidden", !showStructures);
+    balancesTab.classList.toggle("profile-tab--active", !showStructures);
+    structuresTab.classList.toggle("profile-tab--active", showStructures);
+    balancesTab.setAttribute("aria-pressed", String(!showStructures));
+    structuresTab.setAttribute("aria-pressed", String(showStructures));
+  }
 
-  const heroBanner = el("div", { class: "fees-hero" }, [
-    el("div", { class: "fees-hero__content" }, [
-      el("div", { class: "fees-hero__status-row" }, [
-        el("div", { class: "fees-cycle-badge" }, [
-          icon("calendar_today", "text-sm"),
-          `Active Cycle: ${currentYear} · ${currentTerm}`,
-        ]),
-      ]),
-      el("h1", { class: "fees-hero__title" }, "Fee Accounts & Balances"),
-      el("p", { class: "fees-hero__desc" }, "Fee structures, student balances, and tuition collection records."),
-      el("div", { class: "fees-hero__pills" }, [
-        el("div", { class: "fees-pill" }, [icon("price_change"), `${structures.length} Fee Structures`]),
-        el("div", { class: "fees-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
-        el("button", {
-          type: "button",
-          class: "fees-pill deep-link-btn",
-          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
-          title: "Copy link to Fees module",
-          onClick: () => {
-            const p = {};
-            if (selection.grade) p.grade = selection.grade;
-            if (selection.stream) p.stream = selection.stream;
-            if (selection.academicYear) p.academicYear = selection.academicYear;
-            if (selection.term) p.term = selection.term;
-            copyDeepLink("/fees", p, "Fees link");
-          },
-        }, [icon("share", "text-xs"), "Share Link"]),
-      ]),
-    ]),
-
-    // Animated Mascot & Comic Speech Bubble
-    el("div", { class: "fees-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Manage fees & receipts."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  const structuresCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
-  wrap.append(structuresCard);
+  const tabs = el("div", { class: "page-tabs", role: "group", "aria-label": "Fee views" }, [balancesTab, structuresTab]);
+  wrap.append(el("div", { class: "module-tab-bar no-print" }, tabs), balancesPanel, structuresCard);
+  selectFeesTab(startsInStructures);
   renderStructures(structuresCard, profile);
 
-  const pickerCard = el("div", { class: "card" });
-  wrap.append(pickerCard);
-  const balancesMount = el("div", { style: "margin-top:var(--sp-4);" });
-  wrap.append(balancesMount);
+  const pickerCard = el("div", { class: "card module-picker" });
+  const balancesMount = el("div");
   const paymentsMount = el("div", { style: "margin-top:var(--sp-4);" });
-  wrap.append(paymentsMount);
   const receiptMount = el("div", { style: "margin-top:var(--sp-4);" });
-  wrap.append(receiptMount);
+  balancesPanel.append(pickerCard, balancesMount, paymentsMount, receiptMount);
 
   renderPicker(pickerCard, profile, balancesMount, paymentsMount, receiptMount);
 
@@ -141,7 +114,7 @@ export async function render({ profile, params = {} }) {
     setTimeout(() => {
       openStructureModal(profile, null, structuresCard);
     }, 150);
-  } else if (selection.grade) {
+  } else if (!startsInStructures && selection.grade) {
     const validStreams = streamOptions(selection.grade);
     if (!selection.stream && validStreams.length > 0) {
       if (params.stream && validStreams.includes(params.stream)) {
@@ -422,7 +395,7 @@ function renderPicker(container, profile, balancesMount, paymentsMount, receiptM
   );
   container.append(form);
 
-  const actions = el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end; gap:8px;" }, [
+  const actions = el("div", { class: "module-actions module-picker__footer" }, [
     el("button", {
       type: "button",
       class: "btn btn--ghost btn--sm deep-link-btn",

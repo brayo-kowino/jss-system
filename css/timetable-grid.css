@@ -11,14 +11,6 @@
 }
 
 .tt-chart--master { --tt-day-width: 51px; }
-.tt-module-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.tt-module-heading h1 { margin: 0; }
 .tt-paper-option { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 .tt-paper-option select { width: auto; padding: 3px 6px; }
 .tt-chart-letterhead {

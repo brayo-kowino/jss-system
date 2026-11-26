@@ -1138,7 +1138,7 @@
     font-size: var(--fs-base);
   }
   .topbar__title {
-    display: none;
+    font-size: 0.65rem;
   }
   .topbar__offline-pill span:not(.icon) {
     display: none !important;

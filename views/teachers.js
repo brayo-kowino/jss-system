@@ -35,8 +35,7 @@ let subjects = [];
 let classes = [];
 let staffUsers = [];
 
-import { buildStaffMascotSvg } from "../js/components/mascot.js";
-export { buildStaffMascotSvg };
+export { buildStaffMascotSvg } from "../js/components/mascot.js";
 
 function showInstructionsModal() {
   const body = el("div", { style: "padding-bottom: 8px; font-family: var(--font-body, sans-serif); color: var(--color-ink);" }, [
@@ -82,14 +81,11 @@ function showInstructionsModal() {
       type: "button",
       class: "btn btn--primary btn--block",
       style: "padding: 12px; font-size: 15px;",
-      onClick: () => {
-        localStorage.setItem("jss_staff_instructions_read_v2", "true");
-        if (typeof closeModal === 'function') closeModal();
-      }
-    }, "I Understand")
+      onClick: () => closeModal(),
+    }, "Done")
   ]);
 
-  let closeModal = openModal("Staff & Logins Workflow", body);
+  const closeModal = openModal("Staff & Logins Guide", body);
 }
 
 export async function render({ profile }) {
@@ -104,33 +100,6 @@ export async function render({ profile }) {
   const activeTeachers = teachers.filter((t) => t.status !== "suspended").length;
   const unlinkedCount = teachers.filter((t) => !t.userId).length;
 
-  // 1. Executive Hero Banner
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildStaffMascotSvg({ width: 125, height: 110 });
-
-  const heroBanner = el("div", { class: "staff-hero" }, [
-    el("div", { class: "staff-hero__content" }, [
-      el("h1", { class: "staff-hero__title" }, "Staff Directory & System Logins"),
-      el("p", { class: "staff-hero__desc" }, "Manage teacher profiles, subject assignments, role permissions, and system login credentials."),
-      el("button", {
-        type: "button",
-        class: "btn btn--outline btn--sm",
-        style: "margin-top: 16px; background: var(--color-white); border-color: var(--color-line);",
-        onClick: () => showInstructionsModal()
-      }, [icon("info", "text-primary"), " View Workflow Instructions"])
-    ]),
-
-    el("div", { class: "staff-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Did you know? You can create a login for any staff like a bursar, registrar, or principal, and allow them access the system without giving them a teaching profile."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  if (!localStorage.getItem("jss_staff_instructions_read_v2")) {
-    setTimeout(showInstructionsModal, 100);
-  }
-
   // 2. Executive KPI Metrics Strip
   const kpis = [
     { label: "System Logins", value: logins.length, icon: "badge", color: "blue" },
@@ -138,7 +107,7 @@ export async function render({ profile }) {
     { label: "Active Logins", value: activeLogins, icon: "person_check", color: "green" },
     { label: "Unlinked Roster", value: unlinkedCount, icon: unlinkedCount > 0 ? "link_off" : "link", color: unlinkedCount > 0 ? "gold" : "blue" },
   ];
-  const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
+  const kpiGrid = el("div", { class: "md3-kpi-grid module-metrics", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
     const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
       el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
@@ -152,7 +121,7 @@ export async function render({ profile }) {
   wrap.append(kpiGrid);
 
   // 3. Segmented Tabs
-  const tabNav = el("div", { class: "page-tabs no-print", style: "margin-bottom:var(--sp-4);" });
+  const tabNav = el("div", { class: "page-tabs", role: "group", "aria-label": "Staff views" });
   const panelMount = el("div", { id: "staff-panel-mount" });
 
   function renderTabs() {
@@ -167,6 +136,7 @@ export async function render({ profile }) {
         {
           type: "button",
           class: `profile-tab ${activeTab === tab.id ? "profile-tab--active" : ""}`,
+          "aria-pressed": String(activeTab === tab.id),
           onClick: () => {
             if (activeTab === tab.id) return;
             activeTab = tab.id;
@@ -181,7 +151,14 @@ export async function render({ profile }) {
   }
 
   renderTabs();
-  wrap.append(tabNav);
+  wrap.append(el("div", { class: "module-tab-bar no-print" }, [
+    tabNav,
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm",
+      onClick: showInstructionsModal,
+    }, [icon("help", "text-xs"), "Guide"]),
+  ]));
   wrap.append(panelMount);
 
   renderPanel(panelMount, profile);

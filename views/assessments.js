@@ -46,8 +46,7 @@ let statsCache = new Map();
 let filters = { search: "", type: "all", term: "all", year: "all", status: "all", grade: "all", subject: "all" };
 let sort = { key: "date", dir: "desc" };
 
-import { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
-export { buildAssessmentsMascotSvg };
+export { buildAssessmentsMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
@@ -75,45 +74,12 @@ export async function render({ profile, params = {} }) {
   if (params.term) {
     filters.term = params.term;
   }
+  if (params.year) filters.year = params.year;
+  if (params.grade) filters.grade = params.grade;
 
   const wrap = el("div", {});
 
-  // 1. Executive Hero Banner
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildAssessmentsMascotSvg({ width: 125, height: 110 });
-
-  const heroBanner = el("div", { class: "assessments-hero" }, [
-    el("div", { class: "assessments-hero__content" }, [
-      el("h1", { class: "assessments-hero__title" }, "Assessments & Examinations"),
-      el("p", { class: "assessments-hero__desc" }, "Configure CATs, assignments, exams, custom subject maximums, and evaluation schedules."),
-      el("div", { class: "assessments-hero__pills" }, [
-        el("div", { class: "assessments-pill" }, [icon("domain"), `${classes.length} Grade Cohorts`]),
-        el("div", { class: "assessments-pill" }, [icon("school"), `${subjects.length} Subjects`]),
-        el("div", { class: "assessments-pill" }, [icon("calendar_month"), `${settings?.currentAcademicYear || new Date().getFullYear()} · ${settings?.currentTerm || "Term 1"}`]),
-        el("button", {
-          type: "button",
-          class: "assessments-pill deep-link-btn",
-          style: "cursor:pointer; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:inherit; font-weight:600;",
-          title: "Copy link to Assessments module",
-          onClick: () => {
-            const p = {};
-            if (filters.type !== "all") p.type = filters.type;
-            if (filters.status !== "all") p.status = filters.status;
-            if (filters.term !== "all") p.term = filters.term;
-            copyDeepLink("/assessments", p, "Assessments link");
-          },
-        }, [icon("share", "text-xs"), "Share Link"]),
-      ]),
-    ]),
-
-    el("div", { class: "assessments-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Schedule CATs & exams."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  // 2. Executive KPI Metrics Strip
+  // Assessment totals
   const kpiMount = el("div", { style: "margin-bottom:var(--sp-4);" });
   wrap.append(kpiMount);
   renderKpis(kpiMount);
@@ -263,7 +229,7 @@ function renderKpis(container) {
 
   const grid = el(
     "div",
-    { class: "md3-kpi-grid" },
+    { class: "md3-kpi-grid module-metrics" },
     kpis.map((k) =>
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
         el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),
@@ -331,7 +297,7 @@ function renderFilters(container, profile) {
     el("option", { value: "locked", ...(filters.status === "locked" ? { selected: "true" } : {}) }, "Locked"),
   ]);
 
-  const toolbar = el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+  const toolbar = el("div", { class: "module-toolbar" }, [
     el("div", { style: "display:flex; align-items:center; gap:8px; flex:1; min-width:min(100%, 320px); flex-wrap:wrap;" }, [
       el("div", { style: "position:relative; flex:1; min-width:200px;" }, [
         el("span", {
@@ -346,13 +312,22 @@ function renderFilters(container, profile) {
       gradeSelect,
       statusSelect,
     ]),
-    el("div", { style: "display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap;" }, [
+    el("div", { class: "module-actions" }, [
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
         id: "clear-filters",
         title: "Clear all filters",
       }, [icon("filter_alt_off"), "Clear"]),
+      el("button", {
+        type: "button",
+        class: "btn btn--ghost btn--sm deep-link-btn",
+        title: "Copy a link with the current assessment filters",
+        onClick: () => {
+          const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value && value !== "all"));
+          copyDeepLink("/assessments", params, "Assessments link");
+        },
+      }, [icon("share", "text-xs"), "Share Filter"]),
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
@@ -764,7 +739,7 @@ function renderResultsBody(body, s, a, close) {
 
   const grid = el(
     "div",
-    { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" },
+    { class: "md3-kpi-grid module-metrics", style: "margin-bottom:var(--sp-4);" },
     kpis.map((k) =>
       el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
         el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),

@@ -44,8 +44,7 @@ function cleanPhoneForWhatsApp(phone = "") {
   return cleaned;
 }
 
-import { buildAnalyticsMascotSvg } from "../js/components/mascot.js";
-export { buildAnalyticsMascotSvg };
+export { buildAnalyticsMascotSvg } from "../js/components/mascot.js";
 
 const RESULT_MODE_PRIORITY = ["average", "endterm", "midterm"];
 
@@ -113,12 +112,8 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "analytics-page" });
 
-  // 1. Executive Hero Banner with Dynamic Analytics Mascot
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildAnalyticsMascotSvg({ width: 125, height: 110 });
-
-  // 2. Numeric KPI Metric Chips
-  const kpiRow = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" }, [
+  // School totals
+  const kpiRow = el("div", { class: "md3-kpi-grid module-metrics", style: "margin-bottom:var(--sp-4);" }, [
     el("div", { class: "md3-kpi-chip md3-kpi-chip--blue" }, [
       el("div", { class: "md3-kpi-chip__icon" }, [icon("school")]),
       el("div", { class: "md3-kpi-chip__content" }, [

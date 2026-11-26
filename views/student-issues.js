@@ -37,8 +37,7 @@ function getInitials(name = "") {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-import { buildIssuesMascotSvg } from "../js/components/mascot.js";
-export { buildIssuesMascotSvg };
+export { buildIssuesMascotSvg } from "../js/components/mascot.js";
 
 let issues = [];
 let cachedStudents = [];
@@ -951,38 +950,6 @@ export async function render({ profile }) {
   const total = issues.length;
   const openCount = issues.filter((i) => i.status === "open").length;
   const resolvedCount = issues.filter((i) => i.status === "resolved").length;
-  const resolutionRate = total > 0 ? Math.round((resolvedCount / total) * 100) : 100;
-
-  // 1. Executive Hero Banner with Dynamic Detective Mascot
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildIssuesMascotSvg({ width: 125, height: 110 });
-
-  const heroBanner = el("div", { class: "issues-hero" }, [
-    el("div", { class: "issues-hero__content" }, [
-      el("h1", { class: "issues-hero__title" }, "Student Issues & Discrepancies"),
-      el(
-        "p",
-        { class: "issues-hero__desc" },
-        "Track, investigate, and resolve front-desk discrepancies regarding CBC scores, report card remarks, fee balances, and admission records."
-      ),
-      el("div", { class: "issues-hero__pills" }, [
-        el("div", { class: "issues-pill" }, [icon("list_alt"), `${total} Total Cases`]),
-        el(
-          "div",
-          { class: `issues-pill${openCount > 0 ? " issues-pill--danger" : ""}` },
-          [icon("pending_actions"), `${openCount} Awaiting Action`]
-        ),
-        el("div", { class: "issues-pill" }, [icon("verified"), `${resolvedCount} Resolved`]),
-        el("div", { class: "issues-pill" }, [icon("speed"), `${resolutionRate}% Resolution Rate`]),
-      ]),
-    ]),
-    el("div", { class: "issues-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Investigate & resolve discrepancies swiftly!"),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // 3. Consolidated Modern Filter & Action Toolbar
   const searchInput = el("input", {
     type: "search",
@@ -1090,8 +1057,7 @@ export async function render({ profile }) {
       el(
         "div",
         {
-          style:
-            "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;",
+          class: "module-toolbar",
         },
         [
           // Left: Search & category & status

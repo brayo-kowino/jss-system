@@ -40,8 +40,7 @@ const CBC_PRESETS = [
   { code: "PTS", name: "Pre-Technical Studies", department: "Technical & Applied", pathway: "STEM" },
 ];
 
-import { buildSubjectsMascotSvg } from "../js/components/mascot.js";
-export { buildSubjectsMascotSvg };
+export { buildSubjectsMascotSvg } from "../js/components/mascot.js";
 
 // ------------------------------------------------------------------ Render --
 
@@ -51,47 +50,12 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "subjects-view-wrap" });
 
-  const deptsCount = new Set(subjects.map((s) => s.department).filter(Boolean)).size || DEPARTMENTS.length;
-  const pathwaysCount = new Set(subjects.map((s) => s.pathway).filter(Boolean)).size || PATHWAYS.length;
-
-  // Mascot container
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildSubjectsMascotSvg({ width: 155, height: 140 });
-
-  // Executive Hero Banner (Concise Copy)
-  const heroBanner = el("div", { class: "subjects-hero" }, [
-    el("div", { class: "subjects-hero__content" }, [
-      
-      el("h1", { class: "subjects-hero__title" }, "Learning Areas & Subjects"),
-      el("p", { class: "subjects-hero__desc" }, "CBC learning areas, departments, and pathways."),
-      el("div", { class: "subjects-hero__pills" }, [
-        el("div", { class: "subjects-pill" }, [icon("book"), `${subjects.length} Subjects`]),
-        el("div", { class: "subjects-pill" }, [icon("corporate_fare"), `${deptsCount} Departments`]),
-        el("div", { class: "subjects-pill" }, [icon("alt_route"), `${pathwaysCount} Pathways`]),
-      ]),
-      el("div", { class: "subjects-hero__actions" }, [
-        el("button", {
-          type: "button",
-          class: "btn btn--primary btn--sm",
-          id: "new-subject-btn",
-          onClick: () => openSubjectForm(profile),
-        }, [icon("add"), "Add Subject"]),
-      ]),
-    ]),
-
-    // Mascot & Speech Bubble (Concise)
-    el("div", { class: "subjects-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Manage learning areas & pathways."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // Search & Filter Toolbar
   const searchInput = el("input", {
     type: "search",
     class: "subjects-search-input",
-    placeholder: "Search code or name...",
+    placeholder: "Search code or name…",
+    "aria-label": "Search subjects by code or name",
     value: searchQuery,
   });
 
@@ -121,6 +85,12 @@ export async function render({ profile }) {
       searchInput,
     ]),
     deptFiltersContainer,
+    el("button", {
+      type: "button",
+      class: "btn btn--primary btn--sm",
+      id: "new-subject-btn",
+      onClick: () => openSubjectForm(profile),
+    }, [icon("add"), "Add Subject"]),
   ]);
   wrap.append(toolbar);
 

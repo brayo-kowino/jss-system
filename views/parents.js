@@ -62,8 +62,7 @@ function renderRelationshipBadge(rel) {
   ]);
 }
 
-import { buildParentsMascotSvg } from "../js/components/mascot.js";
-export { buildParentsMascotSvg };
+export { buildParentsMascotSvg } from "../js/components/mascot.js";
 
 function getFilteredParents() {
   return parents.filter((p) => {
@@ -875,38 +874,6 @@ export async function render({ profile }) {
   const total = parents.length;
   const linkedCount = parents.filter((p) => (p.linkedStudentIds || []).length > 0).length;
   const unlinkedCount = total - linkedCount;
-  const withPhone = parents.filter((p) => Boolean((p.phone || "").trim())).length;
-
-  // 1. Executive Hero Banner with Dynamic Liaison Mascot
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildParentsMascotSvg({ width: 125, height: 110 });
-
-  const heroBanner = el("div", { class: "parents-hero" }, [
-    el("div", { class: "parents-hero__content" }, [
-      el("h1", { class: "parents-hero__title" }, "Parents & Guardians Directory"),
-      el(
-        "p",
-        { class: "parents-hero__desc" },
-        "Manage verified parent contact directories, family relationships, emergency channels, and student guardian links."
-      ),
-      el("div", { class: "parents-hero__pills" }, [
-        el("div", { class: "parents-pill" }, [icon("person"), `${total} Registered Guardians`]),
-        el("div", { class: "parents-pill" }, [icon("link"), `${linkedCount} Linked to Students`]),
-        el(
-          "div",
-          { class: `parents-pill${unlinkedCount > 0 ? " parents-pill--warning" : ""}` },
-          [icon("link_off"), `${unlinkedCount} Pending Link`]
-        ),
-        el("div", { class: "parents-pill" }, [icon("phone_iphone"), `${withPhone} With Phone Reach`]),
-      ]),
-    ]),
-    el("div", { class: "parents-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Connect school communications directly with parents!"),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // 3. Consolidated Modern Filter & Action Toolbar
   const searchInput = el("input", {
     type: "search",
@@ -1018,8 +985,7 @@ export async function render({ profile }) {
       el(
         "div",
         {
-          style:
-            "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;",
+          class: "module-toolbar",
         },
         [
           // Left filters

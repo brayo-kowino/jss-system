@@ -45,8 +45,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildGradingMascotSvg } from "../js/components/mascot.js";
-export { buildGradingMascotSvg };
+export { buildGradingMascotSvg } from "../js/components/mascot.js";
 
 // ------------------------------------------------------------------ Render --
 
@@ -58,75 +57,15 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "grading-view-wrap" });
 
-  // Mascot container
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildGradingMascotSvg({ width: 155, height: 140 });
-
-  // Executive Hero Banner
-  const heroBanner = el("div", { class: "grading-hero" }, [
-    el("div", { class: "grading-hero__content" }, [
-      el("h1", { class: "grading-hero__title" }, "Class Grading & Positions"),
-      el("p", { class: "grading-hero__desc" }, "Class-wide subject averages, merit positions, and stream ranking."),
-      el("div", { class: "grading-hero__pills" }, [
-        el("div", { class: "grading-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
-        el("div", { class: "grading-pill" }, [icon("calendar_today"), `${selection.academicYear} · ${selection.term}`]),
-      ]),
-    ]),
-
-    // Mascot & Speech Bubble
-    el("div", { class: "grading-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Compute subject averages and student class rankings."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  // Advisory notice: Verify grading scale in Settings
-  const canManageSettings = profile.role === "admin" || profile.role === "super_admin";
-  const gradingScaleNotice = el("div", {
-    class: "notice-banner notice-banner--caution",
-    style: "display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-4);"
-  }, [
-    el("div", { style: "display:flex; align-items:flex-start; gap:12px; flex:1; min-width:260px;" }, [
-      el("span", { class: "material-symbols-rounded", style: "font-size:24px; flex-shrink:0; margin-top:2px;" }, "priority_high"),
-      el("div", {}, [
-        el("strong", { class: "notice-banner__headline", style: "display:block; font-size:var(--fs-sm); font-weight:700; margin-bottom:3px;" },
-          "Important: Please Check the Grading Scale in Settings"
-        ),
-        el("p", { class: "notice-banner__body", style: "margin:0; font-size:var(--fs-xs); line-height:1.5;" },
-          "All calculated subject grades, mean grades, and student points are strictly derived from your school's Grading Scale. It is very important to verify that your grade boundaries and point weights in Settings are correct before computing or saving results."
-        ),
-      ]),
-    ]),
-    ...(canManageSettings ? [
-      el("a", {
-        href: "#/settings?tab=grading",
-        class: "btn btn--sm notice-banner__action",
-        style: "display:inline-flex; align-items:center; gap:6px; white-space:nowrap; margin-top:2px;",
-      }, [
-        icon("tune", "text-xs"),
-        "Check Grading Scale in Settings",
-        icon("arrow_forward", "text-xs"),
-      ])
-    ] : [
-      el("span", {
-        class: "badge badge--warning",
-        style: "white-space:nowrap; align-self:center; font-size:11px;"
-      }, "Managed in Settings by Admin")
-    ]),
-  ]);
-  wrap.append(gradingScaleNotice);
-
-  // Configuration & Picker Card
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const pickerCard = el("div", { class: "card module-picker" });
   wrap.append(pickerCard);
 
-  // Mount point for computed results or welcome disclaimers
+  // Computed results
   const resultMount = el("div", { id: "grading-result-mount" });
   wrap.append(resultMount);
 
   renderPicker(pickerCard, profile, resultMount);
-  renderWelcomeDisclaimers(resultMount);
+  renderUnselectedResults(resultMount);
 
   return wrap;
 }
@@ -166,107 +105,38 @@ function renderPicker(container, profile, resultMount) {
   );
   container.append(row);
 
-  container.append(
-    el("p", { class: "text-muted text-xs", style: "margin:10px 0 14px; display:flex; align-items:center; gap:6px;" }, [
-      icon("info", "text-xs", "style: color:var(--color-primary-600);"),
-      "Computes every stream in this grade at once. Individual stream report forms can be viewed on the Report Cards page.",
-    ])
-  );
+  const canManageSettings = ["admin", "super_admin"].includes(profile.role);
+  container.append(el("p", { class: "module-field-note" }, canManageSettings
+    ? [
+        "Verify your school’s grading scale before computing or saving results. ",
+        el("a", { href: "#/settings?tab=grading" }, "Check Grading Scale"),
+      ]
+    : "Ask your school administrator to verify the grading scale before computing or saving results."
+  ));
 
   container.append(
-    el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end;" }, [
+    el("div", { class: "module-actions module-picker__footer" }, [
       el("button", {
         class: "btn btn--primary btn--sm",
         onClick: (e) => runCompute(profile, resultMount, e.currentTarget),
       }, [icon("analytics", "text-xs"), "Compute Results"]),
     ])
   );
+  container.append(el("details", { class: "module-help" }, [
+    el("summary", {}, "Grading Guide"),
+    el("ul", {}, [
+      el("li", {}, "Computing includes all streams in the selected grade and calculates both cohort and stream ranks."),
+      el("li", {}, "Each subject needs 100% assessment weight, or a maximum score of 100 in direct mode. Incomplete results are marked Partial."),
+      el("li", {}, "Compute Results creates a preview. Save Results makes grades available in Report Cards and Analytics."),
+      el("li", {}, "Students with equal totals share a rank. The next rank skips the tied positions."),
+    ]),
+  ]));
 }
 
-/**
- * Renders guided step instructions and essential disclaimers when no results are computed yet.
- */
-function renderWelcomeDisclaimers(container) {
-  container.innerHTML = "";
-
-  const welcomeCard = el("div", { class: "grading-welcome-card" }, [
-    el("div", { class: "grading-welcome-header" }, [
-      el("div", { class: "marks-welcome-icon-halo" }, [
-        icon("workspace_premium"),
-      ]),
-      el("h3", {}, "Ready to Compute Class Rankings?"),
-      el("p", {}, "Select a Grade, Academic Year, Term, and Report Mode above, then click 'Compute Results' to aggregate subject averages and student positions."),
-    ]),
-
-    // Operational Guidelines Section Header
-    el("div", { class: "guidance-section-header" }, [
-      icon("verified_user"),
-      el("span", {}, "Academic Computation Protocols & Standards"),
-    ]),
-
-    // Modern Guidance Cards Grid (Zero left borders)
-    el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card guidance-card--amber" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("grading")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Very Important"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Check Grading Scale in Settings"),
-          el("p", { class: "guidance-card__body" }, [
-            "Mean grades, points, and merit ranks are calculated from your school's grading scale. It is very important to verify grade bands and point allocations in ",
-            el("a", { href: "#/settings?tab=grading", style: "font-weight: 600; text-decoration: underline; color: var(--color-primary-700);" }, "Settings → Grading"),
-            " before computing results.",
-          ]),
-        ]),
-      ]),
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("account_tree")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Cohort Scope"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Grade-Wide Multi-Stream Scope"),
-          el("p", { class: "guidance-card__body" }, "Computation evaluates every stream in the selected grade cohort simultaneously. Students receive both an Overall Cohort Rank (1/N) and a Stream Rank (1/n)."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("balance")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Weighting"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "100% Subject Weight Requirement"),
-          el("p", { class: "guidance-card__body" }, "Assessments for each subject must add up to 100% (or 100 max score for direct mode). Incomplete assessment weights will flag results as 'Partial'."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("save")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Publishing"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "In-Memory Computation & Saving"),
-          el("p", { class: "guidance-card__body" }, "Clicking 'Compute Results' calculates rankings in memory for review. You must click 'Save Results' to publish grades to Report Cards and Analytics."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("military_tech")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Standard"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Standard CBC Ties & Ranking Rules"),
-          el("p", { class: "guidance-card__body" }, "Learners with identical total marks share the same rank (e.g. Tied for 1st). The subsequent rank skips accordingly according to CBC evaluation standards."),
-        ]),
-      ]),
-    ]),
-  ]);
-
-  container.append(welcomeCard);
+function renderUnselectedResults(container) {
+  container.replaceChildren(el("p", { class: "module-empty-note" },
+    "Choose a grade, year, term, and report mode, then select Compute Results."
+  ));
 }
 
 // ---------------------------------------------------------------- Compute --
@@ -372,7 +242,7 @@ async function runCompute(profile, resultMount, computeBtn = null) {
   } catch (err) {
     resultMount.innerHTML = "";
     toast(err.message || "Could not compute results.", "error");
-    renderWelcomeDisclaimers(resultMount);
+    renderUnselectedResults(resultMount);
   } finally {
     restoreComputeBtn();
   }

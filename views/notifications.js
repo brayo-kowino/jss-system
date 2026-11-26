@@ -59,8 +59,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildNotificationsMascotSvg } from "../js/components/mascot.js";
-export { buildNotificationsMascotSvg };
+export { buildNotificationsMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile }) {
   [notifications, newsletters, settings, classes, students, parents] = await Promise.all([
@@ -75,27 +74,6 @@ export async function render({ profile }) {
   markNotificationsAsSeen(profile.uid);
 
   const wrap = el("div", { class: "notifications-view-wrap" });
-
-  // Mascot container
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildNotificationsMascotSvg({ width: 125, height: 110 });
-
-  // Executive Hero Banner (Clean & Modern)
-  const heroBanner = el("div", { class: "notifications-hero" }, [
-    el("div", { class: "notifications-hero__content" }, [
-      el("h1", { class: "notifications-hero__title" }, "Notifications & Newsletters"),
-      el("p", { class: "notifications-hero__desc" }, "Broadcast parent SMS and email alerts, track delivery queues, and publish newsletters."),
-      el("div", { class: "notifications-hero__pills" }, [
-      ]),
-    ]),
-
-    // Mascot & Speech Bubble
-    el("div", { class: "notifications-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Dispatch alerts & news."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
 
   // Segmented Tabs
   const tabNav = el("div", { class: "page-tabs no-print", style: "margin-bottom:var(--sp-4);" });
@@ -238,7 +216,7 @@ function renderNotificationKpis() {
     { label: "Reachable Parents", value: `${contactable}/${parents.length}`, icon: "contacts", color: "blue" },
   ];
 
-  const grid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
+  const grid = el("div", { class: "md3-kpi-grid module-metrics", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
     const chip = el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
       el("div", { class: "md3-kpi-chip__icon" }, [icon(k.icon)]),

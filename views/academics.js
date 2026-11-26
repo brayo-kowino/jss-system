@@ -37,8 +37,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildAcademicsMascotSvg } from "../js/components/mascot.js";
-export { buildAcademicsMascotSvg };
+export { buildAcademicsMascotSvg } from "../js/components/mascot.js";
 
 /**
  * Determine curriculum cohort badge for Kenya CBC framework.
@@ -74,55 +73,11 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "academics-view-wrap" });
 
-  const totalStreams = classes.reduce((sum, c) => sum + (c.streams || []).length, 0);
-  const activeStudentsCount = students.filter((s) => s.status === "active").length;
-  const avgStreams = classes.length ? (totalStreams / classes.length).toFixed(1) : "0";
-
-  // Mascot container
-  const mascotWrap = el("div", { class: "academics-hero__mascot-wrap" });
-  mascotWrap.innerHTML = buildAcademicsMascotSvg({ width: 165, height: 150 });
-
-  // Executive Hero Banner
-  const heroBanner = el("div", { class: "academics-hero" }, [
-    el("div", { class: "academics-hero__content" }, [
-      el("h1", { class: "academics-hero__title" }, "Classes & Learning Streams"),
-      el(
-        "p",
-        { class: "academics-hero__desc" },
-        "Classes and streams for your school are configured here. (Streams are not required for single-section classes.)"
-      ),
-      el("div", { class: "academics-hero__pills" }, [
-        el("div", { class: "academics-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
-        el("div", { class: "academics-pill" }, [icon("meeting_room"), `${totalStreams} Active Streams`]),
-        el("div", { class: "academics-pill" }, [icon("groups"), `${activeStudentsCount} Active Learners`]),
-      ]),
-      el("div", { class: "academics-hero__actions" }, [
-        el(
-          "button",
-          {
-            type: "button",
-            class: "btn btn--primary",
-            id: "new-grade-btn",
-            onClick: () => openGradeForm(profile),
-          },
-          [icon("add"), "Add Grade"]
-        ),
-      ]),
-    ]),
-
-    // Animated Academic Scholar Mascot & Speech Bubble
-    el("div", { class: "academics-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "You should configure your school's grades before enrolling students or recording assessment marks."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  // Search & Hint Toolbar
   const searchInput = el("input", {
     type: "search",
     class: "academics-search-input",
-    placeholder: "Filter grades or streams (e.g. Grade 7, Blue)...",
+    placeholder: "Search grades or streams…",
+    "aria-label": "Search grades or streams",
     value: searchQuery,
   });
 
@@ -131,10 +86,12 @@ export async function render({ profile }) {
       icon("search"),
       searchInput,
     ]),
-    el("div", { class: "academics-hint-pill" }, [
-      icon("lightbulb"),
-      "Click any stream pill to rename · Click × to remove empty stream",
-    ]),
+    el("button", {
+      type: "button",
+      class: "btn btn--primary btn--sm",
+      id: "new-grade-btn",
+      onClick: () => openGradeForm(profile),
+    }, [icon("add"), "Add Grade"]),
   ]);
   wrap.append(toolbar);
 
@@ -448,7 +405,7 @@ function openGradeForm(profile) {
       gradePresetPicker,
     ]),
     el("div", { class: "field" }, [
-      el("label", {}, "Streams & Sections"),
+      el("label", { for: "g-stream-input" }, "Streams & Sections (optional)"),
       streamsPreview,
       el("div", { style: "display:flex; gap:8px;" }, [
         streamInput,

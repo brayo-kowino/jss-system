@@ -63,8 +63,7 @@ let activeStatusSelect = null;
 
 const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archived: "Archive", transferred: "Mark Transferred", graduated: "View Alumni" };
 
-import { buildStudentsMascotSvg } from "../js/components/mascot.js";
-export { buildStudentsMascotSvg };
+export { buildStudentsMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile, params = {} }) {
   await seedDefaultsIfEmpty();
@@ -140,18 +139,14 @@ export async function render({ profile, params = {} }) {
     );
   }
 
-  // 1. Executive Hero Banner
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildStudentsMascotSvg({ width: 125, height: 110 });
-
-  // 2. Executive KPI Metrics Strip (using .md3-kpi-grid & .md3-kpi-chip)
+  // Enrollment summary
   const kpis = [
     { label: "Total Registered", value: students.length, isNum: true, icon: "groups", color: "blue" },
     { label: "Active Learners", value: activeCount, isNum: true, icon: "how_to_reg", color: "green" },
     { label: "Boys / Girls", value: `${boysCount}B / ${girlsCount}G`, icon: "wc", color: "gold" },
     { label: "Welfare Alerts", value: totalOpenIssues, isNum: true, icon: "report", color: totalOpenIssues > 0 ? "red" : "green" },
   ];
-  const kpiGrid = el("div", { class: "md3-kpi-grid", style: "margin-bottom:var(--sp-4);" });
+  const kpiGrid = el("div", { class: "md3-kpi-grid module-metrics", style: "margin-bottom:var(--sp-4);" });
   for (const k of kpis) {
     const valEl = el("div", { class: "md3-kpi-chip__value numeric" }, String(k.value));
     if (k.isNum) {
@@ -202,7 +197,7 @@ export async function render({ profile, params = {} }) {
     class: "card",
     style: "padding:var(--sp-3) var(--sp-4); margin-bottom:var(--sp-4);",
   }, [
-    el("div", { style: "display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;" }, [
+    el("div", { class: "module-toolbar" }, [
       // Left side: Search & Dropdowns
       el("div", { style: "display:flex; align-items:center; gap:10px; flex:1; min-width:min(100%, 300px); flex-wrap:wrap;" }, [
         el("div", { style: "position:relative; flex:1; min-width:220px;" }, [

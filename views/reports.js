@@ -114,8 +114,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildReportsMascotSvg } from "../js/components/mascot.js";
-export { buildReportsMascotSvg };
+export { buildReportsMascotSvg } from "../js/components/mascot.js";
 
 export async function render({ profile }) {
   prewarmPdfLibs();
@@ -175,37 +174,16 @@ export async function render({ profile }) {
 
   const wrap = el("div", { class: "reports-view-wrap" });
 
-  // Mascot container
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildReportsMascotSvg({ width: 155, height: 140 });
-
-  // Executive Hero Banner
-  const heroBanner = el("div", { class: "reports-hero" }, [
-    el("div", { class: "reports-hero__content" }, [
-      el("h1", { class: "reports-hero__title" }, "Student Report Cards"),
-      el("p", { class: "reports-hero__desc" }, "Student report cards with CBC performance levels, teacher remarks, and exportable PDF cards for printing."),
-      el("div", { class: "reports-hero__pills" }, [
-        el("div", { class: "reports-pill" }, [icon("school"), `${classes.length} Grade Cohorts`]),
-        el("div", { class: "reports-pill" }, [icon("calendar_today"), `${selection.academicYear} · ${selection.term}`]),
-      ]),
-    ]),
-
-    // Mascot & Speech Bubble
-    el("div", { class: "reports-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Review student performance reports and batch download PDF cards."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
   // Configuration & Filter Card
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const pickerCard = el("div", { class: "card module-picker" });
   wrap.append(pickerCard);
-  const bodyMount = el("div", { id: "reports-body-mount", style: "margin-top:16px;" });
+  const bodyMount = el("div", { id: "reports-body-mount" });
   wrap.append(bodyMount);
 
   renderPicker(pickerCard, bodyMount, profile);
-  renderWelcomeDisclaimers(bodyMount);
+  bodyMount.append(el("p", { class: "module-empty-note" },
+    "Choose a grade and academic period, then select Load Report Cards."
+  ));
   return wrap;
 }
 
@@ -253,14 +231,7 @@ function renderPicker(container, bodyMount, profile) {
   container.append(row);
 
   container.append(
-    el("p", { class: "text-muted text-xs", style: "margin:10px 0 14px; display:flex; align-items:center; gap:6px;" }, [
-      icon("info", "text-xs", "style: color:var(--color-primary-600);"),
-      "Select cohort parameters to load saved merit assessments and report cards.",
-    ])
-  );
-
-  container.append(
-    el("div", { class: "filter-actions", style: "display:flex; justify-content:flex-end;" }, [
+    el("div", { class: "module-actions module-picker__footer" }, [
       el("button", {
         type: "button",
         class: "btn btn--primary btn--sm",
@@ -271,80 +242,16 @@ function renderPicker(container, bodyMount, profile) {
       ]),
     ])
   );
+  container.append(el("details", { class: "module-help" }, [
+    el("summary", {}, "Report Card Guide"),
+    el("ul", {}, [
+      el("li", {}, ["Report cards use saved rankings. If marks or weights changed, recompute and save in ", el("a", { href: "#/grading" }, "Grading & Positions"), "."]),
+      el("li", {}, "All streams shows cohort positions. Selecting a stream shows positions within that stream."),
+      el("li", {}, "Keep this tab active while Download All (ZIP) generates the PDFs."),
+      el("li", {}, "Open a student’s report card to enter remarks. Saved remarks also appear on printed cards and PDFs."),
+    ]),
+  ]));
 }
-
-/**
- * Renders guided instructions and 4 operational disclaimers before report cards are loaded.
- */
-function renderWelcomeDisclaimers(container) {
-  container.innerHTML = "";
-
-  const welcomeCard = el("div", { class: "reports-welcome-card" }, [
-    el("div", { class: "reports-welcome-header" }, [
-      el("div", { class: "marks-welcome-icon-halo" }, [
-        icon("description"),
-      ]),
-      el("h3", {}, "Ready to Review Student Report Cards?"),
-      el("p", {}, "Select a Grade Cohort, Stream, Academic Year, and Term above, then click 'Load Report Cards' to review student performance and export batch PDFs."),
-    ]),
-
-    // Operational Guidelines Section Header
-    el("div", { class: "guidance-section-header" }, [
-      icon("verified_user"),
-      el("span", {}, "Report Generation Protocols & Guidelines"),
-    ]),
-
-    // Modern Guidance Cards Grid (Zero left borders)
-    el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("analytics")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Prerequisite"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Grading & Computation Prerequisite"),
-          el("p", { class: "guidance-card__body" }, "Report cards pull directly from computed rankings saved in Grading & Positions (#/grading). If student marks or weights were recently updated, re-compute and save in Grading first."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("account_tree")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Rankings"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Multi-Stream & Cohort Ranking Scope"),
-          el("p", { class: "guidance-card__body" }, "Selecting 'All streams' displays Overall Cohort positions (1/N) across all learners in the grade. Selecting a specific stream displays that stream's localized class positions (1/n)."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("folder_zip")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Batch PDF"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Client-Side Sequential PDF Generation"),
-          el("p", { class: "guidance-card__body" }, "'Download All (ZIP)' compiles high-resolution print-ready PDFs one student at a time directly in your browser to avoid memory bottlenecks. Keep this browser tab active and in focus during export."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("verified")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "CBC Records"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Qualitative Remarks & Signatures"),
-          el("p", { class: "guidance-card__body" }, "Click 'View Report Card' on any student to record class teacher and principal remarks. Remarks save directly to the student's record and appear on printed copies and PDF exports."),
-        ]),
-      ]),
-    ]),
-  ]);
-
-  container.append(welcomeCard);
-}
-
 
 function renderArrearsNotice(amountOwed) {
   const formattedAmount = amountOwed ? `KES ${amountOwed.toLocaleString()}` : "Contact Support";

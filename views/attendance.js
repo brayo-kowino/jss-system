@@ -87,46 +87,7 @@ export async function render({ profile, params = {} }) {
 
   const wrap = el("div", { class: "attendance-page" });
 
-  // 1. Executive Attendance Hero Banner
-  const mascotWrap = el("div", {
-    class: "attendance-hero__mascot-wrap",
-    style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;",
-    "aria-hidden": "true",
-  });
-  mascotWrap.innerHTML = buildAttendanceMascotSvg({ width: 125, height: 110 });
-
-  const currentYear = settings.currentAcademicYear || new Date().getFullYear();
-  const currentTerm = settings.currentTerm || "Term 3";
-
-  const heroBanner = el("div", { class: "attendance-hero" }, [
-    el("div", { class: "attendance-hero__content" }, [
-      el("div", { class: "attendance-hero__status-row" }, [
-        el("div", { class: "attendance-cycle-badge" }, [
-          icon("calendar_today", "text-sm"),
-          `Active Cycle: ${currentYear} · ${currentTerm}`,
-        ]),
-        el("div", { class: "attendance-cycle-badge", style: "background:var(--color-cream); color:var(--color-ink);" }, [
-          icon("today", "text-sm"),
-          `Register Date: ${formatDate(selection.date)}`,
-        ]),
-      ]),
-      el("h1", { class: "attendance-hero__title" }, "Daily Attendance & Roll Call"),
-      el("p", { class: "attendance-hero__desc" }, "Record classroom registers, audit learner presence patterns, and track official term attendance statistics."),
-      el("div", { class: "attendance-hero__pills" }, [
-        el("div", { class: "attendance-pill" }, [icon("school"), `${classes.length} Class Cohorts`]),
-        el("div", { class: "attendance-pill" }, [icon("fact_check"), "Real-time Presence Metrics"]),
-        el("div", { class: "attendance-pill" }, [icon("touch_app"), "Quick Roll Call Buttons"]),
-      ]),
-    ]),
-    el("div", { class: "attendance-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Mark roll call or export term registers."),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  // 2. Class & Date Selection Card
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const pickerCard = el("div", { class: "card module-picker" });
   wrap.append(pickerCard);
 
   // Mounts for Roster Table and Term Summary
@@ -162,16 +123,12 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
   container.innerHTML = "";
   const opts = classOptions();
 
-  const header = el("div", { style: "display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;" }, [
-    el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
-      icon("tune", "text-gold"),
-      el("h3", { style: "margin:0; font-family:var(--font-display); color:var(--color-primary-900); font-size:1.05rem;" }, "Roll Call Filter"),
-    ]),
-    el("div", { style: "display:flex; gap:6px; align-items:center;" }, [
+  const header = el("div", { class: "module-toolbar module-picker__header" }, [
+    el("h2", { class: "module-section-title" }, "Roll Call"),
+    el("div", { class: "module-actions" }, [
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm deep-link-btn",
-        style: "font-size:11px; padding:2px 8px;",
         title: "Copy direct link to this register",
         onClick: () => {
           const p = {};
@@ -187,7 +144,6 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
-        style: "font-size:11px; padding:2px 8px;",
         onClick: () => {
           selection.date = todayStr();
           const dInput = document.getElementById("a-date");
@@ -198,7 +154,6 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
       el("button", {
         type: "button",
         class: "btn btn--ghost btn--sm",
-        style: "font-size:11px; padding:2px 8px;",
         onClick: () => {
           const d = new Date();
           d.setDate(d.getDate() - 1);
@@ -212,7 +167,7 @@ function renderPicker(container, profile, bodyMount, summaryMount) {
   ]);
   container.append(header);
 
-  const row = el("div", { class: "filter-grid", style: "display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;" });
+  const row = el("div", { class: "filter-grid" });
 
   const classSelect = el("select", { id: "a-class" }, [
     el("option", { value: "" }, "Select Class / Stream"),

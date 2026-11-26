@@ -935,7 +935,7 @@ export function renderShell(app, profile, activePath) {
       collapseBtn,
       el("div", { class: "topbar__titles" }, [
         schoolNameEl,
-        el("div", { class: "topbar__title" }, currentTitle(activePath)),
+        el("div", { class: "topbar__title", role: "heading", "aria-level": "1" }, currentTitle(activePath)),
       ]),
     ]),
     el("div", { class: "topbar__center" }, [searchTriggerBtn])

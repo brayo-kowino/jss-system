@@ -57,8 +57,7 @@ function infoTooltip(title, text, align = "center") {
   ]);
 }
 
-import { buildMarksMascotSvg } from "../js/components/mascot.js";
-export { buildMarksMascotSvg };
+export { buildMarksMascotSvg } from "../js/components/mascot.js";
 
 // ------------------------------------------------------------------ Render --
 
@@ -105,59 +104,35 @@ export async function render({ profile, params = {} }) {
 
   const wrap = el("div", { class: "marks-view-wrap" });
 
-  // Mascot container
-  const mascotWrap = el("div", { style: "display:flex; align-items:center; justify-content:center; flex-shrink:0;" });
-  mascotWrap.innerHTML = buildMarksMascotSvg({ width: 155, height: 140 });
-
-  // Executive Hero Banner
-  const heroBanner = el("div", { class: "marks-hero" }, [
-    el("div", { class: "marks-hero__content" }, [
-      el("h1", { class: "marks-hero__title" }, "Student Marks Entry"),
-      el("p", { class: "marks-hero__desc" }, "Record and audit student assessment marks with real-time validation and background auto-save."),
-      el("div", { class: "marks-hero__pills" }, [
-        el("div", { class: "marks-pill" }, [icon("school"), `${classes.length} Classes Available`]),
-        el("div", { class: "marks-pill" }, [icon("assignment"), `${allAssessments.length} Assessments Configured`]),
-        el("button", {
-          type: "button",
-          class: "marks-pill",
-          style: "cursor:pointer; background:var(--color-primary-100); color:var(--color-primary-800); border:1px solid rgba(20, 83, 138, 0.25); font-weight:600; font-family:inherit;",
-          onClick: () => showMarksInstructionsModal(true),
-        }, [icon("help", "text-xs"), "Instructions Guide"]),
-      ]),
-    ]),
-
-    // Mascot & Speech Bubble
-    el("div", { class: "marks-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, [
-        "Make sure to add an assessment first before entering marks. ",
-        internalLink("/assessments", { action: "new" }, "Add Assessment"),
-      ]),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroBanner);
-
-  // ---- Tab bar ----
-  const tabBar = el("div", { class: "page-tabs marks-tabs" });
+  const tabBar = el("div", { class: "page-tabs", role: "group", "aria-label": "Marks views" });
   const entryTab = el("button", {
     type: "button",
     class: `profile-tab${activeTab === "entry" ? " profile-tab--active" : ""}`,
-  }, [icon("edit_note", "text-xs"), "Marks Entry"]);
+    "aria-pressed": String(activeTab === "entry"),
+  }, [icon("edit_note", "text-xs"), "Entry"]);
   const reviewTab = el("button", {
     type: "button",
     class: `profile-tab${activeTab === "review" ? " profile-tab--active" : ""}`,
-  }, [icon("fact_check", "text-xs"), "Marks Review"]);
+    "aria-pressed": String(activeTab === "review"),
+  }, [icon("fact_check", "text-xs"), "Review"]);
   tabBar.append(entryTab, reviewTab);
-  wrap.append(tabBar);
+  wrap.append(el("div", { class: "module-tab-bar" }, [
+    tabBar,
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm",
+      onClick: showMarksInstructionsModal,
+    }, [icon("help", "text-xs"), "Guide"]),
+  ]));
 
   // ---- Entry panel (existing) ----
   const entryPanel = el("div", { class: "marks-tab-panel", style: activeTab === "entry" ? "" : "display:none;" });
 
   // Picker Filter Card
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const pickerCard = el("div", { class: "card module-picker" });
   entryPanel.append(pickerCard);
 
-  // Mount point for roster or welcome disclaimers
+  // Mount point for the scoresheet
   const bodyMount = el("div", { id: "marks-body-mount" });
   entryPanel.append(bodyMount);
 
@@ -184,6 +159,8 @@ export async function render({ profile, params = {} }) {
     activeTab = "entry";
     entryTab.classList.add("profile-tab--active");
     reviewTab.classList.remove("profile-tab--active");
+    entryTab.setAttribute("aria-pressed", "true");
+    reviewTab.setAttribute("aria-pressed", "false");
     entryPanel.style.display = "";
     reviewPanel.style.display = "none";
   });
@@ -192,6 +169,8 @@ export async function render({ profile, params = {} }) {
     activeTab = "review";
     reviewTab.classList.add("profile-tab--active");
     entryTab.classList.remove("profile-tab--active");
+    reviewTab.setAttribute("aria-pressed", "true");
+    entryTab.setAttribute("aria-pressed", "false");
     reviewPanel.style.display = "";
     entryPanel.style.display = "none";
     // Re-render the review panel each time it's activated to pick up new marks
@@ -199,31 +178,12 @@ export async function render({ profile, params = {} }) {
     renderReviewPanel(reviewPanel, profile);
   });
 
-  // Display instructions modal on initial module load
-  setTimeout(() => {
-    showMarksInstructionsModal(false);
-  }, 200);
-
   return wrap;
 }
 
 // -------------------------------------------------------- Instructions Modal --
 
-const MARKS_GUIDE_DISMISS_KEY = "eeskia_marks_guide_dismissed";
-
-/**
- * Clean, modern instructions modal displayed on module load to guide teachers
- * and administrators on marks entry, cross-subject reviews, and quick edits.
- */
-function showMarksInstructionsModal(forceOpen = false) {
-  if (!forceOpen) {
-    try {
-      if (localStorage.getItem(MARKS_GUIDE_DISMISS_KEY) === "1") return;
-    } catch {
-      // localStorage disabled or restricted
-    }
-  }
-
+function showMarksInstructionsModal() {
   const body = el("div", { class: "marks-instructions-content" });
 
   // Intro Welcome Banner
@@ -251,23 +211,25 @@ function showMarksInstructionsModal(forceOpen = false) {
       key: "entry",
       num: "1",
       iconName: "edit_note",
-      tag: "Marks Entry Tab",
+      tag: "Entry",
       title: "1. Entering Subject Marks",
       items: [
         "Select your Class & Stream, Subject, and Assessment from the top dropdowns.",
         "Enter each learner's score into the input field (supports decimals, e.g. 28.5).",
         "Scores auto-save in the background every 7 seconds. You can also click 'Save All Now'.",
         "Use 'Paste Bulk Scores' to copy and paste entire spreadsheets of 'AdmNo, Score'.",
+        "Check admission numbers before saving a pasted scoresheet.",
+        "A gold badge indicates unsaved edits. Check your connection before leaving the sheet.",
       ],
     },
     {
       key: "review",
       num: "2",
       iconName: "fact_check",
-      tag: "Marks Review Tab",
+      tag: "Review",
       title: "2. Reviewing the Whole Grade",
       items: [
-        "Switch to the 'Marks Review' tab to inspect all subjects and students together.",
+        "Switch to the Review tab to inspect all subjects and students together.",
         "Missing marks are clearly flagged with a red indicator so you spot gaps quickly.",
         "Check overall grade completion percentages and subject-by-subject submission counts.",
       ],
@@ -317,44 +279,13 @@ function showMarksInstructionsModal(forceOpen = false) {
   }
   body.append(grid);
 
-  // Footer bar with checkbox and dismiss button
-  const footerRow = el("div", {
-    style: "display:flex; justify-content:space-between; align-items:center; padding-top:14px; border-top:1px solid var(--color-line); flex-wrap:wrap; gap:12px;",
-  });
-
-  const checkbox = el("input", {
-    type: "checkbox",
-    id: "dont-show-marks-guide",
-    style: "cursor:pointer; width:16px; height:16px;",
-  });
-
-  const checkboxLabel = el("label", {
-    for: "dont-show-marks-guide",
-    style: "display:flex; align-items:center; gap:8px; font-size:var(--fs-xs); color:var(--color-ink-soft); cursor:pointer; user-select:none; margin:0;",
-  }, [
-    checkbox,
-    "Don't show this guide automatically on startup",
-  ]);
-
-  const gotItBtn = el("button", {
+  const done = el("button", {
     type: "button",
-    class: "btn btn--primary",
-    style: "padding:8px 22px; font-weight:600; display:inline-flex; align-items:center; gap:6px;",
-  }, [icon("check", "text-xs"), "Got It"]);
-
-  footerRow.append(checkboxLabel, gotItBtn);
-  body.append(footerRow);
-
-  const close = openModal("Marks Entry & Review Instructions", body, "modal--instructions");
-
-  gotItBtn.addEventListener("click", () => {
-    if (checkbox.checked) {
-      try {
-        localStorage.setItem(MARKS_GUIDE_DISMISS_KEY, "1");
-      } catch {}
-    }
-    close();
-  });
+    class: "btn btn--primary btn--sm",
+  }, "Done");
+  body.append(el("div", { class: "module-actions" }, done));
+  const close = openModal("Marks Guide", body, "modal--instructions");
+  done.addEventListener("click", () => close());
 }
 
 function classOptions() {
@@ -377,7 +308,7 @@ function classOptions() {
 
 function renderPicker(container, profile, bodyMount) {
   container.innerHTML = "";
-  const row = el("div", { class: "filter-grid" });
+  const row = el("div", { class: "filter-grid marks-picker-grid" });
 
   const classChoices = classOptions();
   const classSelect = el("select", { id: "m-class" }, [
@@ -392,41 +323,45 @@ function renderPicker(container, profile, bodyMount) {
   ]);
 
   const assessmentSelect = el("select", { id: "m-assessment" }, [el("option", { value: "" }, "Select assessment")]);
+  const shareSheet = el("button", {
+    type: "button",
+    class: "btn btn--outline btn--sm deep-link-btn",
+    disabled: true,
+    title: "Copy direct link to this scoresheet",
+    onClick: () => {
+      const [grade, stream] = classSelect.value.split("|");
+      copyDeepLink("/marks", { tab: "entry", grade, stream, subject: subjectSelect.value, assessment: assessmentSelect.value }, "Scoresheet link");
+    },
+  }, [icon("share", "text-xs"), "Share Sheet"]);
+  const assessmentHintText = el("span");
+  const assessmentHint = el("p", { class: "module-field-note", hidden: true, role: "status" }, [
+    assessmentHintText,
+    " ",
+    CAN_MANAGE.includes(profile.role)
+      ? internalLink("/assessments", { action: "new" }, "Add Assessment")
+      : "Contact your school administrator to set one up.",
+  ]);
+
+  function updateShareSheet() {
+    shareSheet.disabled = !(classSelect.value && subjectSelect.value && assessmentSelect.value);
+  }
 
   row.append(
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("school", "text-xs"), "Class & Stream"]),
+      el("label", { for: "m-class" }, "Class & Stream"),
       classSelect,
     ]),
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("menu_book", "text-xs"), "Subject"]),
+      el("label", { for: "m-subject" }, "Subject"),
       subjectSelect,
     ]),
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("assignment", "text-xs"), "Assessment"]),
+      el("label", { for: "m-assessment" }, "Assessment"),
       assessmentSelect,
     ]),
-    el("div", { class: "field", style: "display:flex; align-items:flex-end;" }, [
-      el("button", {
-        type: "button",
-        class: "btn btn--ghost btn--sm deep-link-btn",
-        style: "height:38px; width:100%; justify-content:center;",
-        title: "Copy direct link to this scoresheet",
-        onClick: () => {
-          const p = { tab: activeTab };
-          if (selection.classKey) {
-            const [g, s] = selection.classKey.split("|");
-            p.grade = g;
-            if (s) p.stream = s;
-          }
-          if (selection.subjectCode) p.subject = selection.subjectCode;
-          if (selection.assessmentId) p.assessment = selection.assessmentId;
-          copyDeepLink("/marks", p, "Scoresheet link");
-        },
-      }, [icon("share", "text-xs"), "Share Sheet"]),
-    ])
+    shareSheet
   );
-  container.append(row);
+  container.append(row, assessmentHint);
 
   if (!classChoices.length) {
     const emptyClassNotice = el("div", {
@@ -481,14 +416,20 @@ function renderPicker(container, profile, bodyMount) {
           `${a.name} (${a.term || "N/A"} ${a.academicYear || ""})${a.status === "locked" ? " [Locked]" : ""}`)
       );
     }
+    assessmentHint.hidden = allAssessments.length > 0 && (!grade || !subjectCode || relevant.length > 0);
+    assessmentHintText.textContent = allAssessments.length
+      ? "No assessments match this class and subject."
+      : "No assessments have been configured.";
+    updateShareSheet();
   }
+  selection.classKey = classSelect.value;
+  selection.subjectCode = subjectSelect.value;
   refreshAssessmentOptions();
 
-  // If selection is already complete, load roster; otherwise show welcome disclaimers
-  if (selection.classKey && selection.subjectCode && selection.assessmentId) {
+  if (!shareSheet.disabled) {
     maybeLoad(profile, bodyMount);
   } else {
-    renderWelcomeDisclaimers(bodyMount);
+    renderUnselectedScoresheet(bodyMount);
   }
 
   classSelect.addEventListener("change", () => {
@@ -503,114 +444,15 @@ function renderPicker(container, profile, bodyMount) {
   });
   assessmentSelect.addEventListener("change", () => {
     selection.assessmentId = assessmentSelect.value;
+    updateShareSheet();
     maybeLoad(profile, bodyMount);
   });
-
-  // Automatically trigger loading if deep linked with class, subject, and assessment
-  if (selection.classKey && selection.subjectCode) {
-    refreshAssessmentOptions();
-    if (selection.assessmentId) {
-      assessmentSelect.value = selection.assessmentId;
-      setTimeout(() => maybeLoad(profile, bodyMount), 80);
-    }
-  }
 }
 
-/**
- * Renders guided step instructions and essential disclaimers when no class is selected yet.
- */
-function renderWelcomeDisclaimers(container) {
-  container.innerHTML = "";
-
-  const welcomeCard = el("div", { class: "marks-welcome-card" }, [
-    el("div", { class: "marks-welcome-header" }, [
-      el("div", { class: "marks-welcome-icon-halo" }, [
-        icon("edit_note"),
-      ]),
-      el("h3", {}, "Ready to Enter Student Marks?"),
-      el("p", {}, "Use the 3 dropdowns above to select a Class, Subject, and Assessment to populate the active student roster."),
-    ]),
-
-    // 3 Step Guide
-    el("div", { class: "marks-steps-row" }, [
-      el("div", { class: "marks-step-item" }, [
-        el("span", { class: "marks-step-number" }, "1"),
-        el("div", { class: "marks-step-text" }, [
-          el("strong", {}, "Select Class"),
-          el("span", {}, "Pulls active enrolled learners"),
-        ]),
-      ]),
-      el("div", { class: "marks-step-item" }, [
-        el("span", { class: "marks-step-number" }, "2"),
-        el("div", { class: "marks-step-text" }, [
-          el("strong", {}, "Select Subject"),
-          el("span", {}, "Filters assigned curriculum"),
-        ]),
-      ]),
-      el("div", { class: "marks-step-item" }, [
-        el("span", { class: "marks-step-number" }, "3"),
-        el("div", { class: "marks-step-text" }, [
-          el("strong", {}, "Select Assessment"),
-          el("span", {}, "Applies test Max Score & weight"),
-        ]),
-      ]),
-    ]),
-
-    // Operational Guidelines Section Header
-    el("div", { class: "guidance-section-header" }, [
-      icon("verified_user"),
-      el("span", {}, "Operational Protocols & Entry Guidelines"),
-    ]),
-
-    // Redesigned Instruction Cards Grid (Zero left borders)
-    el("div", { class: "guidance-grid" }, [
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--blue" }, [icon("rule")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--blue" }, "Validation"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Score Range Validation"),
-          el("p", { class: "guidance-card__body" }, "Entered scores must be between 0 and the configured Max Score for the assessment. Decimal values (e.g. 27.5) are supported."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--green" }, [icon("cloud_sync")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--green" }, "Auto-Sync"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "7-Second Auto-Save Loop"),
-          el("p", { class: "guidance-card__body" }, "Marks auto-save in the background every 7 seconds. Unsaved edits display a gold badge. Ensure network connectivity before navigating away."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--amber" }, [icon("lock")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--amber" }, "Read-Only"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Locked Assessments are Read-Only"),
-          el("p", { class: "guidance-card__body" }, "When an assessment is locked by school administrators, marks are frozen to safeguard report cards. Only administrators can unlock them."),
-        ]),
-      ]),
-
-      el("div", { class: "guidance-card" }, [
-        el("div", { class: "guidance-card__header" }, [
-          el("div", { class: "guidance-card__icon guidance-card__icon--purple" }, [icon("content_paste")]),
-          el("span", { class: "guidance-card__tag guidance-card__tag--purple" }, "Bulk Tool"),
-        ]),
-        el("div", { class: "guidance-card__content" }, [
-          el("h4", { class: "guidance-card__title" }, "Bulk Paste Formatting"),
-          el("p", { class: "guidance-card__body" }, "Paste scores in bulk as 'AdmissionNumber, Score' on each line. Verify admission numbers match enrolled students before saving."),
-        ]),
-      ]),
-    ]),
-  ]);
-
-  container.append(welcomeCard);
+function renderUnselectedScoresheet(container) {
+  container.replaceChildren(el("p", { class: "module-empty-note" },
+    "Select a class, subject, and assessment to open the marks sheet."
+  ));
 }
 
 // ------------------------------------------------------------------ Loading --
@@ -620,7 +462,7 @@ async function maybeLoad(profile, bodyMount) {
 
   const { classKey, subjectCode, assessmentId } = selection;
   if (!classKey || !subjectCode || !assessmentId) {
-    renderWelcomeDisclaimers(bodyMount);
+    renderUnselectedScoresheet(bodyMount);
     return;
   }
   const [grade, stream] = classKey.split("|");
@@ -1461,7 +1303,7 @@ function renderReviewPanel(container, profile) {
   container.innerHTML = "";
 
   // Picker row for the review panel — needs grade and assessment only
-  const pickerCard = el("div", { class: "card", style: "margin-bottom:var(--sp-4);" });
+  const pickerCard = el("div", { class: "card module-picker" });
   const row = el("div", { class: "filter-grid" });
 
   const classChoices = classOptions();
@@ -1492,11 +1334,11 @@ function renderReviewPanel(container, profile) {
 
   row.append(
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("school", "text-xs"), "Grade / Class"]),
+      el("label", { for: "review-class" }, "Class & Stream"),
       reviewClassSelect,
     ]),
     el("div", { class: "field" }, [
-      el("label", { style: "display:flex; align-items:center; gap:4px;" }, [icon("assignment", "text-xs"), "Assessment"]),
+      el("label", { for: "review-assessment" }, "Assessment"),
       reviewAssessmentSelect,
     ])
   );
@@ -1506,24 +1348,19 @@ function renderReviewPanel(container, profile) {
   const reviewBody = el("div", { id: "review-body-mount" });
   container.append(reviewBody);
 
-  function renderReviewWelcome() {
-    reviewBody.innerHTML = "";
-    reviewBody.append(el("div", { class: "marks-welcome-card" }, [
-      el("div", { class: "marks-welcome-header" }, [
-        el("div", { class: "marks-welcome-icon-halo" }, [icon("fact_check")]),
-        el("h3", {}, "Marks Review Board"),
-        el("p", {}, "Select a Grade and Assessment above to see a cross-subject matrix of all student marks. Missing marks will be flagged for quick identification."),
-      ]),
-    ]));
+  function renderUnselectedReview() {
+    reviewBody.replaceChildren(el("p", { class: "module-empty-note" },
+      "Select a class and assessment to review marks across subjects."
+    ));
   }
 
-  renderReviewWelcome();
+  renderUnselectedReview();
 
   async function loadReview() {
     const classKey = reviewClassSelect.value;
     const assessmentId = reviewAssessmentSelect.value;
     if (!classKey || !assessmentId) {
-      renderReviewWelcome();
+      renderUnselectedReview();
       return;
     }
 
@@ -1592,6 +1429,8 @@ async function switchToEntryTab({ classKey, subjectCode, assessmentId, studentId
   activeTab = "entry";
   if (tabElements.entryTab) tabElements.entryTab.classList.add("profile-tab--active");
   if (tabElements.reviewTab) tabElements.reviewTab.classList.remove("profile-tab--active");
+  tabElements.entryTab?.setAttribute("aria-pressed", "true");
+  tabElements.reviewTab?.setAttribute("aria-pressed", "false");
   if (tabElements.entryPanel) tabElements.entryPanel.style.display = "";
   if (tabElements.reviewPanel) tabElements.reviewPanel.style.display = "none";
 

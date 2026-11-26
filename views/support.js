@@ -109,30 +109,26 @@ function renderTable(profile) {
       ]),
       el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${tickets.length} total`),
     ]),
-    el("div", { class: "support-filter-tabs" }, [
-      filterButton("all", `All (${tickets.length})`, profile),
-      filterButton("open", `Open (${openCount})`, profile),
-      filterButton("resolved", `Resolved (${resolvedCount})`, profile),
+    el("div", { class: "module-actions" }, [
+      el("div", { class: "support-filter-tabs" }, [
+        filterButton("all", `All (${tickets.length})`, profile),
+        filterButton("open", `Open (${openCount})`, profile),
+        filterButton("resolved", `Resolved (${resolvedCount})`, profile),
+      ]),
+      el("button", {
+        type: "button",
+        class: "btn btn--primary btn--sm",
+        onClick: () => showRaiseTicketModal(profile),
+      }, [icon("add"), "New Ticket"]),
     ]),
   ]);
   card.append(header);
 
   if (filteredTickets.length === 0) {
     card.append(
-      el("div", { class: "empty-state", style: "padding: var(--sp-6) var(--sp-4);" }, [
-        el("div", {
-          style: "width:120px; margin:0 auto var(--sp-2);",
-          innerHTML: buildSupportMascotSvg({ width: 120, height: 110 }),
-        }),
-        el("h3", { style: "margin:0 0 6px 0;" }, "No Support Tickets Found"),
-        el(
-          "p",
-          { class: "text-muted text-sm", style: "max-width:380px; margin:0 auto var(--sp-4);" },
-          activeFilter === "open"
-            ? "Great news! You have no open issues or pending inquiries."
-            : "No support tickets match this filter. Click '+ New Ticket' above whenever you need assistance."
-        ),
-      ])
+      el("p", { class: "module-empty-note support-tickets-empty" },
+        activeFilter === "open" ? "You have no open tickets." : "No support tickets match this filter."
+      )
     );
     return card;
   }
@@ -350,42 +346,15 @@ export async function render({ profile }) {
   await loadData();
 
   const wrap = el("div", { class: "support-page" });
+  tableContainer = el("div", {}, [renderTable(profile)]);
+  wrap.append(tableContainer);
 
-  const mascotWrap = el("div", {
-    class: "support-hero__mascot-wrap",
-    style: "width:165px; height:150px; display:flex; align-items:center; justify-content:center; flex-shrink:0;",
-    "aria-hidden": "true",
-  });
-  mascotWrap.innerHTML = buildSupportMascotSvg({ width: 165, height: 150 });
+  wrap.append(el("div", { class: "module-toolbar support-contact-heading" }, [
+    el("h2", { class: "module-section-title" }, "Contact Options"),
+    el("span", { class: "text-muted text-sm" }, "Mon–Fri, 8:00 AM–5:00 PM EAT · Typical response under 2 hours"),
+  ]));
 
-  const heroCard = el("div", { class: "support-hero" }, [
-    el("div", { class: "support-hero__content" }, [
-      el("h1", { class: "support-hero__title" }, "School Help & Support Center"),
-      el(
-        "p",
-        { class: "support-hero__desc" },
-        "Encountering an operational question about marks entry, fee reconciliation, or report cards? Our technical engineers are standing by."
-      ),
-      el("div", { class: "support-hero__pills" }, [
-        el("div", { class: "support-pill" }, [icon("timer"), "Typical Response: < 2 Hours"]),
-        el("div", { class: "support-pill" }, [icon("verified"), "Mon–Fri, 8:00 AM – 5:00 PM EAT"]),
-      ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--primary",
-        onClick: () => showRaiseTicketModal(profile),
-      }, [icon("add"), "New Support Ticket"]),
-    ]),
-
-    // Animated Mascot with Speech Bubble
-    el("div", { class: "support-hero__mascot-box" }, [
-      el("div", { class: "support-speech-bubble" }, "Hi! How can we assist your school today?"),
-      mascotWrap,
-    ]),
-  ]);
-  wrap.append(heroCard);
-
-  // 2. Direct Contact Channels Cards (Modern 3-Column Grid)
+  // Direct contact options
   const contactCards = el("div", { class: "support-channels-grid" }, [
     // Card 1: Email Support
     el("div", { class: "support-channel-card" }, [
@@ -484,10 +453,6 @@ export async function render({ profile }) {
     ]),
   ]);
   wrap.append(contactCards);
-
-  // 3. Support Tickets Table Container
-  tableContainer = el("div", {}, [renderTable(profile)]);
-  wrap.append(tableContainer);
 
   return wrap;
 }

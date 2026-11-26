@@ -61,9 +61,6 @@ function renderStep(wrap) {
   wrap.innerHTML = "";
   if (notice) wrap.append(notice);
 
-  // Persistent Hero Header across all steps for unified visual hierarchy
-  wrap.append(buildHeroHeader());
-
   // Connected Stepper Navigation
   wrap.append(buildStepper());
 
@@ -73,30 +70,6 @@ function renderStep(wrap) {
     case 2: wrap.append(buildReviewStep()); break;
     case 3: wrap.append(buildCommitStep()); break;
   }
-}
-
-function buildHeroHeader() {
-  const currentYear = settings?.currentAcademicYear || new Date().getFullYear().toString();
-  const currentTerm = settings?.currentTerm || "Term 3";
-  const activeCount = students.filter((s) => s.status === "active").length;
-  const isSeason = isPromotionSeason(settings);
-
-  return el("div", { class: "promotions-hero" }, [
-    el("div", { class: "promotions-hero__content" }, [
-      el("div", { class: "promotions-hero__tag" }, [
-        icon("calendar_month"),
-        `Academic Cycle · ${currentYear} ${currentTerm}`,
-      ]),
-      el("p", { class: "promotions-hero__desc" }, "Review and advance learners to the next academic year. This process will update each learner's class, stream, and graduation status according to your selections."),
-      el("div", { class: "promotions-hero__pills" }, [
-        el("span", { class: "promotions-pill" }, [icon("meeting_room"), `${classes.length} Configured Classes`]),
-        el("span", { class: "promotions-pill" }, [icon("groups"), `${activeCount} Active Learners`]),
-        isSeason
-          ? el("span", { class: "promotions-pill promotions-pill--season" }, [icon("verified"), "Promotion Season Active"])
-          : "",
-      ]),
-    ]),
-  ]);
 }
 
 function buildStepper() {

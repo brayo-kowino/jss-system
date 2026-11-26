@@ -499,16 +499,8 @@ export async function render({ profile, params = {} }) {
 
   const wrap = el("div", { class: "timetable-view-wrap" });
 
-
-  wrap.append(el("div", { class: "tt-module-heading" }, [
-    el("h1", {}, ""),
-    canManage ? el("button", {
-      type: "button", class: "btn btn--ghost btn--sm", onClick: () => openWorkflowGuideModal(),
-    }, [icon("help", "text-xs"), "Setup guide"]) : null,
-  ]));
-
   // Navigation Tabs
-  const tabNav = el("div", { class: "timetable-tabs no-print" });
+  const tabNav = el("div", { class: "page-tabs", role: "group", "aria-label": "Timetable views" });
   const tabContentMount = el("div", { id: "timetable-tab-content" });
 
   const tabsConfig = [
@@ -526,7 +518,8 @@ export async function render({ profile, params = {} }) {
         {
           type: "button",
           "data-tab": tab.id,
-          class: `timetable-tab ${activeTab === tab.id ? "timetable-tab--active" : ""}`,
+          class: `timetable-tab profile-tab${activeTab === tab.id ? " profile-tab--active" : ""}`,
+          "aria-pressed": String(activeTab === tab.id),
           onClick: () => {
             activeTab = tab.id;
             renderTabs();
@@ -563,7 +556,14 @@ export async function render({ profile, params = {} }) {
   }
 
   renderTabs();
-  wrap.append(tabNav);
+  wrap.append(el("div", { class: "module-tab-bar no-print" }, [
+    tabNav,
+    el("button", {
+      type: "button",
+      class: "btn btn--ghost btn--sm",
+      onClick: () => openWorkflowGuideModal(),
+    }, [icon("help", "text-xs"), "Guide"]),
+  ]));
   wrap.append(tabContentMount);
 
   await switchTab(activeTab);
@@ -862,7 +862,7 @@ async function renderClassTab(container, profile) {
   if (classSelection.grade) {
     await loadClassGrid(profile, classGridMount);
   } else {
-    renderWelcomeDisclaimers(classGridMount, "class");
+    renderUnselectedTimetable(classGridMount, "class");
   }
 }
 
@@ -909,7 +909,7 @@ function renderClassPicker(container, profile, gridMount) {
     classSelection = { grade: grade || "", stream: stream || "" };
     updateClassTeacherBanner();
     if (!classSelection.grade) {
-      renderWelcomeDisclaimers(gridMount, "class");
+      renderUnselectedTimetable(gridMount, "class");
     } else {
       await loadClassGrid(profile, gridMount);
     }
@@ -994,7 +994,7 @@ function renderClassPicker(container, profile, gridMount) {
 async function loadClassGrid(profile, gridMount) {
   const target = { ...classSelection };
   if (!target.grade) {
-    renderWelcomeDisclaimers(gridMount, "class");
+    renderUnselectedTimetable(gridMount, "class");
     return;
   }
   gridMount.replaceChildren(skeleton("", "95%"));
@@ -1017,7 +1017,7 @@ async function renderTeacherTab(container, profile) {
   container.append(teacherCard, teacherGridMount);
   await renderTeacherPicker(teacherCard, profile, teacherGridMount);
   if (!teacherSelection.teacherId) {
-    renderWelcomeDisclaimers(teacherGridMount, "teacher");
+    renderUnselectedTimetable(teacherGridMount, "teacher");
   }
 }
 
@@ -1056,7 +1056,7 @@ async function renderTeacherPicker(container, profile, gridMount) {
       teacherSelection.teacherId = select.value;
       updateTeacherMeta();
       if (!teacherSelection.teacherId) {
-        renderWelcomeDisclaimers(gridMount, "teacher");
+        renderUnselectedTimetable(gridMount, "teacher");
       } else {
         await loadTeacherGrid(gridMount);
       }
@@ -1180,7 +1180,7 @@ async function renderTeacherPicker(container, profile, gridMount) {
 async function loadTeacherGrid(gridMount) {
   const teacherId = teacherSelection.teacherId;
   if (!teacherId) {
-    renderWelcomeDisclaimers(gridMount, "teacher");
+    renderUnselectedTimetable(gridMount, "teacher");
     return;
   }
   gridMount.replaceChildren(skeleton("", "95%"));
@@ -3027,29 +3027,9 @@ async function handleDeletePeriod(profile, period, container) {
 
 // ----------------------------------------------------------- Shared Grid UI --
 
-function renderWelcomeDisclaimers(container, mode = "class") {
-  container.innerHTML = "";
-  const welcomeCard = el("div", {
-    class: "timetable-welcome-card",
-    style: "text-align:center; padding:36px 20px; max-width:580px; margin:24px auto; background:var(--color-surface); border:1px solid var(--color-line); border-radius:var(--radius-lg); box-shadow:0 1px 3px rgba(0,0,0,0.04);"
-  }, [
-    el("div", {
-      style: "width:48px; height:48px; border-radius:50%; background:var(--color-primary-50, #f0f7ff); color:var(--color-primary-700); display:flex; align-items:center; justify-content:center; margin:0 auto 14px;"
-    }, [icon(mode === "teacher" ? "person" : "school", "text-lg")]),
-    el("h3", { style: "font-family:var(--font-heading); font-size:18px; margin:0 0 6px; color:var(--color-ink);" },
-      mode === "teacher" ? "Select a Faculty Member" : "Select a Class Cohort"
-    ),
-    el("p", { style: "font-size:13px; color:var(--color-ink-soft); margin:0 0 18px; line-height:1.5;" },
-      mode === "teacher"
-        ? "Choose a teacher above to view their classes and free periods."
-        : "Choose a grade and stream above to view its lessons and breaks."
-    ),
-    el("button", {
-      type: "button",
-      class: "btn btn--ghost btn--sm",
-      style: "gap:6px; font-weight:600; padding:6px 14px; border:1px solid var(--color-line); border-radius:var(--radius-md);",
-      onClick: () => openWorkflowGuideModal(),
-    }, [icon("alt_route", "text-xs"), "View Timetable Workflow & Protocols"]),
-  ]);
-  container.append(welcomeCard);
+function renderUnselectedTimetable(container, mode = "class") {
+  container.replaceChildren(el("p", { class: "module-empty-note" }, mode === "teacher"
+    ? "Select a teacher to view their classes and free periods."
+    : "Select a class and stream to view its lessons and breaks."
+  ));
 }
