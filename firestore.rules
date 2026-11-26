@@ -365,6 +365,72 @@ service cloud.firestore {
       allow update: if (isSuperAdmin() || (isAdmin() && schoolId == mySchoolId()))
         && !touchesSubscriptionFields();
       allow delete: if isSuperAdmin();
+
+      // The resumable plan contains learner IDs and reviewed placements.
+      match /promotion_runs/{runId} {
+        allow get: if isAdmin() && schoolId == mySchoolId() && runId == 'current';
+        allow create, update: if isAdmin() && schoolId == mySchoolId() && runId == 'current'
+          && request.resource.data.status in ['pending', 'complete'];
+        allow list, delete: if false;
+      }
+
+      // Issued certificates retain the learner and school details used at issue time.
+      match /alumni_certificates/{certificateId} {
+        function schoolOffice() {
+          return schoolId == mySchoolId() && inRoles(['admin', 'principal', 'deputy_principal', 'registrar']);
+        }
+
+        function optionalField(source, key) {
+          let value = source.get(key, '');
+          return value == null ? '' : value;
+        }
+
+        function matchesGraduate(certificate, source) {
+          return source.schoolId == schoolId && source.status == 'graduated'
+            && certificate.fullName == source.fullName
+            && certificate.admissionNumber == optionalField(source, 'admissionNumber')
+            && certificate.grade == optionalField(source, 'grade')
+            && certificate.stream == optionalField(source, 'stream')
+            && certificate.graduationYear == optionalField(source, 'graduationYear');
+        }
+
+        function hasGraduateSource(certificate) {
+          let fromAlumni = certificate.alumniId != '';
+          let source = fromAlumni
+            ? get(/databases/$(database)/documents/alumni/$(certificate.alumniId)).data
+            : get(/databases/$(database)/documents/students/$(certificate.studentId)).data;
+          return matchesGraduate(certificate, source)
+            && (!fromAlumni || source.originalStudentId == certificate.studentId);
+        }
+
+        function hasSchoolName(certificate) {
+          let source = get(/databases/$(database)/documents/schools/$(schoolId)).data;
+          let name = optionalField(source, 'schoolName');
+          return certificate.schoolName == (name != '' ? name : optionalField(source, 'name'));
+        }
+
+        function validCertificate() {
+          let certificate = request.resource.data;
+          return certificate.keys().hasOnly([
+            'studentId', 'alumniId', 'type', 'schoolName', 'fullName', 'admissionNumber',
+            'grade', 'stream', 'graduationYear', 'number', 'issuedBy', 'issuedAt'
+          ])
+            && certificate.studentId is string && certificate.studentId.matches('[^/]+')
+            && certificate.alumniId is string && certificate.alumniId.matches('[^/]*')
+            && certificate.type in ['leaving', 'graduation']
+            && certificateId == certificate.studentId + '_' + certificate.type
+            && certificate.schoolName is string && certificate.schoolName.size() > 0
+            && certificate.fullName is string && certificate.fullName.size() > 0
+            && certificate.number is string && certificate.number.matches(
+              certificate.type == 'leaving' ? 'LC-[A-Z0-9]{20}' : 'GC-[A-Z0-9]{20}')
+            && certificate.issuedBy == request.auth.uid && certificate.issuedAt == request.time
+            && hasSchoolName(certificate) && hasGraduateSource(certificate);
+        }
+
+        allow get: if schoolOffice();
+        allow create: if schoolOffice() && validCertificate();
+        allow list, update, delete: if false;
+      }
     }
 
     // Every signed token this platform has ever issued (see

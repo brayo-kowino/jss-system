@@ -1,304 +1,312 @@
-// Promotion Engine — bulk end-of-year class progression.
-//
-// Reads the school's class list and active student roster, builds a
-// promotion plan in memory (zero Firestore writes), then commits the
-// reviewed plan in a single writeBatch().
-//
-// Two modes:
-//   Auto — every active student advances one grade; final-grade students
-//          graduate (status → "graduated", copied to alumni collection).
-//   Manual — admin picks source/destination grades and selects students.
-//
-// The engine is intentionally "smart and direct": it does the absolute
-// minimum number of writes — one batch (or chained batches for large
-// rosters) — and gets it right because the admin reviews every planned
-// move before committing.
-
+// Planning is read-only. Each save transaction pairs student changes with the
+// school's saved progress, so an interrupted run resumes at its next learner.
 import {
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  writeBatch,
-  serverTimestamp,
-  arrayUnion,
+  arrayUnion, collection, doc, getDocFromServer, getDocsFromServer, query,
+  runTransaction, serverTimestamp, where,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { db } from "../firebase-config.js";
-import { logAction } from "./audit.service.js";
-import { getCurrentSchoolId } from "./auth.service.js";
-import { invalidateStudentsCache } from "./student.service.js";
+import { getCurrentProfile, getCurrentSchoolId } from "./auth.service.js";
+import { DEFAULT_SETTINGS } from "./settings.service.js";
 import { invalidate } from "./query-cache.js";
 
-// ---------------------------------------------------------------- Helpers --
+const DEFAULT_TERMS = DEFAULT_SETTINGS.terms;
+const MAX_CHUNK_WRITES = 200;
 
-// Extracts the leading integer from a grade name for natural ordering.
-// "Grade 7" → 7, "Grade 10" → 10, "Form 2" → 2, "PP1" → 1.
-// Falls back to Infinity for non-numeric grades so they sort last.
-function gradeNumber(grade) {
-  const m = String(grade).match(/(\d+)/);
-  return m ? parseInt(m[1], 10) : Infinity;
+function gradeLevel(grade) {
+  const match = /^(pp|grade|form)\s*(\d+)$/i.exec(grade);
+  return match ? { type: match[1].toLowerCase(), level: Number(match[2]) } : null;
 }
 
-// Natural sort comparator for grade names.
 function compareGrades(a, b) {
-  const na = gradeNumber(a);
-  const nb = gradeNumber(b);
-  if (na !== nb) return na - nb;
-  return String(a).localeCompare(String(b));
+  const order = ["pp", "grade", "form"];
+  const first = gradeLevel(a);
+  const second = gradeLevel(b);
+  const difference = (first ? order.indexOf(first.type) : order.length) -
+    (second ? order.indexOf(second.type) : order.length);
+  return difference || String(a).localeCompare(String(b), undefined, { numeric: true });
 }
 
-// ------------------------------------------------------- Grade Progression --
+export function promotionGrades(classes) {
+  return [...new Set(classes.map(({ grade }) => grade).filter(Boolean))].sort(compareGrades);
+}
 
-/**
- * Builds a grade progression map from the school's class list.
- *
- * Sorts grades naturally (Grade 7 < Grade 8 < Grade 9) and maps each
- * grade to the next. The final grade maps to `null` (graduation).
- *
- * @param {Array<{grade: string, streams: string[]}>} classes
- * @returns {Object} e.g. { "Grade 7": "Grade 8", "Grade 8": "Grade 9", "Grade 9": null }
- */
 export function buildGradeProgression(classes) {
-  const sorted = [...classes].sort((a, b) => compareGrades(a.grade, b.grade));
-  const map = {};
-  for (let i = 0; i < sorted.length; i++) {
-    map[sorted[i].grade] = i < sorted.length - 1 ? sorted[i + 1].grade : null;
-  }
-  return map;
+  const grades = promotionGrades(classes);
+  const tracks = [
+    grades.filter((grade) => ["pp", "grade"].includes(gradeLevel(grade)?.type)),
+    grades.filter((grade) => gradeLevel(grade)?.type === "form"),
+  ];
+  // PP and Grade are consecutive. Forms are a separate track. A gap within
+  // a track needs an administrator's decision.
+  return Object.fromEntries(tracks.flatMap((track) => track.map((grade, index) => {
+    const next = track[index + 1];
+    if (!next) return [grade, null];
+    const source = gradeLevel(grade);
+    const destination = gradeLevel(next);
+    const consecutive = source.type === destination.type
+      ? destination.level === source.level + 1
+      : source.type === "pp" && source.level === 2 && destination.type === "grade" && destination.level === 1;
+    return [grade, consecutive ? next : undefined];
+  })));
 }
 
-/**
- * Returns the streams available in a given grade.
- */
 export function streamsForGrade(classes, grade) {
-  const cls = classes.find((c) => c.grade === grade);
-  return cls?.streams || [];
+  return classes.find((item) => item.grade === grade)?.streams || [];
 }
 
-// --------------------------------------------------------- Plan Generation --
+export function assignPromotionDestination(entry, classes, toGrade) {
+  if (toGrade === null) return { ...entry, action: "graduate", toGrade: null, toStream: "", warning: "" };
+  const streams = streamsForGrade(classes, toGrade);
+  const toStream = streams.includes(entry.fromStream) ? entry.fromStream : streams[0] || "";
+  const warning = streams.length && toStream !== entry.fromStream
+    ? (entry.fromStream ? "Current stream is unavailable in this grade." : "Learner has no current stream.")
+    : "";
+  return { ...entry, action: "promote", toGrade, toStream, warning };
+}
 
-/**
- * Generates a promotion plan for all active students.
- *
- * Each entry in the returned array describes one student's planned move:
- *   { student, fromGrade, fromStream, toGrade, toStream, action, warning }
- *
- * Actions:
- *   "promote"  — student moves to the next grade
- *   "graduate" — student is in the final grade (no next grade)
- *   "exclude"  — student excluded from the plan (set by review step)
- *
- * @param {Array} students — full student list (will be filtered to active only)
- * @param {Array} classes — school's class list
- * @param {Object} [options]
- * @param {string} [options.sourceGrade] — manual mode: only include this grade
- * @param {string} [options.destinationGrade] — manual mode: move to this grade instead of auto
- * @returns {Array} promotion plan entries
- */
-export function generatePromotionPlan(students, classes, options = {}) {
+export function generatePromotionPlan(students, classes, { sourceGrade, destinationGrade } = {}) {
   const progression = buildGradeProgression(classes);
-  const activeStudents = students.filter((s) => s.status === "active");
-  const { sourceGrade, destinationGrade } = options;
-
-  const plan = [];
-
-  for (const student of activeStudents) {
-    const fromGrade = student.grade;
-    const fromStream = student.stream || "";
-
-    // Manual mode: skip students not in the source grade
-    if (sourceGrade && fromGrade !== sourceGrade) continue;
-
-    // Determine destination grade
-    let toGrade;
-    if (destinationGrade) {
-      // Manual mode: explicit destination
-      toGrade = destinationGrade;
-    } else {
-      // Auto mode: use progression map
-      toGrade = progression[fromGrade];
-    }
-
-    // Is this a graduation (final grade)?
-    const isGraduating = toGrade === null || toGrade === undefined;
-
-    // Determine destination stream
-    let toStream = fromStream;
-    let warning = "";
-
-    if (!isGraduating && toGrade) {
-      const available = streamsForGrade(classes, toGrade);
-      if (available.length > 0 && !available.includes(fromStream)) {
-        // Student's stream doesn't exist in the destination grade
-        toStream = available[0]; // Default to first available
-        warning = fromStream
-          ? `Stream "${fromStream}" not in ${toGrade} · Assigned to "${toStream}"`
-          : `No stream previously assigned · Assigned to "${toStream}"`;
-      }
-    }
-
-    plan.push({
-      student,
-      fromGrade,
-      fromStream,
-      toGrade: isGraduating ? null : toGrade,
-      toStream: isGraduating ? "" : toStream,
-      action: isGraduating ? "graduate" : "promote",
-      warning,
-    });
+  const manual = sourceGrade !== undefined;
+  const knownGrades = new Set(promotionGrades(classes));
+  if (manual && (!knownGrades.has(sourceGrade) || (destinationGrade !== null && !knownGrades.has(destinationGrade)))) {
+    throw new Error("Choose a valid source grade and destination.");
   }
-
-  // Sort by grade then name for a clean review table
-  plan.sort((a, b) => {
-    const g = compareGrades(a.fromGrade, b.fromGrade);
-    if (g !== 0) return g;
-    return (a.student.fullName || "").localeCompare(b.student.fullName || "");
-  });
-
-  return plan;
+  return students.filter((s) => s.status === "active" && (!manual || s.grade === sourceGrade)).map((student) => {
+    const fromGrade = student.grade || "";
+    const entry = { student, fromGrade, fromStream: student.stream || "", excluded: false };
+    const toGrade = manual ? destinationGrade : Object.hasOwn(progression, fromGrade) ? progression[fromGrade] : undefined;
+    if (toGrade === undefined) {
+      const warning = knownGrades.has(fromGrade)
+        ? "No automatic next grade. Choose a destination or keep this learner in their current class."
+        : "Current grade is missing from Classes & Streams. Choose a destination or keep this learner in their current class.";
+      return { ...entry, action: "unassigned", toGrade: null, toStream: "", warning };
+    }
+    return assignPromotionDestination(entry, classes, toGrade);
+  }).sort((a, b) => compareGrades(a.fromGrade, b.fromGrade) ||
+    (a.student.fullName || "").localeCompare(b.student.fullName || ""));
 }
 
-// ---------------------------------------------------------- Plan Commit --
-
-// Firestore writeBatch limit is 500 operations per batch.
-const BATCH_LIMIT = 500;
-
-/**
- * Commits the reviewed promotion plan to Firestore.
- *
- * Only processes entries whose action is "promote" or "graduate" —
- * "exclude" entries are silently skipped.
- *
- * For "graduate" entries:
- *   1. Student's status is set to "graduated" with a statusHistory entry.
- *   2. Student's full record is copied to the `alumni` collection.
- *
- * After all student writes, the school's currentAcademicYear is bumped
- * and currentTerm is reset to the first term.
- *
- * @param {string} userId — the admin committing the promotion
- * @param {Array} plan — the reviewed promotion plan
- * @param {Object} options
- * @param {string} options.newAcademicYear — e.g. "2027"
- * @param {string} options.firstTerm — e.g. "Term 1"
- * @param {function} [options.onProgress] — callback(completed, total) for UI progress
- * @returns {Object} { promoted: number, graduated: number, batches: number }
- */
-export async function commitPromotionPlan(userId, plan, options = {}) {
-  const { newAcademicYear, firstTerm = "Term 1", onProgress } = options;
-  const schoolId = getCurrentSchoolId();
-
-  // Filter to actionable entries only
-  const actionable = plan.filter((e) => e.action === "promote" || e.action === "graduate");
-  if (actionable.length === 0) throw new Error("No students to promote.");
-
-  let promoted = 0;
-  let graduated = 0;
-  let batchCount = 0;
-  let opsInBatch = 0;
-  let batch = writeBatch(db);
-
-  async function flushBatch() {
-    if (opsInBatch > 0) {
-      await batch.commit();
-      batchCount++;
-      batch = writeBatch(db);
-      opsInBatch = 0;
-    }
-  }
-
-  async function addOp(fn) {
-    if (opsInBatch >= BATCH_LIMIT) await flushBatch();
-    fn(batch);
-    opsInBatch++;
-  }
-
-  const now = new Date().toISOString();
-
-  for (let i = 0; i < actionable.length; i++) {
-    const entry = actionable[i];
-    const studentRef = doc(db, "students", entry.student.id);
-
-    if (entry.action === "promote") {
-      // Update grade and stream
-      await addOp((b) =>
-        b.update(studentRef, {
-          grade: entry.toGrade,
-          stream: entry.toStream,
-        })
-      );
-      promoted++;
-    } else if (entry.action === "graduate") {
-      // Mark as graduated
-      await addOp((b) =>
-        b.update(studentRef, {
-          status: "graduated",
-          statusHistory: arrayUnion({
-            status: "graduated",
-            reason: `Graduated — End of ${options.currentAcademicYear || ""} academic year`,
-            by: userId,
-            at: now,
-          }),
-        })
-      );
-
-      // Copy to alumni collection
-      const alumniData = { ...entry.student };
-      delete alumniData.id; // Don't store the Firestore doc ID as a field
-      await addOp((b) =>
-        b.set(doc(collection(db, "alumni")), {
-          ...alumniData,
-          schoolId,
-          status: "graduated",
-          graduatedAt: serverTimestamp(),
-          graduationYear: options.currentAcademicYear || newAcademicYear,
-          promotedBy: userId,
-          originalStudentId: entry.student.id,
-        })
-      );
-      graduated++;
-    }
-
-    onProgress?.(i + 1, actionable.length);
-  }
-
-  // Bump academic year and reset term on the school document
-  if (newAcademicYear) {
-    await addOp((b) =>
-      b.update(doc(db, "schools", schoolId), {
-        currentAcademicYear: newAcademicYear,
-        currentTerm: firstTerm,
-        updatedAt: serverTimestamp(),
-      })
-    );
-  }
-
-  // Flush the final batch
-  await flushBatch();
-
-  // Invalidate caches so the rest of the app picks up the changes
-  invalidateStudentsCache();
-  invalidate(`school_settings:${schoolId}`);
-
-  // Audit log
-  await logAction(userId, "bulk_promote", "students", null);
-
-  return { promoted, graduated, batches: batchCount };
+export function changesPlacement(entry) {
+  return entry.action === "graduate" ||
+    (entry.action === "promote" && (entry.fromGrade !== entry.toGrade || entry.fromStream !== entry.toStream));
 }
 
-// -------------------------------------------------- Term 3 Detection --
-
-/**
- * Returns true when the school is in its final term (typically Term 3),
- * signaling that it's promotion season.
- *
- * @param {Object} settings — school settings from getSchoolSettings()
- * @returns {boolean}
- */
 export function isPromotionSeason(settings) {
-  if (!settings) return false;
-  const terms = settings.terms || ["Term 1", "Term 2", "Term 3"];
-  const current = settings.currentTerm || "";
-  // It's promotion season when the current term is the LAST term
-  return terms.length > 0 && current === terms[terms.length - 1];
+  const terms = settings?.terms ?? DEFAULT_TERMS;
+  return Boolean(terms.length && settings?.currentTerm === terms.at(-1));
+}
+
+export function promotionRollover(settings) {
+  const year = String(settings.currentAcademicYear ?? "").trim();
+  const terms = settings.terms ?? DEFAULT_TERMS;
+  if (!isPromotionSeason(settings) || !/^[1-9]\d{3}$/.test(year) || year === "9999" || !terms[0]?.trim()) return null;
+  const nextYear = String(Number(year) + 1);
+  return {
+    year: nextYear,
+    term: terms[0],
+  };
+}
+
+const schoolRef = (schoolId) => doc(db, "schools", schoolId);
+const runRef = (schoolId) => doc(db, "schools", schoolId, "promotion_runs", "current");
+const snapshotRows = (snapshot) => snapshot.docs.map((entry) => ({ ...entry.data(), id: entry.id }));
+
+export async function loadPromotionWorkspace() {
+  const schoolId = getCurrentSchoolId();
+  const canSave = getCurrentProfile()?.role === "admin";
+  if (!schoolId) throw new Error("Select a school to open Promotions.");
+  const [school, classes, students, run] = await Promise.all([
+    getDocFromServer(schoolRef(schoolId)),
+    getDocsFromServer(query(collection(db, "classes"), where("schoolId", "==", schoolId))),
+    getDocsFromServer(query(collection(db, "students"), where("schoolId", "==", schoolId))),
+    canSave ? getDocFromServer(runRef(schoolId)) : null,
+  ]);
+  if (!school.exists()) throw new Error("School settings could not be found.");
+  const job = run?.data();
+  return {
+    schoolId,
+    canSave,
+    settings: { ...DEFAULT_SETTINGS, ...school.data() },
+    classes: snapshotRows(classes),
+    students: snapshotRows(students),
+    pendingRun: job?.status === "pending" ? job : null,
+  };
+}
+
+function buildJob(plan, { runId, mode, schoolId, settings, classes }) {
+  if (mode !== "auto" && mode !== "manual") throw new Error("Choose a promotion mode.");
+  const rollover = mode === "auto" ? promotionRollover(settings) : null;
+  if (mode === "auto" && !rollover) throw new Error("School-wide promotions require the final term and a valid academic year.");
+  const year = String(settings.currentAcademicYear ?? "").trim();
+  if (!/^[1-9]\d{3}$/.test(year)) throw new Error("Set a valid academic year in School Settings.");
+
+  const classesByGrade = new Map(classes.map((item) => [item.grade, item]));
+  const ids = new Set();
+  const entries = [];
+  for (const entry of plan) {
+    if (entry.excluded) continue;
+    const { student, fromGrade, fromStream, toGrade, toStream, action } = entry;
+    if (action !== "graduate" && action !== "promote") throw new Error("Review learners with no destination before saving.");
+    if (!changesPlacement(entry)) continue;
+    if (!student?.id || (student.schoolId && student.schoolId !== schoolId) || ids.has(student.id)) {
+      throw new Error("The reviewed plan contains an invalid or duplicate learner. Open Promotions again.");
+    }
+    const destination = action === "promote" ? classesByGrade.get(toGrade) : null;
+    const streams = destination?.streams || [];
+    if (action === "promote" && (!destination?.id || (streams.length ? !streams.includes(toStream) : toStream !== ""))) {
+      throw new Error("The reviewed plan contains an invalid class or stream.");
+    }
+    ids.add(student.id);
+    entries.push({ studentId: student.id, fromGrade, fromStream, toGrade, toStream, action, classId: destination?.id || "" });
+  }
+  if (!entries.length) throw new Error("Choose at least one learner to move or graduate.");
+  // Leave space for the Firestore document encoding and the job's other fields.
+  if (new TextEncoder().encode(JSON.stringify(entries)).length > 600_000) {
+    throw new Error("This plan is too large to save safely. Contact support before moving this school year.");
+  }
+  return {
+    id: runId, mode, year, term: settings.currentTerm || "", rollover, entries,
+    total: entries.length, done: 0, promoted: 0, graduated: 0, skipped: 0,
+    retained: plan.length - entries.length, status: "pending",
+  };
+}
+
+function getChunk(job) {
+  let writes = 0;
+  let count = 0;
+  for (let i = job.done; i < job.entries.length; i++) {
+    // Leave room for graduation's immutable alumni doc and field transforms.
+    writes += job.entries[i].action === "graduate" ? 4 : 1;
+    if (writes > MAX_CHUNK_WRITES) break;
+    count++;
+  }
+  return job.entries.slice(job.done, job.done + count);
+}
+
+function matchingRollover(job, settings) {
+  const current = promotionRollover(settings);
+  return current && current.year === job.rollover.year && current.term === job.rollover.term;
+}
+
+export async function commitPromotionPlan(userId, plan, options) {
+  const { runId, onProgress, approvedSkips = [] } = options;
+  const schoolId = getCurrentSchoolId();
+  const profile = getCurrentProfile();
+  if (!schoolId || schoolId !== options.schoolId || profile?.role !== "admin" || profile.uid !== userId) {
+    throw new Error("Only an administrator for this school can save promotions.");
+  }
+  if (!runId) throw new Error("Open the promotion plan again before saving.");
+  const proposed = plan ? buildJob(plan, options) : null;
+  const skipIds = new Set(approvedSkips);
+  const jobRef = runRef(schoolId);
+  const settingsRef = schoolRef(schoolId);
+  // Rules hide deleted class documents. Look up existing IDs before the
+  // transaction so a deleted class can be reviewed as a conflict.
+  const classSnapshot = await getDocsFromServer(query(collection(db, "classes"), where("schoolId", "==", schoolId)));
+  const existingClassIds = new Set(classSnapshot.docs.map(({ id }) => id));
+  const timestamp = new Date().toISOString();
+  let job;
+
+  do {
+    job = await runTransaction(db, async (transaction) => {
+      const saved = (await transaction.get(jobRef)).data();
+      const sameRun = saved?.id === runId;
+      if (sameRun && saved.status === "complete") return saved;
+      if (!sameRun && saved?.status === "pending") {
+        throw new Error("Another promotion is in progress. Reopen Promotions to resume it.");
+      }
+      const current = sameRun ? saved : proposed;
+      if (!current) throw new Error("This promotion has changed. Reopen Promotions to see its current status.");
+
+      const school = await transaction.get(settingsRef);
+      const settings = { ...DEFAULT_SETTINGS, ...school.data() };
+      if (!school.exists() || String(settings.currentAcademicYear).trim() !== current.year ||
+          (current.rollover && ((settings.currentTerm || "") !== current.term || !matchingRollover(current, settings)))) {
+        throw new Error("The school calendar changed since this plan was reviewed. Check School Settings before continuing.");
+      }
+      if (current.rollover && settings.lastCompletedPromotionYear === current.year) {
+        throw new Error("School-wide promotion was already completed for " + current.year + ".");
+      }
+      const chunk = getChunk(current);
+      const classIds = [...new Set(chunk.map(({ classId }) => classId).filter((id) => existingClassIds.has(id)))];
+      const [learners, destinations] = await Promise.all([
+        Promise.all(chunk.map(({ studentId }) => transaction.get(doc(db, "students", studentId)))),
+        Promise.all(classIds.map((id) => transaction.get(doc(db, "classes", id)))),
+      ]);
+      const classById = new Map(destinations.map((snapshot) => [snapshot.id, snapshot.data()]));
+      const conflicts = [];
+      const eligible = [];
+      let skipped = 0;
+      for (const [index, entry] of chunk.entries()) {
+        if (skipIds.has(entry.studentId)) {
+          skipped++;
+          continue;
+        }
+        const snapshot = learners[index];
+        const learner = snapshot.data();
+        const destination = classById.get(entry.classId);
+        const streams = destination?.streams || [];
+        if (!learner || learner.schoolId !== schoolId || learner.status !== "active" ||
+            (learner.grade || "") !== entry.fromGrade || (learner.stream || "") !== entry.fromStream ||
+            (entry.action === "promote" && (destination?.schoolId !== schoolId || destination.grade !== entry.toGrade ||
+              (streams.length ? !streams.includes(entry.toStream) : entry.toStream !== "")))) {
+          conflicts.push({ id: entry.studentId, name: learner?.fullName || learner?.admissionNumber || entry.studentId });
+          continue;
+        }
+        eligible.push({ entry, snapshot, learner });
+      }
+      if (conflicts.length) {
+        const error = new Error("Some learner or class records changed after this plan was reviewed.");
+        error.conflicts = conflicts;
+        throw error;
+      }
+
+      const promoted = eligible.filter(({ entry }) => entry.action === "promote").length;
+      const done = current.done + chunk.length;
+      const complete = done === current.total;
+      const next = {
+        ...current, done, promoted: current.promoted + promoted,
+        graduated: current.graduated + eligible.length - promoted, skipped: current.skipped + skipped,
+        status: complete ? "complete" : "pending",
+      };
+      if (complete && next.promoted + next.graduated === 0) throw new Error("No learner changes were saved. Review the current roster and create a new plan.");
+      for (const { entry, snapshot, learner } of eligible) {
+        if (entry.action === "promote") {
+          transaction.update(snapshot.ref, { grade: entry.toGrade, stream: entry.toStream });
+        } else {
+          transaction.update(snapshot.ref, {
+            status: "graduated",
+            statusHistory: arrayUnion({ status: "graduated", reason: "Graduated in academic year " + current.year, by: userId, at: timestamp }),
+          });
+          transaction.set(doc(db, "alumni", entry.studentId), {
+            ...learner, status: "graduated", graduatedAt: serverTimestamp(), graduationYear: current.year,
+            promotedBy: userId, originalStudentId: entry.studentId,
+          });
+        }
+      }
+      if (complete) {
+        // Save the audit and calendar in the same transaction as completion.
+        transaction.set(doc(db, "audit_logs", runId), {
+          schoolId, userId, action: "bulk_promote", entity: "students", entityId: runId, timestamp: serverTimestamp(),
+        });
+        if (current.rollover) {
+          transaction.update(settingsRef, {
+            currentAcademicYear: current.rollover.year, currentTerm: current.rollover.term,
+            lastCompletedPromotionYear: current.year, updatedAt: serverTimestamp(),
+          });
+        }
+        next.entries = [];
+      }
+      if (sameRun && !complete) {
+        transaction.update(jobRef, { done, promoted: next.promoted, graduated: next.graduated, skipped: next.skipped });
+      } else {
+        transaction.set(jobRef, next);
+      }
+      return next;
+    });
+    invalidate("students:" + schoolId);
+    if (job.status === "complete") invalidate("school_settings:" + schoolId);
+    onProgress?.(job);
+  } while (job.status !== "complete");
+  return job;
 }

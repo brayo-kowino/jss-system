@@ -1,877 +1,515 @@
-// Promotion Module view — 3-step wizard for end-of-year class progression.
-//
-// Step 1: Configure — choose Auto or Manual mode.
-// Step 2: Review   — inspect every planned move, edit overrides, exclude.
-// Step 3: Commit   — confirm summary, academic year bump, and commit.
-//
-// Follows the project's standard view contract: render({profile}) returns
-// a DOM node, init({profile}) attaches live behavior after mount.
-
 import {
-  buildGradeProgression,
-  generatePromotionPlan,
-  commitPromotionPlan,
+  assignPromotionDestination, buildGradeProgression, changesPlacement, commitPromotionPlan,
+  generatePromotionPlan, isPromotionSeason, loadPromotionWorkspace, promotionGrades, promotionRollover,
   streamsForGrade,
-  isPromotionSeason,
 } from "../js/services/promotion.service.js";
-import { listStudents } from "../js/services/student.service.js";
-import { listClasses } from "../js/services/academic.service.js";
-import { getSchoolSettings } from "../js/services/settings.service.js";
-import { el, icon, toast, busyButton, mobileOnlyNotice } from "../js/utils.js";
+import { openModal } from "../js/components/modal.js";
+import { el, icon, busyButton, toast } from "../js/utils.js";
 
-let classes = [];
-let students = [];
-let settings = null;
-let plan = [];
-let currentStep = 1; // 1=Configure, 2=Review, 3=Commit
-let mode = "auto"; // "auto" | "manual"
-let activeProfile = null;
-let wrapRef = null;
-let currentSearchQuery = "";
+const GRADUATE = "__graduate__";
+const STEPS = ["Configure", "Review", "Confirm"];
+const REVIEW_PAGE_SIZE = 60;
+
+function actionButton(label, onClick, variant = "ghost", symbol) {
+  return el("button", { type: "button", class: "btn btn--" + variant, onClick },
+    [symbol ? icon(symbol) : null, label]);
+}
+
+function notice(title, message, tone = "info") {
+  return el("div", { class: "promotion-notice promotion-notice--" + tone }, [
+    el("span", { "aria-hidden": "true" }, icon(tone === "warning" ? "warning" : "info")),
+    el("div", {}, [el("strong", {}, title), el("p", {}, message)]),
+  ]);
+}
+
+function field(label, input) {
+  return el("div", { class: "field" }, [el("label", { for: input.id }, label), input]);
+}
+
+function footer(...buttons) {
+  return el("div", { class: "promotion-footer" }, buttons);
+}
+
+function card(title, description, symbol, ...content) {
+  return el("section", { class: "card promotion-card" }, [
+    el("div", { class: "promotion-card-header" }, [
+      el("div", { class: "promotion-card-header__left" }, [
+        el("div", { class: "promotion-header-icon-wrap", "aria-hidden": "true" }, icon(symbol)),
+        el("div", {}, [
+          el("h2", { class: "promotion-card-title", tabindex: "-1" }, title),
+          el("p", { class: "promotion-card-subtitle" }, description),
+        ]),
+      ]),
+    ]),
+    ...content,
+  ]);
+}
+
+function stepper(current) {
+  const list = el("ol", { class: "promotion-stepper", "aria-label": "Promotion progress" });
+  STEPS.forEach((label, index) => {
+    const state = index === current ? "active" : index < current ? "done" : "";
+    list.append(el("li", {
+      class: "promotion-step-node" + (state ? " promotion-step-node--" + state : ""),
+      "aria-current": index === current ? "step" : null,
+    }, [
+      el("span", { class: "promotion-step-badge", "aria-hidden": "true" }, index < current ? icon("check") : String(index + 1)),
+      el("span", { class: "promotion-step-meta__label" }, label),
+    ]));
+  });
+  return list;
+}
+
+function reviewSummary(plan) {
+  let moves = 0;
+  let graduates = 0;
+  let retained = 0;
+  let warnings = 0;
+  let unassigned = 0;
+  for (const entry of plan) {
+    if (entry.excluded) {
+      retained++;
+      continue;
+    }
+    if (entry.warning) warnings++;
+    if (entry.action === "unassigned") unassigned++;
+    else if (entry.action === "graduate") graduates++;
+    else if (changesPlacement(entry)) moves++;
+    else retained++;
+  }
+  return { moves, graduates, retained, warnings, unassigned };
+}
+
+function summaries({ moves, graduates, retained, warnings = 0 }) {
+  return [
+    el("span", { class: "promotion-chip promotion-chip--success" }, moves + " moving"),
+    el("span", { class: "promotion-chip promotion-chip--primary" }, graduates + " graduating"),
+    el("span", { class: "promotion-chip promotion-chip--muted" }, retained + " staying"),
+    warnings ? el("span", { class: "promotion-chip promotion-chip--warning" }, warnings + " to review") : null,
+  ];
+}
+
+function progressionPreview(classes) {
+  const progression = buildGradeProgression(classes);
+  const incoming = new Set(Object.values(progression).filter(Boolean));
+  const roots = Object.keys(progression).filter((grade) => !incoming.has(grade));
+  if (!roots.length) return null;
+  return el("div", { class: "promotion-progression" }, [
+    el("h3", {}, "Automatic grade paths"),
+    ...roots.map((grade) => {
+      const path = [];
+      let next = grade;
+      while (next) {
+        path.push(el("span", { class: "promotion-progression-badge" }, next), icon("arrow_forward", "promotion-progression-arrow"));
+        next = progression[next];
+      }
+      path.push(el("span", { class: "promotion-progression-badge promotion-progression-badge--grad" },
+        next === null ? "Alumni" : "Choose destination in review"));
+      return el("div", { class: "promotion-progression-flow" }, path);
+    }),
+  ]);
+}
+
+function editAssignment(entry, classes, onSave, trigger) {
+  const grade = el("select", { id: "promotion-edit-grade" }, [
+    el("option", { value: "" }, "Choose grade"),
+    ...promotionGrades(classes).map((name) => el("option", { value: name }, name)),
+    el("option", { value: GRADUATE }, "Graduate to Alumni"),
+  ]);
+  grade.value = entry.action === "graduate" ? GRADUATE : entry.toGrade || "";
+  const stream = el("select", { id: "promotion-edit-stream" });
+  const save = actionButton("Save Destination", () => {
+    const revised = assignPromotionDestination(entry, classes, grade.value === GRADUATE ? null : grade.value);
+    onSave({ ...revised, toStream: stream.value, warning: "" });
+    close();
+  }, "primary");
+
+  function updateStreams() {
+    const streams = streamsForGrade(classes, grade.value);
+    stream.replaceChildren(...(streams.length
+      ? streams.map((name) => el("option", { value: name }, name))
+      : [el("option", { value: "" }, "No stream")]));
+    if (streams.includes(entry.toStream)) stream.value = entry.toStream;
+    else if (streams.includes(entry.fromStream)) stream.value = entry.fromStream;
+    stream.disabled = !streams.length;
+    save.disabled = !grade.value;
+  }
+  grade.addEventListener("change", updateStreams);
+  updateStreams();
+  const close = openModal({
+    title: "Edit destination for " + (entry.student.fullName || "learner"),
+    body: el("div", {}, [
+      field("Destination grade", grade), field("Destination stream", stream),
+      footer(actionButton("Cancel", () => close()), save),
+    ]),
+    onClose: () => (trigger.isConnected ? trigger : document.querySelector(".promotion-review-controls input"))?.focus(),
+  });
+  grade.focus();
+}
 
 export async function render({ profile }) {
-  activeProfile = profile;
-  [classes, students, settings] = await Promise.all([
-    listClasses(),
-    listStudents(),
-    getSchoolSettings(),
-  ]);
-
-  currentStep = 1;
-  mode = "auto";
-  plan = [];
-  currentSearchQuery = "";
-
   const wrap = el("div", { class: "page-container promotion-page" });
-  wrapRef = wrap;
+  let workspace = null;
+  let currentStep = 0;
+  let mode = "manual";
+  let manualSource = "";
+  let manualDestination = "";
+  let plan = [];
+  let filter = "all";
+  let search = "";
+  let savedProgress = null;
+  let runId = null;
+  let initialLoad = true;
 
-  wrap.append(mobileOnlyNotice("The promotion module works best on a larger screen where you can review the full table."));
-  renderStep(wrap);
+  async function load() {
+    const pending = el("p", { role: "status", class: "text-muted" }, "Loading the latest roster and school calendar…");
+    wrap.replaceChildren(pending);
+    try {
+      workspace = await loadPromotionWorkspace();
+    } catch (error) {
+      const message = error.code === "permission-denied"
+        ? "Your account couldn’t read the required records. Ask your school administrator to check Promotions access."
+        : "Check your connection and try again.";
+      wrap.replaceChildren(card("Couldn’t open Promotions", message, "sync_problem",
+        el("div", { class: "promotion-body" }, actionButton("Try Again", load, "primary"))));
+      return;
+    }
+    savedProgress = workspace.pendingRun;
+    currentStep = savedProgress ? 2 : 0;
+    const { settings } = workspace;
+    const finishedThisYear = settings.lastCompletedPromotionYear === String(settings.currentAcademicYear).trim();
+    mode = savedProgress?.mode || (promotionRollover(settings) && !finishedThisYear ? "auto" : "manual");
+    manualSource = "";
+    manualDestination = "";
+    plan = [];
+    search = "";
+    filter = "all";
+    runId = savedProgress?.id || null;
+    showStep(!initialLoad);
+  }
 
+  function showStep(focus = true) {
+    const contents = currentStep === 0 ? configure() : currentStep === 1 ? review() : confirm();
+    wrap.replaceChildren(stepper(currentStep), contents);
+    if (focus) contents.querySelector("h2")?.focus({ preventScroll: true });
+  }
+
+  function configure() {
+    const { classes, students, settings, canSave } = workspace;
+    const finishedThisYear = settings.lastCompletedPromotionYear === String(settings.currentAcademicYear).trim();
+    const rollover = finishedThisYear ? null : promotionRollover(settings);
+    const activeStudents = students.filter((student) => student.status === "active");
+    const body = el("div", { class: "promotion-body" });
+    if (!canSave) body.append(notice("Preview access", "A school administrator can save promotions."));
+    if (!classes.length || !activeStudents.length) {
+      body.append(notice(classes.length ? "No active learners" : "No classes configured", classes.length
+        ? "Add or activate learners in Students before starting a promotion."
+        : "Set up your grades in Classes & Streams first."));
+      return card("Set up promotions", "Review how learners will move before saving.", "tune", body);
+    }
+
+    if (!rollover) {
+      const reason = finishedThisYear ? "School-wide promotion has already been saved for this academic year."
+        : isPromotionSeason(settings) ? "Set a valid academic year and first term in School Settings."
+          : "School-wide promotion is available in the final term. You can move or graduate learners from one grade now.";
+      body.append(notice("School-wide promotion is unavailable", reason));
+    }
+    const modes = [
+      { key: "auto", title: "School-wide year-end promotion", description: rollover
+        ? "Move eligible learners, graduate final grades, and start " + rollover.term + " " + rollover.year + "."
+        : "Move eligible learners and start the next academic year.", symbol: "trending_up", disabled: !rollover },
+      { key: "manual", title: "Move or graduate one grade", description: "Choose a source grade and destination. The school calendar stays the same.", symbol: "tune" },
+    ];
+
+    const grades = promotionGrades(classes);
+    const activeGrades = new Set(activeStudents.map(({ grade }) => grade));
+    const source = el("select", { id: "promotion-source" }, grades.filter((grade) => activeGrades.has(grade))
+      .map((grade) => el("option", { value: grade }, grade)));
+    const destination = el("select", { id: "promotion-destination" }, [
+      el("option", { value: "" }, "Choose grade"),
+      ...grades.map((grade) => el("option", { value: grade }, grade)),
+      el("option", { value: GRADUATE }, "Graduate to Alumni"),
+    ]);
+    const manualFields = el("div", { class: "promotion-manual-fields field-row" }, [
+      field("Source grade", source), field("Destination", destination),
+    ]);
+    const automaticPaths = progressionPreview(classes);
+
+    const generate = actionButton("Review Plan", () => {
+      try {
+        plan = generatePromotionPlan(students, classes, mode === "manual"
+          ? { sourceGrade: source.value, destinationGrade: destination.value === GRADUATE ? null : destination.value }
+          : {});
+        if (!plan.length) {
+          toast("No active learners match this selection.", "info");
+          return;
+        }
+        filter = plan.some(({ warning }) => warning) ? "attention" : "all";
+        search = "";
+        currentStep = 1;
+        showStep();
+      } catch (error) {
+        toast(error.message, "error");
+      }
+    }, "primary", "arrow_forward");
+
+    const modeGrid = el("fieldset", { class: "promotion-mode-grid" }, [
+      el("legend", { class: "sr-only" }, "Promotion mode"),
+      ...modes.map(({ key, title, description, symbol, disabled }) => el("label", {
+        class: "promotion-mode-card", "data-mode": key,
+      }, [
+        el("input", {
+          type: "radio", name: "promotion-mode", value: key, checked: key === mode ? "" : null,
+          disabled: disabled ? "" : null,
+          onChange: () => { mode = key; updateMode(); },
+        }),
+        el("div", { class: "promotion-mode-card__icon", "aria-hidden": "true" }, icon(symbol)),
+        el("div", { class: "promotion-mode-card__content" }, [
+          el("strong", { class: "promotion-mode-card__title" }, title),
+          el("p", { class: "promotion-mode-card__desc" }, description),
+        ]),
+      ])),
+    ]);
+    manualSource = activeGrades.has(manualSource) ? manualSource : source.options[0]?.value || "";
+    source.value = manualSource;
+    const progression = buildGradeProgression(classes);
+    function setSuggestedDestination() {
+      const suggested = Object.hasOwn(progression, source.value) ? progression[source.value] : undefined;
+      // Graduation must be chosen explicitly in manual mode.
+      manualDestination = suggested || "";
+    }
+    if (!manualDestination) setSuggestedDestination();
+    destination.value = manualDestination;
+    source.addEventListener("change", () => {
+      manualSource = source.value;
+      setSuggestedDestination();
+      destination.value = manualDestination;
+      updateMode();
+    });
+    destination.addEventListener("change", () => {
+      manualDestination = destination.value;
+      updateMode();
+    });
+
+    function updateMode() {
+      modeGrid.querySelectorAll("[data-mode]").forEach((item) =>
+        item.classList.toggle("promotion-mode-card--active", item.dataset.mode === mode));
+      manualFields.hidden = mode !== "manual";
+      if (automaticPaths) automaticPaths.hidden = mode !== "auto";
+      generate.disabled = mode === "manual" && (!source.value || !destination.value);
+    }
+
+    body.append(modeGrid, manualFields);
+    if (!source.options.length) {
+      manualFields.append(el("p", { class: "text-muted text-sm" }, "Active learners need a configured source grade before a manual move."));
+    }
+    if (automaticPaths) body.append(automaticPaths);
+    updateMode();
+    return card("Set up promotions", "Choose which learners to move and how their destinations will be assigned.", "tune",
+      body, footer(generate));
+  }
+
+  function review() {
+    const body = el("div", { class: "promotion-body" });
+    const summary = el("div", { class: "promotion-summary-chips", role: "status" });
+    const searchBox = el("input", {
+      id: "promotion-search", class: "promotion-search-input", type: "search",
+      placeholder: "Name or admission number", value: search, "aria-label": "Search learners",
+    });
+    const filterBox = el("select", { id: "promotion-filter", "aria-label": "Filter learners" }, [
+      ["all", "All learners"], ["attention", "Needs review"], ["move", "Moving"],
+      ["graduate", "Graduating"], ["stay", "Staying"],
+    ].map(([value, label]) => el("option", { value }, label)));
+    filterBox.value = filter;
+    const controls = el("div", { class: "promotion-review-controls" }, [searchBox, filterBox]);
+    const tbody = el("tbody");
+    const columns = ["Learner", "Admission number", "Current class", "Destination", "Actions"];
+    const table = el("div", { class: "table-wrap table-wrap--responsive promotion-table-wrap", role: "region", "aria-label": "Learner destinations", tabindex: "0" },
+      el("table", { class: "promotion-review-table" }, [
+        el("thead", {}, el("tr", {}, columns.map((title) => el("th", { scope: "col" }, title)))),
+        tbody,
+      ]));
+    const status = el("p", { class: "text-sm text-muted", role: "status" });
+    let page = 0;
+    const previous = actionButton("Previous", () => { page--; renderRows(); });
+    const following = actionButton("Next", () => { page++; renderRows(); });
+    const pagination = el("div", { class: "promotion-pagination", "aria-label": "Learner pages" }, [previous, following]);
+    const next = actionButton("Continue to Confirmation", () => {
+      currentStep = 2;
+      showStep();
+    }, "primary", "arrow_forward");
+
+    function renderRows() {
+      const counts = reviewSummary(plan);
+      const q = search.trim().toLowerCase();
+      summary.replaceChildren(...summaries(counts).filter(Boolean));
+      const shown = plan.filter((entry) => {
+        const matchesSearch = !q || [entry.student.fullName, entry.student.admissionNumber].some((value) =>
+          String(value ?? "").toLowerCase().includes(q));
+        const category = entry.excluded || (!changesPlacement(entry) && entry.action !== "unassigned") ? "stay"
+          : entry.action === "promote" ? "move" : entry.action;
+        return matchesSearch && (filter === "all" || (filter === "attention"
+          ? Boolean(entry.warning && !entry.excluded) : filter === category));
+      });
+      const lastPage = Math.max(0, Math.ceil(shown.length / REVIEW_PAGE_SIZE) - 1);
+      page = Math.min(page, lastPage);
+      const offset = page * REVIEW_PAGE_SIZE;
+      const visible = shown.slice(offset, offset + REVIEW_PAGE_SIZE);
+      tbody.replaceChildren(...visible.map((entry) => {
+        const name = entry.student.fullName || "Learner";
+        const key = entry.student.id;
+        const excluded = entry.excluded;
+        const edit = actionButton("Edit", (event) => editAssignment(entry, workspace.classes, (revised) => {
+          Object.assign(entry, revised);
+          renderRows();
+        }, event.currentTarget));
+        edit.setAttribute("aria-label", "Edit destination for " + name);
+        const keep = actionButton(excluded ? "Restore" : "Keep", () => {
+          entry.excluded = !entry.excluded;
+          renderRows();
+          const newButton = [...tbody.querySelectorAll("[data-keep-for]")].find((node) => node.dataset.keepFor === key);
+          (newButton || filterBox).focus();
+        });
+        keep.dataset.keepFor = key;
+        keep.setAttribute("aria-label", (excluded ? "Restore destination for " : "Keep in current class: ") + name);
+        const values = [
+          el("strong", {}, name), entry.student.admissionNumber || "—",
+          [entry.fromGrade || "Unassigned", entry.fromStream].filter(Boolean).join(" · "),
+          el("div", {}, [
+            el("strong", {}, excluded || (!changesPlacement(entry) && entry.action !== "unassigned") ? "Stay in current class"
+              : entry.action === "graduate" ? "Graduate to Alumni"
+                : entry.action === "unassigned" ? "Choose a destination" : [entry.toGrade, entry.toStream].filter(Boolean).join(" · ")),
+            !excluded && entry.warning ? el("p", { class: "promotion-warning-tag" }, entry.warning) : null,
+          ]),
+          el("div", { class: "promotion-row-actions" }, [excluded ? null : edit, keep]),
+        ];
+        return el("tr", { class: "promotion-review-row" },
+          values.map((value, index) => el("td", { "data-label": columns[index] }, value)));
+      }));
+      table.hidden = shown.length === 0;
+      const shownRange = visible.length === 1 ? String(offset + 1) : (offset + 1) + "–" + (offset + visible.length);
+      const range = shown.length ? "Showing " + shownRange + " of " + shown.length + "." : "No learners match these filters.";
+      status.textContent = counts.unassigned ? range + " Resolve " + counts.unassigned + " learner(s) without a destination before continuing." : range;
+      if (!counts.unassigned && !counts.moves && !counts.graduates) status.textContent += " Choose at least one learner to move or graduate.";
+      pagination.hidden = lastPage === 0;
+      previous.disabled = page === 0;
+      following.disabled = page === lastPage;
+      next.disabled = counts.unassigned > 0 || counts.moves + counts.graduates === 0;
+    }
+
+    searchBox.addEventListener("input", () => { search = searchBox.value; page = 0; renderRows(); });
+    filterBox.addEventListener("change", () => { filter = filterBox.value; page = 0; renderRows(); });
+    body.append(summary, controls, status, table, pagination);
+    renderRows();
+    return card("Review destinations", "Check each move. Use Keep for learners staying in class and Restore to bring back their reviewed destination.", "checklist", body,
+      footer(actionButton("Back to Setup", () => { currentStep = 0; showStep(); }), next));
+  }
+
+  function confirm() {
+    const isResume = Boolean(workspace.pendingRun);
+    const rollover = savedProgress ? savedProgress.rollover : mode === "auto" ? promotionRollover(workspace.settings) : null;
+    const counts = reviewSummary(plan);
+    const currentPeriod = (savedProgress?.term || workspace.settings.currentTerm) + " " +
+      (savedProgress?.year || workspace.settings.currentAcademicYear);
+    const body = el("div", { class: "promotion-body" });
+    const progressBar = el("progress", { max: savedProgress?.total || counts.moves + counts.graduates, value: savedProgress?.done || 0 });
+    const progressText = el("p", { class: "text-sm", role: "status" });
+    const progress = el("div", { class: "promotion-save-progress", hidden: savedProgress ? null : "" }, [progressText, progressBar]);
+    const errorArea = el("div", { class: "promotion-error-area" });
+    const confirmation = el("input", { type: "checkbox", id: "promotion-confirm" });
+    const acknowledgement = el("label", { class: "promotion-confirm-check", for: confirmation.id }, [
+      confirmation,
+      rollover ? "I’ve reviewed the destinations and saved the final results for " + currentPeriod + "."
+        : "I’ve reviewed the destinations and confirmed which learners will move or graduate.",
+    ]);
+    const back = actionButton("Back to Review", () => { currentStep = 1; showStep(); });
+    const submit = actionButton(isResume ? "Resume Saving" : rollover ? "Save Promotions and Start New Year" : "Save Learner Changes", save,
+      "primary", "check");
+    let saving = false;
+    submit.disabled = !isResume;
+    confirmation.addEventListener("change", () => { submit.disabled = !confirmation.checked; });
+    const actions = footer(isResume ? null : back, workspace.canSave ? submit : null);
+
+    if (!isResume) body.append(el("div", { class: "promotion-summary-chips" }, summaries({ ...counts, warnings: 0 })));
+    if (rollover) {
+      body.append(notice("Academic calendar", currentPeriod + " → " + rollover.term + " " + rollover.year +
+        ". Review the new term’s dates in School Settings after saving."));
+    } else {
+      body.append(notice("Academic calendar", currentPeriod + " stays active."));
+    }
+    if (!workspace.canSave) body.append(notice("Preview access", "A school administrator can save this plan."));
+    else if (!isResume) body.append(acknowledgement);
+    else body.append(notice("Saved progress", "Resume the previously reviewed plan. Learners already saved will stay in their new placement."));
+    body.append(progress, errorArea);
+    if (savedProgress) showProgress(savedProgress);
+
+    function showProgress(result) {
+      savedProgress = result;
+      progress.hidden = false;
+      progressBar.max = result.total;
+      progressBar.value = result.done;
+      progressText.textContent = result.promoted + result.graduated + " of " + result.total + " learner changes saved." +
+        (result.skipped ? " " + result.skipped + " kept after review." : "");
+    }
+
+    async function save(event, approvedSkips = []) {
+      if (saving) return;
+      saving = true;
+      const restore = busyButton(event.currentTarget, "Saving…");
+      back.disabled = true;
+      submit.disabled = true;
+      confirmation.disabled = true;
+      errorArea.replaceChildren();
+      if (!runId) runId = crypto.randomUUID();
+      progress.hidden = false;
+      progressText.textContent = "Checking the latest learner records…";
+      try {
+        const result = await commitPromotionPlan(profile.uid, isResume ? null : plan, {
+          runId, schoolId: workspace.schoolId, mode, settings: workspace.settings, classes: workspace.classes,
+          onProgress: showProgress, approvedSkips,
+        });
+        wrap.replaceChildren(stepper(3), card("Promotions saved", result.rollover
+          ? "The active school period is now " + result.rollover.term + " " + result.rollover.year + "."
+          : "The academic calendar stayed the same.", "task_alt",
+        el("div", { class: "promotion-body promotion-summary-chips" }, summaries({
+          moves: result.promoted, graduates: result.graduated, retained: result.retained + result.skipped,
+        })),
+        footer(actionButton("View Students", () => import("../js/router.js").then(({ navigate }) => navigate("/students")), "primary"),
+          actionButton("Return to Dashboard", () => import("../js/router.js").then(({ navigate }) => navigate("/dashboard"))))));
+        wrap.querySelector("h2")?.focus({ preventScroll: true });
+      } catch (error) {
+        saving = false;
+        restore();
+        progressText.textContent = savedProgress
+          ? savedProgress.done + " of " + savedProgress.total + " learner records processed. Your progress is saved."
+          : "Check the error below before continuing.";
+        const retry = actionButton("Refresh Promotions", load);
+        const details = notice("Saving paused", error.message || "Try again when your connection is available.", "warning");
+        details.setAttribute("role", "alert");
+        if (error.conflicts?.length) {
+          submit.disabled = true;
+          const conflictIds = [...new Set([...approvedSkips, ...error.conflicts.map(({ id }) => id)])];
+          const names = el("details", { open: "" }, [
+            el("summary", {}, error.conflicts.length + " changed learner record(s)"),
+            el("ul", {}, error.conflicts.map(({ name }) => el("li", {}, name))),
+          ]);
+          const skip = actionButton("Keep These Learners and Continue", (nextEvent) => save(nextEvent, conflictIds), "primary");
+          errorArea.append(details, names, footer(retry, skip));
+        } else {
+          submit.disabled = false;
+          errorArea.append(details, footer(retry));
+        }
+      }
+    }
+
+    return card(isResume ? "Resume promotions" : "Confirm changes", isResume
+      ? "Continue from the last saved group of learners."
+      : "Review what will be saved before applying this plan.", "verified", body, actions);
+  }
+
+  await load();
+  initialLoad = false;
   return wrap;
 }
 
 export function init() {}
-
-// ---------------------------------------------------------- Step Routing --
-
-function renderStep(wrap) {
-  // Clear content area but keep the mobile notice if present
-  const notice = wrap.querySelector(".mobile-only-notice, .alert--info.mobile-only-notice");
-  wrap.innerHTML = "";
-  if (notice) wrap.append(notice);
-
-  // Connected Stepper Navigation
-  wrap.append(buildStepper());
-
-  // Step Content Card
-  switch (currentStep) {
-    case 1: wrap.append(buildConfigureStep()); break;
-    case 2: wrap.append(buildReviewStep()); break;
-    case 3: wrap.append(buildCommitStep()); break;
-  }
-}
-
-function buildStepper() {
-  const steps = [
-    { num: 1, label: "Configure", desc: "Select mode & parameters" },
-    { num: 2, label: "Review", desc: "Inspect & edit assignments" },
-    { num: 3, label: "Commit", desc: "Confirm & advance year" },
-  ];
-
-  const stepper = el("div", { class: "promotion-stepper" });
-
-  steps.forEach((s, idx) => {
-    let nodeCls = "promotion-step-node";
-    if (s.num === currentStep) nodeCls += " promotion-step-node--active";
-    else if (s.num < currentStep) nodeCls += " promotion-step-node--done";
-
-    const badge = el("div", { class: "promotion-step-badge" }, [
-      s.num < currentStep ? icon("check") : String(s.num),
-    ]);
-
-    const meta = el("div", { class: "promotion-step-meta" }, [
-      el("span", { class: "promotion-step-meta__step" }, `Step ${s.num}`),
-      el("span", { class: "promotion-step-meta__label" }, s.label),
-    ]);
-
-    stepper.append(el("div", { class: nodeCls }, [badge, meta]));
-
-    if (idx < steps.length - 1) {
-      let connCls = "promotion-step-connector";
-      if (s.num < currentStep) connCls += " promotion-step-connector--done";
-      stepper.append(el("div", { class: connCls }));
-    }
-  });
-
-  return stepper;
-}
-
-// --------------------------------------------------- Step 1: Configure --
-
-function buildConfigureStep() {
-  const section = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
-  const isSeason = isPromotionSeason(settings);
-
-  // Balanced Card Header
-  section.append(
-    el("div", { class: "promotion-card-header" }, [
-      el("div", { class: "promotion-card-header__left" }, [
-        el("div", { class: "promotion-header-icon-wrap" }, [icon("tune")]),
-        el("div", {}, [
-          el("h2", { class: "promotion-card-title" }, "Select Promotion Mode"),
-          el("p", { class: "promotion-card-subtitle" }, "Choose whether to promote the entire school cohort automatically or configure a specific grade manually."),
-        ]),
-      ]),
-    ])
-  );
-
-  const body = el("div", { class: "card__body", style: "padding:var(--sp-5);" });
-
-  // Season alert banner if in Term 3
-  if (isSeason) {
-    body.append(
-      el("div", { class: "promotion-banner promotion-banner--ready" }, [
-        icon("celebration"),
-        el("div", {}, [
-          el("strong", {}, "Final Academic Term Detected"),
-          el("p", { style: "margin:3px 0 0; font-size:var(--fs-xs);" }, `${settings.currentTerm} is currently active. Running promotion will advance all cohorts and bump the academic calendar to the next school year.`),
-        ]),
-      ])
-    );
-  }
-
-  if (classes.length === 0) {
-    body.append(
-      el("div", { class: "empty-state" }, [
-        icon("warning"),
-        el("p", {}, "No classes found. Set up your classes in Classes & Streams first."),
-      ])
-    );
-    section.append(body);
-    return section;
-  }
-
-  const activeStudents = students.filter((s) => s.status === "active");
-  if (activeStudents.length === 0) {
-    body.append(
-      el("div", { class: "empty-state" }, [
-        icon("info"),
-        el("p", {}, "No active students available to promote."),
-      ])
-    );
-    section.append(body);
-    return section;
-  }
-
-  // Interactive Mode Cards
-  const autoRadio = el("input", { type: "radio", name: "promo-mode", id: "mode-auto", value: "auto", checked: mode === "auto" ? "true" : undefined });
-  const manualRadio = el("input", { type: "radio", name: "promo-mode", id: "mode-manual", value: "manual", checked: mode === "manual" ? "true" : undefined });
-  const manualFields = el("div", { class: "promotion-manual-fields", style: mode === "manual" ? "" : "display:none;" });
-
-  const autoCard = el("div", {
-    class: `promotion-mode-card${mode === "auto" ? " promotion-mode-card--active" : ""}`,
-    onClick: () => {
-      autoRadio.checked = true;
-      mode = "auto";
-      autoCard.classList.add("promotion-mode-card--active");
-      manualCard.classList.remove("promotion-mode-card--active");
-      manualFields.style.display = "none";
-    },
-  }, [
-    autoRadio,
-    el("div", { class: "promotion-mode-card__icon" }, [icon("trending_up")]),
-    el("div", { class: "promotion-mode-card__content" }, [
-      el("div", { class: "promotion-mode-card__title" }, "Auto-Promote Entire School (Recommended)"),
-      el("p", { class: "promotion-mode-card__desc" }, "Advances all active students to the next grade according to the natural grade progression map. Terminal grade graduates to Alumni."),
-    ]),
-  ]);
-
-  const manualCard = el("div", {
-    class: `promotion-mode-card${mode === "manual" ? " promotion-mode-card--active" : ""}`,
-    onClick: () => {
-      manualRadio.checked = true;
-      mode = "manual";
-      manualCard.classList.add("promotion-mode-card--active");
-      autoCard.classList.remove("promotion-mode-card--active");
-      manualFields.style.display = "";
-    },
-  }, [
-    manualRadio,
-    el("div", { class: "promotion-mode-card__icon" }, [icon("tune")]),
-    el("div", { class: "promotion-mode-card__content" }, [
-      el("div", { class: "promotion-mode-card__title" }, "Manual Grade-to-Grade Selection"),
-      el("p", { class: "promotion-mode-card__desc" }, "Target a specific source grade cohort and choose an explicit destination grade or graduation outcome."),
-    ]),
-  ]);
-
-  const modeGrid = el("div", { class: "promotion-mode-grid" }, [autoCard, manualCard]);
-  body.append(modeGrid);
-
-  // Grade progression preview
-  const progression = buildGradeProgression(classes);
-  const flowContainer = el("div", { class: "promotion-progression-flow" });
-  const entries = Object.entries(progression);
-
-  entries.forEach(([from, to], idx) => {
-    flowContainer.append(
-      el("span", { class: "promotion-progression-badge" }, [icon("school"), from])
-    );
-    flowContainer.append(
-      el("span", { class: "promotion-progression-arrow material-symbols-rounded" }, "arrow_forward")
-    );
-    if (idx === entries.length - 1) {
-      flowContainer.append(
-        el("span", { class: "promotion-progression-badge promotion-progression-badge--grad" }, [
-          icon("workspace_premium"),
-          to ? to : "Alumni (Graduated)",
-        ])
-      );
-    }
-  });
-
-  body.append(
-    el("div", { style: "margin-top:var(--sp-4);" }, [
-      el("label", { class: "field__label", style: "font-weight:600; font-size:var(--fs-xs); color:var(--color-ink-soft); text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:8px;" }, "Cohort Progression Mapping"),
-      flowContainer,
-    ]),
-    buildManualFields(manualFields)
-  );
-
-  section.append(body);
-
-  // Footer Actions
-  const generateBtn = el("button", {
-    class: "btn btn--primary",
-    onClick: () => generatePlan(),
-  }, [icon("checklist"), "Generate & Review Plan"]);
-
-  section.append(
-    el("div", {
-      class: "card__footer",
-      style: "display:flex; justify-content:flex-end; padding:var(--sp-4) var(--sp-5); border-top:1px solid var(--color-line); background:var(--color-white);",
-    }, [generateBtn])
-  );
-
-  return section;
-}
-
-function buildManualFields(container) {
-  const sourceSelect = el("select", {
-    id: "manual-source",
-    style: "height:38px; padding:0 12px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); width:100%;",
-  }, classes.map((c) => el("option", { value: c.grade }, c.grade)));
-
-  const destSelect = el("select", {
-    id: "manual-dest",
-    style: "height:38px; padding:0 12px; border:1px solid var(--color-line); border-radius:var(--radius-md); font-size:var(--fs-sm); background:var(--color-white); width:100%;",
-  }, [
-    ...classes.map((c) => el("option", { value: c.grade }, c.grade)),
-    el("option", { value: "__graduate__" }, "Graduate to Alumni"),
-  ]);
-
-  if (classes.length > 1) {
-    destSelect.value = classes[1]?.grade || classes[0]?.grade;
-  }
-
-  sourceSelect.addEventListener("change", () => {
-    const idx = classes.findIndex((c) => c.grade === sourceSelect.value);
-    if (idx >= 0 && idx < classes.length - 1) {
-      destSelect.value = classes[idx + 1].grade;
-    }
-  });
-
-  container.innerHTML = "";
-  container.append(
-    el("div", { style: "display:flex; gap:var(--sp-4); align-items:flex-end; flex-wrap:wrap; margin-top:var(--sp-4); padding:var(--sp-4); background:var(--color-surface-alt, var(--color-cream-dim)); border:1px solid var(--color-line); border-radius:var(--radius-md);" }, [
-      el("div", { class: "field", style: "flex:1; min-width:200px; margin:0;" }, [
-        el("label", { class: "field__label", style: "font-weight:600; margin-bottom:4px;" }, "Source Grade"),
-        sourceSelect,
-      ]),
-      el("div", { style: "display:flex; align-items:center; justify-content:center; height:38px; color:var(--color-ink-soft);" }, [
-        icon("arrow_forward"),
-      ]),
-      el("div", { class: "field", style: "flex:1; min-width:200px; margin:0;" }, [
-        el("label", { class: "field__label", style: "font-weight:600; margin-bottom:4px;" }, "Target Destination"),
-        destSelect,
-      ]),
-    ])
-  );
-
-  return container;
-}
-
-function generatePlan() {
-  const options = {};
-
-  if (mode === "manual") {
-    const sourceSelect = wrapRef.querySelector("#manual-source");
-    const destSelect = wrapRef.querySelector("#manual-dest");
-    if (sourceSelect) options.sourceGrade = sourceSelect.value;
-    if (destSelect) {
-      options.destinationGrade = destSelect.value === "__graduate__" ? null : destSelect.value;
-    }
-  }
-
-  plan = generatePromotionPlan(students, classes, options);
-
-  if (plan.length === 0) {
-    toast("No students found matching the selected criteria.", "error");
-    return;
-  }
-
-  currentStep = 2;
-  currentSearchQuery = "";
-  renderStep(wrapRef);
-}
-
-// ----------------------------------------------------- Step 2: Review --
-
-function buildReviewStep() {
-  const section = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
-
-  const promoting = plan.filter((e) => e.action === "promote");
-  const graduating = plan.filter((e) => e.action === "graduate");
-  const excluded = plan.filter((e) => e.action === "exclude");
-  const warnings = plan.filter((e) => e.warning && e.action !== "exclude");
-
-  // Balanced, Clean Header
-  section.append(
-    el("div", { class: "promotion-card-header" }, [
-      el("div", { class: "promotion-card-header__left" }, [
-        el("div", { class: "promotion-header-icon-wrap" }, [icon("checklist")]),
-        el("div", {}, [
-          el("h2", { class: "promotion-card-title" }, "Review Promotion Plan"),
-          el("p", { class: "promotion-card-subtitle" }, "Verify each learner's planned destination before committing changes to the database."),
-        ]),
-      ]),
-    ])
-  );
-
-  // Native Search & Metric Toolbar
-  const searchInput = el("input", {
-    type: "search",
-    class: "promotion-search-input",
-    placeholder: "Search by student name or admission number…",
-    value: currentSearchQuery,
-  });
-
-  const clearBtn = el("button", {
-    type: "button",
-    class: "promotion-search-clear",
-    style: currentSearchQuery ? "display:flex;" : "display:none;",
-    title: "Clear search",
-    onClick: () => {
-      searchInput.value = "";
-      currentSearchQuery = "";
-      clearBtn.style.display = "none";
-      renderRows("");
-      searchInput.focus();
-    },
-  }, [icon("close")]);
-
-  const searchWrap = el("div", { class: "promotion-search-wrap" }, [
-    icon("search", "promotion-search-icon"),
-    searchInput,
-    clearBtn,
-  ]);
-
-  const summaryChips = el("div", { class: "promotion-summary-chips" }, [
-    el("span", { class: "promotion-chip promotion-chip--success" }, [
-      icon("arrow_upward"),
-      `${promoting.length} Promoting`,
-    ]),
-    el("span", { class: "promotion-chip promotion-chip--primary" }, [
-      icon("school"),
-      `${graduating.length} Graduating`,
-    ]),
-    warnings.length > 0
-      ? el("span", { class: "promotion-chip promotion-chip--warning" }, [
-          icon("warning"),
-          `${warnings.length} Need Attention`,
-        ])
-      : "",
-    excluded.length > 0
-      ? el("span", { class: "promotion-chip promotion-chip--muted" }, [
-          icon("remove_circle_outline"),
-          `${excluded.length} Excluded`,
-        ])
-      : "",
-  ]);
-
-  const toolbar = el("div", { class: "promotion-toolbar" }, [searchWrap, summaryChips]);
-  section.append(toolbar);
-
-  // Review Table
-  const tbody = el("tbody", {});
-  const tableWrap = el("div", { class: "promotion-table-wrap" }, [
-    el("table", { class: "promotion-review-table" }, [
-      el("thead", {}, [
-        el("tr", {}, [
-          el("th", { style: "width:34%;" }, "Student"),
-          el("th", { style: "width:18%;" }, "Admission No"),
-          el("th", { style: "width:20%;" }, "Current Class"),
-          el("th", { style: "width:20%;" }, "Promoted To"),
-          el("th", { style: "width:8%; text-align:center;" }, "Actions"),
-        ]),
-      ]),
-      tbody,
-    ]),
-  ]);
-
-  function renderRows(filter = "") {
-    tbody.innerHTML = "";
-    const q = filter.trim().toLowerCase();
-    let matchCount = 0;
-
-    for (let i = 0; i < plan.length; i++) {
-      const entry = plan[i];
-      const name = entry.student.fullName || "";
-      const adm = entry.student.admissionNumber || "";
-      if (q && !name.toLowerCase().includes(q) && !adm.toLowerCase().includes(q)) continue;
-
-      matchCount++;
-      tbody.append(buildReviewRow(entry, i, () => {
-        renderRows(currentSearchQuery);
-        updateSummary();
-      }));
-    }
-
-    if (matchCount === 0) {
-      tbody.append(
-        el("tr", {}, [
-          el("td", { colspan: "5", style: "padding:0;" }, [
-            el("div", { class: "promotion-empty-search" }, [
-              icon("search_off"),
-              el("div", { style: "font-weight:600; font-size:var(--fs-sm); color:var(--color-ink);" }, `No learners matching "${filter}"`),
-              el("div", { style: "font-size:var(--fs-xs); color:var(--color-ink-soft); margin-top:2px;" }, "Check spelling or search by admission number."),
-            ]),
-          ]),
-        ])
-      );
-    }
-  }
-
-  function updateSummary() {
-    const p = plan.filter((e) => e.action === "promote").length;
-    const g = plan.filter((e) => e.action === "graduate").length;
-    const ex = plan.filter((e) => e.action === "exclude").length;
-    const w = plan.filter((e) => e.warning && e.action !== "exclude").length;
-
-    summaryChips.innerHTML = "";
-    summaryChips.append(
-      el("span", { class: "promotion-chip promotion-chip--success" }, [
-        icon("arrow_upward"),
-        `${p} Promoting`,
-      ]),
-      el("span", { class: "promotion-chip promotion-chip--primary" }, [
-        icon("school"),
-        `${g} Graduating`,
-      ])
-    );
-    if (w > 0) {
-      summaryChips.append(
-        el("span", { class: "promotion-chip promotion-chip--warning" }, [
-          icon("warning"),
-          `${w} Need Attention`,
-        ])
-      );
-    }
-    if (ex > 0) {
-      summaryChips.append(
-        el("span", { class: "promotion-chip promotion-chip--muted" }, [
-          icon("remove_circle_outline"),
-          `${ex} Excluded`,
-        ])
-      );
-    }
-  }
-
-  searchInput.addEventListener("input", (e) => {
-    currentSearchQuery = e.target.value;
-    clearBtn.style.display = currentSearchQuery ? "flex" : "none";
-    renderRows(currentSearchQuery);
-  });
-
-  renderRows(currentSearchQuery);
-  section.append(tableWrap);
-
-  // Unresolved warnings hint
-  if (warnings.length > 0) {
-    section.append(
-      el("div", {
-        style: "display:flex; align-items:center; gap:8px; padding:10px 16px; background:rgba(245, 158, 11, 0.08); border-top:1px solid rgba(245, 158, 11, 0.2); font-size:var(--fs-xs); color:#B45309;",
-      }, [
-        icon("info"),
-        el("span", {}, `${warnings.length} learner(s) had their stream auto-assigned because their previous stream is not offered in the destination grade. Click the edit icon on any row to change it.`),
-      ])
-    );
-  }
-
-  // Footer Navigation
-  section.append(
-    el("div", {
-      class: "card__footer",
-      style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-4) var(--sp-5); border-top:1px solid var(--color-line); background:var(--color-white); flex-wrap:wrap; gap:12px;",
-    }, [
-      el("button", { class: "btn btn--ghost", onClick: () => {
-        currentStep = 1;
-        renderStep(wrapRef);
-      }}, [icon("arrow_back"), "Back"]),
-      el("button", { class: "btn btn--primary", onClick: () => {
-        const actionable = plan.filter((e) => e.action === "promote" || e.action === "graduate");
-        if (actionable.length === 0) {
-          toast("All learners have been excluded. Nothing to commit.", "error");
-          return;
-        }
-        currentStep = 3;
-        renderStep(wrapRef);
-      }}, [icon("arrow_forward"), "Proceed to Final Step"]),
-    ])
-  );
-
-  return section;
-}
-
-function buildReviewRow(entry, index, onUpdate) {
-  const isExcluded = entry.action === "exclude";
-  const isGraduating = entry.action === "graduate";
-  const hasWarning = !!entry.warning && !isExcluded;
-
-  let rowClass = "promotion-review-row";
-  if (isExcluded) rowClass += " promotion-row--excluded";
-  else if (isGraduating) rowClass += " promotion-row--graduate";
-  else if (hasWarning) rowClass += " promotion-row--warning";
-
-  let toContent;
-  if (isExcluded) {
-    toContent = el("span", { class: "badge badge--muted" }, "Excluded (Retained)");
-  } else if (isGraduating) {
-    toContent = el("span", { class: "badge badge--primary" }, [icon("school"), " Graduate (Alumni)"]);
-  } else {
-    toContent = el("span", { style: "font-weight:600; color:var(--color-primary-900);" }, [
-      entry.toGrade,
-      entry.toStream ? el("span", { style: "color:var(--color-ink-soft); font-weight:400;" }, ` · ${entry.toStream}`) : "",
-    ]);
-  }
-
-  const actionBtn = isExcluded
-    ? el("button", {
-        type: "button",
-        class: "promotion-action-btn",
-        title: "Re-include in promotion",
-        onClick: () => {
-          const progression = buildGradeProgression(classes);
-          const toGrade = progression[entry.fromGrade];
-          entry.action = toGrade === null || toGrade === undefined ? "graduate" : "promote";
-          entry.toGrade = toGrade;
-          entry.toStream = entry.fromStream;
-          if (toGrade) {
-            const avail = streamsForGrade(classes, toGrade);
-            if (avail.length > 0 && !avail.includes(entry.fromStream)) {
-              entry.toStream = avail[0];
-              entry.warning = entry.fromStream
-                ? `Stream "${entry.fromStream}" not in ${toGrade} · Assigned to "${entry.toStream}"`
-                : `No stream previously assigned · Assigned to "${entry.toStream}"`;
-            } else {
-              entry.warning = "";
-            }
-          }
-          onUpdate();
-        },
-      }, [icon("add_circle")])
-    : el("button", {
-        type: "button",
-        class: "promotion-action-btn",
-        title: "Edit destination grade or stream",
-        onClick: () => {
-          openEditRow(entry, index, onUpdate);
-        },
-      }, [icon("edit")]);
-
-  const excludeBtn = !isExcluded
-    ? el("button", {
-        type: "button",
-        class: "promotion-action-btn promotion-action-btn--danger",
-        title: "Exclude learner from promotion (retain)",
-        onClick: () => {
-          entry.action = "exclude";
-          entry.toGrade = null;
-          entry.toStream = "";
-          entry.warning = "";
-          onUpdate();
-        },
-      }, [icon("do_not_disturb_on")])
-    : "";
-
-  const fromDisplay = entry.fromStream
-    ? `${entry.fromGrade} · ${entry.fromStream}`
-    : entry.fromGrade;
-
-  return el("tr", { class: rowClass }, [
-    el("td", {}, [
-      el("div", { style: "font-weight:600; color:var(--color-ink);" }, entry.student.fullName || "—"),
-      hasWarning ? el("div", { class: "promotion-warning-tag" }, [icon("warning"), entry.warning]) : "",
-    ]),
-    el("td", { style: "font-family:var(--font-mono); font-size:12px; color:var(--color-ink-soft);" }, entry.student.admissionNumber || "—"),
-    el("td", { style: "color:var(--color-ink-soft);" }, fromDisplay),
-    el("td", {}, [toContent]),
-    el("td", { style: "text-align:center;" }, [
-      el("div", { style: "display:inline-flex; gap:6px; justify-content:center; align-items:center;" }, [actionBtn, excludeBtn]),
-    ]),
-  ]);
-}
-
-async function openEditRow(entry, index, onUpdate) {
-  const { openModal } = await import("../js/components/modal.js");
-
-  const gradeSelect = el("select", {
-    class: "field__input",
-    style: "height:38px; border-radius:var(--radius-md); font-size:var(--fs-sm);",
-  }, [
-    ...classes.map((c) => el("option", { value: c.grade, ...(c.grade === entry.toGrade ? { selected: "true" } : {}) }, c.grade)),
-    el("option", { value: "__graduate__", ...(entry.action === "graduate" ? { selected: "true" } : {}) }, "Graduate to Alumni"),
-  ]);
-
-  const streamSelect = el("select", {
-    class: "field__input",
-    style: "height:38px; border-radius:var(--radius-md); font-size:var(--fs-sm);",
-  });
-
-  function fillStreams(grade) {
-    streamSelect.innerHTML = "";
-    if (grade === "__graduate__") {
-      streamSelect.append(el("option", { value: "" }, "Not applicable (Graduating)"));
-      streamSelect.disabled = true;
-      return;
-    }
-    streamSelect.disabled = false;
-    const avail = streamsForGrade(classes, grade);
-    avail.forEach((s) =>
-      streamSelect.append(el("option", { value: s, ...(s === entry.toStream ? { selected: "true" } : {}) }, s))
-    );
-    if (avail.length === 0) streamSelect.append(el("option", { value: "" }, "No streams configured"));
-  }
-
-  fillStreams(entry.action === "graduate" ? "__graduate__" : entry.toGrade);
-  gradeSelect.addEventListener("change", () => fillStreams(gradeSelect.value));
-
-  let close;
-
-  const saveBtn = el("button", {
-    class: "btn btn--primary btn--sm",
-    onClick: () => {
-      const val = gradeSelect.value;
-      if (val === "__graduate__") {
-        entry.action = "graduate";
-        entry.toGrade = null;
-        entry.toStream = "";
-      } else {
-        entry.action = "promote";
-        entry.toGrade = val;
-        entry.toStream = streamSelect.value;
-      }
-      entry.warning = "";
-      close?.();
-      onUpdate();
-    },
-  }, [icon("check"), "Save Changes"]);
-
-  const cancelBtn = el("button", {
-    class: "btn btn--ghost btn--sm",
-    onClick: () => close?.(),
-  }, "Cancel");
-
-  const body = el("div", { style: "display:flex; flex-direction:column; gap:var(--sp-3);" }, [
-    el("div", { class: "field" }, [el("label", { class: "field__label" }, "Destination Grade"), gradeSelect]),
-    el("div", { class: "field" }, [el("label", { class: "field__label" }, "Destination Stream"), streamSelect]),
-    el("div", { style: "display:flex; gap:8px; justify-content:flex-end; margin-top:var(--sp-2);" }, [cancelBtn, saveBtn]),
-  ]);
-
-  close = openModal(`Override Assignment: ${entry.student.fullName}`, body);
-}
-
-// ----------------------------------------------------- Step 3: Commit --
-
-function buildCommitStep() {
-  const section = el("div", { class: "card", style: "padding:0; overflow:hidden;" });
-  const currentYear = settings.currentAcademicYear || new Date().getFullYear().toString();
-  const newYear = String(parseInt(currentYear, 10) + 1);
-  const firstTerm = (settings.terms || ["Term 1"])[0];
-
-  const promoting = plan.filter((e) => e.action === "promote");
-  const graduating = plan.filter((e) => e.action === "graduate");
-  const excluded = plan.filter((e) => e.action === "exclude");
-
-  // Balanced Card Header
-  section.append(
-    el("div", { class: "promotion-card-header" }, [
-      el("div", { class: "promotion-card-header__left" }, [
-        el("div", { class: "promotion-header-icon-wrap" }, [icon("task_alt")]),
-        el("div", {}, [
-          el("h2", { class: "promotion-card-title" }, "Confirm & Commit Promotions"),
-          el("p", { class: "promotion-card-subtitle" }, "Review final movement figures and academic calendar updates before saving."),
-        ]),
-      ]),
-    ])
-  );
-
-  const body = el("div", { class: "card__body", style: "padding:var(--sp-5);" });
-
-  // 2-Column Summary Grid
-  const commitGrid = el("div", { class: "promotion-commit-grid" }, [
-    // Panel 1: Learner Movements
-    el("div", { class: "promotion-commit-panel" }, [
-      el("div", { class: "promotion-commit-panel__title" }, [icon("groups"), "Learner Cohort Updates"]),
-      el("div", { class: "promotion-commit-item" }, [
-        icon("arrow_upward"),
-        el("span", {}, [
-          el("strong", { style: "color:var(--color-primary-900);" }, String(promoting.length)),
-          ` learner${promoting.length !== 1 ? "s" : ""} will advance to the next grade`,
-        ]),
-      ]),
-      el("div", { class: "promotion-commit-item promotion-commit-item--grad" }, [
-        icon("school"),
-        el("span", {}, [
-          el("strong", { style: "color:var(--color-green);" }, String(graduating.length)),
-          ` learner${graduating.length !== 1 ? "s" : ""} will graduate → Alumni Collection`,
-        ]),
-      ]),
-      excluded.length > 0
-        ? el("div", { class: "promotion-commit-item promotion-commit-item--muted" }, [
-            icon("remove_circle_outline"),
-            el("span", {}, [
-              el("strong", {}, String(excluded.length)),
-              ` learner${excluded.length !== 1 ? "s" : ""} will remain in current grade (retained)`,
-            ]),
-          ])
-        : "",
-    ]),
-
-    // Panel 2: Academic Calendar Bump
-    el("div", { class: "promotion-commit-panel" }, [
-      el("div", { class: "promotion-commit-panel__title" }, [icon("calendar_month"), "Academic Calendar Progression"]),
-      el("div", { class: "promotion-commit-item" }, [
-        icon("update"),
-        el("span", {}, [
-          "Academic Year advances: ",
-          el("strong", { style: "color:var(--color-primary-900);" }, `${currentYear} → ${newYear}`),
-        ]),
-      ]),
-      el("div", { class: "promotion-commit-item" }, [
-        icon("replay"),
-        el("span", {}, [
-          "Term resets to: ",
-          el("strong", { style: "color:var(--color-primary-900);" }, firstTerm),
-        ]),
-      ]),
-      el("div", { class: "promotion-commit-item promotion-commit-item--muted" }, [
-        icon("policy"),
-        el("span", { style: "font-size:var(--fs-xs);" }, "Bulk promotion recorded in immutable Audit Trail"),
-      ]),
-    ]),
-  ]);
-
-  body.append(commitGrid);
-
-  // Warning Callout
-  const warningAlert = el("div", {
-    class: "alert alert--warning",
-    style: "display:flex; align-items:flex-start; gap:12px; margin-bottom:var(--sp-4);",
-  }, [
-    icon("warning"),
-    el("div", {}, [
-      el("div", { class: "alert__title", style: "font-weight:700;" }, "Irreversible Academic Progression"),
-      el("div", { class: "alert__body", style: "font-size:var(--fs-xs); margin-top:2px;" }, "Committing will update learner grade records in the database and permanently add graduating cohorts to the alumni register. Confirm that all term marks and reports have been concluded."),
-    ]),
-  ]);
-  body.append(warningAlert);
-
-  // Progress Bar (hidden until commit)
-  const progressWrap = el("div", { class: "promotion-progress-wrap", style: "display:none;" });
-  const progressBar = el("div", { class: "promotion-progress-fill" });
-  const progressText = el("span", { class: "promotion-progress-text" }, "Preparing atomic writes...");
-  progressWrap.append(
-    el("div", { class: "promotion-progress-track" }, [progressBar]),
-    progressText
-  );
-  body.append(progressWrap);
-
-  // Result Area
-  const resultWrap = el("div", { class: "promotion-result", style: "display:none;" });
-  body.append(resultWrap);
-
-  section.append(body);
-
-  // Footer Navigation & Commit Action
-  const backBtn = el("button", {
-    class: "btn btn--ghost",
-    onClick: () => {
-      currentStep = 2;
-      renderStep(wrapRef);
-    },
-  }, [icon("arrow_back"), "Back to Review"]);
-
-  const commitBtn = el("button", {
-    class: "btn btn--primary btn--lg",
-    onClick: async (e) => {
-      const restore = busyButton(e.currentTarget, "Committing…");
-      backBtn.disabled = true;
-      progressWrap.style.display = "";
-
-      try {
-        const result = await commitPromotionPlan(activeProfile.uid, plan, {
-          newAcademicYear: newYear,
-          currentAcademicYear: currentYear,
-          firstTerm,
-          onProgress: (done, total) => {
-            const pct = Math.round((done / total) * 100);
-            progressBar.style.width = `${pct}%`;
-            progressText.textContent = `Processing batch write: ${done} of ${total} records completed (${pct}%)…`;
-          },
-        });
-
-        progressWrap.style.display = "none";
-        commitBtn.style.display = "none";
-        backBtn.style.display = "none";
-        resultWrap.style.display = "";
-        resultWrap.innerHTML = "";
-        resultWrap.append(
-          el("div", { class: "promotion-result-success" }, [
-            icon("check_circle"),
-            el("div", {}, [
-              el("h3", { style: "margin:0 0 var(--sp-1); font-size:1.15rem; color:var(--color-green);" }, "Academic Promotion Successfully Committed"),
-              el("p", { style: "margin:0 0 6px; font-size:var(--fs-sm); color:var(--color-ink);" }, `${result.promoted} learners promoted to their next classes, and ${result.graduated} graduates archived to Alumni.`),
-              el("p", { style: "margin:0 0 6px; font-size:var(--fs-sm); font-weight:600; color:var(--color-primary-900);" }, `The active school year is now ${newYear}, ${firstTerm}.`),
-              el("p", { class: "text-muted", style: "font-size:11px; margin:0;" }, `Completed in ${result.batches} database batch${result.batches !== 1 ? "es" : ""}.`),
-            ]),
-          ]),
-          el("div", { style: "display:flex; gap:var(--sp-3); margin-top:var(--sp-4);" }, [
-            el("button", { class: "btn btn--primary", onClick: () => {
-              import("../js/router.js").then(({ navigate }) => navigate("/dashboard"));
-            }}, [icon("dashboard"), "Go to Dashboard"]),
-            el("button", { class: "btn btn--ghost", onClick: () => {
-              import("../js/router.js").then(({ navigate }) => navigate("/students"));
-            }}, [icon("school"), "View Student Directory"]),
-          ])
-        );
-
-        toast("Promotion successfully finalized!", "success");
-      } catch (err) {
-        progressWrap.style.display = "none";
-        toast(err.message || "Failed to commit promotion plan. Please try again.", "error");
-        restore();
-        backBtn.disabled = false;
-      }
-    },
-  }, [icon("check_circle"), "Promote Now"]);
-
-  section.append(
-    el("div", {
-      class: "card__footer",
-      style: "display:flex; justify-content:space-between; align-items:center; padding:var(--sp-4) var(--sp-5); border-top:1px solid var(--color-line); background:var(--color-white); flex-wrap:wrap; gap:12px;",
-    }, [backBtn, commitBtn])
-  );
-
-  return section;
-}

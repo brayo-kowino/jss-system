@@ -3253,6 +3253,86 @@ tbody tr:hover { background: var(--color-primary-100); }
 .profile-stat--warn .profile-stat__value { color: var(--color-red); }
 .profile-stat--good .profile-stat__value { color: var(--color-green); }
 
+.students-view-wrap .page-tabs a { text-decoration: none; }
+.students-alumni { display: grid; gap: var(--sp-4); }
+.students-alumni__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 15rem);
+  gap: var(--sp-3);
+}
+.students-alumni__filters .field { margin: 0; min-width: 0; }
+.students-alumni__count { margin: 0 0 var(--sp-3); }
+.students-alumni__results td { white-space: normal; }
+.students-alumni__pagination { margin-top: var(--sp-3); }
+.alumni-documents { display: grid; gap: var(--sp-4); }
+.alumni-documents p,
+.alumni-documents h4 { margin: 0; }
+.alumni-documents > p:empty { display: none; }
+.alumni-document-list { list-style: none; padding: 0; margin: var(--sp-2) 0 0; }
+.alumni-document-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--color-line);
+  overflow-wrap: anywhere;
+}
+.alumni-document-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.alumni-certificate-review {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: var(--sp-3);
+  gap: var(--sp-3);
+  background: var(--color-cream-dim);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+.alumni-certificate-review dt { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+.alumni-certificate-review dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+
+.alumni-certificate-mount { position: fixed; top: 0; left: -12000px; width: 1120px; pointer-events: none; }
+.alumni-certificate {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 728px;
+  background: #fff;
+  color: #19374f;
+  border: 2px solid #b5985d;
+  padding: 55px 78px 35px;
+  font-family: var(--font-body, sans-serif);
+  text-align: center;
+}
+.alumni-certificate p { margin: 0; }
+.alumni-certificate__school { font-weight: 700; font-size: 24px; overflow-wrap: anywhere; }
+.alumni-certificate h1 { color: #19374f; margin: 12px 0 0; font-size: 42px; }
+.alumni-certificate__identity { margin: 38px 0 22px; font-size: 18px; }
+.alumni-certificate .alumni-certificate__name {
+  font-family: var(--font-display, serif);
+  font-size: 48px;
+  line-height: 1.2;
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.alumni-certificate dl { display: flex; flex-wrap: wrap; gap: 24px 36px; justify-content: center; margin: 22px 0 40px; }
+.alumni-certificate dt { font-size: 14px; }
+.alumni-certificate dd { margin: 4px 0 0; font-weight: 700; font-size: 18px; }
+.alumni-certificate footer { display: flex; gap: 80px; justify-content: center; margin: auto 0 28px; padding-top: 44px; }
+.alumni-certificate footer span { border-top: 1px solid #19374f; width: 240px; padding: 8px; }
+.alumni-certificate__reference { display: flex; gap: 12px; justify-content: space-between; font-size: 14px; }
+@media (max-width: 640px) {
+  .students-alumni__filters { grid-template-columns: 1fr; }
+}
+
 .profile-tabs {
   display: flex; gap: var(--sp-2); flex-wrap: wrap;
   border-bottom: 2px solid rgba(20, 83, 138, 0.06);
@@ -7587,11 +7667,77 @@ tbody tr:hover { background: var(--color-primary-100); }
    ======================================================================= */
 
 /* Stepper Component */
+.promotion-card { padding: 0; overflow: hidden; }
+.promotion-body {
+  display: grid;
+  gap: var(--sp-4);
+  min-width: 0;
+  padding: var(--sp-5);
+}
+.promotion-body p { margin: 0; }
+.promotion-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-cream-dim);
+  font-size: var(--fs-sm);
+}
+.promotion-notice > span { color: var(--color-primary-700); }
+.promotion-notice--warning > span { color: var(--color-ink-soft); }
+.promotion-body .promotion-notice p { margin-top: 2px; }
+.promotion-page [hidden] { display: none; }
+.promotion-footer,
+.promotion-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.promotion-footer {
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--color-line);
+}
+.promotion-progression { display: grid; gap: var(--sp-2); }
+.promotion-progression h3 { margin: 0; font: 600 var(--fs-sm) var(--font-body); }
+.promotion-manual-fields .field { margin: 0; min-width: 0; }
+.promotion-review-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, auto);
+  gap: var(--sp-2);
+}
+.promotion-review-controls .promotion-search-input { padding-inline: var(--sp-3); }
+.promotion-review-controls select {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2);
+  color: var(--color-ink);
+  background: var(--color-white);
+}
+.promotion-row-actions { display: flex; gap: var(--sp-2); align-items: center; }
+.promotion-row-actions .btn { padding: var(--sp-2) var(--sp-3); }
+.promotion-confirm-check {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-start;
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+}
+.promotion-confirm-check input { margin-top: 0.18em; }
+.promotion-save-progress progress { width: 100%; accent-color: var(--color-primary-700); }
+.promotion-error-area:empty { display: none; }
+.promotion-error-area details { padding: var(--sp-2) 0; }
 .promotion-stepper {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
+  margin: 0 0 var(--sp-4);
   background: var(--color-white);
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--color-line);
@@ -7940,9 +8086,19 @@ tbody tr:hover { background: var(--color-primary-100); }
 /* Step 1: Mode Selection Cards */
 .promotion-mode-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
   gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
+  border: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.promotion-mode-grid legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 .promotion-mode-card {
   position: relative;
@@ -8229,6 +8385,15 @@ tbody tr:hover { background: var(--color-primary-100); }
 
 /* Responsive */
 @media (max-width: 680px) {
+  .promotion-body,
+  .promotion-footer,
+  .promotion-card-header { padding: var(--sp-3); }
+  .promotion-stepper { padding-inline: var(--sp-2); }
+  .promotion-step-node { gap: var(--sp-1); }
+  .promotion-review-controls { grid-template-columns: 1fr; }
+  .promotion-footer > .btn { flex: 1 1 auto; }
+  .promotion-review-table td > div { min-width: 0; }
+  .promotion-review-table td { white-space: normal; overflow-wrap: anywhere; }
   .promotion-step-meta {
     display: none;
   }

@@ -303,8 +303,8 @@ export async function renderReportCardVectorPdf(reportData, settings, opts = {})
     currentY += 24;
   };
   
-  const teacherRemark = reportData.teacherRemark || getSmartTeacherRemark(reportData);
-  const principalRemark = reportData.principalRemark || getSmartPrincipalRemark(reportData);
+  const teacherRemark = reportData.teacherRemark || (opts.historical ? "" : getSmartTeacherRemark(reportData));
+  const principalRemark = reportData.principalRemark || (opts.historical ? "" : getSmartPrincipalRemark(reportData));
   drawRemarkBox("Class Teacher Remarks", teacherRemark, reportData._classTeacherName || "", "Class Teacher", settings.teacherSignatureUrl);
   drawRemarkBox("Principal Remarks", principalRemark, settings.principalName || "", settings.principalTitle || "Principal", settings.principalSignatureUrl);
   

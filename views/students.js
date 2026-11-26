@@ -6,6 +6,7 @@ import {
   setStudentStatus,
 } from "../js/services/student.service.js";
 import { listParents } from "../js/services/parent.service.js";
+import { ALUMNI_ROLES } from "../js/services/alumni.service.js";
 import { listClasses, seedDefaultsIfEmpty } from "../js/services/academic.service.js";
 import { getSchoolSettings } from "../js/services/settings.service.js";
 import {
@@ -65,7 +66,24 @@ const STATUS_ACTION_LABEL = { active: "Reinstate", suspended: "Suspend", archive
 
 export { buildStudentsMascotSvg } from "../js/components/mascot.js";
 
+function studentTabs(active) {
+  const tabs = [
+    { label: "Directory", path: "#/students", symbol: "groups" },
+    { label: "Alumni", path: "#/students?tab=alumni", symbol: "school" },
+  ];
+  return el("nav", { class: "module-tab-bar", "aria-label": "Students views" },
+    el("div", { class: "page-tabs" }, tabs.map(({ label, path, symbol }) => el("a", {
+      class: "profile-tab" + (label === active ? " profile-tab--active" : ""),
+      href: path, "aria-current": label === active ? "page" : null,
+    }, [icon(symbol, "text-xs", { "aria-hidden": "true" }), label]))));
+}
+
 export async function render({ profile, params = {} }) {
+  const hasAlumniTab = ALUMNI_ROLES.includes(profile.role);
+  if (hasAlumniTab && params.tab === "alumni") {
+    const { renderAlumni } = await import("./students-alumni.js");
+    return el("div", { class: "students-view-wrap" }, [studentTabs("Alumni"), await renderAlumni(params)]);
+  }
   await seedDefaultsIfEmpty();
   const [studentsRes, parentsRes, classesRes, settingsRes, openIssuesRes] = await Promise.all([
     listStudents(),
@@ -78,6 +96,10 @@ export async function render({ profile, params = {} }) {
   parents = parentsRes;
   classes = classesRes;
   settings = settingsRes;
+  filterText = "";
+  filterGrade = "";
+  filterStatus = "";
+  currentPage = 1;
   
   openIssueCounts = new Map();
   for (const issue of openIssuesRes) {
@@ -116,6 +138,7 @@ export async function render({ profile, params = {} }) {
   for (const count of openIssueCounts.values()) totalOpenIssues += count;
 
   const wrap = el("div", { class: "students-view-wrap" });
+  if (hasAlumniTab) wrap.append(studentTabs("Directory"));
 
   if (!classes.length) {
     wrap.append(
