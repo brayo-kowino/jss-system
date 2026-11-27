@@ -32,7 +32,7 @@ async function bootApp() {
     // Check with the server if our code bundle is truly up to date.
     // If outdated, checkVersionAtBoot() clears caches and triggers a hard reload,
     // returning true so we abort booting the outdated bundle right here.
-    window.__jssUpdateSplashProgress?.(10, "Checking for updates…");
+    window.__jssUpdateSplashProgress?.(10, "Checking and applying updates…");
     const isOutdated = await checkVersionAtBoot();
     if (isOutdated) {
       // Abort loading outdated code
