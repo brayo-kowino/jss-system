@@ -45,24 +45,32 @@ afterEach(() => {
 });
 
 describe("Login screen", () => {
-  it("shows the school identity once, puts sign-in first, and keeps the learner's eyes", async () => {
+  it("restores the school panel and centered welcome while keeping sign-in first", async () => {
     mocks.school.mockResolvedValueOnce({ slug: "ees-example", schoolName: "Example Academy", motto: "Learn with purpose", logoUrl: "/example.png" });
     await mount("?school=ees-example");
     expect(select(".login-screen").firstElementChild.tagName).toBe("MAIN");
-    expect(select("h1").textContent).toBe("Sign in");
-    expect(select(".login-screen").textContent.match(/Example Academy/g)).toHaveLength(1);
-    expect(select(".login-identity img").getAttribute("src")).toBe("/example.png");
+    expect(select(".auth-card__header h1").textContent).toBe("Hi, welcome back");
+    expect(select(".auth-card__header p").textContent).toBe("Sign in to your Example Academy account");
+    expect(select(".auth-card__header img").getAttribute("src")).toBe("/example.png");
+    expect(select(".auth-brand__top img").getAttribute("src")).toBe("/example.png");
     expect(select("#login-school-picker").textContent).toBe("Switch school");
-    expect(select(".login-art__motto").textContent).toBe("Learn with purpose");
-    expect(select(".login-identity__motto").textContent).toBe("Learn with purpose");
+    expect(select(".auth-brand__top-name").textContent).toBe("Example Academy");
+    expect(select(".auth-brand__top-tag").textContent).toBe("Learn with purpose");
     expect(select("#learner-pupil-l")).not.toBeNull();
     expect(select("#learner-pupil-r")).not.toBeNull();
-    expect(select(".auth-rotator")).toBeNull();
+
+    const highlights = document.querySelectorAll(".auth-rotator__dot");
+    expect(highlights).toHaveLength(3);
+    expect(highlights[0].getAttribute("aria-pressed")).toBe("true");
+    highlights[1].click();
+    expect(select(".auth-rotator__text").textContent).toContain("CBC report cards");
+    expect(highlights[0].getAttribute("aria-pressed")).toBe("false");
+    expect(highlights[1].getAttribute("aria-pressed")).toBe("true");
   });
 
   it("reveals the single school picker, checks a prefixed code, and returns focus on cancel", async () => {
     await mount();
-    expect(select(".login-art__motto").textContent).toBe("School management system");
+    expect(select(".auth-brand__top-tag").textContent).toBe("School Management System");
     const picker = select("#login-school-picker");
     expect(picker.textContent).toBe("Enter school code");
     picker.click();

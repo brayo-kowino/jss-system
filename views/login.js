@@ -13,6 +13,12 @@ import { openModal } from "../js/components/modal.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { applyBranding } from "../js/services/branding.service.js";
 
+const BRAND_POINTS = [
+  { icon: "school", label: "Admissions and classes", text: "Admissions, classes, streams and CBC subjects in one place" },
+  { icon: "assessment", label: "Assessments and report cards", text: "Assessments, marks and auto-generated CBC report cards" },
+  { icon: "payments", label: "Fees, attendance and timetables", text: "Fees, attendance and timetables tracked in real time" },
+];
+
 // ===========================================================================
 // School-aware branding
 // Every account signs into one shared login form regardless of school (the
@@ -222,31 +228,46 @@ export async function render() {
   const illustration = el("div", { class: "auth-brand__illustration", "aria-hidden": "true" });
   illustration.innerHTML = buildLearnerSvg();
 
-  const brand = el("div", { class: "auth-brand login-art" }, [
+  const firstPoint = BRAND_POINTS[0];
+  const brand = el("div", { class: "auth-brand" }, [
     el("div", { class: "auth-brand__bg", "aria-hidden": "true" }, [
       el("div", { class: "auth-brand__grid" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--1" }),
+      el("div", { class: "auth-brand__orb auth-brand__orb--2" }),
     ]),
-    el("div", { class: "login-art__composition" }, [
-      illustration,
-      el("p", { class: "login-art__motto" }, motto || "School management system"),
+    el("div", { class: "auth-brand__top" }, [
+      el("span", { class: "seal" }, el("img", { class: "seal__img", src: logoSrc, alt: "" })),
+      el("div", {}, [
+        el("div", { class: "auth-brand__top-name" }, brandName),
+        el("div", { class: "auth-brand__top-tag" }, school ? (motto || "Powered by Eeskia") : "School Management System"),
+      ]),
+    ]),
+    illustration,
+    el("div", { class: "auth-brand__content" }, [
+      el("div", { class: "auth-rotator" }, el("div", { class: "auth-rotator__track", id: "login-feature" }, [
+        el("span", { class: "auth-rotator__icon", "aria-hidden": "true" }, icon(firstPoint.icon)),
+        el("span", { class: "auth-rotator__text" }, firstPoint.text),
+      ])),
+      el("div", { class: "auth-rotator__dots", role: "group", "aria-label": "Platform highlights" }, [
+        ...BRAND_POINTS.map(({ label }, index) => el("button", {
+          type: "button", class: "auth-rotator__dot", "aria-controls": "login-feature",
+          "aria-label": label, "aria-pressed": String(index === 0), title: label,
+        })),
+        el("button", {
+          type: "button", class: "auth-rotator__playback", "aria-controls": "login-feature",
+          "aria-label": "Pause highlights", title: "Pause highlights",
+        }, icon("pause", { "aria-hidden": "true" })),
+      ]),
     ]),
   ]);
 
   const schoolAction = el("button", {
     id: "login-school-picker",
     type: "button",
-    class: "login-text-action login-school-action",
+    class: "login-text-action",
     "aria-controls": "school-code-form",
     "aria-expanded": "false",
   }, school ? "Switch school" : "Enter school code");
-  const identity = el("div", { class: "login-identity" }, [
-    el("span", { class: "seal" }, el("img", { class: "seal__img", src: logoSrc, alt: "" })),
-    el("div", { class: "login-identity__text" }, [
-      el("div", { class: "login-identity__name" }, brandName),
-      motto ? el("p", { class: "login-identity__motto" }, motto) : null,
-      schoolAction,
-    ]),
-  ]);
   const codeInput = el("input", {
     id: "school-code-input", name: "school-code", type: "text", placeholder: "e.g. greenhill-jss",
     autocomplete: "off", autocapitalize: "none", spellcheck: "false", "aria-describedby": "school-code-error",
@@ -280,34 +301,48 @@ export async function render() {
     el("input", { id: "email", name: "email", type: "email", placeholder: "you@school.ac.ke", required: "", autocomplete: "username", autocapitalize: "none", "aria-describedby": "login-error" }),
   ]);
 
-  const passwordInput = el("input", { id: "password", name: "password", type: "password", required: "", autocomplete: "current-password", "aria-describedby": "login-error" });
+  const passwordInput = el("input", { id: "password", name: "password", type: "password", placeholder: "Enter your password", required: "", autocomplete: "current-password", "aria-describedby": "login-error" });
   const passwordToggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password", "aria-controls": passwordInput.id }, [icon("visibility", { "aria-hidden": "true" })]);
-  const passwordField = el("div", { class: "field login-password" }, [
+  const passwordField = el("div", { class: "field" }, [
     el("label", { for: "password" }, "Password"),
     el("div", { class: "field--password" }, [passwordInput, passwordToggle]),
-    el("button", { type: "button", id: "forgot-link", class: "login-text-action" }, "Forgot password?"),
+    el("div", { class: "field-error", id: "login-error", role: "alert" }),
   ]);
 
   const rememberCheckbox = el("input", { type: "checkbox", id: "remember-me" });
   form.append(
     emailField, passwordField,
-    el("div", { class: "field-error", id: "login-error", role: "alert" }),
-    el("label", { for: "remember-me", class: "login-remember" }, [rememberCheckbox, "Remember me"]),
-    el("button", { type: "submit", class: "btn btn--primary btn--block login-submit" }, "Sign in"),
+    el("div", { class: "auth-row" }, [
+      el("label", { for: "remember-me" }, [rememberCheckbox, "Remember me"]),
+      el("button", { type: "button", id: "forgot-link", class: "login-text-action" }, "Forgot password?"),
+    ]),
+    el("button", { type: "submit", class: "btn btn--primary btn--block login-submit" }, "Sign In"),
   );
 
   const formside = el("main", { class: "auth-formside login-formside" }, [
-    el("div", { class: "auth-card login-card" }, [
-      identity, codeForm,
-      el("h1", { id: "login-title", class: "login-title" }, "Sign in"),
+    el("div", { class: "auth-card" }, [
+      el("header", { class: "auth-card__header" }, [
+        el("div", { class: "seal seal--lg" }, el("img", { class: "seal__img", src: logoSrc, alt: "" })),
+        el("h1", { id: "login-title" }, "Hi, welcome back"),
+        el("p", { class: "text-muted" }, school?.schoolName ? `Sign in to your ${brandName} account` : "Sign in to your Eeskia account"),
+      ]),
       offlineBanner, form,
       el("div", { class: "login-help" }, [
+        el("span", {}, "Account locked or compromised?"),
         el("button", { type: "button", id: "emergency-support-link", class: "login-text-action" }, [
           icon("security", { "aria-hidden": "true" }), "Emergency help",
         ]),
-        el("span", {}, "For locked or compromised accounts"),
       ]),
-      el("footer", { class: "login-footer" }, `© ${new Date().getFullYear()} ISKIFY360 ERP Softwares`),
+      el("div", { class: "login-switch-school" }, [
+        school ? el("span", {}, "Not your school?") : null,
+        schoolAction,
+      ]),
+      codeForm,
+      el("footer", { class: "auth-copyright" }, [
+        `© ${new Date().getFullYear()} `,
+        el("b", {}, "ISKIFY360 ERP Softwares"),
+        ". All rights reserved.",
+      ]),
     ]),
   ]);
 
@@ -326,6 +361,46 @@ export async function render() {
 
   wrap.append(formside, brand);
   return wrap;
+}
+
+function initRotator() {
+  const root = document.querySelector(".login-screen .auth-brand__content");
+  const track = root.querySelector(".auth-rotator__track");
+  const featureIcon = track.querySelector(".auth-rotator__icon");
+  const featureText = track.querySelector(".auth-rotator__text");
+  const dots = Array.from(root.querySelectorAll(".auth-rotator__dot"));
+  const playback = root.querySelector(".auth-rotator__playback");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let index = 0;
+  let paused = false;
+
+  function show(nextIndex) {
+    if (nextIndex === index) return;
+    index = nextIndex;
+    const point = BRAND_POINTS[index];
+    featureIcon.replaceChildren(icon(point.icon));
+    featureText.textContent = point.text;
+    dots.forEach((dot, i) => dot.setAttribute("aria-pressed", String(i === index)));
+    if (!reducedMotion.matches) track.animate?.([{ opacity: 0.4 }, { opacity: 1 }], { duration: 180 });
+  }
+
+  dots.forEach((dot, i) => dot.addEventListener("click", () => show(i)));
+  playback.addEventListener("click", () => {
+    paused = !paused;
+    const label = paused ? "Play highlights" : "Pause highlights";
+    playback.setAttribute("aria-label", label);
+    playback.title = label;
+    playback.replaceChildren(icon(paused ? "play_arrow" : "pause", { "aria-hidden": "true" }));
+  });
+
+  const timer = setInterval(() => {
+    if (!root.isConnected) {
+      clearInterval(timer);
+      return;
+    }
+    if (paused || reducedMotion.matches || document.hidden || !root.offsetWidth || root.matches(":hover, :focus-within")) return;
+    show((index + 1) % BRAND_POINTS.length);
+  }, 6500);
 }
 
 // Small eye-animation state machine for the learner illustration:
@@ -454,6 +529,7 @@ function initEyes() {
 
 export function init() {
   const eyes = initEyes();
+  initRotator();
 
   const form = document.getElementById("login-form");
   const errorEl = document.getElementById("login-error");
