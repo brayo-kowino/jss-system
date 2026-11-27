@@ -1,0 +1,273 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions.support-ticket-action]
+  node_bundler = "esbuild"
+  # Bundle Firebase Auth with jwks-rsa and jose so Lambda never has to
+  # require jose's ES module from CommonJS at startup.
+  external_node_modules = ["@google-cloud/firestore"]
+
+[functions.support-ticket-followups]
+  node_bundler = "esbuild"
+  external_node_modules = ["@google-cloud/firestore", "nodemailer"]
+
+# ==========================================================================
+# Build step (Vite)
+# `npm run build` runs `vite build` (see vite.config.js), which:
+#   - bundles the ES modules under js/ and views/ into content-hashed chunks
+#     under dist/assets/*.js, minified and then obfuscated (see the
+#     obfuscatorPlugin in vite.config.js);
+#   - bundles/minifies the CSS from css/*.css into dist/assets/*.css;
+#   - leaves the Firebase (gstatic.com) and Chart.js (jsdelivr, +esm) CDN
+#     imports untouched/external, exactly as they load today - already
+#     whitelisted below in script-src, so no CSP change was needed for them;
+#   - copies public/ (a copy of assets/, robots.txt, sitemap.xml,
+#     site.webmanifest) straight into dist/ unhashed, since app/index.html,
+#     site.webmanifest, robots.txt and sitemap.xml all reference those by
+#     fixed absolute path;
+#   - emits the 4 HTML entry points (index.html, app/index.html,
+#     data-protection.html, terms-of-service.html) at the same URLs they
+#     live at today, each with the same inline <script> content it had
+#     before (splash particles, boot watchdog, etc.) - security.ts's nonce
+#     regex stamps those the same way it always has, since it matches on
+#     any <script> tag regardless of what build tool produced the HTML.
+# `netlify/edge-functions/*` are picked up by Netlify directly from the
+# repo regardless of the publish directory, so nothing there needed to
+# change for this.
+# ==========================================================================
+
+# ==========================================================================
+# Security edge function (maintenance mode + CSP nonce injection).
+# Its path ("/*") is declared inline in netlify/edge-functions/security.ts
+# via `export const config`, which is enough to wire it up — no
+# [[edge_functions]] block needed here too. It runs on every request,
+# after the static headers below have been applied, and rewrites the
+# Content-Security-Policy header's script-src to use a fresh per-request
+# nonce (see that file for details and how to toggle maintenance mode).
+# ==========================================================================
+
+# ==========================================================================
+# Security headers
+# Applies to every response. CSP is the main event; the rest are
+# defense-in-depth headers that cost nothing and close off whole classes
+# of attack (clickjacking, MIME sniffing, referrer leakage, etc).
+#
+# IMPORTANT: script-src below has no hashes or 'unsafe-inline' on
+# purpose. netlify/edge-functions/security.ts rewrites this directive on
+# every response, replacing it with a fresh 'nonce-...' value and
+# stamping the matching nonce onto every <script> tag in the HTML. That
+# means inline <script> content (splash particles, boot watchdog,
+# splash-hide timing, the landing-page header/nav/reveal/counters/FAQ/
+# form bootstrap script, etc.) can change freely with no build step and
+# no per-script hash to keep in sync. The value here is just a
+# same-origin fallback in the unlikely event the edge function doesn't
+# run — it intentionally has no inline-script allowance of its own, so
+# that fallback fails closed rather than silently permitting arbitrary
+# inline scripts.
+#
+# App Check additions: reCAPTCHA v3 (which App Check uses to attest that
+# requests come from the real app, not a script or a cloned frontend)
+# loads a script from google.com and runs its challenge in a google.com
+# iframe, and App Check tokens themselves are minted by
+# firebaseappcheck.googleapis.com — hence the additions to script-src,
+# frame-src, and connect-src below. See js/firebase-config.js for the
+# App Check init and how the reCAPTCHA site key is wired in.
+#
+# style-src includes 'unsafe-inline' because the app's el() DOM helper
+# (js/utils.js) renders dynamic styling as inline style="..." attributes
+# at ~150 call sites across the views. Hashing/nonce-ing isn't practical
+# here since many of those strings are built at runtime (per-row colors,
+# computed widths, etc). This only relaxes CSS injection risk, not script
+# execution — script-src stays locked to 'self' + explicit domains +
+# the per-request nonce.
+# ==========================================================================
+# ==========================================================================
+# Cloudinary upload proxy + rate limit.
+# The browser now POSTs to same-origin /media-upload (see
+# js/services/cloudinary.service.js) instead of api.cloudinary.com
+# directly. Netlify proxies it server-side to Cloudinary and enforces the
+# limit below before the request ever reaches Cloudinary. 20/min/IP is
+# generous for a human uploading a logo or a few student photos, and
+# blocks scripted hammering of the upload endpoint. This is a rate-limit
+# chokepoint, not authentication - see the comment in
+# cloudinary.service.js for what this does and doesn't protect against.
+# ==========================================================================
+# ==========================================================================
+# Subscription system.
+# Four same-origin edge functions - netlify/edge-functions/subscription-issue.ts
+# (super_admin mints a token from the Schools page),
+# netlify/edge-functions/subscription-activate.ts (a school admin redeems
+# one from Settings, or from the subscription-expired lock screen),
+# netlify/edge-functions/subscription-revoke.ts (super_admin cuts an
+# already-active term short for non-payment/chargeback/fraud/error - see
+# that file's header for how it differs from suspend/reactivate on
+# schools/{id}'s separate `status` field), and netlify/edge-functions/
+# school-status.ts (super_admin's Suspend/Reactivate action on the Schools
+# page - used to be a direct client write to `status`, moved here because
+# that field now feeds firestore.rules' isSubscriptionActive() via a
+# custom claim that has to be fanned out to the school's staff, which only
+# a privileged service-account credential can do) - plus one standard
+# Netlify Function, netlify/functions/subscription-expiry-check.mjs, which
+# is a scheduled function (cron) rather than an edge function only because
+# Netlify's scheduler doesn't support edge functions. All five talk to
+# Firestore with a Google service-account credential that bypasses
+# firestore.rules entirely, same pattern as results-lookup.ts. Their paths
+# ("/subscription-issue", "/subscription-activate", "/subscription-revoke",
+# "/school-status") are declared inline via each file's own
+# `export const config`, so nothing needs registering here - same as
+# media-upload.ts/results-lookup.ts. Already covered by connect-src 'self'
+# below, so no CSP change was needed either.
+#
+# REQUIRED SETUP (Netlify Console -> Site configuration -> Environment
+# variables - secrets, never commit them):
+#   GOOGLE_SERVICE_ACCOUNT_KEY - if already set for results-lookup.ts,
+#                                nothing new to add; all four subscription
+#                                functions reuse it.
+#   SUBSCRIPTION_TOKEN_SECRET  - only needed by subscription-issue.ts and
+#                                subscription-activate.ts (subscription-revoke.ts
+#                                doesn't mint/verify a token, it's a direct
+#                                privileged write): any long random string
+#                                (e.g. `openssl rand -hex 32`), used to
+#                                sign/verify subscription tokens. Rotating
+#                                it just invalidates any tokens issued but
+#                                not yet activated - nothing else.
+# A new deploy is needed after setting these (env vars are snapshotted at
+# deploy time), same as every other function in this project.
+# ==========================================================================
+
+# ==========================================================================
+# Cloudinary upload proxy has moved to netlify/edge-functions/media-upload.ts.
+# It used to be a plain [[redirects]] proxy here, but a signed upload needs
+# to compute a Cloudinary signature (requires the API secret, which must
+# never reach the browser) and verify the caller's Firebase ID token before
+# signing anything - both of those need actual code, not a static redirect.
+# The edge function declares its own path ("/media-upload") and rate limit
+# in its exported `config`, same pattern as security.ts, so nothing needs
+# to be registered here.
+# ==========================================================================
+
+# ==========================================================================
+# Edge function ordering.
+# security.ts and subscription-gate.ts both declare their own `path` via
+# `export const config`, so neither strictly needs an entry here to be
+# picked up - but when more than one edge function matches the same
+# request, Netlify runs explicitly-declared ones (below) before
+# implicitly-declared ones, in the order listed. That order matters here:
+# site-wide maintenance mode (security.ts) must win over a single school's
+# suspension screen (subscription-gate.ts) - a school shouldn't see "we
+# suspended you" during a maintenance window that has nothing to do with
+# them, and subscription-gate.ts's cookie check is meaningless anyway
+# while the whole site is down for everyone. Listing security.ts first
+# guarantees that: if it 503s (maintenance on, no bypass cookie), it never
+# calls context.next(), so subscription-gate.ts never runs at all.
+# ==========================================================================
+[[edge_functions]]
+  path = "/*"
+  function = "security"
+
+[[edge_functions]]
+  path = "/app/*"
+  function = "subscription-gate"
+
+[[edge_functions]]
+  path = "/trial-manage"
+  function = "trial-manage"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = '''
+      default-src 'self';
+      script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://www.google.com https://challenges.cloudflare.com;
+      style-src 'self' 'unsafe-inline';
+      font-src 'self' data:;
+      img-src 'self' data: blob: https://res.cloudinary.com https://api.qrserver.com;
+      connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://firebaseappcheck.googleapis.com https://content-firebaseappcheck.googleapis.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://fcm.googleapis.com https://www.gstatic.com https://www.google.com https://cdn.jsdelivr.net https://challenges.cloudflare.com https://res.cloudinary.com;
+      worker-src 'self' blob:;
+      manifest-src 'self';
+      object-src 'none';
+      base-uri 'self';
+      form-action 'self';
+      frame-src https://www.google.com https://challenges.cloudflare.com;
+      frame-ancestors 'none';
+      upgrade-insecure-requests;
+    '''
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), clipboard-write=(self), fullscreen=(self)"
+    X-XSS-Protection = "0"
+    Cross-Origin-Opener-Policy = "same-origin"
+    Cross-Origin-Resource-Policy = "same-origin"
+
+# HTML must always be revalidated so deploys (and the maintenance page)
+# show up immediately instead of being served stale from a browser/CDN cache.
+# Version metadata must NEVER be cached by browser or intermediate caches.
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
+
+# HTML must always be revalidated so deploys (and the maintenance page)
+# show up immediately instead of being served stale from a browser/CDN cache.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/**/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/app"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/app/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+    
+# /css/*, /js/*, and /views/* no longer exist as served paths post-build
+# (everything bundles into /assets/*) - those three header rules were
+# removed rather than left dangling on paths nothing matches.
+#
+# /assets/* now holds a mix of content-hashed build output (app-<hash>.js,
+# app-<hash>.css - safe to cache forever, a content change gets a new
+# filename) and a handful of unhashed passthrough images/icons copied
+# straight from assets/ (referenced by fixed absolute path from
+# app/index.html and site.webmanifest, so their filenames can't change).
+# Netlify's header matching can't tell those two apart by path alone, so
+# this keeps the same moderate, always-revalidated policy the unhashed
+# files already relied on rather than risking a stale logo/icon being
+# served under an aggressive immutable cache.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=26400, must-revalidate"
+
+# The service worker script itself must never be served stale - browsers
+# already cap SW script caching at 24h regardless of headers, but an
+# explicit no-cache means a new deploy's offline-caching logic (and the
+# "update available" toast in app.js) is picked up on the very next visit
+# rather than up to a day later.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"

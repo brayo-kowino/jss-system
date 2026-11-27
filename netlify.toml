@@ -7,11 +7,13 @@
 
 [functions.support-ticket-action]
   node_bundler = "esbuild"
-  external_node_modules = ["firebase-admin"]
+  # Bundle Firebase Auth with jwks-rsa and jose so Lambda never has to
+  # require jose's ES module from CommonJS at startup.
+  external_node_modules = ["@google-cloud/firestore"]
 
 [functions.support-ticket-followups]
   node_bundler = "esbuild"
-  external_node_modules = ["firebase-admin", "nodemailer"]
+  external_node_modules = ["@google-cloud/firestore", "nodemailer"]
 
 # ==========================================================================
 # Build step (Vite)
