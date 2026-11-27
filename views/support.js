@@ -1,4 +1,4 @@
-import { listSchoolTickets, raiseSupportTicket, resolveSupportTicket } from "../js/services/support.service.js";
+import { listSchoolTickets, raiseSupportTicket } from "../js/services/support.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { caseStatus, caseStatusFilter, openRecordModal, recordEmpty, recordField } from "../js/components/records-workspace.js";
 
@@ -56,7 +56,7 @@ export async function render({ profile }) {
       if (active === "open" && ticket.status !== "open") return false;
       if (active === "resolved" && ticket.status === "open") return false;
       const { reference, category } = ticketInfo(ticket);
-      return [ticket.subject, ticket.message, reference, category].filter(Boolean).join(" ").toLowerCase().includes(query);
+      return [ticket.subject, ticket.message, reference, ticket.id && `#${ticket.id}`, category].filter(Boolean).join(" ").toLowerCase().includes(query);
     });
     reset.hidden = active === "all" && !query;
     result.textContent = state === "ready" && tickets.length && !reset.hidden ? `${matching.length} of ${tickets.length} tickets` : "";
@@ -72,19 +72,7 @@ export async function render({ profile }) {
       const noMatches = query ? "No tickets match this search" : `No ${active} tickets`;
       list.replaceChildren(recordEmpty("search_off", noMatches, "Try another search or clear your filters."));
     } else {
-      list.replaceChildren(el("ul", { class: "support-ticket-list" }, matching.map((ticket) => {
-        const { subject, reference, category, date } = ticketInfo(ticket);
-        const open = ticket.status === "open";
-        return el("li", { class: "support-ticket-item" }, [
-          el("div", { class: "records-item-content" }, [
-            el("button", { type: "button", class: "records-title-link", onClick: () => showTicket(ticket, profile, reload) }, subject),
-            el("p", { class: "records-muted records-meta" }, [reference, category].filter(Boolean).join(" · ")),
-            ticket.message ? el("p", { class: "records-excerpt" }, ticket.message) : null,
-            ticket.resolutionNote ? el("p", { class: "records-muted records-excerpt" }, [el("strong", {}, "Resolution "), ticket.resolutionNote]) : null,
-          ]),
-          el("div", { class: "support-ticket-item__status" }, [caseStatus(open), el("span", { class: "records-muted" }, date)]),
-        ]);
-      })));
+      list.replaceChildren(el("ul", { class: "support-ticket-list" }, matching.map(ticketRow)));
     }
   }
 
@@ -127,6 +115,29 @@ export async function render({ profile }) {
   ]));
   await reload();
   return page;
+}
+
+function ticketRow(ticket) {
+  const { subject, reference, category, date } = ticketInfo(ticket);
+  return el("li", { class: "support-ticket-item" }, [
+    el("div", { class: "support-ticket-item__summary" }, [
+      el("div", { class: "support-ticket-item__meta" }, [
+        reference ? el("span", { class: "support-ticket-reference" }, reference) : null,
+        category ? el("span", { class: "records-muted" }, category) : null,
+      ]),
+      el("h3", { class: "support-ticket-item__subject" }, subject),
+      ticket.message ? el("p", { class: "records-excerpt" }, ticket.message) : null,
+    ]),
+    el("div", { class: "support-ticket-item__status" }, [
+      caseStatus(ticket.status === "open"),
+      el("span", { class: "records-muted" }, date),
+    ]),
+    el("button", {
+      type: "button", class: "btn btn--ghost btn--sm support-ticket-item__view",
+      "aria-label": `View ticket: ${subject}`,
+      onClick: () => showTicket(ticket),
+    }, ["View ticket", icon("chevron_right", { "aria-hidden": "true" })]),
+  ]);
 }
 
 function contactPanel() {
@@ -204,32 +215,27 @@ function showNewTicket(profile, onCreated) {
   });
 }
 
-function showTicket(ticket, profile, onUpdated) {
+function showTicket(ticket) {
   const isOpen = ticket.status === "open";
-  const { subject, reference, category, date } = ticketInfo(ticket);
-  const dismiss = el("button", { type: "button", class: "btn btn--ghost", onClick: () => close() }, "Close");
-  const actions = el("div", { class: "records-dialog-actions" }, dismiss);
+  const { subject, category, date } = ticketInfo(ticket);
+  const metadata = [
+    ticket.id ? ["Ticket ID", ticket.id] : null,
+    ["Submitted", date],
+    category ? ["Category", category] : null,
+    !isOpen && ticket.resolvedAt ? ["Resolved", formatDate(ticket.resolvedAt)] : null,
+  ].filter(Boolean);
+  const done = el("button", { type: "button", class: "btn btn--primary", onClick: () => close() }, "Done");
   const body = el("div", { class: "records-dialog-body" }, [
-    el("div", { class: "records-toolbar" }, [el("span", { class: "records-muted" }, [reference, category, date].filter(Boolean).join(" · ")), caseStatus(isOpen)]),
-    el("h4", { class: "records-detail-title" }, subject),
-    el("section", { class: "records-detail" }, [el("h4", {}, "Message"), el("p", {}, ticket.message || "No message recorded.")]),
-    el("section", { class: "records-detail" }, [el("h4", {}, "Resolution"), el("p", {}, ticket.resolutionNote || (isOpen ? "Awaiting a reply from support." : "No resolution note recorded."))]),
-    actions,
+    el("div", { class: "support-ticket-detail__header" }, [el("h4", { class: "records-detail-title" }, subject), caseStatus(isOpen)]),
+    el("dl", { class: "support-ticket-detail__metadata" }, metadata.map(([label, value]) => el("div", {}, [
+      el("dt", {}, label), el("dd", {}, value),
+    ]))),
+    el("section", { class: "records-detail" }, [el("h4", {}, "Ticket message"), el("p", {}, ticket.message || "No message recorded.")]),
+    el("section", { class: "records-detail" }, [
+      el("h4", {}, isOpen ? "Support response" : "Resolution"),
+      el("p", {}, ticket.resolutionNote || (isOpen ? "Awaiting a response from platform support." : "No resolution note recorded.")),
+    ]),
+    el("div", { class: "records-dialog-actions" }, done),
   ]);
-  if (isOpen) {
-    actions.append(el("button", { type: "button", class: "btn btn--primary", onClick: async (event) => {
-      if (!confirm("Mark this support ticket as resolved?")) return;
-      const restore = busyButton(event.currentTarget, "Resolving…");
-      try {
-        await resolveSupportTicket(profile.uid, ticket.id, "Resolved by school administrator.");
-        toast("Ticket marked as resolved.", "success");
-        close();
-        await onUpdated();
-      } catch (error) {
-        toast(error.message || "Couldn’t resolve this ticket.", "error");
-        restore();
-      }
-    } }, [icon("check"), "Mark resolved"]));
-  }
   const close = openRecordModal("Ticket details", body);
 }

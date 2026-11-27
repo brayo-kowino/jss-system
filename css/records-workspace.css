@@ -152,14 +152,34 @@
 .support-ticket-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "summary status" "summary view";
   align-items: start;
-  gap: var(--sp-3);
+  gap: var(--sp-2) var(--sp-4);
   padding: var(--sp-4);
   border-top: 1px solid var(--color-line);
 }
 .support-ticket-item:focus-within, .support-ticket-item:hover { background: var(--color-surface-alt); }
 .support-ticket-item:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
-.support-ticket-item__status { display: grid; justify-items: end; gap: var(--sp-1); }
+.support-ticket-item__summary { grid-area: summary; min-width: 0; }
+.support-ticket-item__meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); }
+.support-ticket-item__meta:not(:empty) { margin-bottom: var(--sp-1); }
+.support-ticket-reference { color: var(--color-ink-soft); font: 650 var(--fs-xs) var(--font-mono); }
+.records-workspace .support-ticket-item__subject { color: var(--color-primary-900); overflow-wrap: anywhere; }
+.support-ticket-item__status { grid-area: status; display: grid; justify-items: end; gap: var(--sp-1); }
+.support-ticket-item__view { grid-area: view; justify-self: end; min-height: 36px; }
+.support-ticket-detail__header { display: flex; justify-content: space-between; align-items: start; gap: var(--sp-3); }
+.support-ticket-detail__header .records-status { flex: none; }
+.support-ticket-detail__metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 187px), 1fr));
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+  padding: 0 0 var(--sp-3);
+  border-bottom: 1px solid var(--color-line);
+  font-size: var(--fs-sm);
+}
+.support-ticket-detail__metadata dt { color: var(--color-ink-soft); font-size: var(--fs-xs); }
+.support-ticket-detail__metadata dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
 .support-contacts .records-card-head > p { margin-top: var(--sp-1); }
 .support-contact-row { display: flex; gap: var(--sp-3); padding: var(--sp-4); border-top: 1px solid var(--color-line); }
 .support-contact-row > div { min-width: 0; overflow-wrap: anywhere; }
@@ -294,7 +314,7 @@
 }
 
 @container record-workspace (max-width: 460px) {
-  .support-ticket-item { grid-template-columns: minmax(0, 1fr); }
+  .support-ticket-item { grid-template-areas: "summary summary" "status view"; align-items: center; }
   .support-ticket-item__status { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
   .records-stats > div { padding: var(--sp-2); }
   .records-stats dd { font-size: var(--fs-base); }

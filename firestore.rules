@@ -523,9 +523,12 @@ service cloud.firestore {
     }
 
     match /support_tickets/{docId} {
-      allow read: if isSuperAdmin() || (isStaff() && resource.data.schoolId == mySchoolId());
-      allow create: if isStaff() && request.resource.data.schoolId == mySchoolId();
-      allow update: if isSuperAdmin() || (isStaff() && resource.data.schoolId == mySchoolId() && request.resource.data.schoolId == mySchoolId());
+      allow read: if isSuperAdmin() || (isStaff() && ownsExisting());
+      allow create: if isStaff() && ownsIncoming()
+        && request.resource.data.raisedBy == request.auth.uid
+        && request.resource.data.status == 'open'
+        && !request.resource.data.keys().hasAny(['resolutionNote', 'resolvedBy', 'resolvedAt']);
+      allow update: if isSuperAdmin();
       allow delete: if false;
     }
 

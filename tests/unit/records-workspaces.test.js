@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const data = vi.hoisted(() => ({
-  tickets: vi.fn(), raiseTicket: vi.fn(), resolveTicket: vi.fn(),
+  tickets: vi.fn(), raiseTicket: vi.fn(),
   issues: vi.fn(), raiseIssue: vi.fn(), resolveIssue: vi.fn(), reopenIssue: vi.fn(), students: vi.fn(),
   logsSince: vi.fn(), recentLogs: vi.fn(),
 }));
 vi.mock("../../js/services/support.service.js", () => ({
-  listSchoolTickets: data.tickets, raiseSupportTicket: data.raiseTicket, resolveSupportTicket: data.resolveTicket,
+  listSchoolTickets: data.tickets, raiseSupportTicket: data.raiseTicket,
 }));
 vi.mock("../../js/services/student-issue.service.js", () => ({
   listAllIssuesForSchool: data.issues, raiseIssue: data.raiseIssue, resolveIssue: data.resolveIssue, reopenIssue: data.reopenIssue,
@@ -65,29 +65,34 @@ describe("Contact Support", () => {
     button("Open (0)").click();
     expect(find(".records-list").textContent).toContain("No open tickets");
     button("Clear filters").click();
-    const search = edit("#support-search", "tkt123");
+    const search = edit("#support-search", "#tkt12345");
     expect(document.activeElement).toBe(search);
-    button("Report card help").click();
+    const view = find('button[aria-label="View ticket: Report card help"]');
+    view.focus();
+    view.click();
     expect(dialog().textContent).toContain("Template corrected.");
     expect(dialog().textContent).toContain("The PDF has a blank page.");
+    expect(dialog().textContent).toContain("tkt12345");
+    button("Done", dialog()).click();
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(view);
   });
 
-  it("opens the submitted ticket in the Open list and retains the resolution workflow", async () => {
+  it("shows a submitted ticket as open and lets the school read its status", async () => {
     document.body.append(await renderSupport({ profile }));
     const created = { id: "new001", status: "open", subject: "[Academic & Grading] Term grades", message: "Please check the export." };
     data.raiseTicket.mockImplementation(async () => { data.tickets.mockResolvedValue([created, ticket]); });
-    data.resolveTicket.mockImplementation(async () => { data.tickets.mockResolvedValue([{ ...created, status: "resolved" }, ticket]); });
     button("New ticket").click();
     edit("#ticket-subject", "Term grades");
     edit("#ticket-message", created.message);
     submitDialog();
-    await vi.waitFor(() => expect(button("Term grades")).toBeTruthy());
+    const getViewButton = () => find('button[aria-label="View ticket: Term grades"]');
+    await vi.waitFor(() => expect(getViewButton()).toBeTruthy());
     expect(data.raiseTicket).toHaveBeenCalledExactlyOnceWith(profile.uid, { subject: created.subject, message: created.message });
     expect(button("Open (1)").getAttribute("aria-pressed")).toBe("true");
-    button("Term grades").click();
-    button("Mark resolved", dialog()).click();
-    await vi.waitFor(() => expect(button("Resolved (2)")).toBeTruthy());
-    expect(data.resolveTicket).toHaveBeenCalledExactlyOnceWith(profile.uid, created.id, "Resolved by school administrator.");
+    getViewButton().click();
+    expect(dialog().textContent).toContain("Awaiting a response from platform support.");
+    expect([...dialog().querySelectorAll("button")].map((item) => item.getAttribute("aria-label") || item.textContent)).toEqual(["Close", "Done"]);
   });
 });
 
