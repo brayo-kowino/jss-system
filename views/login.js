@@ -13,12 +13,6 @@ import { openModal } from "../js/components/modal.js";
 import { getSchoolBySlug, slugify, SLUG_PREFIX } from "../js/services/settings.service.js";
 import { applyBranding } from "../js/services/branding.service.js";
 
-const BRAND_POINTS = [
-  { icon: "school", text: "Admissions, classes, streams and CBC subjects in one place" },
-  { icon: "assessment", text: "Assessments, marks and auto-generated CBC report cards" },
-  { icon: "payments", text: "Fees, attendance and timetables tracked in real time" },
-];
-
 // ===========================================================================
 // School-aware branding
 // Every account signs into one shared login form regardless of school (the
@@ -217,135 +211,103 @@ export async function render() {
 
   const logoSrc = school?.logoUrl || "/assets/logo.png";
   const brandName = school?.schoolName || "Eeskia";
-  const brandTag = school ? (school.motto || "Powered by Eeskia") : "School Management System";
+  const motto = String(school?.motto || "").trim();
 
   document.title = school?.schoolName ? `${school.schoolName} ` : DEFAULT_TITLE;
   setFavicon(logoSrc);
 
-  const wrap = el("div", { class: "auth-screen" });
-
-  // Left: brand panel. No screenshot/photo - just an animated abstract
-  // backdrop (drifting grid + soft gradient orbs) behind a rotating,
-  // one-line-at-a-time feature carousel. Keeps the panel calm at a glance
-  // while still feeling alive/tech rather than a static wall of text.
-  const rotatorIcon = el("span", { class: "auth-rotator__icon", id: "auth-rotator-icon" }, [icon(BRAND_POINTS[0].icon)]);
-  const rotatorText = el("span", { class: "auth-rotator__text", id: "auth-rotator-text" }, BRAND_POINTS[0].text);
-  const rotatorTrack = el("div", { class: "auth-rotator__track", id: "auth-rotator-track" }, [rotatorIcon, rotatorText]);
-  const rotatorDots = el("div", { class: "auth-rotator__dots", id: "auth-rotator-dots" }, BRAND_POINTS.map((_, i) =>
-    el("button", { type: "button", class: `auth-rotator__dot${i === 0 ? " is-active" : ""}`, "data-index": String(i), "aria-label": `Show feature ${i + 1}` })
-  ));
+  const wrap = el("div", { class: "auth-screen login-screen" });
 
   ensureEyeStyles();
   const illustration = el("div", { class: "auth-brand__illustration", "aria-hidden": "true" });
   illustration.innerHTML = buildLearnerSvg();
 
-  const brand = el("div", { class: "auth-brand" }, [
-    el("div", { class: "auth-brand__bg" }, [
+  const brand = el("div", { class: "auth-brand login-art" }, [
+    el("div", { class: "auth-brand__bg", "aria-hidden": "true" }, [
       el("div", { class: "auth-brand__grid" }),
-      el("div", { class: "auth-brand__orb auth-brand__orb--1" }),
-      el("div", { class: "auth-brand__orb auth-brand__orb--2" }),
     ]),
-    el("div", { class: "auth-brand__top" }, [
-      el("div", { class: "seal" }, [el("img", { class: "seal__img", src: logoSrc, alt: `${brandName} logo` })]),
-      el("div", {}, [
-        el("div", { class: "auth-brand__top-name" }, brandName),
-        el("div", { class: "auth-brand__top-tag" }, brandTag),
-      ]),
-    ]),
-    illustration,
-    el("div", { class: "auth-brand__content" }, [
-      el("div", { class: "auth-rotator", id: "auth-rotator" }, [rotatorTrack]),
-      rotatorDots,
+    el("div", { class: "login-art__composition" }, [
+      illustration,
+      el("p", { class: "login-art__motto" }, motto || "School management system"),
     ]),
   ]);
 
-  // Right: form panel
+  const schoolAction = el("button", {
+    id: "login-school-picker",
+    type: "button",
+    class: "login-text-action login-school-action",
+    "aria-controls": "school-code-form",
+    "aria-expanded": "false",
+  }, school ? "Switch school" : "Enter school code");
+  const identity = el("div", { class: "login-identity" }, [
+    el("span", { class: "seal" }, el("img", { class: "seal__img", src: logoSrc, alt: "" })),
+    el("div", { class: "login-identity__text" }, [
+      el("div", { class: "login-identity__name" }, brandName),
+      motto ? el("p", { class: "login-identity__motto" }, motto) : null,
+      schoolAction,
+    ]),
+  ]);
+  const codeInput = el("input", {
+    id: "school-code-input", name: "school-code", type: "text", placeholder: "e.g. greenhill-jss",
+    autocomplete: "off", autocapitalize: "none", spellcheck: "false", "aria-describedby": "school-code-error",
+  });
+  const codeForm = el("form", { id: "school-code-form", class: "login-school-picker", hidden: "" }, [
+    el("div", { class: "field" }, [
+      el("label", { for: codeInput.id }, "School code"),
+      el("div", { class: "slug-input-group" }, [el("span", { class: "slug-input__prefix", "aria-hidden": "true" }, `${SLUG_PREFIX}-`), codeInput]),
+      el("div", { class: "field-error", id: "school-code-error", role: "alert" }),
+    ]),
+    el("div", { class: "login-school-picker__actions" }, [
+      el("button", { type: "button", id: "school-code-cancel", class: "btn btn--ghost btn--sm" }, "Cancel"),
+      el("button", { type: "submit", class: "btn btn--primary btn--sm" }, "Use this school"),
+    ]),
+    school ? el("a", { href: loginUrl(null), id: "clear-login-school", class: "login-text-action" }, "Continue without a school code") : null,
+  ]);
+
   const offlineBanner = el("div", {
     id: "login-offline-banner",
-    class: "badge badge--warning",
-    style: `${typeof navigator !== "undefined" && navigator.onLine ? "display:none;" : "display:inline-flex;"}align-items:center;gap:6px;padding:8px 12px;margin-bottom:16px;width:100%;justify-content:center;border-radius:var(--radius-md);box-sizing:border-box;`,
+    class: "login-offline",
+    role: "status",
+    hidden: navigator.onLine ? "" : null,
   }, [
-    icon("wifi_off"),
+    icon("wifi_off", { "aria-hidden": "true" }),
     el("span", {}, "You are offline. An internet connection is required to sign in."),
   ]);
 
-  const card = el("div", { class: "auth-card" });
-  card.append(
-    el("div", { class: "auth-card__header" }, [
-      el("div", { class: "seal seal--lg" }, [el("img", { class: "seal__img", src: logoSrc, alt: `${brandName} logo` })]),
-      el("h1", {}, "Hi, welcome back"),
-      el("p", { class: "text-muted" }, school ? `Sign in to your ${school.schoolName} account` : "Please sign in with your account details"),
-    ]),
-    offlineBanner
-  );
-
-  const form = el("form", { id: "login-form" });
+  const form = el("form", { id: "login-form", "aria-labelledby": "login-title" });
   const emailField = el("div", { class: "field" }, [
-    el("label", { for: "email" }, "Email Address"),
-    el("input", { id: "email", type: "email", placeholder: "you@school.ac.ke", required: "true", autocomplete: "username" }),
+    el("label", { for: "email" }, "Email address"),
+    el("input", { id: "email", name: "email", type: "email", placeholder: "you@school.ac.ke", required: "", autocomplete: "username", autocapitalize: "none", "aria-describedby": "login-error" }),
   ]);
 
-  const passwordInput = el("input", { id: "password", type: "password", placeholder: "Enter your password", required: "true", autocomplete: "current-password" });
-  const passwordToggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password" }, [icon("visibility")]);
-  const passwordField = el("div", { class: "field" }, [
+  const passwordInput = el("input", { id: "password", name: "password", type: "password", required: "", autocomplete: "current-password", "aria-describedby": "login-error" });
+  const passwordToggle = el("button", { type: "button", class: "field__toggle", "aria-label": "Show password", "aria-controls": passwordInput.id }, [icon("visibility", { "aria-hidden": "true" })]);
+  const passwordField = el("div", { class: "field login-password" }, [
     el("label", { for: "password" }, "Password"),
     el("div", { class: "field--password" }, [passwordInput, passwordToggle]),
-    el("div", { class: "field-error", id: "login-error" }, ""),
+    el("button", { type: "button", id: "forgot-link", class: "login-text-action" }, "Forgot password?"),
   ]);
 
   const rememberCheckbox = el("input", { type: "checkbox", id: "remember-me" });
-  const authRow = el("div", { class: "auth-row" }, [
-    el("label", { for: "remember-me" }, [rememberCheckbox, "Remember me"]),
-    el("a", { href: "#", id: "forgot-link" }, "Forgot Password?"),
-  ]);
+  form.append(
+    emailField, passwordField,
+    el("div", { class: "field-error", id: "login-error", role: "alert" }),
+    el("label", { for: "remember-me", class: "login-remember" }, [rememberCheckbox, "Remember me"]),
+    el("button", { type: "submit", class: "btn btn--primary btn--block login-submit" }, "Sign in"),
+  );
 
-  const submitBtn = el("button", { type: "submit", class: "btn btn--primary btn--block" }, "Sign In");
-
-  const emergencyHelpRow = el("div", { style: "margin-top:14px; text-align:center; padding-top:10px; border-top:1px dashed var(--color-line, #e2e8f0);" }, [
-    el("a", {
-      href: "#",
-      id: "emergency-support-link",
-      style: "font-size:12px; color:var(--color-ink-soft, #64748b); text-decoration:none; display:inline-flex; align-items:center; gap:5px; transition:color 0.2s ease;",
-    }, [
-      icon("security", "style: font-size:14px; color:var(--color-amber-700, #b45309);"),
-      "Account compromised or locked out? Get Emergency Help"
-    ]),
-  ]);
-
-  form.append(emailField, passwordField, authRow, submitBtn, emergencyHelpRow);
-  card.append(form);
-
-  // Switch-school / enter-code affordance: a one-line link that reveals a
-  // small inline form, rather than a second full page.
-  const switchRow = school
-    ? el("div", { style: "margin-top:16px;text-align:center;" }, [
-        el("span", { class: "text-sm text-muted" }, "Not your school? "),
-        el("a", { href: "#", id: "switch-school-link" }, "Use a different one"),
-      ])
-    : el("div", { style: "margin-top:16px;text-align:center;" }, [
-        el("span", { class: "text-sm text-muted" }, "Already using Eeskia at your school? "),
-        el("a", { href: "#", id: "enter-code-link" }, "Enter your school code"),
-      ]);
-
-  const codeInput = el("input", { id: "school-code-input", type: "text", placeholder: "e.g. greenhill-jss" });
-  const codePrefixBadge = el("span", { class: "slug-input__prefix" }, `${SLUG_PREFIX}-`);
-  const codeInputGroup = el("div", { class: "slug-input-group", style: "flex:1;" }, [codePrefixBadge, codeInput]);
-  const codeForm = el("form", { id: "school-code-form", style: "display:none;margin-top:10px;" }, [
-    el("div", { style: "display:flex;gap:8px;align-items:flex-start;" }, [
-      el("div", { class: "field", style: "flex:1;margin-bottom:0;" }, [codeInputGroup]),
-      el("button", { type: "submit", class: "btn btn--tonal btn--sm" }, "Go"),
-    ]),
-    el("div", { class: "field-error", id: "school-code-error" }, ""),
-  ]);
-
-  const formside = el("div", { class: "auth-formside" }, [
-    card,
-    switchRow,
-    codeForm,
-    el("div", { class: "auth-copyright" }, [
-      `© ${new Date().getFullYear()} `,
-      el("b", {}, "ISKIFY360 ERP Softwares"),
-      ". All rights reserved.",
+  const formside = el("main", { class: "auth-formside login-formside" }, [
+    el("div", { class: "auth-card login-card" }, [
+      identity, codeForm,
+      el("h1", { id: "login-title", class: "login-title" }, "Sign in"),
+      offlineBanner, form,
+      el("div", { class: "login-help" }, [
+        el("button", { type: "button", id: "emergency-support-link", class: "login-text-action" }, [
+          icon("security", { "aria-hidden": "true" }), "Emergency help",
+        ]),
+        el("span", {}, "For locked or compromised accounts"),
+      ]),
+      el("footer", { class: "login-footer" }, `© ${new Date().getFullYear()} ISKIFY360 ERP Softwares`),
     ]),
   ]);
 
@@ -353,7 +315,7 @@ export async function render() {
     const showing = passwordInput.type === "text";
     passwordInput.type = showing ? "password" : "text";
     passwordToggle.innerHTML = "";
-    passwordToggle.append(icon(showing ? "visibility" : "visibility_off"));
+    passwordToggle.append(icon(showing ? "visibility" : "visibility_off", { "aria-hidden": "true" }));
     passwordToggle.setAttribute("aria-label", showing ? "Show password" : "Hide password");
   });
 
@@ -362,57 +324,8 @@ export async function render() {
   // when no school was resolved.
   applyBranding(school);
 
-  wrap.append(brand, formside);
+  wrap.append(formside, brand);
   return wrap;
-}
-
-// Cycles the left-panel feature line through BRAND_POINTS on a timer, with
-// a small fade/slide swap. Self-cleaning: each tick checks the rotator is
-// still attached to the document (this app's views have no unmount hook)
-// and stops the interval once the user has navigated away.
-function initRotator() {
-  const root = document.getElementById("auth-rotator");
-  if (!root) return;
-  const track = document.getElementById("auth-rotator-track");
-  const iconEl = document.getElementById("auth-rotator-icon");
-  const textEl = document.getElementById("auth-rotator-text");
-  const dots = Array.from(document.querySelectorAll("#auth-rotator-dots .auth-rotator__dot"));
-  const SWAP_MS = 220;
-  const INTERVAL_MS = 3800;
-  let index = 0;
-  let timer = null;
-
-  function show(i) {
-    index = i;
-    track.classList.add("is-swapping");
-    setTimeout(() => {
-      iconEl.innerHTML = "";
-      iconEl.append(icon(BRAND_POINTS[i].icon));
-      textEl.textContent = BRAND_POINTS[i].text;
-      track.classList.remove("is-swapping");
-    }, SWAP_MS);
-    dots.forEach((d, di) => d.classList.toggle("is-active", di === i));
-  }
-
-  function restart() {
-    if (timer) clearInterval(timer);
-    timer = setInterval(() => {
-      if (!document.body.contains(root)) {
-        clearInterval(timer);
-        return;
-      }
-      show((index + 1) % BRAND_POINTS.length);
-    }, INTERVAL_MS);
-  }
-
-  dots.forEach((d) => {
-    d.addEventListener("click", () => {
-      show(Number(d.dataset.index));
-      restart();
-    });
-  });
-
-  restart();
 }
 
 // Small eye-animation state machine for the learner illustration:
@@ -427,7 +340,7 @@ function initRotator() {
 // out), so callers can safely optional-chain every method.
 function initEyes() {
   const eyesRoot = document.getElementById("learner-eyes");
-  if (!eyesRoot) return null;
+  if (!eyesRoot || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return null;
   const pupilL = document.getElementById("learner-pupil-l");
   const pupilR = document.getElementById("learner-pupil-r");
   const svgEl = document.querySelector(".learner-svg");
@@ -502,6 +415,9 @@ function initEyes() {
   idleInterval = setInterval(() => {
     if (!isAttached()) {
       clearInterval(idleInterval);
+      clearTimeout(blinkTimer);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("keydown", onKeyActivity);
       return;
     }
     if (!sleepy && Date.now() - lastActivity > IDLE_MS) {
@@ -543,6 +459,7 @@ export function init() {
   const errorEl = document.getElementById("login-error");
   const forgotLink = document.getElementById("forgot-link");
   const rememberCheckbox = document.getElementById("remember-me");
+  const emailInput = document.getElementById("email");
   const passwordInput = document.getElementById("password");
 
   // Contextual eye states around the password field: focus holds a glance
@@ -556,9 +473,10 @@ export function init() {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     errorEl.textContent = "";
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
     const btn = form.querySelector("button[type=submit]");
+    if (btn.disabled) return;
     const restore = busyButton(btn, "Signing in…");
     try {
       await setPersistence(auth, rememberCheckbox.checked ? browserLocalPersistence : browserSessionPersistence);
@@ -614,11 +532,13 @@ export function init() {
 
   forgotLink.addEventListener("click", async (e) => {
     e.preventDefault();
-    const email = document.getElementById("email").value.trim();
-    if (!email) {
-      errorEl.textContent = "Enter your email above first, then click 'Forgot Password?'";
+    const email = emailInput.value.trim();
+    if (!emailInput.checkValidity()) {
+      errorEl.textContent = "Enter a valid email address to request a password reset.";
+      emailInput.focus();
       return;
     }
+    errorEl.textContent = "";
     const restore = busyButton(forgotLink, "Sending…");
     try {
       await requestPasswordReset(email);
@@ -630,70 +550,63 @@ export function init() {
     }
   });
 
-  document.getElementById("emergency-support-link")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    const email = document.getElementById("email")?.value.trim() || "";
-    openEmergencySupportModal(email);
+  document.getElementById("emergency-support-link").addEventListener("click", () => {
+    openEmergencySupportModal(emailInput.value.trim());
   });
 
-  initRotator();
-
-  // "Not your school?" - drop the remembered code and reload onto the
-  // generic screen. A full reload (rather than re-rendering in place) is
-  // deliberate: it's a rare action, and it guarantees every bit of applied
-  // branding (CSS vars, page title, etc.) resets cleanly.
-  document.getElementById("switch-school-link")?.addEventListener("click", (e) => {
-    e.preventDefault();
-    clearStoredSlug();
-    location.href = loginUrl(null);
+  const schoolPicker = document.getElementById("login-school-picker");
+  const codeForm = document.getElementById("school-code-form");
+  const codeInput = document.getElementById("school-code-input");
+  const codeErrorEl = document.getElementById("school-code-error");
+  const codeSubmit = codeForm.querySelector("button[type=submit]");
+  function showCodeForm(show) {
+    codeForm.hidden = !show;
+    schoolPicker.setAttribute("aria-expanded", String(show));
+    (show ? codeInput : schoolPicker).focus();
+  }
+  schoolPicker.addEventListener("click", () => showCodeForm(codeForm.hidden));
+  document.getElementById("school-code-cancel").addEventListener("click", () => showCodeForm(false));
+  codeForm.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") showCodeForm(false);
   });
+  document.getElementById("clear-login-school")?.addEventListener("click", clearStoredSlug);
 
-  // "Enter your school code" - reveals the inline code form.
-  document.getElementById("enter-code-link")?.addEventListener("click", (e) => {
+  codeForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    document.getElementById("enter-code-link").parentElement.style.display = "none";
-    const codeForm = document.getElementById("school-code-form");
-    codeForm.style.display = "";
-    document.getElementById("school-code-input").focus();
-  });
-
-  document.getElementById("school-code-form")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const codeErrorEl = document.getElementById("school-code-error");
+    if (codeSubmit.disabled) return;
     codeErrorEl.textContent = "";
-    const raw = document.getElementById("school-code-input").value;
-    // The badge only shows the prefix - it isn't part of the input's own
-    // value - so it has to be re-added here before slugifying, same as
-    // School Settings' buildFullSlug() does when saving a code.
-    const clean = slugify(`${SLUG_PREFIX}-${raw}`);
-    if (clean === SLUG_PREFIX || !raw.trim()) {
+    const code = slugify(codeInput.value.trim());
+    if (!code || code === SLUG_PREFIX) {
       codeErrorEl.textContent = "Enter your school's code first.";
+      codeInput.focus();
       return;
     }
-    const btn = e.submitter;
-    const restore = busyButton(btn, "");
+    const prefix = `${SLUG_PREFIX}-`;
+    const clean = code.startsWith(prefix) ? code : slugify(`${prefix}${code}`);
+    const restore = busyButton(codeSubmit, "Checking…");
     try {
       const school = await getSchoolBySlug(clean);
       if (!school) {
         codeErrorEl.textContent = "That code wasn't recognized - check with your school administrator.";
-        restore();
         return;
       }
       storeSlug(school.slug);
-      // Same reasoning as "switch school": a full navigation to the new,
-      // now-branded URL - not a re-render in place - guarantees every bit
-      // of applied branding (CSS vars, page title, etc.) resets cleanly.
+      // Reload to apply the new school name, favicon, and palette together.
       location.href = loginUrl(school.slug);
     } catch (err) {
       codeErrorEl.textContent = "Couldn't check that code right now - try again.";
+    } finally {
       restore();
     }
   });
 
   const offlineBannerEl = document.getElementById("login-offline-banner");
   const updateOnlineState = () => {
-    if (offlineBannerEl) {
-      offlineBannerEl.style.display = navigator.onLine ? "none" : "inline-flex";
+    if (offlineBannerEl.isConnected) {
+      offlineBannerEl.hidden = navigator.onLine;
+    } else {
+      window.removeEventListener("online", updateOnlineState);
+      window.removeEventListener("offline", updateOnlineState);
     }
   };
   window.addEventListener("online", updateOnlineState);
