@@ -1,352 +1,222 @@
 import { fetchRecentLogs, fetchLogsSince, describeLog } from "../js/services/audit.service.js";
 import { listSchoolUsers } from "../js/services/auth.service.js";
-import { el, icon, toast } from "../js/utils.js";
+import { el, icon, toDate } from "../js/utils.js";
+import { recordEmpty, recordField } from "../js/components/records-workspace.js";
 
-// The "When" filter now drives the Firestore query itself (schoolId ==,
-// timestamp >=, timestamp desc via fetchLogsSince), instead of pulling a
-// fixed 1000-doc batch on every page load and filtering client-side.
-// Default range is short (last hour) since that's the common "what just
-// happened" check; widening the range re-queries rather than re-slicing
-// an already-fetched set, so you only pay for the reads you actually need.
-// "All time" is the one case that still falls back to a bounded
-// fetchRecentLogs() call, so even that stays capped rather than unbounded.
-const RANGE_OPTIONS = {
-  "1h": { label: "Last hour", ms: 60 * 60 * 1000 },
-  "12h": { label: "Last 12 hours", ms: 12 * 60 * 60 * 1000 },
-  today: { label: "Today", ms: 24 * 60 * 60 * 1000 },
-  "7d": { label: "Last 7 days", ms: 7 * 24 * 60 * 60 * 1000 },
-  "30d": { label: "Last 30 days", ms: 30 * 24 * 60 * 60 * 1000 },
-  all: { label: "All time (last 1000)", ms: null },
-};
-const RANGE_LABELS = Object.fromEntries(Object.entries(RANGE_OPTIONS).map(([k, v]) => [k, v.label]));
+const HOUR = 60 * 60 * 1000;
 const DEFAULT_RANGE = "1h";
-const ALL_TIME_FETCH_LIMIT = 1000;
+const RANGE_OPTIONS = {
+  "1h": { label: "Last hour", ms: HOUR },
+  "12h": { label: "Last 12 hours", ms: 12 * HOUR },
+  "24h": { label: "Last 24 hours", ms: 24 * HOUR },
+  "7d": { label: "Last 7 days", ms: 7 * 24 * HOUR },
+  "30d": { label: "Last 30 days", ms: 30 * 24 * HOUR },
+  all: { label: "Latest 1,000 entries", ms: null },
+};
 
-let logs = [];
-let usersById = new Map();
-let loadingRange = false;
-
-let filters = { search: "", entity: "all", action: "all", user: "all", range: DEFAULT_RANGE };
-
-async function loadLogsForRange(range) {
-  const opt = RANGE_OPTIONS[range] || RANGE_OPTIONS[DEFAULT_RANGE];
-  if (opt.ms == null) return fetchRecentLogs(ALL_TIME_FETCH_LIMIT);
-  return fetchLogsSince(Date.now() - opt.ms);
+function loadLogs(range) {
+  const { ms } = RANGE_OPTIONS[range];
+  return ms === null ? fetchRecentLogs(1000) : fetchLogsSince(Date.now() - ms);
 }
 
-export async function render({ profile }) {
-  const [rawLogs, users] = await Promise.all([loadLogsForRange(filters.range), listSchoolUsers().catch(() => [])]);
-  logs = rawLogs;
-  usersById = new Map(users.map((u) => [u.uid, u]));
-
-  const wrap = el("div", {});
-
-  wrap.append(
-    el("div", { class: "page-header" }, [
-      el("div", {}, [el("h1", {}, ""), el("p", {}, summaryLine())]),
-    ])
-  );
-
-  const kpiMount = el("div", { id: "audit-kpi-mount" });
-  wrap.append(kpiMount);
-  renderKpis(kpiMount);
-
-  const filterMount = el("div", { class: "card", style: "margin-bottom:16px;" });
-  wrap.append(filterMount);
-  renderFilters(filterMount, profile);
-
-  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" });
-  wrap.append(tableWrap);
-  renderTable(tableWrap);
-
-  return wrap;
+function readable(value) {
+  return (value || "").replace(/_/g, " ").replace(/^./, (letter) => letter.toUpperCase());
 }
 
-export function init() {}
-
-// ------------------------------------------------------------- helpers --
-
-function summaryLine() {
-  const rangeLabel = (RANGE_LABELS[filters.range] || "").toLowerCase();
-  if (!logs.length) return `No actions logged in the selected range (${rangeLabel}).`;
-  const distinctUsers = new Set(logs.map((l) => l.userId)).size;
-  return `${logs.length} action(s) logged across ${distinctUsers} user(s); ${rangeLabel}.`;
-}
-
-function userLabel(userId) {
-  const u = usersById.get(userId);
-  if (u) return u.fullName || u.email || userId;
-  if (userId === "unknown" || !userId) return "Unknown user";
-  return userId;
-}
-
-function roleLabel(role) {
-  if (!role) return "";
-  return role.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-}
-
-// The time-range filter is now applied server-side (loadLogsForRange), so
-// `logs` already only contains entries within the selected window. What's
-// left here is the cheap, in-memory refinement (search/module/action/user)
-// on that already-bounded set - same as before, just no second range pass.
-function getFiltered() {
-  const q = filters.search.trim().toLowerCase();
-  return logs
-    .filter((l) => filters.entity === "all" || l.entity === filters.entity)
-    .filter((l) => filters.action === "all" || l.action === filters.action)
-    .filter((l) => filters.user === "all" || l.userId === filters.user)
-    .filter((l) => {
-      if (!q) return true;
-      const { label } = describeLog(l);
-      const haystack = [label, l.entity, l.entityId, userLabel(l.userId)].filter(Boolean).join(" ").toLowerCase();
-      return haystack.includes(q);
-    });
+function moduleName(entity) {
+  return entity === "auth" ? "Sign-in & access" : readable(entity);
 }
 
 function formatDateTime(timestamp) {
-  if (!timestamp?.seconds) return "Just now";
-  const d = new Date(timestamp.seconds * 1000);
-  return d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const date = toDate(timestamp);
+  return date?.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) || "Date unavailable";
 }
 
-// --------------------------------------------------------------- KPIs --
-
-function renderKpis(container) {
-  container.innerHTML = "";
-
-  // `logs` is already scoped to the selected "When" range (fetched via
-  // fetchLogsSince), so these KPIs describe that range rather than
-  // recomputing fixed today/7d windows over a separately-fetched 1000-doc
-  // batch - one query backs both the table and the KPI strip.
-  const distinctUsers = new Set(logs.map((l) => l.userId)).size;
-
-  const entityCounts = new Map();
-  for (const l of logs) entityCounts.set(l.entity, (entityCounts.get(l.entity) || 0) + 1);
-  let busiest = null;
-  for (const [entity, count] of entityCounts) {
-    if (!busiest || count > busiest.count) busiest = { entity, count };
-  }
-
-  const rangeLabel = RANGE_LABELS[filters.range] || "Selected range";
-
-  const kpis = [
-    { label: `Actions (${rangeLabel})`, value: logs.length, icon: "today", color: "blue" },
-    { label: "Active Users", value: distinctUsers, icon: "group", color: "blue" },
-    { label: "Busiest Module", value: busiest ? busiest.entity.replace(/_/g, " ") : "N/A", icon: "bolt", color: "green" },
-  ];
-
-  const grid = el(
-    "div",
-    { class: "md3-kpi-grid" },
-    kpis.map((k) =>
-      el("div", { class: `md3-kpi-chip md3-kpi-chip--${k.color}` }, [
-        el("div", { class: "md3-kpi-chip__icon" }, [el("span", { class: "material-symbols-rounded" }, k.icon)]),
-        el("div", {}, [
-          el("div", { class: "md3-kpi-chip__label" }, k.label),
-          el("div", { class: "md3-kpi-chip__value" }, String(k.value)),
-        ]),
-      ])
-    )
-  );
-  container.append(grid);
+function updateOptions(select, values, emptyLabel, labelFor) {
+  const selected = select.value;
+  const options = [...new Set([...values, selected].filter(Boolean))].sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
+  select.replaceChildren(el("option", { value: "" }, emptyLabel), ...options.map((value) => el("option", { value }, labelFor(value))));
+  select.value = selected;
 }
 
-// ------------------------------------------------------------ filters --
+function stat(label) {
+  const value = el("dd");
+  return { value, item: el("div", {}, [el("dt", {}, label), value]) };
+}
 
-function selectField(label, id, options, current, labelFn) {
-  return el("div", { class: "field" }, [
-    el("label", {}, label),
-    el(
-      "select",
-      { id },
-      options.map((v) => el("option", { value: v, ...(v === current ? { selected: "true" } : {}) }, labelFn(v)))
-    ),
+export async function render() {
+  let logs = [];
+  let usersById = new Map();
+  let matching = [];
+  let requestVersion = 0;
+  let state = "loading";
+
+  const workspace = el("div", { class: "records-workspace records-workspace--audit" });
+  const search = el("input", { id: "f-search", type: "search", placeholder: "Search activity or record ID" });
+  const moduleSelect = el("select", { id: "f-entity" });
+  const action = el("select", { id: "f-action" });
+  const user = el("select", { id: "f-user" });
+  const advanced = el("div", { id: "audit-advanced-filters", class: "audit-advanced-filters" }, [
+    recordField("Module", moduleSelect), recordField("Action", action), recordField("User", user),
   ]);
-}
+  const filterLabel = el("span", {}, "More filters");
+  const toggleFilters = el("button", {
+    type: "button", class: "btn btn--ghost btn--sm audit-filters-toggle", "aria-controls": advanced.id, "aria-expanded": "false",
+    onClick: () => toggleFilters.setAttribute("aria-expanded", String(advanced.classList.toggle("audit-advanced-filters--open"))),
+  }, [icon("filter_list"), filterLabel]);
+  const range = el("select", { id: "f-range" }, Object.entries(RANGE_OPTIONS).map(([value, option]) => el("option", { value }, option.label)));
+  const result = el("p", { class: "records-muted", role: "status" });
+  const table = el("div", { class: "records-list" });
+  const actionsStat = stat("Actions logged");
+  const usersStat = stat("Users with activity");
+  const moduleStat = stat("Most active module");
+  const clear = el("button", { type: "button", id: "clear-filters", class: "btn btn--ghost btn--sm", onClick: clearFilters }, [icon("filter_alt_off"), "Reset filters"]);
+  const exportButton = el("button", { type: "button", id: "export-csv", class: "btn btn--ghost btn--sm", onClick: () => exportCsv(matching, userName, usersById) }, [icon("download"), "Export CSV"]);
 
-function renderFilters(container, profile) {
-  container.innerHTML = "";
-  const row = el("div", { class: "filter-toolbar" });
-
-  const entities = ["all", ...new Set(logs.map((l) => l.entity).filter(Boolean))].sort();
-  const actions = ["all", ...new Set(logs.map((l) => l.action).filter(Boolean))].sort();
-  const users = ["all", ...new Set(logs.map((l) => l.userId).filter(Boolean))];
-
-  row.append(
-    el("div", { class: "field" }, [
-      el("label", {}, "Search"),
-      el("input", { id: "f-search", placeholder: "Search action, module, user…", value: filters.search }),
-    ]),
-    selectField("Module", "f-entity", entities, filters.entity, (v) => (v === "all" ? "All Modules" : v.replace(/_/g, " "))),
-    selectField("Action", "f-action", actions, filters.action, (v) => (v === "all" ? "All Actions" : v.replace(/_/g, " "))),
-    selectField("User", "f-user", users, filters.user, (v) => (v === "all" ? "All Users" : userLabel(v))),
-    selectField("When", "f-range", Object.keys(RANGE_LABELS), filters.range, (v) => RANGE_LABELS[v])
-  );
-
-  const actionsRow = el("div", { class: "filter-actions" }, [
-    el("button", { class: "btn btn--ghost btn--sm", id: "clear-filters" }, [icon("filter_alt_off"), "Clear filters"]),
-    el("button", { class: "btn btn--ghost btn--sm", id: "export-csv" }, [
-      el("span", { class: "material-symbols-rounded" }, "download"),
-      " Export CSV",
-    ]),
-  ]);
-
-  container.append(row, actionsRow);
-
-  setTimeout(() => {
-    document.getElementById("f-search")?.addEventListener("input", (e) => {
-      filters.search = e.target.value;
-      rerender(profile);
-    });
-    document.getElementById("f-entity")?.addEventListener("change", (e) => {
-      filters.entity = e.target.value;
-      rerender(profile);
-    });
-    document.getElementById("f-action")?.addEventListener("change", (e) => {
-      filters.action = e.target.value;
-      rerender(profile);
-    });
-    document.getElementById("f-user")?.addEventListener("change", (e) => {
-      filters.user = e.target.value;
-      rerender(profile);
-    });
-    document.getElementById("f-range")?.addEventListener("change", async (e) => {
-      filters.range = e.target.value;
-      await reloadForRange(profile);
-    });
-    document.getElementById("clear-filters")?.addEventListener("click", async () => {
-      const rangeChanged = filters.range !== DEFAULT_RANGE;
-      filters = { search: "", entity: "all", action: "all", user: "all", range: DEFAULT_RANGE };
-      if (rangeChanged) await reloadForRange(profile);
-      else rerender(profile);
-    });
-    document.getElementById("export-csv")?.addEventListener("click", exportCsv);
-  });
-}
-
-// Changing the "When" filter re-queries Firestore for just that window
-// (see loadLogsForRange) rather than re-slicing an in-memory 1000-doc
-// batch, so switching to "Last hour" actually reads fewer docs instead of
-// just hiding rows the app already paid to fetch.
-async function reloadForRange(profile) {
-  if (loadingRange) return;
-  loadingRange = true;
-  const tableWrap = document.querySelector(".table-wrap");
-  if (tableWrap) tableWrap.innerHTML = `<div class="empty-state"><p>Loading…</p></div>`;
-  try {
-    logs = await loadLogsForRange(filters.range);
-  } catch (err) {
-    console.error("Failed to load audit logs for range:", err);
-    toast("Couldn't load logs for that range.", "error");
-    logs = [];
-  } finally {
-    loadingRange = false;
-  }
-  const kpiMount = document.getElementById("audit-kpi-mount");
-  if (kpiMount) renderKpis(kpiMount);
-  const summaryEl = document.querySelector(".page-header p");
-  if (summaryEl) summaryEl.textContent = summaryLine();
-  rerender(profile);
-}
-
-function rerender(profile) {
-  const filterMount = document.querySelector(".card");
-  const tableWrap = document.querySelector(".table-wrap");
-  if (filterMount) renderFilters(filterMount, profile);
-  if (tableWrap) renderTable(tableWrap);
-}
-
-function exportCsv() {
-  const list = getFiltered();
-  if (!list.length) {
-    toast("Nothing to export for the current filters.", "info");
-    return;
-  }
-  const header = ["When", "User", "Role", "Action", "Module", "Record ID"];
-  const rows = list.map((l) => {
-    const { label } = describeLog(l);
-    const u = usersById.get(l.userId);
-    return [formatDateTime(l.timestamp), userLabel(l.userId), roleLabel(u?.role), label, l.entity || "", l.entityId || ""];
-  });
-  const csv = [header, ...rows]
-    .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "audit-trail.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// --------------------------------------------------------------- table --
-
-function emptyState(title, message) {
-  return el("div", { class: "empty-state" }, [
-    el("span", { class: "material-symbols-rounded empty-state__icon" }, "policy"),
-    el("h3", {}, title),
-    el("p", {}, message),
-  ]);
-}
-
-function renderTable(container) {
-  container.innerHTML = "";
-
-  if (!logs.length) {
-    const rangeLabel = (RANGE_LABELS[filters.range] || "").toLowerCase();
-    container.append(
-      emptyState("No activity in this window", `No actions were logged for "${rangeLabel}". Try a wider range above.`)
-    );
-    return;
+  function userName(id) {
+    const entry = usersById.get(id);
+    return entry?.fullName || entry?.email || (id && id !== "unknown" ? id : "Unknown user");
   }
 
-  const list = getFiltered();
-  if (!list.length) {
-    container.append(emptyState("No matches", "Try adjusting or clearing your filters."));
-    return;
+  function syncChoices() {
+    updateOptions(moduleSelect, logs.map((log) => log.entity), "All modules", moduleName);
+    updateOptions(action, logs.map((log) => log.action), "All actions", readable);
+    updateOptions(user, logs.map((log) => log.userId), "All users", userName);
   }
 
-  const table = el("table", {}, [
-    el("thead", {}, el("tr", {}, [
-      el("th", {}, "When"),
-      el("th", {}, "User"),
-      el("th", {}, "Action"),
-      el("th", {}, "Module"),
-      el("th", {}, "Record"),
-    ])),
-  ]);
-  const tbody = el("tbody", {});
+  function refreshSummary() {
+    const counts = new Map();
+    let busiest;
+    for (const { entity } of logs) {
+      if (!entity) continue;
+      counts.set(entity, (counts.get(entity) || 0) + 1);
+      if (!busiest || counts.get(entity) > counts.get(busiest)) busiest = entity;
+    }
+    actionsStat.value.textContent = state === "ready" ? String(logs.length) : "—";
+    const userCount = new Set(logs.map((log) => log.userId).filter((id) => id && id !== "unknown")).size;
+    usersStat.value.textContent = state === "ready" ? String(userCount) : "—";
+    moduleStat.value.textContent = state === "ready" && busiest ? moduleName(busiest) : "—";
+  }
 
-  for (const log of list) {
-    const { icon: iconName, color, label } = describeLog(log);
-    const u = usersById.get(log.userId);
+  function refreshList() {
+    const query = search.value.trim().toLowerCase();
+    const activeFilters = [moduleSelect, action, user].filter((control) => control.value).length;
+    const hasFilters = !!(query || activeFilters);
+    clear.hidden = !hasFilters && range.value === DEFAULT_RANGE;
+    filterLabel.textContent = activeFilters ? `More filters (${activeFilters})` : "More filters";
+    matching = state === "ready" ? logs.filter((log) => {
+      if (moduleSelect.value && log.entity !== moduleSelect.value) return false;
+      if (action.value && log.action !== action.value) return false;
+      if (user.value && log.userId !== user.value) return false;
+      if (!query) return true;
+      return [describeLog(log).label, log.entity, moduleName(log.entity), log.entityId, userName(log.userId)]
+        .filter(Boolean).join(" ").toLowerCase().includes(query);
+    }) : [];
+    exportButton.disabled = !matching.length;
+    result.textContent = state === "ready" && logs.length
+      ? (hasFilters ? `${matching.length} of ${logs.length} entries` : `${logs.length} ${logs.length === 1 ? "entry" : "entries"}`)
+      : "";
 
-    const userCell = el("td", { "data-label": "User" }, [
-      el("div", { style: "font-weight:600; color:var(--color-primary-900); font-size:var(--fs-sm);" }, userLabel(log.userId)),
-      u?.role ? el("div", { class: "text-xs text-muted" }, roleLabel(u.role)) : "",
-    ]);
+    if (state === "loading") {
+      table.replaceChildren(el("p", { class: "records-pending", role: "status" }, "Loading activity…"));
+    } else if (state === "error") {
+      table.replaceChildren(recordEmpty("error_outline", "Activity couldn’t load", "Try loading the selected time range again.",
+        el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: reload }, "Retry")));
+    } else if (!logs.length) {
+      table.replaceChildren(recordEmpty("history", "No activity in this range", "Choose a wider time range to see earlier activity."));
+    } else if (!matching.length) {
+      table.replaceChildren(recordEmpty("search_off", "No matching activity", "Adjust the search or filters to find more entries."));
+    } else {
+      table.replaceChildren(renderActivity(matching, userName, usersById));
+    }
+  }
 
-    const actionCell = el("td", { "data-label": "Action" }, [
-      el("div", { style: "display:flex; align-items:center; gap:8px;" }, [
-        el("span", { class: `material-symbols-rounded text-${color}`, style: "font-size:18px;" }, iconName),
-        label,
+  function clearFilters() {
+    const rangeChanged = range.value !== DEFAULT_RANGE;
+    search.value = moduleSelect.value = action.value = user.value = "";
+    range.value = DEFAULT_RANGE;
+    search.focus();
+    if (rangeChanged) reload();
+    else refreshList();
+  }
+
+  async function reload() {
+    const request = ++requestVersion;
+    const requestedRange = range.value;
+    state = "loading";
+    refreshSummary();
+    refreshList();
+    try {
+      const nextLogs = await loadLogs(requestedRange);
+      if (request !== requestVersion) return;
+      logs = nextLogs;
+      state = "ready";
+    } catch (error) {
+      if (request !== requestVersion) return;
+      console.error("Could not load audit activity", error);
+      logs = [];
+      state = "error";
+    }
+    syncChoices();
+    refreshSummary();
+    refreshList();
+  }
+
+  syncChoices();
+  search.addEventListener("input", refreshList);
+  [moduleSelect, action, user].forEach((control) => control.addEventListener("change", refreshList));
+  range.addEventListener("change", reload);
+  workspace.append(
+    el("section", { class: "records-card", "aria-labelledby": "audit-summary" }, [
+      el("div", { class: "records-toolbar records-card-head" }, [
+        el("h2", { id: "audit-summary" }, "Activity overview"),
+        el("div", { class: "records-actions" }, [recordField("Time range", range), exportButton]),
       ]),
-    ]);
+      el("dl", { class: "records-stats" }, [actionsStat.item, usersStat.item, moduleStat.item]),
+    ]),
+    el("section", { class: "records-card", "aria-labelledby": "audit-log" }, [
+      el("div", { class: "records-toolbar records-card-head" }, [el("h2", { id: "audit-log" }, "Activity log"), clear]),
+      el("div", { class: "records-controls records-controls--audit" }, [
+        recordField("Search activity", search), toggleFilters, advanced,
+      ]),
+      el("div", { class: "records-result" }, result),
+      table,
+    ]),
+  );
+  await Promise.all([
+    reload(),
+    listSchoolUsers().then((users) => { usersById = new Map(users.map((entry) => [entry.uid, entry])); }).catch(() => {}),
+  ]);
+  syncChoices();
+  refreshList();
+  return workspace;
+}
 
-    tbody.append(
-      el("tr", {}, [
-        el("td", { "data-label": "When" }, [
-          el("div", { style: "font-size:var(--fs-sm);" }, formatDateTime(log.timestamp)),
-        ]),
-        userCell,
-        actionCell,
-        el("td", { "data-label": "Module" }, log.entity ? el("span", { class: "badge badge--muted" }, log.entity.replace(/_/g, " ")) : "N/A"),
-        el("td", { "data-label": "Record" }, log.entityId ? el("span", { class: "text-xs text-muted", title: log.entityId }, log.entityId.length > 16 ? `${log.entityId.slice(0, 16)}…` : log.entityId) : el("span", { class: "text-muted" }, "—")),
-      ])
-    );
-  }
+function renderActivity(logs, userName, usersById) {
+  return el("table", { class: "records-table records-table--audit", "aria-labelledby": "audit-log" }, [
+    el("thead", {}, el("tr", {}, ["Action", "User", "When", "Module", "Record"].map((heading) => el("th", { scope: "col" }, heading)))),
+    el("tbody", {}, logs.map((log) => {
+      const { icon: symbol, color, label } = describeLog(log);
+      const role = readable(usersById.get(log.userId)?.role);
+      return el("tr", {}, [
+        el("td", { "data-label": "Action", class: "records-table-lead" }, el("div", { class: "records-identity" }, [icon(symbol, `text-${color}`, { "aria-hidden": "true" }), el("strong", {}, label)])),
+        el("td", { "data-label": "User" }, el("div", {}, [el("strong", {}, userName(log.userId)), role ? el("div", { class: "records-muted" }, role) : null])),
+        el("td", { "data-label": "When" }, formatDateTime(log.timestamp)),
+        el("td", { "data-label": "Module" }, log.entity ? el("span", { class: "records-tag" }, moduleName(log.entity)) : "—"),
+        el("td", { "data-label": "Record" }, log.entityId ? el("code", { class: "records-record-id" }, log.entityId) : "—"),
+      ]);
+    })),
+  ]);
+}
 
-  table.append(tbody);
-  container.append(table);
+function exportCsv(logs, userName, usersById) {
+  const header = ["When", "User", "Role", "Action", "Module", "Record ID"];
+  const rows = logs.map((log) => [
+    formatDateTime(log.timestamp), userName(log.userId), readable(usersById.get(log.userId)?.role),
+    describeLog(log).label, log.entity || "", log.entityId || "",
+  ]);
+  const csv = [header, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  el("a", { href: url, download: "audit-trail.csv" }).click();
+  URL.revokeObjectURL(url);
 }

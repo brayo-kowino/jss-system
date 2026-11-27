@@ -1,458 +1,235 @@
-import {
-  listSchoolTickets,
-  raiseSupportTicket,
-  resolveSupportTicket,
-} from "../js/services/support.service.js";
+import { listSchoolTickets, raiseSupportTicket, resolveSupportTicket } from "../js/services/support.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
-import { openModal } from "../js/components/modal.js";
+import { caseStatus, caseStatusFilter, openRecordModal, recordEmpty, recordField } from "../js/components/records-workspace.js";
 
-let tickets = [];
-let activeFilter = "all";
-let tableContainer = null;
+export { buildSupportMascotSvg } from "../js/components/mascot.js";
 
-import { buildSupportMascotSvg } from "../js/components/mascot.js";
-export { buildSupportMascotSvg };
+const SUPPORT_EMAIL = "iskify360.tech@gmail.com";
+const TICKET_CATEGORIES = [
+  ["Academic & Grading", "Academics & grading"],
+  ["Attendance & Students", "Attendance & student records"],
+  ["Fee Invoicing & Receipts", "Fees & receipts"],
+  ["System Access & Accounts", "Accounts & access"],
+  ["General Assistance", "General assistance"],
+];
 
-function renderRow(ticket, profile) {
-  const isOpen = ticket.status === "open";
-  const tr = el("tr", { class: isOpen ? "" : "row-dimmed" });
-
-  const statusBadge = el(
-    "span",
-    {
-      class: `badge badge--${isOpen ? "warning" : "success"}`,
-      style: "display:inline-flex; align-items:center; gap:4px; font-weight:600;",
-    },
-    [
-      icon(isOpen ? "schedule" : "check_circle", "text-sm"),
-      isOpen ? "Open" : "Resolved",
-    ]
-  );
-
-  const ticketId = ticket.id ? `#${ticket.id.slice(0, 6).toUpperCase()}` : "";
-
-  tr.append(
-    el("td", { "data-label": "Subject & Details" }, [
-      el("div", { style: "display:flex; align-items:center; gap:6px; margin-bottom:2px;" }, [
-        ticketId ? el("span", { class: "support-ticket-id" }, ticketId) : "",
-        el("strong", { style: "color:var(--color-primary-900); font-size:var(--fs-sm);" }, ticket.subject),
-      ]),
-      el(
-        "div",
-        {
-          class: "text-sm text-muted",
-          style: "max-width: 440px; white-space: normal; line-height: 1.4;",
-        },
-        ticket.message
-      ),
-    ]),
-    el("td", { "data-label": "Date Raised" }, [
-      el("span", { style: "display:inline-flex; align-items:center; gap:4px; font-size:var(--fs-xs); color:var(--color-ink-soft);" }, [
-        icon("calendar_today", "text-sm"),
-        formatDate(ticket.raisedAt?.seconds * 1000) || "Recent",
-      ]),
-    ]),
-    el("td", { "data-label": "Status" }, statusBadge),
-    el("td", { "data-label": "Resolution / Reply" }, [
-      !isOpen && ticket.resolutionNote
-        ? el("div", { class: "support-reply-bubble" }, [
-            el("div", { style: "font-weight:600; font-size:11px; margin-bottom:2px; color:var(--color-primary-700);" }, "Support Team Reply:"),
-            ticket.resolutionNote,
-          ])
-        : el("span", { class: "text-muted text-xs" }, "Pending response"),
-    ]),
-    el("td", { "data-label": "Actions", class: "row-actions" }, [
-      el("div", { style: "display:flex; gap:6px; align-items:center;" }, [
-        el("button", {
-          type: "button",
-          class: "btn btn--ghost btn--xs",
-          title: "View full ticket",
-          onClick: () => showTicketDetailsModal(ticket, profile),
-        }, [icon("visibility"), "View"]),
-        isOpen
-          ? el(
-              "button",
-              {
-                type: "button",
-                class: "btn btn--ghost btn--xs",
-                title: "Mark ticket as resolved",
-                style: "color:var(--color-green);",
-                onClick: () => handleCloseTicket(ticket, profile),
-              },
-              [icon("check_circle"), "Resolve"]
-            )
-          : "",
-      ]),
-    ])
-  );
-  return tr;
+function ticketInfo(ticket) {
+  const subject = ticket.subject || "Support ticket";
+  const category = TICKET_CATEGORIES.find(([id]) => subject.startsWith(`[${id}] `));
+  return {
+    subject: category ? subject.slice(category[0].length + 3) : subject,
+    reference: ticket.id ? `#${ticket.id.slice(0, 6).toUpperCase()}` : "",
+    category: category?.[1],
+    date: ticket.raisedAt ? formatDate(ticket.raisedAt) : "Date unavailable",
+  };
 }
 
-function renderTable(profile) {
-  const filteredTickets = tickets.filter((t) => {
-    if (activeFilter === "open") return t.status === "open";
-    if (activeFilter === "resolved") return t.status !== "open";
-    return true;
+export async function render({ profile }) {
+  let tickets = [];
+  let active = "all";
+  let state = "loading";
+  let requestVersion = 0;
+
+  const page = el("div", { class: "records-workspace" });
+  const list = el("div", { class: "records-list" });
+  const result = el("p", { class: "records-muted", role: "status" });
+  const search = el("input", { type: "search", id: "support-search", placeholder: "Search by subject or ticket ID" });
+  const statusFilter = caseStatusFilter((status) => {
+    active = status;
+    update();
   });
+  const newTicket = el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: () => showNewTicket(profile, afterCreate) }, [icon("add"), "New ticket"]);
+  const reset = el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: resetFilters }, "Clear filters");
 
-  const openCount = tickets.filter((t) => t.status === "open").length;
-  const resolvedCount = tickets.filter((t) => t.status !== "open").length;
-
-  const card = el("div", { class: "support-tickets-card" });
-
-  // Filter toolbar
-  const header = el("div", { class: "support-tickets-card__header" }, [
-    el("div", { class: "support-tickets-card__title-group" }, [
-      el("h3", { class: "support-tickets-card__title" }, [
-        icon("confirmation_number"),
-        "Your Support Tickets",
-      ]),
-      el("span", { class: "badge badge--neutral", style: "font-size:11px;" }, `${tickets.length} total`),
-    ]),
-    el("div", { class: "module-actions" }, [
-      el("div", { class: "support-filter-tabs" }, [
-        filterButton("all", `All (${tickets.length})`, profile),
-        filterButton("open", `Open (${openCount})`, profile),
-        filterButton("resolved", `Resolved (${resolvedCount})`, profile),
-      ]),
-      el("button", {
-        type: "button",
-        class: "btn btn--primary btn--sm",
-        onClick: () => showRaiseTicketModal(profile),
-      }, [icon("add"), "New Ticket"]),
-    ]),
-  ]);
-  card.append(header);
-
-  if (filteredTickets.length === 0) {
-    card.append(
-      el("p", { class: "module-empty-note support-tickets-empty" },
-        activeFilter === "open" ? "You have no open tickets." : "No support tickets match this filter."
-      )
-    );
-    return card;
+  function resetFilters() {
+    active = "all";
+    search.value = "";
+    update();
+    search.focus();
   }
 
-  const tableWrap = el("div", { class: "table-wrap table-wrap--responsive" }, [
-    el("table", {}, [
-      el("thead", {}, [
-        el("tr", {}, [
-          el("th", {}, "Subject & Details"),
-          el("th", { style: "width: 140px;" }, "Date Raised"),
-          el("th", { style: "width: 110px;" }, "Status"),
-          el("th", {}, "Resolution / Reply"),
-          el("th", { style: "width: 130px;" }, "Actions"),
-        ]),
-      ]),
-      el("tbody", {}, filteredTickets.map((t) => renderRow(t, profile))),
-    ]),
-  ]);
-  card.append(tableWrap);
-
-  return card;
-}
-
-function filterButton(id, label, profile) {
-  const btn = el(
-    "button",
-    {
-      type: "button",
-      class: `support-filter-btn${activeFilter === id ? " support-filter-btn--active" : ""}`,
-      onClick: () => {
-        activeFilter = id;
-        reRender(profile);
-      },
-    },
-    label
-  );
-  return btn;
-}
-
-function showTicketDetailsModal(ticket, profile) {
-  const isOpen = ticket.status === "open";
-  const body = el("div", { style: "display:flex; flex-direction:column; gap:16px;" });
-
-  const statusBadge = el(
-    "span",
-    { class: `badge badge--${isOpen ? "warning" : "success"}` },
-    isOpen ? "Open" : "Resolved"
-  );
-
-  const headerInfo = el("div", {
-    style: "display:flex; justify-content:space-between; align-items:center; padding-bottom:12px; border-bottom:1px solid var(--color-line);",
-  }, [
-    el("div", {}, [
-      el("div", { style: "font-size:11px; font-weight:700; color:var(--color-primary-700);" }, `TICKET ${ticket.id ? `#${ticket.id.slice(0, 8).toUpperCase()}` : ""}`),
-      el("div", { style: "font-size:var(--fs-xs); color:var(--color-ink-soft); margin-top:2px;" }, `Raised on ${formatDate(ticket.raisedAt?.seconds * 1000) || "Recent"}`),
-    ]),
-    statusBadge,
-  ]);
-
-  const subjectBox = el("div", {}, [
-    el("label", { style: "font-size:var(--fs-xs); text-transform:uppercase; color:var(--color-ink-soft); font-weight:700;" }, "Subject"),
-    el("h4", { style: "margin:4px 0 0; color:var(--color-primary-900);" }, ticket.subject),
-  ]);
-
-  const messageBox = el("div", {}, [
-    el("label", { style: "font-size:var(--fs-xs); text-transform:uppercase; color:var(--color-ink-soft); font-weight:700;" }, "Your Message"),
-    el("div", {
-      style: "background:var(--color-cream-dim); padding:12px; border-radius:var(--radius-md); margin-top:4px; font-size:var(--fs-sm); line-height:1.5; white-space:pre-wrap;",
-    }, ticket.message),
-  ]);
-
-  const replyBox = el("div", {}, [
-    el("label", { style: "font-size:var(--fs-xs); text-transform:uppercase; color:var(--color-ink-soft); font-weight:700;" }, "Platform Support Resolution"),
-    ticket.resolutionNote
-      ? el("div", {
-          style: "background:var(--color-surface-alt, var(--color-cream-dim)); border-left:4px solid var(--color-green); padding:12px; border-radius:0 var(--radius-md) var(--radius-md) 0; margin-top:4px; font-size:var(--fs-sm); line-height:1.5; color:var(--color-ink);",
-        }, ticket.resolutionNote)
-      : el("div", { style: "color:var(--color-ink-soft); font-size:var(--fs-sm); font-style:italic; margin-top:4px;" }, "Our support team is reviewing your ticket and will update you shortly."),
-  ]);
-
-  const footerActions = el("div", {
-    style: "display:flex; justify-content:flex-end; gap:8px; padding-top:12px; border-top:1px solid var(--color-line);",
-  });
-
-  const closeBtn = el("button", { type: "button", class: "btn btn--ghost btn--sm" }, "Close");
-  footerActions.append(closeBtn);
-
-  if (isOpen) {
-    const resolveBtn = el("button", { type: "button", class: "btn btn--primary btn--sm" }, [icon("check_circle"), "Mark Resolved"]);
-    resolveBtn.addEventListener("click", async () => {
-      closeModal();
-      await handleCloseTicket(ticket, profile);
+  function update() {
+    const open = tickets.filter((ticket) => ticket.status === "open").length;
+    statusFilter.update(active, { all: tickets.length, open, resolved: tickets.length - open });
+    const query = search.value.trim().toLowerCase();
+    const matching = tickets.filter((ticket) => {
+      if (active === "open" && ticket.status !== "open") return false;
+      if (active === "resolved" && ticket.status === "open") return false;
+      const { reference, category } = ticketInfo(ticket);
+      return [ticket.subject, ticket.message, reference, category].filter(Boolean).join(" ").toLowerCase().includes(query);
     });
-    footerActions.append(resolveBtn);
+    reset.hidden = active === "all" && !query;
+    result.textContent = state === "ready" && tickets.length && !reset.hidden ? `${matching.length} of ${tickets.length} tickets` : "";
+
+    if (state === "loading") {
+      list.replaceChildren(el("p", { class: "records-pending", role: "status" }, "Loading tickets…"));
+    } else if (state === "error") {
+      list.replaceChildren(recordEmpty("error_outline", "Tickets couldn’t load", "Try loading your school’s tickets again.",
+        el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: reload }, "Retry")));
+    } else if (!tickets.length) {
+      list.replaceChildren(recordEmpty("confirmation_number", "No support tickets yet", "Create a ticket to track a request and see replies here."));
+    } else if (!matching.length) {
+      const noMatches = query ? "No tickets match this search" : `No ${active} tickets`;
+      list.replaceChildren(recordEmpty("search_off", noMatches, "Try another search or clear your filters."));
+    } else {
+      list.replaceChildren(el("ul", { class: "support-ticket-list" }, matching.map((ticket) => {
+        const { subject, reference, category, date } = ticketInfo(ticket);
+        const open = ticket.status === "open";
+        return el("li", { class: "support-ticket-item" }, [
+          el("div", { class: "records-item-content" }, [
+            el("button", { type: "button", class: "records-title-link", onClick: () => showTicket(ticket, profile, reload) }, subject),
+            el("p", { class: "records-muted records-meta" }, [reference, category].filter(Boolean).join(" · ")),
+            ticket.message ? el("p", { class: "records-excerpt" }, ticket.message) : null,
+            ticket.resolutionNote ? el("p", { class: "records-muted records-excerpt" }, [el("strong", {}, "Resolution "), ticket.resolutionNote]) : null,
+          ]),
+          el("div", { class: "support-ticket-item__status" }, [caseStatus(open), el("span", { class: "records-muted" }, date)]),
+        ]);
+      })));
+    }
   }
 
-  body.append(headerInfo, subjectBox, messageBox, replyBox, footerActions);
-  const closeModal = openModal("Ticket Details", body);
-  closeBtn.addEventListener("click", closeModal);
+  async function reload() {
+    const request = ++requestVersion;
+    state = "loading";
+    list.setAttribute("aria-busy", "true");
+    update();
+    try {
+      const nextTickets = await listSchoolTickets();
+      if (request !== requestVersion) return;
+      tickets = nextTickets;
+      state = "ready";
+    } catch (error) {
+      if (request !== requestVersion) return;
+      console.error("Could not load support tickets", error);
+      tickets = [];
+      state = "error";
+    }
+    list.removeAttribute("aria-busy");
+    update();
+  }
+
+  function afterCreate() {
+    active = "open";
+    search.value = "";
+    return reload();
+  }
+
+  search.addEventListener("input", update);
+  page.append(el("div", { class: "records-split" }, [
+    el("section", { class: "records-card", "aria-labelledby": "support-tickets" }, [
+      el("div", { class: "records-toolbar records-card-head" }, [el("h2", { id: "support-tickets" }, "Support tickets"), newTicket]),
+      el("div", { class: "records-controls" }, [recordField("Search tickets", search),
+        el("div", { class: "records-toolbar" }, [statusFilter.group, reset])]),
+      el("div", { class: "records-result" }, result),
+      list,
+    ]),
+    contactPanel(),
+  ]));
+  await reload();
+  return page;
 }
 
-function showRaiseTicketModal(profile) {
-  const body = el("form", {});
-
-  const categorySelect = el("select", { id: "ticket-category", style: "width:100%; margin-bottom:12px;" }, [
-    el("option", { value: "Academic & Grading" }, "Academic & Grading Scale"),
-    el("option", { value: "Attendance & Students" }, "Attendance & Student Registry"),
-    el("option", { value: "Fee Invoicing & Receipts" }, "Fees & Accounting"),
-    el("option", { value: "System Access & Accounts" }, "System Access & Security"),
-    el("option", { value: "General Assistance" }, "General Assistance / Other"),
-  ]);
-
-  const subjectInput = el("input", {
-    id: "ticket-subject",
-    placeholder: "e.g. Assistance with report card mean points calculation",
-    required: "true",
-  });
-
-  const messageInput = el("textarea", {
-    id: "ticket-message",
-    placeholder: "Please describe the question, screen, or student records involved in detail…",
-    rows: "5",
-    required: "true",
-  });
-
-  const cancelBtn = el("button", { type: "button", class: "btn btn--ghost" }, "Cancel");
-  const submitBtn = el("button", { type: "submit", class: "btn btn--primary" }, [icon("send"), "Submit Ticket"]);
-
-  const actions = el(
-    "div",
-    { style: "display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4);" },
-    [cancelBtn, submitBtn]
-  );
-
-  body.append(
-    el("div", {
-      style: "display:flex; align-items:center; gap:12px; background:var(--color-cream-dim); padding:10px 14px; border-radius:var(--radius-md); margin-bottom:var(--sp-4);",
-    }, [
-      el("div", {
-        style: "width:48px; height:48px; flex-shrink:0;",
-        innerHTML: buildSupportMascotSvg({ width: 48, height: 48 }),
-      }),
-      el("p", { class: "text-sm text-muted", style: "margin:0; line-height:1.4;" },
-        "Submit your issue directly to the ISKIFY360 engineering desk. We investigate promptly."
-      ),
-    ]),
-    el("div", { class: "field" }, [
-      el("label", { for: "ticket-category" }, "Category"),
-      categorySelect,
-    ]),
-    el("div", { class: "field" }, [
-      el("label", { for: "ticket-subject" }, "Subject / Topic"),
-      subjectInput,
-    ]),
-    el("div", { class: "field" }, [
-      el("label", { for: "ticket-message" }, "Detailed Description"),
-      messageInput,
-    ]),
-    actions
-  );
-
-  const close = openModal("Raise Support Ticket", body);
-
-  cancelBtn.addEventListener("click", close);
-
-  body.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const category = categorySelect.value;
-    const rawSubject = subjectInput.value.trim();
-    const message = messageInput.value.trim();
-    if (!rawSubject || !message) {
-      return toast("Please fill in both subject and description.", "error");
-    }
-    const subject = `[${category}] ${rawSubject}`;
-    const restore = busyButton(e.submitter, "Submitting…");
+function contactPanel() {
+  const copy = el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: async () => {
     try {
-      await raiseSupportTicket(profile.uid, { subject, message });
-      toast("Support ticket dispatched successfully.", "success");
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
+      toast("Support email copied.", "success");
+    } catch {
+      toast("Couldn’t copy the address. You can select and copy it from the email link.", "error");
+    }
+  } }, [icon("content_copy"), "Copy email"]);
+
+  return el("aside", { class: "records-card support-contacts", "aria-labelledby": "support-contact" }, [
+    el("div", { class: "records-card-head" }, [
+      el("h2", { id: "support-contact" }, "Contact options"),
+      el("p", { class: "records-muted" }, "Mon–Fri, 8:00 AM–5:00 PM EAT"),
+    ]),
+    el("div", { class: "support-contact-row" }, [
+      icon("mail", { "aria-hidden": "true" }),
+      el("div", {}, [
+        el("h3", {}, "Email support"),
+        el("p", { class: "records-muted" }, "For billing, receipts, or general questions."),
+        el("a", { href: `mailto:${SUPPORT_EMAIL}` }, SUPPORT_EMAIL),
+        el("div", { class: "records-actions" }, copy),
+      ]),
+    ]),
+    el("div", { class: "support-contact-row" }, [
+      icon("headset_mic", { "aria-hidden": "true" }),
+      el("div", {}, [
+        el("h3", {}, "Urgent help"),
+        el("p", { class: "records-muted" }, "Call or message us when school operations are blocked."),
+        el("a", { href: "tel:+254702495776" }, "+254 702 495 776"),
+        el("div", { class: "records-actions" }, el("a", {
+          class: "btn btn--ghost btn--sm",
+          href: "https://wa.me/254702495776?text=Hello%20Eeskia%20Support%2C%20I%20need%20assistance%20with%20our%20school%20account.",
+          target: "_blank", rel: "noopener noreferrer",
+        }, [icon("chat"), "WhatsApp"])),
+      ]),
+    ]),
+  ]);
+}
+
+function showNewTicket(profile, onCreated) {
+  const category = el("select", { id: "ticket-category" }, TICKET_CATEGORIES.map(([id, label]) => el("option", { value: id }, label)));
+  const subject = el("input", { id: "ticket-subject", placeholder: "e.g. Report cards won’t download", required: "" });
+  const message = el("textarea", { id: "ticket-message", placeholder: "Which screen were you using, and what happened?", rows: 5, required: "" });
+  const cancel = el("button", { type: "button", class: "btn btn--ghost", onClick: () => close() }, "Cancel");
+  const submit = el("button", { type: "submit", class: "btn btn--primary" }, [icon("send"), "Submit ticket"]);
+  const form = el("form", { class: "records-dialog-body" }, [
+    recordField("Category", category),
+    recordField("Subject", subject),
+    recordField("Description", message),
+    el("div", { class: "records-dialog-actions" }, [cancel, submit]),
+  ]);
+  const close = openRecordModal("New support ticket", form, category);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!subject.value.trim() || !message.value.trim()) {
+      toast("Enter a subject and description.", "error");
+      (subject.value.trim() ? message : subject).focus();
+      return;
+    }
+    if (submit.disabled) return;
+    const restore = busyButton(submit, "Submitting…");
+    try {
+      await raiseSupportTicket(profile.uid, { subject: `[${category.value}] ${subject.value.trim()}`, message: message.value.trim() });
+      toast("Support ticket submitted.", "success");
       close();
-      await loadData();
-      reRender(profile);
-    } catch (err) {
-      console.error(err);
-      toast(err.message || "Could not submit ticket.", "error");
+      await onCreated();
+    } catch (error) {
+      toast(error.message || "Couldn’t submit the ticket.", "error");
       restore();
     }
   });
 }
 
-async function handleCloseTicket(ticket, profile) {
-  if (!confirm("Are you sure you want to mark this ticket as resolved?")) return;
-  try {
-    await resolveSupportTicket(profile.uid, ticket.id, "Resolved by school administrator.");
-    toast("Ticket marked as resolved.", "success");
-    await loadData();
-    reRender(profile);
-  } catch (err) {
-    console.error(err);
-    toast("Failed to close ticket.", "error");
-  }
-}
-
-async function loadData() {
-  tickets = await listSchoolTickets();
-}
-
-function reRender(profile) {
-  if (tableContainer) {
-    tableContainer.innerHTML = "";
-    tableContainer.appendChild(renderTable(profile));
-  }
-}
-
-export async function render({ profile }) {
-  await loadData();
-
-  const wrap = el("div", { class: "support-page" });
-  tableContainer = el("div", {}, [renderTable(profile)]);
-  wrap.append(tableContainer);
-
-  wrap.append(el("div", { class: "module-toolbar support-contact-heading" }, [
-    el("h2", { class: "module-section-title" }, "Contact Options"),
-    el("span", { class: "text-muted text-sm" }, "Mon–Fri, 8:00 AM–5:00 PM EAT · Typical response under 2 hours"),
-  ]));
-
-  // Direct contact options
-  const contactCards = el("div", { class: "support-channels-grid" }, [
-    // Card 1: Email Support
-    el("div", { class: "support-channel-card" }, [
-      el("div", {}, [
-        el("div", { class: "support-channel-card__head" }, [
-          el("div", { class: "support-channel-card__icon-wrap support-channel-card__icon-wrap--mail" }, [
-            icon("mark_email_read"),
-          ]),
-          el("div", {}, [
-            el("span", { class: "support-channel-card__badge" }, "Standard Inquiries"),
-            el("h4", { class: "support-channel-card__title" }, "Email Support Helpdesk"),
-          ]),
-        ]),
-        el(
-          "p",
-          { class: "support-channel-card__desc" },
-          "For formal requests, billing reconciliations, official receipts, or detailed feature suggestions."
-        ),
-      ]),
-      el("div", { class: "support-channel-card__action-row" }, [
-        el("a", {
-          href: "mailto:iskify360.tech@gmail.com",
-          class: "support-channel-card__contact-link support-channel-card__contact-link--mail",
-        }, [icon("send", "text-sm"), "iskify360.tech@gmail.com"]),
-        el("button", {
-          type: "button",
-          class: "btn btn--ghost btn--xs",
-          title: "Copy email address",
-          onClick: async () => {
-            await navigator.clipboard.writeText("iskify360.tech@gmail.com");
-            toast("Support email copied to clipboard.", "success");
-          },
-        }, [icon("content_copy"), "Copy"]),
-      ]),
-    ]),
-
-    // Card 2: Emergency Phone / WhatsApp
-    el("div", { class: "support-channel-card" }, [
-      el("div", {}, [
-        el("div", { class: "support-channel-card__head" }, [
-          el("div", { class: "support-channel-card__icon-wrap support-channel-card__icon-wrap--phone" }, [
-            icon("headset_mic"),
-          ]),
-          el("div", {}, [
-            el("span", { class: "support-channel-card__badge", style: "color:var(--color-green);" }, "Live Urgent Hotline"),
-            el("h4", { class: "support-channel-card__title" }, "Emergency Phone & WhatsApp"),
-          ]),
-        ]),
-        el(
-          "p",
-          { class: "support-channel-card__desc" },
-          "For urgent blockers affecting live operations, timetable cutoffs, or report card dispatches."
-        ),
-      ]),
-      el("div", { class: "support-channel-card__action-row" }, [
-        el("a", {
-          href: "tel:+254702495776",
-          class: "support-channel-card__contact-link support-channel-card__contact-link--phone",
-        }, [icon("call", "text-sm"), "+254 702 495 776"]),
-        el("a", {
-          href: "https://wa.me/254702495776?text=Hello%20Eeskia%20Support%2C%20I%20need%20assistance%20with%20our%20school%20account.",
-          target: "_blank",
-          rel: "noopener noreferrer",
-          class: "btn btn--ghost btn--xs",
-          style: "color:var(--color-green); font-weight:700;",
-        }, [icon("chat"), "WhatsApp"]),
-      ]),
-    ]),
-
-    // Card 3: In-App Ticket Desk
-    el("div", { class: "support-channel-card" }, [
-      el("div", {}, [
-        el("div", { class: "support-channel-card__head" }, [
-          el("div", { class: "support-channel-card__icon-wrap support-channel-card__icon-wrap--ticket" }, [
-            icon("confirmation_number"),
-          ]),
-          el("div", {}, [
-            el("span", { class: "support-channel-card__badge", style: "color:#B45309;" }, "Direct Tracking"),
-            el("h4", { class: "support-channel-card__title" }, "Direct Support Ticket"),
-          ]),
-        ]),
-        el(
-          "p",
-          { class: "support-channel-card__desc" },
-          "Submit questions directly to our engineering queue with full audit history and status tracking."
-        ),
-      ]),
-      el("div", { class: "support-channel-card__action-row" }, [
-        el("span", { style: "font-size:var(--fs-xs); color:var(--color-ink-soft);" }, "Tracked in portal"),
-        el("button", {
-          type: "button",
-          class: "btn btn--outline btn--xs",
-          onClick: () => showRaiseTicketModal(profile),
-        }, [icon("add_circle"), "Raise Ticket"]),
-      ]),
-    ]),
+function showTicket(ticket, profile, onUpdated) {
+  const isOpen = ticket.status === "open";
+  const { subject, reference, category, date } = ticketInfo(ticket);
+  const dismiss = el("button", { type: "button", class: "btn btn--ghost", onClick: () => close() }, "Close");
+  const actions = el("div", { class: "records-dialog-actions" }, dismiss);
+  const body = el("div", { class: "records-dialog-body" }, [
+    el("div", { class: "records-toolbar" }, [el("span", { class: "records-muted" }, [reference, category, date].filter(Boolean).join(" · ")), caseStatus(isOpen)]),
+    el("h4", { class: "records-detail-title" }, subject),
+    el("section", { class: "records-detail" }, [el("h4", {}, "Message"), el("p", {}, ticket.message || "No message recorded.")]),
+    el("section", { class: "records-detail" }, [el("h4", {}, "Resolution"), el("p", {}, ticket.resolutionNote || (isOpen ? "Awaiting a reply from support." : "No resolution note recorded."))]),
+    actions,
   ]);
-  wrap.append(contactCards);
-
-  return wrap;
+  if (isOpen) {
+    actions.append(el("button", { type: "button", class: "btn btn--primary", onClick: async (event) => {
+      if (!confirm("Mark this support ticket as resolved?")) return;
+      const restore = busyButton(event.currentTarget, "Resolving…");
+      try {
+        await resolveSupportTicket(profile.uid, ticket.id, "Resolved by school administrator.");
+        toast("Ticket marked as resolved.", "success");
+        close();
+        await onUpdated();
+      } catch (error) {
+        toast(error.message || "Couldn’t resolve this ticket.", "error");
+        restore();
+      }
+    } }, [icon("check"), "Mark resolved"]));
+  }
+  const close = openRecordModal("Ticket details", body);
 }
