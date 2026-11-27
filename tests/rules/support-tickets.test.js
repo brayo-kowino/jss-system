@@ -37,17 +37,24 @@ describe("Support ticket permissions", () => {
   it("rejects school-side resolution on create and update", async () => {
     const db = authedDb(env, "school-admin");
     await assertFails(updateDoc(doc(db, "support_tickets", "existing"), { status: "resolved", resolutionNote: "Closed by school" }));
-    await assertFails(setDoc(doc(db, "support_tickets", "closed"), { ...ticket, status: "resolved" }));
-    await assertFails(setDoc(doc(db, "support_tickets", "reply"), { ...ticket, resolutionNote: "Forged support reply" }));
+    await assertFails(setDoc(doc(db, "support_tickets", "closed"), { ...ticket, status: "resolved", raisedAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, "support_tickets", "reply"), { ...ticket, resolutionNote: "Forged support reply", raisedAt: serverTimestamp() }));
   });
 
-  it("allows platform support to resolve and reopen tickets", async () => {
+  it("allows platform support to read across schools and reserves status writes for the server", async () => {
     const platformTicket = doc(authedDb(env, "platform-support"), "support_tickets", "existing");
     const schoolTicket = doc(authedDb(env, "school-admin"), "support_tickets", "existing");
-    await assertSucceeds(updateDoc(platformTicket, { status: "resolved", resolutionNote: "Template corrected", resolvedBy: "platform-support", resolvedAt: serverTimestamp() }));
+    await assertSucceeds(getDoc(platformTicket));
+    await assertFails(updateDoc(platformTicket, { status: "resolved" }));
+    await env.withSecurityRulesDisabled(async (context) => {
+      await updateDoc(doc(context.firestore(), "support_tickets", "existing"), { status: "resolved", resolutionNote: "Template corrected" });
+      await setDoc(doc(context.firestore(), "support_tickets", "existing", "events", "resolution"), { message: "Template corrected" });
+    });
     const resolved = await assertSucceeds(getDoc(schoolTicket));
     expect(resolved.data().resolutionNote).toBe("Template corrected");
     await assertFails(updateDoc(schoolTicket, { status: "open" }));
-    await assertSucceeds(updateDoc(platformTicket, { status: "open", resolutionNote: "", resolvedBy: null, resolvedAt: null }));
+    await assertSucceeds(getDoc(doc(schoolTicket, "events", "resolution")));
+    const otherSchool = authedDb(env, "other-school");
+    await assertFails(getDoc(doc(otherSchool, "support_tickets", "existing", "events", "resolution")));
   });
 });

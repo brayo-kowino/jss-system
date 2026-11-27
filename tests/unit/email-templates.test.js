@@ -6,10 +6,20 @@ import {
   buildFeeReminderEmail,
   buildGeneralNotificationEmail,
   buildPlatformBroadcastEmail,
+  buildSupportTicketEmail,
   buildPasswordChangedSecurityEmail,
 } from "../../netlify/functions/lib/email-templates.mjs";
 
 describe("Eeskia Email Engine - Branded Email Templates", () => {
+  it("uses the branded layout and ticket link in resolution emails", () => {
+    const ticketUrl = "https://eeskia.iskify360.tech/app/?school=example#/support?ticket=test123";
+    const email = buildSupportTicketEmail({ title: "Your support ticket was resolved", reference: "#TEST12", ticketUrl, askForFeedback: true });
+    expect(email.html).toContain("View ticket");
+    expect(email.html).toContain(ticketUrl);
+    expect(email.html).toContain("#TEST12");
+    expect(email.text).toContain("rate the support");
+  });
+
   it("renders base email with proper card structure, Eeskia logo, typography, and escaping", () => {
     const html = renderBaseEmail({
       brandName: "Eeskia",

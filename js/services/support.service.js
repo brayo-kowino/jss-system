@@ -2,49 +2,49 @@
 import {
   collection,
   doc,
-  addDoc,
-  updateDoc,
   getDoc,
   getDocs,
   query,
   where,
   limit,
   orderBy,
-  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { db } from "../firebase-config.js";
-import { logAction } from "./audit.service.js";
-import { getCurrentSchoolId, getCurrentSchool } from "./auth.service.js";
+import { auth, db } from "../firebase-config.js";
+import { getCurrentSchoolId } from "./auth.service.js";
 
-export async function raiseSupportTicket(userId, { subject, message }) {
-  if (!subject) throw new Error("Subject is required.");
-  if (!message) throw new Error("Message is required.");
-  const schoolId = getCurrentSchoolId();
-  if (!schoolId) throw new Error("Must be associated with a school to raise a ticket.");
-
-  let school = getCurrentSchool();
-  let schoolName = school?.schoolName || school?.name;
-  if (!schoolName) {
-    try {
-      const snap = await getDoc(doc(db, "schools", schoolId));
-      if (snap.exists()) {
-        const data = snap.data();
-        schoolName = data.schoolName || data.name;
-      }
-    } catch (e) {}
-  }
-
-  const ref_ = await addDoc(collection(db, "support_tickets"), {
-    schoolId,
-    schoolName: schoolName || "Unknown School",
-    subject: subject.trim(),
-    message: message.trim(),
-    status: "open",
-    raisedBy: userId,
-    raisedAt: serverTimestamp(),
+export async function submitSupportAction(action, ticketId, fields, requestId = crypto.randomUUID()) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("Sign in to use support tickets.");
+  const response = await fetch("/.netlify/functions/support-ticket-action", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fields, action, ticketId, requestId }),
   });
-  await logAction(userId, "raise_support_ticket", "support_tickets", ref_.id);
-  return ref_.id;
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data?.ticketId) throw new Error(data?.error || "Couldn’t save the ticket update. Please try again.");
+  return data.ticketId;
+}
+
+export function raiseSupportTicket(fields, requestId) {
+  return submitSupportAction("create", null, fields, requestId);
+}
+
+export async function getSupportTicket(id) {
+  const ticket = await getDoc(doc(db, "support_tickets", id));
+  return ticket.exists() ? { id: ticket.id, ...ticket.data() } : null;
+}
+
+export async function listSupportEvents(id) {
+  const snapshot = await getDocs(query(collection(db, "support_tickets", id, "events"), orderBy("at")));
+  return snapshot.docs.map((entry) => entry.data());
+}
+
+export async function listSupportUpdates(uid) {
+  const schoolId = getCurrentSchoolId();
+  if (!schoolId || !uid) return [];
+  const snapshot = await getDocs(query(collection(db, "users", uid, "support_updates"),
+    where("schoolId", "==", schoolId), orderBy("createdAt", "desc"), limit(5)));
+  return snapshot.docs.map((entry) => entry.data());
 }
 
 export async function listSchoolTickets() {
@@ -72,31 +72,6 @@ export async function listAllPlatformTickets(statusFilter = null) {
       if (a.status !== b.status) return a.status === "open" ? -1 : 1;
       return (b.raisedAt?.seconds || 0) - (a.raisedAt?.seconds || 0);
     });
-}
-
-export async function resolveSupportTicket(userId, id, resolutionNote) {
-  await updateDoc(doc(db, "support_tickets", id), {
-    status: "resolved",
-    resolutionNote: (resolutionNote || "").trim(),
-    resolvedBy: userId,
-    resolvedAt: serverTimestamp(),
-  });
-  // Using try/catch for logAction since super_admin might not be logged properly if cross-school
-  try {
-    await logAction(userId, "resolve_support_ticket", "support_tickets", id);
-  } catch (err) {}
-}
-
-export async function reopenSupportTicket(userId, id) {
-  await updateDoc(doc(db, "support_tickets", id), {
-    status: "open",
-    resolvedBy: null,
-    resolvedAt: null,
-    resolutionNote: "",
-  });
-  try {
-    await logAction(userId, "reopen_support_ticket", "support_tickets", id);
-  } catch (err) {}
 }
 
 export async function listErrorLogs(codeQuery = null) {

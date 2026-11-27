@@ -235,7 +235,7 @@ export const TOUR_STEPS = [
     category: "Platform",
     shortcut: "Ctrl+3",
     icon: "confirmation_number",
-    body: "Triage, assign, and resolve incoming technical support tickets submitted by school administrators.",
+    body: "Reply to school tickets, check overdue cases, and review requests for more help.",
   },
   {
     target: '[data-tour="nav-platform-error-logs"]',

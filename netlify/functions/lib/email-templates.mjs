@@ -554,6 +554,22 @@ export function buildPlatformBroadcastEmail({
   };
 }
 
+export function buildSupportTicketEmail({ title, reference, ticketUrl, askForFeedback = false }) {
+  const feedback = "You can rate the support or ask for more help from the ticket.";
+  return {
+    subject: `${title} · Eeskia`,
+    text: `${title}.\nReference: ${reference}\n\nView the ticket in Eeskia:\n${ticketUrl}${askForFeedback ? `\n\n${feedback}` : ""}`,
+    html: renderBaseEmail({
+      title,
+      badgeText: "Support ticket",
+      keyDetails: [{ label: "Ticket reference", value: reference }],
+      ctaButton: { label: "View ticket", url: ticketUrl },
+      secondaryNote: askForFeedback ? feedback : "",
+      footerText: "This update was sent by Eeskia Support.",
+    }),
+  };
+}
+
 // --------------------------------------------------------------------------
 // Specialized Template: Account Password Changed Security Alert
 // Urgent transactional notification sent when a password is changed,

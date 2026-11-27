@@ -169,17 +169,18 @@
 .support-ticket-item__view { grid-area: view; justify-self: end; min-height: 36px; }
 .support-ticket-detail__header { display: flex; justify-content: space-between; align-items: start; gap: var(--sp-3); }
 .support-ticket-detail__header .records-status { flex: none; }
-.support-ticket-detail__metadata {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 187px), 1fr));
-  gap: var(--sp-2) var(--sp-3);
-  margin: 0;
-  padding: 0 0 var(--sp-3);
-  border-bottom: 1px solid var(--color-line);
-  font-size: var(--fs-sm);
+.support-updates {
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
 }
-.support-ticket-detail__metadata dt { color: var(--color-ink-soft); font-size: var(--fs-xs); }
-.support-ticket-detail__metadata dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+.support-updates ul { margin: var(--sp-2) 0 0; padding: 0; list-style: none; }
+.support-updates li + li { margin-top: var(--sp-1); }
+.support-updates a { color: var(--color-primary-900); font-size: var(--fs-sm); }
+.support-ticket-detail .records-details > form { margin-top: var(--sp-3); }
+.support-ticket-detail .records-detail p { overflow-wrap: anywhere; }
 .support-contacts .records-card-head > p { margin-top: var(--sp-1); }
 .support-contact-row { display: flex; gap: var(--sp-3); padding: var(--sp-4); border-top: 1px solid var(--color-line); }
 .support-contact-row > div { min-width: 0; overflow-wrap: anywhere; }

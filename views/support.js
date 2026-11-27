@@ -1,6 +1,7 @@
-import { listSchoolTickets, raiseSupportTicket } from "../js/services/support.service.js";
+import { listSchoolTickets, listSupportUpdates, raiseSupportTicket } from "../js/services/support.service.js";
 import { el, icon, formatDate, busyButton, toast } from "../js/utils.js";
 import { caseStatus, caseStatusFilter, openRecordModal, recordEmpty, recordField } from "../js/components/records-workspace.js";
+import { openSupportTicket, SUPPORT_UPDATE_LABELS } from "../js/components/support-ticket.js";
 
 export { buildSupportMascotSvg } from "../js/components/mascot.js";
 
@@ -24,7 +25,7 @@ function ticketInfo(ticket) {
   };
 }
 
-export async function render({ profile }) {
+export async function render({ profile, params = {} }) {
   let tickets = [];
   let active = "all";
   let state = "loading";
@@ -32,13 +33,14 @@ export async function render({ profile }) {
 
   const page = el("div", { class: "records-workspace" });
   const list = el("div", { class: "records-list" });
+  const updates = el("div", { class: "support-updates", hidden: "" });
   const result = el("p", { class: "records-muted", role: "status" });
   const search = el("input", { type: "search", id: "support-search", placeholder: "Search by subject or ticket ID" });
   const statusFilter = caseStatusFilter((status) => {
     active = status;
     update();
   });
-  const newTicket = el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: () => showNewTicket(profile, afterCreate) }, [icon("add"), "New ticket"]);
+  const newTicket = el("button", { type: "button", class: "btn btn--primary btn--sm", onClick: () => showNewTicket(afterCreate) }, [icon("add"), "New ticket"]);
   const reset = el("button", { type: "button", class: "btn btn--ghost btn--sm", onClick: resetFilters }, "Clear filters");
 
   function resetFilters() {
@@ -72,7 +74,7 @@ export async function render({ profile }) {
       const noMatches = query ? "No tickets match this search" : `No ${active} tickets`;
       list.replaceChildren(recordEmpty("search_off", noMatches, "Try another search or clear your filters."));
     } else {
-      list.replaceChildren(el("ul", { class: "support-ticket-list" }, matching.map(ticketRow)));
+      list.replaceChildren(el("ul", { class: "support-ticket-list" }, matching.map((ticket) => ticketRow(ticket, showTicket, params.ticket))));
     }
   }
 
@@ -96,16 +98,40 @@ export async function render({ profile }) {
     update();
   }
 
-  function afterCreate() {
+  async function refreshUpdates() {
+    try {
+      const notices = await listSupportUpdates(profile.uid);
+      updates.replaceChildren(el("h3", {}, "Recent updates"), el("ul", {}, notices.flatMap((notice) => {
+        const label = SUPPORT_UPDATE_LABELS[notice.kind];
+        return label ? [el("li", {}, el("a", { href: `#/support?ticket=${encodeURIComponent(notice.ticketId)}` }, [
+          label, el("span", { class: "records-muted" }, ` · #${notice.ticketId.slice(0, 6).toUpperCase()} · ${formatDate(notice.createdAt)}`),
+        ]))] : [];
+      })));
+      updates.hidden = !updates.querySelector("a");
+    } catch (error) {
+      console.warn("Support updates unavailable", error.code || error.name);
+    }
+  }
+
+  function showTicket(ticket) {
+    const { subject, category } = ticketInfo(ticket);
+    openSupportTicket(ticket, { profile, subject, category, onUpdate: (current) => {
+      tickets = tickets.map((entry) => entry.id === current.id ? current : entry);
+      update();
+    } });
+  }
+
+  async function afterCreate() {
     active = "open";
     search.value = "";
-    return reload();
+    await Promise.all([reload(), refreshUpdates()]);
   }
 
   search.addEventListener("input", update);
   page.append(el("div", { class: "records-split" }, [
     el("section", { class: "records-card", "aria-labelledby": "support-tickets" }, [
       el("div", { class: "records-toolbar records-card-head" }, [el("h2", { id: "support-tickets" }, "Support tickets"), newTicket]),
+      updates,
       el("div", { class: "records-controls" }, [recordField("Search tickets", search),
         el("div", { class: "records-toolbar" }, [statusFilter.group, reset])]),
       el("div", { class: "records-result" }, result),
@@ -113,11 +139,20 @@ export async function render({ profile }) {
     ]),
     contactPanel(),
   ]));
-  await reload();
+  await Promise.all([reload(), refreshUpdates()]);
+  if (params.ticket && state === "ready" && !tickets.some((ticket) => ticket.id === params.ticket)) {
+    list.prepend(el("p", { class: "records-pending", role: "status" }, "This ticket is unavailable."));
+  }
   return page;
 }
 
-function ticketRow(ticket) {
+export function init() {
+  const button = document.querySelector("[data-open-support-ticket]");
+  button?.focus();
+  button?.click();
+}
+
+function ticketRow(ticket, showTicket, linkedId) {
   const { subject, reference, category, date } = ticketInfo(ticket);
   return el("li", { class: "support-ticket-item" }, [
     el("div", { class: "support-ticket-item__summary" }, [
@@ -130,11 +165,13 @@ function ticketRow(ticket) {
     ]),
     el("div", { class: "support-ticket-item__status" }, [
       caseStatus(ticket.status === "open"),
+      ticket.followUpRequestedAt ? el("span", { class: "records-muted" }, "Follow-up requested") : null,
       el("span", { class: "records-muted" }, date),
     ]),
     el("button", {
       type: "button", class: "btn btn--ghost btn--sm support-ticket-item__view",
       "aria-label": `View ticket: ${subject}`,
+      "data-open-support-ticket": ticket.id === linkedId ? "" : null,
       onClick: () => showTicket(ticket),
     }, ["View ticket", icon("chevron_right", { "aria-hidden": "true" })]),
   ]);
@@ -180,10 +217,11 @@ function contactPanel() {
   ]);
 }
 
-function showNewTicket(profile, onCreated) {
+function showNewTicket(onCreated) {
   const category = el("select", { id: "ticket-category" }, TICKET_CATEGORIES.map(([id, label]) => el("option", { value: id }, label)));
-  const subject = el("input", { id: "ticket-subject", placeholder: "e.g. Report cards won’t download", required: "" });
-  const message = el("textarea", { id: "ticket-message", placeholder: "Which screen were you using, and what happened?", rows: 5, required: "" });
+  const subject = el("input", { id: "ticket-subject", placeholder: "e.g. Report cards won’t download", maxlength: 180, required: "" });
+  const message = el("textarea", { id: "ticket-message", placeholder: "Which screen were you using, and what happened?", rows: 5, maxlength: 6000, required: "" });
+  const requestId = crypto.randomUUID();
   const cancel = el("button", { type: "button", class: "btn btn--ghost", onClick: () => close() }, "Cancel");
   const submit = el("button", { type: "submit", class: "btn btn--primary" }, [icon("send"), "Submit ticket"]);
   const form = el("form", { class: "records-dialog-body" }, [
@@ -204,7 +242,7 @@ function showNewTicket(profile, onCreated) {
     if (submit.disabled) return;
     const restore = busyButton(submit, "Submitting…");
     try {
-      await raiseSupportTicket(profile.uid, { subject: `[${category.value}] ${subject.value.trim()}`, message: message.value.trim() });
+      await raiseSupportTicket({ subject: `[${category.value}] ${subject.value.trim()}`, message: message.value.trim() }, requestId);
       toast("Support ticket submitted.", "success");
       close();
       await onCreated();
@@ -213,29 +251,4 @@ function showNewTicket(profile, onCreated) {
       restore();
     }
   });
-}
-
-function showTicket(ticket) {
-  const isOpen = ticket.status === "open";
-  const { subject, category, date } = ticketInfo(ticket);
-  const metadata = [
-    ticket.id ? ["Ticket ID", ticket.id] : null,
-    ["Submitted", date],
-    category ? ["Category", category] : null,
-    !isOpen && ticket.resolvedAt ? ["Resolved", formatDate(ticket.resolvedAt)] : null,
-  ].filter(Boolean);
-  const done = el("button", { type: "button", class: "btn btn--primary", onClick: () => close() }, "Done");
-  const body = el("div", { class: "records-dialog-body" }, [
-    el("div", { class: "support-ticket-detail__header" }, [el("h4", { class: "records-detail-title" }, subject), caseStatus(isOpen)]),
-    el("dl", { class: "support-ticket-detail__metadata" }, metadata.map(([label, value]) => el("div", {}, [
-      el("dt", {}, label), el("dd", {}, value),
-    ]))),
-    el("section", { class: "records-detail" }, [el("h4", {}, "Ticket message"), el("p", {}, ticket.message || "No message recorded.")]),
-    el("section", { class: "records-detail" }, [
-      el("h4", {}, isOpen ? "Support response" : "Resolution"),
-      el("p", {}, ticket.resolutionNote || (isOpen ? "Awaiting a response from platform support." : "No resolution note recorded.")),
-    ]),
-    el("div", { class: "records-dialog-actions" }, done),
-  ]);
-  const close = openRecordModal("Ticket details", body);
 }

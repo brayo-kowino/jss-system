@@ -3,7 +3,15 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
+
+[functions.support-ticket-action]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin"]
+
+[functions.support-ticket-followups]
+  node_bundler = "esbuild"
+  external_node_modules = ["firebase-admin", "nodemailer"]
 
 # ==========================================================================
 # Build step (Vite)

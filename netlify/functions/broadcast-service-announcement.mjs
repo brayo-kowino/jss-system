@@ -6,9 +6,9 @@
 // ==========================================================================
 
 import { webcrypto } from "node:crypto";
-import nodemailer from "nodemailer";
 import { buildServiceAnnouncementEmail, buildPlatformBroadcastEmail } from "./lib/email-templates.mjs";
 import { verifyFirebaseIdToken } from "./lib/auth-helper.mjs";
+import { createGmailSender, createPlatformEmailDispatcher } from "./lib/email-dispatch.mjs";
 
 const PROJECT_ID = "jss-management-system";
 const FIRESTORE_BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -203,11 +203,7 @@ export default async (req) => {
     console.warn("broadcast-service-announcement: platform_settings/email fetch skipped", err);
   }
 
-  // Determine platform SMTP credentials (from Firestore or environment variables)
-  const platformUser = platformEmailSettings?.smtpUser || process.env.PLATFORM_EMAIL_USER || process.env.GMAIL_USER;
-  const platformPass = platformEmailSettings?.smtpPass || process.env.PLATFORM_EMAIL_PASS || process.env.GMAIL_PASS;
-  const platformSenderName = platformEmailSettings?.senderName || "Eeskia Notifications";
-  const platformReplyTo = platformEmailSettings?.replyTo || platformUser || "support@eeskia.iskify360.tech";
+  const platformMail = createPlatformEmailDispatcher(platformEmailSettings);
 
   // Build the email template according to selected style
   const emailContent = emailStyle === "status_report"
@@ -232,7 +228,7 @@ export default async (req) => {
 
   // Handle direct test email dispatch
   if (testRecipient) {
-    if (!platformUser || !platformPass) {
+    if (!platformMail.send) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -244,15 +240,8 @@ export default async (req) => {
     }
 
     try {
-      const testTransporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: { user: platformUser, pass: platformPass },
-      });
-
-      await testTransporter.sendMail({
-        from: `"${platformSenderName}" <${platformUser}>`,
+      await platformMail.send({
         to: testRecipient,
-        replyTo: platformReplyTo,
         subject: emailContent.subject,
         text: `${headline}\n\n${plainMessage}\n\nEeskia Platform: ${actionUrl}`,
         html: emailContent.html,
@@ -315,41 +304,21 @@ export default async (req) => {
     );
   }
 
-  let platformTransporter = null;
-  if (platformUser && platformPass) {
-    platformTransporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: platformUser, pass: platformPass },
-    });
-  }
-
   let broadcastCount = 0;
   const dispatchedTo = [];
 
   for (const school of targetList) {
     const adminEmail = school.adminEmail || schoolAdminMap.get(school.id) || school.email;
-    const schoolProviders = school.notificationProviders || {};
+    const gmail = school.notificationProviders?.gmail;
+    const send = platformMail.send || createGmailSender({
+      user: gmail?.address, pass: gmail?.appPassword,
+      senderName: platformMail.senderName, replyTo: platformMail.replyTo,
+    });
 
-    let transporter = platformTransporter;
-    let senderAddress = platformUser || "support@eeskia.iskify360.tech";
-
-    if (!transporter && schoolProviders.gmail?.address && schoolProviders.gmail?.appPassword) {
-      transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: schoolProviders.gmail.address,
-          pass: schoolProviders.gmail.appPassword,
-        },
-      });
-      senderAddress = schoolProviders.gmail.address;
-    }
-
-    if (adminEmail && transporter) {
+    if (adminEmail && send) {
       try {
-        await transporter.sendMail({
-          from: `"${platformSenderName}" <${senderAddress}>`,
+        await send({
           to: adminEmail,
-          replyTo: platformReplyTo,
           subject: emailContent.subject,
           text: `${headline}\n\n${plainMessage}\n\nEeskia Platform: ${actionUrl}`,
           html: emailContent.html,

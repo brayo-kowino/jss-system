@@ -526,10 +526,26 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || (isStaff() && ownsExisting());
       allow create: if isStaff() && ownsIncoming()
         && request.resource.data.raisedBy == request.auth.uid
+        && request.resource.data.raisedAt == request.time
         && request.resource.data.status == 'open'
-        && !request.resource.data.keys().hasAny(['resolutionNote', 'resolvedBy', 'resolvedAt']);
-      allow update: if isSuperAdmin();
+        && request.resource.data.subject is string && request.resource.data.subject.size() > 0 && request.resource.data.subject.size() <= 220
+        && request.resource.data.message is string && request.resource.data.message.size() > 0 && request.resource.data.message.size() <= 6000
+        && request.resource.data.keys().hasOnly(['schoolId', 'schoolName', 'raisedBy', 'raisedAt', 'status', 'subject', 'message']);
+      // Workflow mutations use the authenticated server function so updates,
+      // their conversation history, and notifications commit together.
+      allow update: if false;
       allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if isSuperAdmin() || (isStaff() && mySchoolId() != null
+          && get(/databases/$(database)/documents/support_tickets/$(docId)).data.schoolId == mySchoolId());
+        allow write: if false;
+      }
+    }
+
+    match /users/{uid}/support_updates/{updateId} {
+      allow read: if isStaff() && request.auth.uid == uid && ownsExisting();
+      allow write: if false;
     }
 
     // Teacher accounts/assignments - PII (phone, TSC number, email).

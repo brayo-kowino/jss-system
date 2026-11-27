@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const data = vi.hoisted(() => ({
-  tickets: vi.fn(), raiseTicket: vi.fn(),
+  tickets: vi.fn(), platformTickets: vi.fn(), raiseTicket: vi.fn(), getTicket: vi.fn(), ticketEvents: vi.fn(), ticketUpdates: vi.fn(), supportAction: vi.fn(),
   issues: vi.fn(), raiseIssue: vi.fn(), resolveIssue: vi.fn(), reopenIssue: vi.fn(), students: vi.fn(),
   logsSince: vi.fn(), recentLogs: vi.fn(),
 }));
 vi.mock("../../js/services/support.service.js", () => ({
-  listSchoolTickets: data.tickets, raiseSupportTicket: data.raiseTicket,
+  listSchoolTickets: data.tickets, raiseSupportTicket: data.raiseTicket, getSupportTicket: data.getTicket,
+  listSupportEvents: data.ticketEvents, listSupportUpdates: data.ticketUpdates, submitSupportAction: data.supportAction,
+  listAllPlatformTickets: data.platformTickets,
 }));
+vi.mock("../../js/services/school.service.js", () => ({ listSchools: async () => [] }));
+vi.mock("../../js/services/recovery.service.js", () => ({ openAccountRecoveryModal: vi.fn() }));
 vi.mock("../../js/services/student-issue.service.js", () => ({
   listAllIssuesForSchool: data.issues, raiseIssue: data.raiseIssue, resolveIssue: data.resolveIssue, reopenIssue: data.reopenIssue,
   ISSUE_CATEGORIES: [{ value: "score_dispute", label: "Wrong / inaccurate score" }], issueCategoryLabel: (id) => id,
@@ -21,7 +25,8 @@ vi.mock("../../js/services/auth.service.js", () => ({ listSchoolUsers: async () 
 
 import { render as renderAudit } from "../../views/audit.js";
 import { render as renderIssues } from "../../views/student-issues.js";
-import { render as renderSupport } from "../../views/support.js";
+import { init as openPlatformLink, render as renderPlatform } from "../../views/platform-tickets.js";
+import { render as renderSupport, init as openLinkedTicket } from "../../views/support.js";
 
 const profile = { uid: "operator" };
 const ticket = { id: "tkt12345", subject: "Report card help", message: "The PDF has a blank page.", status: "resolved", resolutionNote: "Template corrected." };
@@ -47,9 +52,28 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal("confirm", () => true);
   data.tickets.mockResolvedValue([ticket]);
+  data.platformTickets.mockResolvedValue([]);
+  data.ticketEvents.mockResolvedValue([]);
+  data.ticketUpdates.mockResolvedValue([]);
   data.issues.mockResolvedValue([openIssue]);
   data.students.mockResolvedValue([{ id: "student-1", fullName: "Sample Learner", admissionNumber: "ADM-1" }]);
   data.logsSince.mockResolvedValue([log]);
+});
+
+describe("Platform support queue", () => {
+  it("filters overdue cases and opens a linked resolved ticket independently of that queue", async () => {
+    const overdue = { ...ticket, status: "open", raisedAt: new Date("2025-01-01T08:00:00Z") };
+    const current = { ...overdue, id: "current", subject: "New case", raisedAt: new Date() };
+    data.platformTickets.mockResolvedValue([overdue, current]);
+    data.getTicket.mockResolvedValue({ ...ticket, status: "resolved", followUpRequestedAt: new Date() });
+    document.body.append(await renderPlatform({ profile, params: { ticket: ticket.id } }));
+    edit("#platform-ticket-filter", "overdue", "change");
+    await vi.waitFor(() => expect(find(".records-list").textContent).toContain("First response overdue"));
+    expect(find(".records-list").textContent).not.toContain("New case");
+    openPlatformLink();
+    expect(dialog().textContent).toContain("Follow-up requested.");
+    expect(button("Reopen ticket", dialog())).toBeTruthy();
+  });
 });
 
 afterEach(() => {
@@ -88,11 +112,30 @@ describe("Contact Support", () => {
     submitDialog();
     const getViewButton = () => find('button[aria-label="View ticket: Term grades"]');
     await vi.waitFor(() => expect(getViewButton()).toBeTruthy());
-    expect(data.raiseTicket).toHaveBeenCalledExactlyOnceWith(profile.uid, { subject: created.subject, message: created.message });
+    expect(data.raiseTicket).toHaveBeenCalledExactlyOnceWith({ subject: created.subject, message: created.message }, expect.any(String));
     expect(button("Open (1)").getAttribute("aria-pressed")).toBe("true");
     getViewButton().click();
     expect(dialog().textContent).toContain("Awaiting a response from platform support.");
-    expect([...dialog().querySelectorAll("button")].map((item) => item.getAttribute("aria-label") || item.textContent)).toEqual(["Close", "Done"]);
+    expect(button("Post reply", dialog())).toBeTruthy();
+    expect(button("Post and resolve", dialog())).toBeUndefined();
+  });
+
+  it("links a notification to its ticket and lets the reporter request more help", async () => {
+    const resolved = { ...ticket, raisedBy: profile.uid };
+    data.tickets.mockResolvedValue([resolved]);
+    data.ticketUpdates.mockResolvedValue([{ kind: "resolved", ticketId: ticket.id, createdAt: new Date() }]);
+    data.getTicket.mockResolvedValue({ ...resolved, followUpRequestedAt: new Date() });
+    data.supportAction.mockResolvedValue(ticket.id);
+    document.body.append(await renderSupport({ profile, params: { ticket: ticket.id } }));
+    expect(find(".support-updates a").getAttribute("href")).toBe(`#/support?ticket=${ticket.id}`);
+    openLinkedTicket();
+    expect(dialog().textContent).toContain("Rate the support you received");
+    find("details").open = true;
+    edit("#support-ticket-reply", "The export still fails");
+    const reply = button("Request follow-up", dialog());
+    reply.form.requestSubmit(reply);
+    await vi.waitFor(() => expect(dialog().textContent).toContain("Follow-up requested."));
+    expect(data.supportAction).toHaveBeenCalledExactlyOnceWith("help", ticket.id, { message: "The export still fails" }, expect.any(String));
   });
 });
 
